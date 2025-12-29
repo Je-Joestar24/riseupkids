@@ -10,6 +10,7 @@ dotenv.config();
 
 // Import routes
 const apiRoutes = require('./routes/api');
+const authRoutes = require('./routes/auth.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -34,6 +35,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api', apiRoutes);
+app.use('/api/auth', authRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -42,7 +44,8 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     status: 'running',
     endpoints: {
-      api: '/api'
+      api: '/api',
+      auth: '/api/auth'
     }
   });
 });
