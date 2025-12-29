@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Sample API route - returns JSON data
-router.get('/', (req, res) => {
+router.post('/', (req, res) => {
   res.json({
     success: true,
     message: 'Rise Up Kids API is working!',
