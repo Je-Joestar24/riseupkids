@@ -1,6 +1,7 @@
 /* Import all component CSS files */
 @import './Login.css';
 @import './Auth.css';
+@import './ParentsChild.css';
 
 * {
     margin: 0;

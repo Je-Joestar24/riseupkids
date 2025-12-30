@@ -33,11 +33,8 @@ export const useAuth = () => {
     try {
       const result = await dispatch(loginUser({ email, password })).unwrap();
       
-      // Show success notification
-      dispatch(showNotification({
-        message: 'Login successful!',
-        type: 'success',
-      }));
+      // Don't show success notification - user will be redirected immediately
+      // Navigation is handled by the component
       
       return result;
     } catch (error) {

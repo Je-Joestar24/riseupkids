@@ -1,0 +1,97 @@
+/* Parents Child Selection Page Styles */
+
+.parents-child-page {
+    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
+    background-color: var(--theme-bg-login);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.parents-child-container {
+    width: 100%;
+}
+
+.parents-child-card {
+    background-color: var(--theme-bg-card);
+    border-radius: 0px;
+    box-shadow: var(--theme-shadow-lg);
+    width: fit-content;
+    margin: auto;
+    padding: 32px;
+}
+
+.parents-child-card-content {
+    width: 384px;
+}
+
+.parents-child-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.parents-child-welcome {
+    font-family: 'Quicksand', sans-serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    color: var(--theme-primary);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.parents-child-subtitle {
+    font-family: 'Quicksand', sans-serif;
+    font-size: 1rem;
+    color: var(--theme-text-secondary);
+    font-weight: 500;
+}
+
+.parents-child-list-container {
+    margin-bottom: 1.5rem;
+}
+
+.parents-child-add-container {
+    margin-bottom: 1.5rem;
+}
+
+.parents-child-links {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.parents-child-link {
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.parents-child-link:hover {
+    opacity: 0.7;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .parents-child-page {
+        padding: 1rem;
+    }
+
+    .parents-child-card-content {
+        padding: 24px !important;
+    }
+}
+
+@media (max-width: 400px) {
+    .parents-child-card-content {
+        padding: 20px !important;
+    }
+}
+

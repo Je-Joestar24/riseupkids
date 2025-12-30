@@ -34,17 +34,16 @@ const AuthLoginForm = () => {
   // Navigate after successful login
   useEffect(() => {
     if (isAuthenticated && user) {
-      // TODO: Navigate based on user role
-      // For now, just log success - will add dashboard routes later
-      console.log('User logged in:', user);
-      // Example navigation (uncomment when dashboard is ready):
-      // if (user.role === 'admin') {
-      //   navigate('/admin/dashboard');
-      // } else if (user.role === 'parent') {
-      //   navigate('/parent/dashboard');
-      // } else if (user.role === 'child') {
-      //   navigate('/child/dashboard');
-      // }
+      // Navigate based on user role
+      if (user.role === 'parent') {
+        navigate('/parents/child');
+      } else if (user.role === 'admin') {
+        // TODO: Navigate to admin dashboard when ready
+        console.log('Admin logged in - dashboard coming soon');
+      } else if (user.role === 'child') {
+        // TODO: Navigate to child dashboard when ready
+        console.log('Child logged in - dashboard coming soon');
+      }
     }
   }, [isAuthenticated, user, navigate]);
 
