@@ -1,0 +1,141 @@
+/* Auth Component Styles */
+
+/* Auth Logo Styles */
+.auth-logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-logo {
+    max-width: 180px;
+    height: auto;
+    object-fit: contain;
+}
+
+/* Auth Login Form Styles */
+.auth-login-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.auth-form-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: auto;
+    margin-bottom: 0.5rem;
+}
+
+.auth-form-title {
+    color: var(--theme-primary) !important;
+    font-size: 30px !important;
+    font-weight: 600;
+    font-size: 1.5rem;
+}
+
+.auth-lock-icon {
+    color: var(--theme-accent);
+    font-size: 1.25rem;
+}
+
+.auth-form-subtitle {
+    color: var(--theme-text-secondary);
+    font-size: 1rem;
+}
+
+.auth-field-container {
+    margin-bottom: 1.25rem;
+}
+
+.auth-field-label {
+    color: var(--theme-text);
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    display: block;
+    font-size: 0.875rem;
+}
+
+.auth-text-field {
+    background-color: #ffffff;
+}
+
+.auth-text-field .MuiOutlinedInput-root {
+    background-color: #ffffff;
+    border-radius: 8px;
+}
+
+.auth-text-field .MuiOutlinedInput-input {
+    padding: 12px 14px;
+    font-family: 'Quicksand', sans-serif;
+}
+
+.auth-password-toggle {
+    color: var(--theme-text-secondary);
+    padding: 4px;
+}
+
+.auth-password-toggle:hover {
+    color: var(--theme-primary);
+}
+
+.auth-signin-button {
+    background-color: rgb(98, 202, 202);
+    color: var(--theme-text-inverse);
+    padding: 12px 24px;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    font-family: 'Quicksand', sans-serif;
+    text-transform: none;
+    border-radius: 8px;
+    box-shadow: none;
+    transition: all 0.3s ease;
+}
+
+.auth-signin-button:hover {
+    background-color: #4a9f9f;
+    box-shadow: var(--theme-shadow-md);
+}
+
+.auth-links-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+}
+
+.auth-link {
+    color: var(--theme-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: 'Quicksand', sans-serif;
+    transition: color 0.3s ease;
+}
+
+.auth-link:hover {
+    color: var(--theme-secondary);
+    text-decoration: underline;
+}
+
+.auth-create-account-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+.auth-create-account-link {
+    color: var(--theme-text-muted);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-family: 'Quicksand', sans-serif;
+    transition: color 0.3s ease;
+}
+
+.auth-create-account-link:hover {
+    color: var(--theme-text-secondary);
+    text-decoration: underline;
+}
+

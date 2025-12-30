@@ -106,6 +106,7 @@ const theme = createTheme({
       bgTertiary: colors.bgTertiary,
       bgCard: colors.bgCard,
       bgOverlay: colors.bgOverlay,
+      bgLogin: 'rgb(244, 237, 216)',
       bgGradient: 'linear-gradient(to right bottom, rgb(98, 202, 202), rgb(133, 194, 185), rgb(98, 202, 202))',
       bgOrangeGradient: 'linear-gradient(to right, rgb(233, 138, 104), rgb(233, 138, 104))',
     },

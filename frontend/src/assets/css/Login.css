@@ -1,0 +1,51 @@
+/* Login Page Styles */
+
+.auth-login-page {
+    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
+    background-color: var(--theme-bg-login);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.auth-login-container {
+    width: 100%;
+    max-width: 500px;
+}
+
+.auth-login-card {
+    background-color: var(--theme-bg-card);
+    border-radius: 0px;
+    box-shadow: var(--theme-shadow-lg);
+    border: 1px solid var(--theme-border);
+    width: 100%;
+    padding: 32px;
+}
+
+.auth-login-card-content {
+    padding: 0px;
+    max-width: 384px;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .auth-login-page {
+        padding: 1rem;
+    }
+
+    .auth-login-card-content {
+        padding: 24px !important;
+    }
+}
+
+@media (max-width: 400px) {
+    .auth-login-card-content {
+        padding: 20px !important;
+    }
+}
+

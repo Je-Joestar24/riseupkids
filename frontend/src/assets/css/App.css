@@ -1,3 +1,7 @@
+/* Import all component CSS files */
+@import './Login.css';
+@import './Auth.css';
+
 * {
     margin: 0;
     padding: 0;
@@ -23,6 +27,7 @@
     --theme-bg-card: rgba(255, 255, 255, 0.95);
     --theme-bg-overlay: rgba(255, 255, 255, 0.9);
     --theme-bg-orange-gradient: linear-gradient(to right, rgb(233, 138, 104), rgb(233, 138, 104));
+    --theme-bg-login: rgb(244, 237, 216);
 
     /* Text Colors */
     --theme-text: #0f172a;
@@ -57,17 +62,26 @@ body {
     color: var(--theme-text);
     transition: background 0.3s ease, color 0.3s ease;
     min-height: 100vh;
-    padding-bottom: 100px; /* Space for fixed footer navigation */
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
 }
 
 #root {
     min-height: 100vh;
     width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 /* Smooth scroll */
 html {
     scroll-behavior: smooth;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
 }
 
 /* Custom scrollbar */

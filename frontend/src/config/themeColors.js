@@ -21,6 +21,7 @@ export const themeColors = {
   bgTertiary: '#f1f5f9',
   bgCard: 'rgba(255, 255, 255, 0.95)',
   bgOverlay: 'rgba(255, 255, 255, 0.9)',
+  bgLogin: 'rgb(244, 237, 216)',
   bgGradient: 'linear-gradient(to right bottom, rgb(98, 202, 202), rgb(133, 194, 185), rgb(98, 202, 202))',
   bgOrangeGradient: 'linear-gradient(to right, rgb(233, 138, 104), rgb(233, 138, 104))',
 
