@@ -3,6 +3,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store/store';
 import AppRouter from './router/AppRouter';
+import GlobalDialogBox from './components/common/GlobalDialogBox';
 import theme from './config/theme';
 import './assets/css/App.css';
 
@@ -12,6 +13,7 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AppRouter />
+        <GlobalDialogBox />
       </ThemeProvider>
     </Provider>
   );

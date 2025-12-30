@@ -23,8 +23,9 @@
     border-radius: 0px;
     box-shadow: var(--theme-shadow-lg);
     border: 1px solid var(--theme-border);
-    width: 100%;
+    width: fit-content;
     padding: 32px;
+    margin: auto;
 }
 
 .auth-login-card-content {

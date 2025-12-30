@@ -1,14 +1,22 @@
 import { configureStore } from '@reduxjs/toolkit';
 import apiReducer from './slices/apiSlice';
+import userReducer from './slices/userSlice';
+import uiReducer from './slices/uiSlice';
 
 export const store = configureStore({
   reducer: {
     api: apiReducer,
+    user: userReducer,
+    ui: uiReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
-        ignoredActions: ['api/fetchData/fulfilled'],
+        ignoredActions: [
+          'api/fetchData/fulfilled',
+          'ui/showConfirmationDialog',
+          'ui/hideConfirmationDialog',
+        ],
       },
     }),
 });

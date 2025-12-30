@@ -12,8 +12,8 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem('token');
+    // Add auth token if available (from sessionStorage)
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -32,9 +32,10 @@ api.interceptors.response.use(
   (error) => {
     // Handle common errors
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('token');
-      // You can add redirect logic here when login page is ready
+      // Unauthorized - clear token and user data
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
+      // Redirect to login will be handled by the app
     }
     return Promise.reject(error);
   }
