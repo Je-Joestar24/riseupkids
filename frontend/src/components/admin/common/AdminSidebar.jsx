@@ -13,15 +13,14 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
-  People as PeopleIcon,
-  MenuBook as MenuBookIcon,
-  School as SchoolIcon,
-  Forum as ForumIcon,
-  Notifications as NotificationsIcon,
-  Assessment as AssessmentIcon,
-  Settings as SettingsIcon,
-  HelpOutline as HelpOutlineIcon,
-  Dashboard,
+  DashboardOutlined,
+  PeopleOutline,
+  MenuBookOutlined,
+  SchoolOutlined,
+  ForumOutlined,
+  NotificationsNone,
+  SettingsOutlined,
+  HelpOutline,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -39,13 +38,14 @@ const AdminSidebar = () => {
   const location = useLocation();
 
   const menuItems = [
-    { text: 'Dashboard', icon: <Dashboard />, path: '/admin/dashboard' },
-    { text: 'Users', icon: <PeopleIcon />, path: '/admin/users' },
-    { text: 'Courses', icon: <MenuBookIcon />, path: '/admin/courses' },
-    { text: 'Learning Paths', icon: <SchoolIcon />, path: '/admin/learning-paths' },
-    { text: 'Communities', icon: <ForumIcon />, path: '/admin/communities' },
-    { text: 'Notifications', icon: <NotificationsIcon />, path: '/admin/notifications' },
-    { text: 'Settings', icon: <SettingsIcon />, path: '/admin/settings' },
+    { text: 'Dashboard', icon: <DashboardOutlined />, path: '/admin/dashboard' },
+    { text: 'Users', icon: <PeopleOutline />, path: '/admin/users' },
+    { text: 'Courses', icon: <MenuBookOutlined />, path: '/admin/courses' },
+    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' },
+    { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
+    { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
+    { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
+    { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'}
   ];
 
   const handleNavigation = (path) => {
