@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
 import ParentsChild from '../pages/parents/ParentsChild';
+import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminLayout from '../layouts/AdminLayout';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
 
@@ -29,6 +31,28 @@ const AppRouter = () => {
           }
         />
 
+        {/* Admin Routes */}
+        <Route
+          path="/admin/dashboard"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminDashboard />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminDashboard />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+
         {/* Default route - redirect to login */}
         <Route path="/" element={<AuthLogin />} />
 
@@ -39,4 +63,5 @@ const AppRouter = () => {
 };
 
 export default AppRouter;
+
 
