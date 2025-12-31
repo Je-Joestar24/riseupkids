@@ -2,12 +2,14 @@ import { configureStore } from '@reduxjs/toolkit';
 import apiReducer from './slices/apiSlice';
 import userReducer from './slices/userSlice';
 import uiReducer from './slices/uiSlice';
+import parentsReducer from './slices/parentsSlice';
 
 export const store = configureStore({
   reducer: {
     api: apiReducer,
     user: userReducer,
     ui: uiReducer,
+    parents: parentsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
