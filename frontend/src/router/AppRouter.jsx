@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
 import ParentsChild from '../pages/parents/ParentsChild';
 import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminUsers from '../pages/admin/AdminUsers';
 import AdminLayout from '../layouts/AdminLayout';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
@@ -38,6 +39,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminDashboard />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminUsers />
               </AdminLayout>
             </AuthedAccess>
           }

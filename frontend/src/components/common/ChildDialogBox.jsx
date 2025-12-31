@@ -1,27 +1,37 @@
 import React from 'react';
-import { useSelector } from 'react-redux';
-import AdminDialogBox from './AdminDialogBox';
-import ChildDialogBox from './ChildDialogBox';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Typography,
+  Box,
+  CircularProgress,
+  IconButton,
+} from '@mui/material';
+import {
+  CheckCircle,
+  Error as ErrorIcon,
+  Warning,
+  Info,
+  Close,
+} from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
+import { hideNotification, hideConfirmationDialog } from '../../store/slices/uiSlice';
+import { themeColors } from '../../config/themeColors';
 
 /**
- * GlobalDialogBox Component
+ * ChildDialogBox Component
  * 
- * Routes to appropriate dialog box based on user role
- * Admin users get professional dialogs, children get child-friendly dialogs
+ * Child-friendly dialog box with large fonts and colorful design
+ * For non-admin users (children and parents)
  */
-const GlobalDialogBox = () => {
-  const { user } = useSelector((state) => state.user);
-  
-  // Determine if user is admin
-  const isAdmin = user?.role === 'admin';
-
-  // Render appropriate dialog box based on user role
-  if (isAdmin) {
-    return <AdminDialogBox />;
-  }
-
-  // Default to child-friendly dialog for non-admin users
-  return <ChildDialogBox />;
+const ChildDialogBox = () => {
+  const dispatch = useDispatch();
+  const theme = useTheme();
+  const { notification, confirmationDialog } = useSelector((state) => state.ui);
 
   // Handle notification close
   const handleNotificationClose = () => {
@@ -239,5 +249,5 @@ const GlobalDialogBox = () => {
   );
 };
 
-export default GlobalDialogBox;
+export default ChildDialogBox;
 
