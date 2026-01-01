@@ -3,6 +3,7 @@ import apiReducer from './slices/apiSlice';
 import userReducer from './slices/userSlice';
 import uiReducer from './slices/uiSlice';
 import parentsReducer from './slices/parentsSlice';
+import childrenReducer from './slices/childrenSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     user: userReducer,
     ui: uiReducer,
     parents: parentsReducer,
+    children: childrenReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
