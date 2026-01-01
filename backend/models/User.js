@@ -11,15 +11,20 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: String,
-      required: [true, 'Please provide an email'],
+      required: function () {
+        return this.role !== 'child'; // Email not required for child role
+      },
       unique: true,
+      sparse: true, // Allow multiple null values (for children)
       lowercase: true,
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
     },
     password: {
       type: String,
-      required: [true, 'Please provide a password'],
+      required: function () {
+        return this.role !== 'child'; // Password not required for child role
+      },
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't return password by default
     },

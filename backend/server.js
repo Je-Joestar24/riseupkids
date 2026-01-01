@@ -12,6 +12,7 @@ dotenv.config();
 const apiRoutes = require('./routes/api');
 const authRoutes = require('./routes/auth.routes');
 const parentsRoutes = require('./routes/parents.routes');
+const childrenRoutes = require('./routes/children.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -38,6 +39,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/parents', parentsRoutes);
+app.use('/api/children', childrenRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -48,7 +50,8 @@ app.get('/', (req, res) => {
     endpoints: {
       api: '/api',
       auth: '/api/auth',
-      parents: '/api/parents'
+      parents: '/api/parents',
+      children: '/api/children'
     }
   });
 });
