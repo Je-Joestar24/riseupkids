@@ -19,10 +19,13 @@ import {
   Archive as ArchiveIcon,
   Restore as RestoreIcon,
   Visibility as VisibilityIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
 import { useDispatch } from 'react-redux';
 import { showConfirmationDialog } from '../../../store/slices/uiSlice';
+import AdminViewModal from './AdminViewModal';
+import AdminEditUserModal from './AdminEditUserModal';
 
 /**
  * AdminUsersTable Component
@@ -40,6 +43,10 @@ const AdminUsersTable = () => {
     restoreParentData,
     fetchParents,
   } = useParents();
+
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedParentId, setSelectedParentId] = useState(null);
 
   const handleArchive = (parent) => {
     dispatch(
@@ -118,6 +125,7 @@ const AdminUsersTable = () => {
   }
 
   return (
+    <>
     <TableContainer
       component={Paper}
       sx={{
@@ -283,6 +291,10 @@ const AdminUsersTable = () => {
                   <Tooltip title="View Details">
                     <IconButton
                       size="small"
+                      onClick={() => {
+                        setSelectedParentId(parent._id);
+                        setViewModalOpen(true);
+                      }}
                       sx={{
                         color: theme.palette.text.secondary,
                         '&:hover': {
@@ -294,6 +306,24 @@ const AdminUsersTable = () => {
                       <VisibilityIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Tooltip title="Edit">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setSelectedParentId(parent._id);
+                        setEditModalOpen(true);
+                      }}
+                      sx={{
+                        color: theme.palette.text.secondary,
+                        '&:hover': {
+                          backgroundColor: `${theme.palette.orange.main}20`,
+                          color: theme.palette.orange.main,
+                        },
+                      }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
               </TableCell>
             </TableRow>
@@ -301,6 +331,28 @@ const AdminUsersTable = () => {
         </TableBody>
       </Table>
     </TableContainer>
+      {/* View Modal */}
+      <AdminViewModal
+        open={viewModalOpen}
+        onClose={() => {
+          setViewModalOpen(false);
+          setSelectedParentId(null);
+        }}
+        parentId={selectedParentId}
+      />
+
+      {/* Edit Modal */}
+      <AdminEditUserModal
+        open={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedParentId(null);
+          // Refresh the list after edit
+          fetchParents(filters);
+        }}
+        parentId={selectedParentId}
+      />
+    </>
   );
 };
 
