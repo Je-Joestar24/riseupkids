@@ -1,7 +1,6 @@
 import React from 'react';
 import { Box, Typography, Card, CardContent } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
-import PersonIcon from '@mui/icons-material/Person';
 
 /**
  * ParentsChildList Component
@@ -10,11 +9,8 @@ import PersonIcon from '@mui/icons-material/Person';
  * Shows child name, age, and avatar
  */
 const ParentsChildList = ({ children = [], onSelectChild }) => {
-  // Use placeholder data if no children provided (for development/testing)
-  const childProfiles = children && children.length > 0 ? children : [
-    { _id: '1', displayName: 'Emma', age: 7, avatar: null },
-    { _id: '2', displayName: 'Liam', age: 6, avatar: null },
-  ];
+  // Use actual children data from API
+  const childProfiles = children || [];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
@@ -40,29 +36,56 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
             }}
           >
             <CardContent sx={{ padding: '20px !important', display: 'flex', alignItems: 'center', gap: 2 }}>
-              {/* Avatar */}
+              {/* Avatar - Child-friendly with emoji */}
               <Box
                 sx={{
-                  width: 60,
-                  height: 60,
+                  width: 70,
+                  height: 70,
                   borderRadius: '50%',
-                  border: `3px solid ${borderColor}`,
+                  border: `4px solid ${borderColor}`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: 'white',
+                  background: child.avatar 
+                    ? `url(${child.avatar}) center/cover`
+                    : `linear-gradient(135deg, ${index % 2 === 0 ? '#62caca' : '#e98a68'} 0%, ${index % 2 === 0 ? '#85c2b9' : '#f2af10'} 100%)`,
                   flexShrink: 0,
+                  position: 'relative',
+                  boxShadow: `0 4px 12px ${borderColor}40`,
                 }}
               >
-                {child.avatar ? (
-                  <img
-                    src={child.avatar}
-                    alt={child.displayName}
-                    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <PersonIcon sx={{ fontSize: '2.5rem', color: borderColor }} />
+                {!child.avatar && (
+                  <Typography
+                    sx={{
+                      fontSize: '2.5rem',
+                      lineHeight: 1,
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                    }}
+                  >
+                    {index % 2 === 0 ? '🚀' : '⭐'}
+                  </Typography>
                 )}
+                {/* Decorative circle */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    backgroundColor: index % 2 === 0 ? '#f2af10' : '#62caca',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '2px solid white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <Typography sx={{ fontSize: '0.75rem' }}>
+                    {index % 2 === 0 ? '✨' : '🎨'}
+                  </Typography>
+                </Box>
               </Box>
 
               {/* Child Info */}

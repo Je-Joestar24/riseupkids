@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Typography, Card, CardContent, Link } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
@@ -7,9 +7,9 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AuthLogo from '../../components/auth/AuthLogo';
 import ParentsChildList from '../../components/parents/child/ParentsChildList';
 import ParentsChildAddButton from '../../components/parents/child/ParentsChildAddButton';
+import ParentChildAddModal from '../../components/parents/child/ParentChildAddModal';
 import useAuth from '../../hooks/userHook';
-import { showNotification } from '../../store/slices/uiSlice';
-import { useDispatch } from 'react-redux';
+import useChildren from '../../hooks/childrenHook';
 import { themeColors } from '../../config/themeColors';
 import '../../assets/css/ParentsChild.css';
 
@@ -21,9 +21,10 @@ import '../../assets/css/ParentsChild.css';
  */
 const ParentsChild = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
   const theme = useTheme();
-  const { user, childProfiles, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const { children, fetchChildren, loading } = useChildren();
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   // Redirect if not authenticated or not a parent
   useEffect(() => {
@@ -37,22 +38,27 @@ const ParentsChild = () => {
     }
   }, [isAuthenticated, user, navigate]);
 
+  // Fetch children on component mount
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'parent') {
+      fetchChildren({ isActive: true });
+    }
+  }, [isAuthenticated, user]);
+
   const handleSelectChild = (child) => {
     // TODO: Set selected child and navigate to child dashboard
-    dispatch(showNotification({
-      message: `Selected ${child.displayName}'s profile`,
-      type: 'info',
-    }));
     // Navigate to child dashboard when ready
     // navigate(`/child/${child._id}/dashboard`);
   };
 
   const handleAddNewChild = () => {
-    // TODO: Open add child dialog/modal
-    dispatch(showNotification({
-      message: 'Add new child feature coming soon',
-      type: 'info',
-    }));
+    setAddModalOpen(true);
+  };
+
+  const handleCloseAddModal = () => {
+    setAddModalOpen(false);
+    // Refresh children list after adding
+    fetchChildren({ isActive: true });
   };
 
   const handleParentLogin = () => {
@@ -100,10 +106,36 @@ const ParentsChild = () => {
 
             {/* Child List */}
             <Box className="parents-child-list-container">
-              <ParentsChildList
-                children={childProfiles || []}
-                onSelectChild={handleSelectChild}
-              />
+              {loading && children.length === 0 ? (
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: '1rem',
+                    color: themeColors.textSecondary,
+                    textAlign: 'center',
+                    padding: 3,
+                  }}
+                >
+                  Loading children...
+                </Typography>
+              ) : children.length === 0 ? (
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: '1rem',
+                    color: themeColors.textSecondary,
+                    textAlign: 'center',
+                    padding: 3,
+                  }}
+                >
+                  No children found. Add your first child! 👶
+                </Typography>
+              ) : (
+                <ParentsChildList
+                  children={children}
+                  onSelectChild={handleSelectChild}
+                />
+              )}
             </Box>
 
             {/* Add New Kid Button */}
@@ -165,6 +197,12 @@ const ParentsChild = () => {
           </CardContent>
         </Card>
       </Container>
+
+      {/* Add Child Modal */}
+      <ParentChildAddModal
+        open={addModalOpen}
+        onClose={handleCloseAddModal}
+      />
     </Box>
   );
 };
