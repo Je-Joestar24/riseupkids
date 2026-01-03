@@ -1,0 +1,103 @@
+const mongoose = require('mongoose');
+
+/**
+ * ExploreContent Model
+ * 
+ * Content available in the Explore page
+ * Videos and lessons that can be accessed outside of journeys
+ */
+const exploreContentSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: [true, 'Please provide a title'],
+      trim: true,
+      maxlength: [200, 'Title cannot exceed 200 characters'],
+    },
+    description: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Description cannot exceed 1000 characters'],
+    },
+    // Content type
+    type: {
+      type: String,
+      enum: ['video', 'lesson', 'activity', 'book', 'audio'],
+      required: [true, 'Please provide content type'],
+    },
+    // Reference to the actual content
+    contentRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: [true, 'Please provide content reference'],
+      refPath: 'contentRefModel',
+    },
+    contentRefModel: {
+      type: String,
+      enum: ['Media', 'Lesson', 'Activity', 'Book', 'AudioAssignment'],
+      required: true,
+    },
+    // Cover image
+    coverImage: {
+      type: String, // File path or URL
+      default: null,
+    },
+    // Category (e.g., "Arts & Crafts", "Cooking", "Music")
+    category: {
+      type: String,
+      trim: true,
+      maxlength: [50, 'Category cannot exceed 50 characters'],
+      index: true,
+    },
+    // Stars awarded for completion
+    starsAwarded: {
+      type: Number,
+      default: 10,
+      min: 0,
+    },
+    // Progress tracking (for lessons)
+    totalItems: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Order for display
+    order: {
+      type: Number,
+      default: 0,
+    },
+    // Featured content
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    tags: [
+      {
+        type: String,
+        trim: true,
+      },
+    ],
+  },
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  }
+);
+
+// Indexes
+exploreContentSchema.index({ type: 1, category: 1, order: 1 });
+exploreContentSchema.index({ isPublished: 1, isFeatured: 1 });
+exploreContentSchema.index({ createdBy: 1 });
+exploreContentSchema.index({ category: 1 });
+
+module.exports = mongoose.model('ExploreContent', exploreContentSchema);
+

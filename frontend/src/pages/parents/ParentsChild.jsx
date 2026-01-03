@@ -128,7 +128,7 @@ const ParentsChild = () => {
                     padding: 3,
                   }}
                 >
-                  No children found. Add your first child! 👶
+                  No children found. Add your first child!
                 </Typography>
               ) : (
                 <ParentsChildList

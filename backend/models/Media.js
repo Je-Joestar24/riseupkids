@@ -57,6 +57,12 @@ const mediaSchema = new mongoose.Schema(
       type: String, // File path or URL for video thumbnails
       default: null,
     },
+    // Stars awarded for watching (for videos)
+    starsAwarded: {
+      type: Number,
+      default: 10,
+      min: 0,
+    },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

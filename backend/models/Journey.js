@@ -69,6 +69,8 @@ const journeySchema = new mongoose.Schema(
 // Indexes
 journeySchema.index({ isPublished: 1, order: 1 });
 journeySchema.index({ createdBy: 1 });
+journeySchema.index({ seriesId: 1, weekNumber: 1 });
+journeySchema.index({ weekNumber: 1 });
 
 // Virtual for lessons in this journey
 journeySchema.virtual('lessons', {

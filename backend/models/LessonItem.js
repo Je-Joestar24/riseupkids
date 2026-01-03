@@ -72,6 +72,12 @@ const lessonItemSchema = new mongoose.Schema(
       type: Number, // in minutes
       default: null,
     },
+    // Stars awarded for completion
+    starsAwarded: {
+      type: Number,
+      default: 10,
+      min: 0,
+    },
   },
   {
     timestamps: true,

@@ -71,6 +71,18 @@ const activitySchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    // Stars awarded for completion
+    starsAwarded: {
+      type: Number,
+      default: 15,
+      min: 0,
+    },
+    // Badge awarded for completion (optional)
+    badgeAwarded: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Badge',
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

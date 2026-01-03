@@ -82,6 +82,24 @@ const bookSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    // Required reading count (SCORM-like activity - default 5 times)
+    requiredReadingCount: {
+      type: Number,
+      default: 5,
+      min: 1,
+    },
+    // Stars awarded per reading
+    starsPerReading: {
+      type: Number,
+      default: 10,
+      min: 0,
+    },
+    // Total stars awarded when requirement is met (5 readings)
+    totalStarsAwarded: {
+      type: Number,
+      default: 50,
+      min: 0,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

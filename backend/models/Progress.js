@@ -65,6 +65,17 @@ const progressSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Stars earned for this progress item
+    starsEarned: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Whether stars have been awarded (to prevent duplicate awards)
+    starsAwarded: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

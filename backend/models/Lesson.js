@@ -54,6 +54,18 @@ const lessonSchema = new mongoose.Schema(
       type: Number, // in minutes
       default: null,
     },
+    // Stars awarded for lesson completion
+    starsAwarded: {
+      type: Number,
+      default: 20,
+      min: 0,
+    },
+    // Badge awarded for lesson completion (optional)
+    badgeAwarded: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Badge',
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

@@ -72,5 +72,13 @@ childProfileSchema.virtual('progress', {
   foreignField: 'child',
 });
 
+// Virtual for child stats
+childProfileSchema.virtual('stats', {
+  ref: 'ChildStats',
+  localField: '_id',
+  foreignField: 'child',
+  justOne: true,
+});
+
 module.exports = mongoose.model('ChildProfile', childProfileSchema);
 
