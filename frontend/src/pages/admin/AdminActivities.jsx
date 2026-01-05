@@ -25,7 +25,7 @@ const AdminActivities = () => {
   useEffect(() => {
     fetchActivities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.isPublished, filters.search, filters.page]);
+  }, [filters.isPublished, filters.isArchived, filters.search, filters.page, filters.limit]);
 
   const handleAddClick = () => {
     setAddModalOpen(true);
@@ -56,7 +56,7 @@ const AdminActivities = () => {
       <ActivityItems loading={loading} onRefresh={handleRefresh} />
 
       {/* Pagination */}
-      <ActivityPaginations pagination={pagination} />
+      <ActivityPaginations />
 
       {/* Add Activity Modal */}
       <ActivityAddModal

@@ -5,6 +5,7 @@ import {
   fetchActivityById,
   updateActivity,
   archiveActivity,
+  restoreActivity,
   clearError,
   setFilters,
   clearFilters,
@@ -154,6 +155,30 @@ export const useActivity = () => {
   };
 
   /**
+   * Restore archived activity
+   * @param {String} activityId - Activity's ID
+   * @returns {Promise} Restore result
+   */
+  const restoreActivityData = async (activityId) => {
+    try {
+      const result = await dispatch(restoreActivity(activityId)).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Activity restored successfully!',
+        type: 'success',
+      }));
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to restore activity',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
    * Clear error state
    */
   const clearActivityError = () => {
@@ -181,6 +206,7 @@ export const useActivity = () => {
     createNewActivity,
     updateActivityData,
     archiveActivityData,
+    restoreActivityData,
     updateFilters,
     resetFilters,
     clearActivityError,

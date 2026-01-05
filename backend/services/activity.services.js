@@ -123,17 +123,22 @@ const getAllActivities = async (queryParams = {}) => {
   const {
     type,
     isPublished,
+    isArchived,
     search,
     page = 1,
-    limit = 20,
+    limit = 8,
   } = queryParams;
 
   // Build query
   const query = {};
 
   // Note: type filter removed since activities are now SCORM-based only
-  // Exclude archived activities by default
-  query.isArchived = false;
+  // Filter by archived status (default: show only non-archived)
+  if (isArchived !== undefined) {
+    query.isArchived = isArchived === 'true' || isArchived === true;
+  } else {
+    query.isArchived = false;
+  }
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -148,7 +153,7 @@ const getAllActivities = async (queryParams = {}) => {
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 20;
+  const limitNum = parseInt(limit, 10) || 8;
   const skip = (pageNum - 1) * limitNum;
 
   // Get activities
@@ -307,11 +312,42 @@ const archiveActivity = async (activityId) => {
   return archivedActivity;
 };
 
+/**
+ * Restore Activity Service
+ * 
+ * Restores (unarchives) an archived activity by setting isArchived to false
+ * 
+ * @param {String} activityId - Activity's MongoDB ID
+ * @returns {Object} Restored activity
+ * @throws {Error} If activity not found
+ */
+const restoreActivity = async (activityId) => {
+  const activity = await Activity.findById(activityId);
+
+  if (!activity) {
+    throw new Error('Activity not found');
+  }
+
+  // Restore activity (set isArchived to false)
+  activity.isArchived = false;
+  await activity.save();
+
+  // Get restored activity with populated data
+  const restoredActivity = await Activity.findById(activityId)
+    .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
+    .populate('createdBy', 'name email')
+    .lean();
+
+  return restoredActivity;
+};
+
 module.exports = {
   createActivity,
   getAllActivities,
   getActivityById,
   updateActivity,
   archiveActivity,
+  restoreActivity,
 };
 

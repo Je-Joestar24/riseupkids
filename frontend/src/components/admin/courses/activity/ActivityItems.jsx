@@ -19,6 +19,7 @@ import {
   MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Archive as ArchiveIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 import useActivity from '../../../../hooks/activityHook';
 import ActivityEditModal from './ActivityEditModal';
@@ -30,7 +31,7 @@ import ActivityEditModal from './ActivityEditModal';
  */
 const ActivityItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
-  const { activities, archiveActivityData } = useActivity();
+  const { activities, archiveActivityData, restoreActivityData } = useActivity();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState(null);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -63,6 +64,20 @@ const ActivityItems = ({ loading, onRefresh }) => {
         }
       } catch (error) {
         console.error('Error archiving activity:', error);
+      }
+    }
+    handleMenuClose();
+  };
+
+  const handleRestore = async () => {
+    if (selectedActivity) {
+      try {
+        await restoreActivityData(selectedActivity._id);
+        if (onRefresh) {
+          onRefresh();
+        }
+      } catch (error) {
+        console.error('Error restoring activity:', error);
       }
     }
     handleMenuClose();
@@ -283,25 +298,40 @@ const ActivityItems = ({ loading, onRefresh }) => {
           },
         }}
       >
-        <MenuItem
-          onClick={handleEdit}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-          }}
-        >
-          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Edit
-        </MenuItem>
-        <MenuItem
-          onClick={handleArchive}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            color: theme.palette.error.main,
-          }}
-        >
-          <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Archive
-        </MenuItem>
+        {!selectedActivity?.isArchived && (
+          <MenuItem
+            onClick={handleEdit}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Edit
+          </MenuItem>
+        )}
+        {selectedActivity?.isArchived ? (
+          <MenuItem
+            onClick={handleRestore}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Restore
+          </MenuItem>
+        ) : (
+          <MenuItem
+            onClick={handleArchive}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.error.main,
+            }}
+          >
+            <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Archive
+          </MenuItem>
+        )}
       </Menu>
 
       {/* Edit Modal */}

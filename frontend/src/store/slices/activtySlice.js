@@ -76,21 +76,37 @@ export const archiveActivity = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk for restoring activity
+ */
+export const restoreActivity = createAsyncThunk(
+  'activity/restoreActivity',
+  async (activityId, { rejectWithValue }) => {
+    try {
+      const response = await activityService.restoreActivity(activityId);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to restore activity');
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   activities: [],
   currentActivity: null,
   pagination: {
     page: 1,
-    limit: 20,
+    limit: 8,
     total: 0,
     pages: 0,
   },
   filters: {
     isPublished: undefined,
+    isArchived: undefined,
     search: '',
     page: 1,
-    limit: 20,
+    limit: 8,
   },
   loading: false,
   error: null,
@@ -223,6 +239,33 @@ const activitySlice = createSlice({
         state.error = null;
       })
       .addCase(archiveActivity.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Restore Activity
+    builder
+      .addCase(restoreActivity.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(restoreActivity.fulfilled, (state, action) => {
+        state.loading = false;
+        const restoredActivity = action.payload.data;
+        if (restoredActivity) {
+          // Remove from activities list (restored activities are filtered out if viewing archived)
+          state.activities = state.activities.filter(
+            (a) => a._id !== restoredActivity._id
+          );
+          state.pagination.total = Math.max(0, state.pagination.total - 1);
+          // Clear current activity if it's the same
+          if (state.currentActivity?._id === restoredActivity._id) {
+            state.currentActivity = null;
+          }
+        }
+        state.error = null;
+      })
+      .addCase(restoreActivity.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

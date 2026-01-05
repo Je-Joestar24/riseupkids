@@ -6,6 +6,7 @@ const {
   getActivityById,
   updateActivity,
   archiveActivity,
+  restoreActivity,
 } = require('../controllers/activity.controller');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload');
@@ -23,6 +24,7 @@ const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload')
  * - GET /:id - Get single activity by ID
  * - PUT /:id - Update activity (title, description, coverImage, starsAwarded, isPublished)
  * - DELETE /:id - Archive activity (soft delete)
+ * - PATCH /:id/restore - Restore archived activity
  */
 
 // All routes require authentication
@@ -45,6 +47,9 @@ router.put('/:id', uploadActivityUpdate, updateActivity);
 
 // Archive activity
 router.delete('/:id', archiveActivity);
+
+// Restore archived activity
+router.patch('/:id/restore', restoreActivity);
 
 module.exports = router;
 

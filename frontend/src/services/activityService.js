@@ -91,6 +91,20 @@ const activityService = {
       throw error.response?.data?.message || error.message;
     }
   },
+
+  /**
+   * Restore archived activity
+   * @param {String} activityId - Activity's ID
+   * @returns {Promise} API response with restored activity data
+   */
+  restoreActivity: async (activityId) => {
+    try {
+      const response = await api.patch(`/activities/${activityId}/restore`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
 };
 
 export default activityService;

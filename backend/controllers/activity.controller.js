@@ -50,11 +50,11 @@ const createActivity = async (req, res) => {
  * @access  Private (Admin only)
  * 
  * Query parameters:
- * - type: Filter by activity type (drawing, quiz, task, puzzle, matching, writing, other)
  * - isPublished: Filter by published status (true/false)
+ * - isArchived: Filter by archived status (true/false, default: false)
  * - search: Search in title/description
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 20)
+ * - limit: Items per page (default: 8)
  */
 const getAllActivities = async (req, res) => {
   try {
@@ -189,11 +189,45 @@ const archiveActivity = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Restore archived activity
+ * @route   PATCH /api/activities/:id/restore
+ * @access  Private (Admin only)
+ */
+const restoreActivity = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can restore activities',
+      });
+    }
+
+    const activity = await activityService.restoreActivity(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity restored successfully',
+      data: activity,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to restore activity',
+    });
+  }
+};
+
 module.exports = {
   createActivity,
   getAllActivities,
   getActivityById,
   updateActivity,
   archiveActivity,
+  restoreActivity,
 };
 
