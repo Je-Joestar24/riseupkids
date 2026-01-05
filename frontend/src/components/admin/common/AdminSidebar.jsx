@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Drawer,
@@ -10,6 +10,7 @@ import {
   Box,
   Typography,
   Divider,
+  Collapse,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -21,6 +22,11 @@ import {
   NotificationsNone,
   SettingsOutlined,
   HelpOutline,
+  ExpandLess,
+  ExpandMore,
+  BookOutlined,
+  AssignmentOutlined,
+  PlayCircleOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -36,11 +42,23 @@ const AdminSidebar = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const [coursesOpen, setCoursesOpen] = useState(
+    location.pathname.startsWith('/admin/courses')
+  );
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardOutlined />, path: '/admin/dashboard' },
     { text: 'Users', icon: <PeopleOutline />, path: '/admin/users' },
-    { text: 'Courses', icon: <MenuBookOutlined />, path: '/admin/courses' },
+    {
+      text: 'Courses',
+      icon: <MenuBookOutlined />,
+      path: '/admin/courses',
+      subItems: [
+        { text: 'Courses', icon: <BookOutlined />, path: '/admin/courses' },
+        { text: 'Lessons', icon: <PlayCircleOutlined />, path: '/admin/courses/lessons' },
+        { text: 'Activities', icon: <AssignmentOutlined />, path: '/admin/courses/activities' },
+      ],
+    },
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' },
     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
     { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
@@ -50,6 +68,10 @@ const AdminSidebar = () => {
 
   const handleNavigation = (path) => {
     navigate(path);
+  };
+
+  const handleCoursesToggle = () => {
+    setCoursesOpen(!coursesOpen);
   };
 
   return (
@@ -117,64 +139,126 @@ const AdminSidebar = () => {
       >
         <List sx={{ padding: 0 }}>
           {menuItems.map((item, index) => {
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || 
+              (item.subItems && item.subItems.some(sub => location.pathname === sub.path));
+            const hasSubItems = item.subItems && item.subItems.length > 0;
             
             return (
-              <ListItem 
-                key={item.text} 
-                disablePadding
-                sx={{ marginBottom: 0.5 }}
-              >
-                <ListItemButton
-                  onClick={() => handleNavigation(item.path)}
-                  sx={{
-                    minHeight: 52,
-                    paddingX: 2.5,
-                    paddingY: 1.5,
-                    backgroundColor: isActive
-                      ? theme.palette.orange.main
-                      : 'transparent',
-                    color: isActive
-                      ? theme.palette.textCustom.inverse
-                      : theme.palette.text.primary,
-                    borderRadius: '12px',
-                    marginX: 0.5,
-                    '&:hover': {
-                      backgroundColor: isActive
-                        ? theme.palette.orange.dark
-                        : theme.palette.custom.bgTertiary,
-                      transform: 'translateX(4px)',
-                    },
-                    transition: 'all 0.2s ease',
-                    boxShadow: isActive
-                      ? `0 2px 8px ${theme.palette.orange.main}40`
-                      : 'none',
-                  }}
+              <React.Fragment key={item.text}>
+                <ListItem 
+                  disablePadding
+                  sx={{ marginBottom: 0.5 }}
                 >
-                  <ListItemIcon
+                  <ListItemButton
+                    onClick={hasSubItems ? handleCoursesToggle : () => handleNavigation(item.path)}
                     sx={{
-                      minWidth: 44,
-                      color: isActive 
-                        ? theme.palette.textCustom.inverse 
-                        : theme.palette.text.secondary,
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={item.text}
-                    primaryTypographyProps={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: isActive ? 600 : 500,
+                      minHeight: 52,
+                      paddingX: 2.5,
+                      paddingY: 1.5,
+                      backgroundColor: isActive
+                        ? theme.palette.orange.main
+                        : 'transparent',
                       color: isActive
                         ? theme.palette.textCustom.inverse
                         : theme.palette.text.primary,
-                      fontSize: '0.9375rem',
-                      letterSpacing: '0.2px',
+                      borderRadius: '12px',
+                      marginX: 0.5,
+                      '&:hover': {
+                        backgroundColor: isActive
+                          ? theme.palette.orange.dark
+                          : theme.palette.custom.bgTertiary,
+                        transform: 'translateX(4px)',
+                      },
+                      transition: 'all 0.2s ease',
+                      boxShadow: isActive
+                        ? `0 2px 8px ${theme.palette.orange.main}40`
+                        : 'none',
                     }}
-                  />
-                </ListItemButton>
-              </ListItem>
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 44,
+                        color: isActive 
+                          ? theme.palette.textCustom.inverse 
+                          : theme.palette.text.secondary,
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={item.text}
+                      primaryTypographyProps={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: isActive ? 600 : 500,
+                        color: isActive
+                          ? theme.palette.textCustom.inverse
+                          : theme.palette.text.primary,
+                        fontSize: '0.9375rem',
+                        letterSpacing: '0.2px',
+                      }}
+                    />
+                    {hasSubItems && (
+                      coursesOpen ? <ExpandLess /> : <ExpandMore />
+                    )}
+                  </ListItemButton>
+                </ListItem>
+                {hasSubItems && (
+                  <Collapse in={coursesOpen} timeout="auto" unmountOnExit>
+                    <List component="div" disablePadding>
+                      {item.subItems.map((subItem) => {
+                        const isSubActive = location.pathname === subItem.path;
+                        return (
+                          <ListItemButton
+                            key={subItem.text}
+                            onClick={() => handleNavigation(subItem.path)}
+                            sx={{
+                              pl: 6,
+                              minHeight: 44,
+                              backgroundColor: isSubActive
+                                ? theme.palette.orange.light
+                                : 'transparent',
+                              color: isSubActive
+                                ? theme.palette.orange.dark
+                                : theme.palette.text.primary,
+                              borderRadius: '8px',
+                              marginX: 0.5,
+                              marginBottom: 0.25,
+                              '&:hover': {
+                                backgroundColor: isSubActive
+                                  ? theme.palette.orange.main
+                                  : theme.palette.custom.bgTertiary,
+                                color: isSubActive
+                                  ? theme.palette.textCustom.inverse
+                                  : theme.palette.text.primary,
+                              },
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                minWidth: 36,
+                                color: isSubActive
+                                  ? theme.palette.orange.dark
+                                  : theme.palette.text.secondary,
+                              }}
+                            >
+                              {subItem.icon}
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={subItem.text}
+                              primaryTypographyProps={{
+                                fontFamily: 'Quicksand, sans-serif',
+                                fontWeight: isSubActive ? 600 : 500,
+                                fontSize: '0.875rem',
+                              }}
+                            />
+                          </ListItemButton>
+                        );
+                      })}
+                    </List>
+                  </Collapse>
+                )}
+              </React.Fragment>
             );
           })}
         </List>

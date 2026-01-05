@@ -3,6 +3,7 @@ import AuthLogin from '../pages/auth/AuthLogin';
 import ParentsChild from '../pages/parents/ParentsChild';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
+import AdminActivities from '../pages/admin/AdminActivities';
 import AdminLayout from '../layouts/AdminLayout';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
@@ -49,6 +50,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminUsers />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/courses/activities"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminActivities />
               </AdminLayout>
             </AuthedAccess>
           }

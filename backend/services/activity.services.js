@@ -17,11 +17,6 @@ const createActivity = async (userId, activityData, files = {}) => {
   const {
     title,
     description,
-    instructions,
-    type,
-    questions,
-    autoComplete,
-    maxScore,
     estimatedTime,
     starsAwarded,
     badgeAwarded,
@@ -34,56 +29,12 @@ const createActivity = async (userId, activityData, files = {}) => {
     throw new Error('Please provide an activity title');
   }
 
-  if (!instructions || !instructions.trim()) {
-    throw new Error('Please provide activity instructions');
+  // Validate SCORM file is provided
+  if (!files.scormFile || !Array.isArray(files.scormFile) || files.scormFile.length === 0) {
+    throw new Error('Please provide a SCORM file (ZIP format)');
   }
 
-  if (!type) {
-    throw new Error('Please provide activity type');
-  }
-
-  // Validate activity type
-  const validTypes = ['drawing', 'quiz', 'task', 'puzzle', 'matching', 'writing', 'other'];
-  if (!validTypes.includes(type)) {
-    throw new Error(`Invalid activity type. Allowed types: ${validTypes.join(', ')}`);
-  }
-
-  // Validate questions for quiz type
-  let parsedQuestions = [];
-  if (type === 'quiz') {
-    if (questions) {
-      try {
-        parsedQuestions = typeof questions === 'string' ? JSON.parse(questions) : questions;
-        
-        if (!Array.isArray(parsedQuestions)) {
-          throw new Error('Questions must be an array');
-        }
-
-        // Validate each question
-        parsedQuestions.forEach((q, index) => {
-          if (!q.question || !q.question.trim()) {
-            throw new Error(`Question ${index + 1}: Please provide question text`);
-          }
-          if (!q.options || !Array.isArray(q.options) || q.options.length < 2) {
-            throw new Error(`Question ${index + 1}: Please provide at least 2 options`);
-          }
-          if (q.correctAnswer === undefined || q.correctAnswer === null) {
-            throw new Error(`Question ${index + 1}: Please provide correct answer index`);
-          }
-          if (q.correctAnswer < 0 || q.correctAnswer >= q.options.length) {
-            throw new Error(`Question ${index + 1}: Correct answer index is out of range`);
-          }
-        });
-      } catch (error) {
-        if (error.message.includes('JSON')) {
-          throw new Error('Invalid questions format. Must be valid JSON array');
-        }
-        throw error;
-      }
-    } else {
-      throw new Error('Quiz activities require questions');
-    }
-  }
+  const scormFile = files.scormFile[0];
 
   // Validate badge if provided
   if (badgeAwarded) {
@@ -93,65 +44,26 @@ const createActivity = async (userId, activityData, files = {}) => {
     }
   }
 
-  // Process uploaded files and create Media records
-  const mediaIds = [];
+  // Process SCORM file and create Media record
+  const relativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+  const scormFileUrl = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
   
-  // Process images
-  if (files.images && Array.isArray(files.images)) {
-    for (const file of files.images) {
-      // Generate relative URL from uploads directory
-      const relativePath = file.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-      const media = await Media.create({
-        type: 'image',
-        title: file.originalname,
-        filePath: file.path,
-        url: relativePath.startsWith('/') ? relativePath : `/${relativePath}`,
-        mimeType: file.mimetype,
-        size: file.size,
-        width: null, // Can be extracted with image processing library if needed
-        height: null,
-        uploadedBy: userId,
-      });
-      mediaIds.push(media._id);
-    }
-  }
+  const scormMedia = await Media.create({
+    type: 'video', // Using 'video' type for SCORM files (or we could add 'scorm' type)
+    title: scormFile.originalname,
+    filePath: scormFile.path,
+    url: scormFileUrl,
+    mimeType: scormFile.mimetype,
+    size: scormFile.size,
+    uploadedBy: userId,
+  });
 
-  // Process videos
-  if (files.videos && Array.isArray(files.videos)) {
-    for (const file of files.videos) {
-      // Generate relative URL from uploads directory
-      const relativePath = file.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-      const media = await Media.create({
-        type: 'video',
-        title: file.originalname,
-        filePath: file.path,
-        url: relativePath.startsWith('/') ? relativePath : `/${relativePath}`,
-        mimeType: file.mimetype,
-        size: file.size,
-        duration: null, // Can be extracted with video processing library if needed
-        uploadedBy: userId,
-      });
-      mediaIds.push(media._id);
-    }
-  }
-
-  // Process audio
-  if (files.audio && Array.isArray(files.audio)) {
-    for (const file of files.audio) {
-      // Generate relative URL from uploads directory
-      const relativePath = file.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-      const media = await Media.create({
-        type: 'audio',
-        title: file.originalname,
-        filePath: file.path,
-        url: relativePath.startsWith('/') ? relativePath : `/${relativePath}`,
-        mimeType: file.mimetype,
-        size: file.size,
-        duration: null, // Can be extracted with audio processing library if needed
-        uploadedBy: userId,
-      });
-      mediaIds.push(media._id);
-    }
+  // Process cover image if provided
+  let coverImagePath = null;
+  if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
+    const coverImage = files.coverImage[0];
+    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    coverImagePath = coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`;
   }
 
   // Parse tags
@@ -171,12 +83,11 @@ const createActivity = async (userId, activityData, files = {}) => {
   const activity = await Activity.create({
     title: title.trim(),
     description: description?.trim() || null,
-    instructions: instructions.trim(),
-    type,
-    media: mediaIds,
-    questions: parsedQuestions,
-    autoComplete: autoComplete === 'true' || autoComplete === true,
-    maxScore: maxScore ? parseInt(maxScore, 10) : null,
+    coverImage: coverImagePath,
+    scormFile: scormMedia._id,
+    scormFilePath: scormFile.path,
+    scormFileUrl: scormFileUrl,
+    scormFileSize: scormFile.size,
     estimatedTime: estimatedTime ? parseInt(estimatedTime, 10) : null,
     starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 15,
     badgeAwarded: badgeAwarded || null,
@@ -185,12 +96,9 @@ const createActivity = async (userId, activityData, files = {}) => {
     createdBy: userId,
   });
 
-  // Get created activity with populated media
+  // Get created activity with populated data
   const createdActivity = await Activity.findById(activity._id)
-    .populate({
-      path: 'media',
-      select: 'type title url mimeType size duration width height',
-    })
+    .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -223,9 +131,7 @@ const getAllActivities = async (queryParams = {}) => {
   // Build query
   const query = {};
 
-  if (type) {
-    query.type = type;
-  }
+  // Note: type filter removed since activities are now SCORM-based only
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -245,10 +151,7 @@ const getAllActivities = async (queryParams = {}) => {
 
   // Get activities
   const activities = await Activity.find(query)
-    .populate({
-      path: 'media',
-      select: 'type title url mimeType size',
-    })
+    .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 })

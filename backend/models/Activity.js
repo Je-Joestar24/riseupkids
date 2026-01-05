@@ -13,58 +13,31 @@ const activitySchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, 'Description cannot exceed 1000 characters'],
     },
-    instructions: {
-      type: String,
-      required: [true, 'Please provide activity instructions'],
-      trim: true,
-    },
-    type: {
-      type: String,
-      enum: ['drawing', 'quiz', 'task', 'puzzle', 'matching', 'writing', 'other'],
-      required: [true, 'Please provide activity type'],
-    },
-    // Media associated with activity (images, videos, etc.)
-    media: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Media',
-      },
-    ],
-    // For quiz activities
-    questions: [
-      {
-        question: {
-          type: String,
-          required: true,
-          trim: true,
-        },
-        options: [
-          {
-            type: String,
-            trim: true,
-          },
-        ],
-        correctAnswer: {
-          type: Number, // Index of correct option
-          required: function () {
-            return this.parent().type === 'quiz';
-          },
-        },
-        points: {
-          type: Number,
-          default: 1,
-        },
-      },
-    ],
-    // Auto-complete settings
-    autoComplete: {
-      type: Boolean,
-      default: false,
-    },
-    // Scoring
-    maxScore: {
-      type: Number,
+    // Cover image for the activity
+    coverImage: {
+      type: String, // File path or URL
       default: null,
+    },
+    // SCORM file reference (stored as Media)
+    scormFile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media',
+      required: [true, 'Please provide a SCORM file'],
+    },
+    // SCORM file path (for direct access)
+    scormFilePath: {
+      type: String,
+      required: true,
+    },
+    // SCORM file URL (for serving)
+    scormFileUrl: {
+      type: String,
+      required: true,
+    },
+    // SCORM file metadata
+    scormFileSize: {
+      type: Number, // in bytes
+      required: true,
     },
     // Estimated completion time (in minutes)
     estimatedTime: {
@@ -108,8 +81,8 @@ const activitySchema = new mongoose.Schema(
 
 // Indexes
 activitySchema.index({ createdBy: 1 });
-activitySchema.index({ type: 1 });
 activitySchema.index({ isPublished: 1 });
+activitySchema.index({ scormFile: 1 });
 
 module.exports = mongoose.model('Activity', activitySchema);
 

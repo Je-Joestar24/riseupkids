@@ -8,29 +8,13 @@ const activityService = require('../services/activity.services');
  * Request (multipart/form-data):
  * - title: String (required)
  * - description: String (optional)
- * - instructions: String (required)
- * - type: String (required) - drawing, quiz, task, puzzle, matching, writing, other
- * - questions: JSON String (required for quiz type) - Array of question objects
- * - autoComplete: Boolean (optional)
- * - maxScore: Number (optional)
  * - estimatedTime: Number (optional) - in minutes
  * - starsAwarded: Number (optional, default: 15)
  * - badgeAwarded: String (optional) - Badge ID
  * - tags: JSON String (optional) - Array of tag strings
  * - isPublished: Boolean (optional, default: false)
- * - images: File[] (optional) - Image files
- * - videos: File[] (optional) - Video files
- * - audio: File[] (optional) - Audio files
- * 
- * Example questions for quiz type:
- * [
- *   {
- *     "question": "What is 2 + 2?",
- *     "options": ["3", "4", "5", "6"],
- *     "correctAnswer": 1,
- *     "points": 1
- *   }
- * ]
+ * - scormFile: File (required) - SCORM ZIP file
+ * - coverImage: File (optional) - Cover image for the activity
  */
 const createActivity = async (req, res) => {
   try {

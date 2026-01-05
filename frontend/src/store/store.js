@@ -4,6 +4,7 @@ import userReducer from './slices/userSlice';
 import uiReducer from './slices/uiSlice';
 import parentsReducer from './slices/parentsSlice';
 import childrenReducer from './slices/childrenSlice';
+import activityReducer from './slices/activtySlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     ui: uiReducer,
     parents: parentsReducer,
     children: childrenReducer,
+    activity: activityReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -13,6 +13,7 @@ const fs = require('fs');
 const ensureUploadDirs = () => {
   const dirs = [
     path.join(__dirname, '../uploads/activities'),
+    path.join(__dirname, '../uploads/activities/scorm'),
     path.join(__dirname, '../uploads/media/images'),
     path.join(__dirname, '../uploads/media/videos'),
     path.join(__dirname, '../uploads/media/audio'),
@@ -82,6 +83,9 @@ const fileFilter = (req, file, cb) => {
     'audio/ogg',
     'audio/webm',
     'audio/aac',
+    // SCORM files (ZIP)
+    'application/zip',
+    'application/x-zip-compressed',
   ];
 
   if (allowedMimes.includes(file.mimetype)) {
@@ -89,12 +93,47 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        `Invalid file type. Allowed types: images (jpg, png, gif, webp), videos (mp4, mpeg, mov, avi, webm), audio (mp3, wav, ogg, aac)`
+        `Invalid file type. Allowed types: images (jpg, png, gif, webp), videos (mp4, mpeg, mov, avi, webm), audio (mp3, wav, ogg, aac), SCORM (zip)`
       ),
       false
     );
   }
 };
+
+// File filter for SCORM files only
+const scormFileFilter = (req, file, cb) => {
+  // Check if it's a ZIP file
+  const isZip = file.mimetype === 'application/zip' || 
+                file.mimetype === 'application/x-zip-compressed' ||
+                path.extname(file.originalname).toLowerCase() === '.zip';
+  
+  if (isZip) {
+    cb(null, true);
+  } else {
+    cb(new Error('SCORM file must be a ZIP file'), false);
+  }
+};
+
+// Storage for SCORM files
+const scormStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../uploads/activities/scorm');
+    
+    // Ensure directory exists
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+
+    cb(null, uploadPath);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: timestamp-random-originalname
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
+    cb(null, `${name}-${uniqueSuffix}${ext}`);
+  },
+});
 
 // Configure multer
 const upload = multer({
@@ -112,8 +151,77 @@ const uploadActivityMedia = upload.fields([
   { name: 'audio', maxCount: 5 },
 ]);
 
+// Configure multer for SCORM files
+const uploadScorm = multer({
+  storage: scormStorage,
+  fileFilter: scormFileFilter,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max file size for SCORM
+  },
+});
+
+// Middleware for activity uploads (SCORM file + cover image)
+const uploadActivity = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      let uploadPath;
+      
+      if (file.fieldname === 'scormFile') {
+        uploadPath = path.join(__dirname, '../uploads/activities/scorm');
+      } else if (file.fieldname === 'coverImage') {
+        uploadPath = path.join(__dirname, '../uploads/media/images');
+      } else {
+        uploadPath = path.join(__dirname, '../uploads/media/other');
+      }
+
+      // Ensure directory exists
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      const name = path.basename(file.originalname, ext);
+      cb(null, `${name}-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'scormFile') {
+      // SCORM file must be ZIP
+      const isZip = file.mimetype === 'application/zip' || 
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('SCORM file must be a ZIP file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
+      // Cover image must be an image
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max file size
+  },
+}).fields([
+  { name: 'scormFile', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
+  uploadScorm,
+  uploadActivity,
 };
 

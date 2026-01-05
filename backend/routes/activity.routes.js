@@ -5,7 +5,7 @@ const {
   getAllActivities,
 } = require('../controllers/activity.controller');
 const { protect, authorize } = require('../middleware/auth');
-const { uploadActivityMedia } = require('../middleware/upload');
+const { uploadActivity } = require('../middleware/upload');
 
 /**
  * Activity Routes
@@ -25,8 +25,8 @@ router.use(protect);
 // All routes require admin role
 router.use(authorize('admin'));
 
-// Create new activity (with file upload support)
-router.post('/', uploadActivityMedia, createActivity);
+// Create new activity (with SCORM file and cover image upload)
+router.post('/', uploadActivity, createActivity);
 
 // Get all activities
 router.get('/', getAllActivities);
