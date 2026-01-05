@@ -22,7 +22,7 @@ const exploreContentSchema = new mongoose.Schema(
     // Content type
     type: {
       type: String,
-      enum: ['video', 'lesson', 'activity', 'book', 'audio'],
+      enum: ['video', 'lesson', 'activity', 'activity_group', 'book', 'audio'],
       required: [true, 'Please provide content type'],
     },
     // Reference to the actual content
@@ -33,7 +33,7 @@ const exploreContentSchema = new mongoose.Schema(
     },
     contentRefModel: {
       type: String,
-      enum: ['Media', 'Lesson', 'Activity', 'Book', 'AudioAssignment'],
+      enum: ['Media', 'Lesson', 'Activity', 'ActivityGroup', 'Book', 'AudioAssignment'],
       required: true,
     },
     // Cover image

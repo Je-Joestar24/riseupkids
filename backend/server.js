@@ -13,6 +13,8 @@ const apiRoutes = require('./routes/api');
 const authRoutes = require('./routes/auth.routes');
 const parentsRoutes = require('./routes/parents.routes');
 const childrenRoutes = require('./routes/children.routes');
+const courseRoutes = require('./routes/course.routes');
+const activityRoutes = require('./routes/activity.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -40,6 +42,8 @@ app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/parents', parentsRoutes);
 app.use('/api/children', childrenRoutes);
+app.use('/api/courses', courseRoutes);
+app.use('/api/activities', activityRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -47,11 +51,13 @@ app.get('/', (req, res) => {
     message: 'Welcome to Rise Up Kids API',
     version: '1.0.0',
     status: 'running',
-    endpoints: {
+      endpoints: {
       api: '/api',
       auth: '/api/auth',
       parents: '/api/parents',
-      children: '/api/children'
+      children: '/api/children',
+      courses: '/api/courses',
+      activities: '/api/activities'
     }
   });
 });

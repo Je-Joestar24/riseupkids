@@ -11,12 +11,28 @@ const progressSchema = new mongoose.Schema(
     lesson: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Lesson',
-      required: [true, 'Progress must be associated with a lesson'],
+      required: function () {
+        return !this.activity; // Required if not a standalone activity
+      },
       index: true,
     },
     lessonItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LessonItem',
+      default: null,
+      index: true,
+    },
+    // For standalone activities (not in lessons)
+    activity: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Activity',
+      default: null,
+      index: true,
+    },
+    // Reference to activity group (if activity belongs to a group)
+    activityGroup: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ActivityGroup',
       default: null,
       index: true,
     },
@@ -87,8 +103,11 @@ const progressSchema = new mongoose.Schema(
 // Compound indexes for efficient queries
 progressSchema.index({ child: 1, lesson: 1 });
 progressSchema.index({ child: 1, lessonItem: 1 });
+progressSchema.index({ child: 1, activity: 1 });
+progressSchema.index({ child: 1, activityGroup: 1 });
 progressSchema.index({ child: 1, status: 1 });
 progressSchema.index({ lesson: 1, status: 1 });
+progressSchema.index({ activityGroup: 1, status: 1 });
 
 // Pre-save hook to update timestamps
 progressSchema.pre('save', function (next) {

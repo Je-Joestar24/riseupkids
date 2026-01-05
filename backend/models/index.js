@@ -17,6 +17,7 @@ const AudioAssignment = require('./AudioAssignment');
 const AudioAssignmentProgress = require('./AudioAssignmentProgress');
 const StarEarning = require('./StarEarning');
 const ExploreContent = require('./ExploreContent');
+const ActivityGroup = require('./ActivityGroup');
 
 module.exports = {
   User,
@@ -27,6 +28,7 @@ module.exports = {
   Media,
   Book,
   Activity,
+  ActivityGroup,
   Progress,
   Announcement,
   ChildStats,
