@@ -44,6 +44,53 @@ const activityService = {
       throw error.response?.data?.message || error.message;
     }
   },
+
+  /**
+   * Get single activity by ID
+   * @param {String} activityId - Activity's ID
+   * @returns {Promise} API response with activity data
+   */
+  getActivityById: async (activityId) => {
+    try {
+      const response = await api.get(`/activities/${activityId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Update activity
+   * @param {String} activityId - Activity's ID
+   * @param {FormData} formData - Activity data with optional cover image
+   * @returns {Promise} API response with updated activity data
+   */
+  updateActivity: async (activityId, formData) => {
+    try {
+      const response = await api.put(`/activities/${activityId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Archive activity
+   * @param {String} activityId - Activity's ID
+   * @returns {Promise} API response with archived activity data
+   */
+  archiveActivity: async (activityId) => {
+    try {
+      const response = await api.delete(`/activities/${activityId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
 };
 
 export default activityService;

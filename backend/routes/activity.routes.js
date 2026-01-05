@@ -3,9 +3,12 @@ const router = express.Router();
 const {
   createActivity,
   getAllActivities,
+  getActivityById,
+  updateActivity,
+  archiveActivity,
 } = require('../controllers/activity.controller');
 const { protect, authorize } = require('../middleware/auth');
-const { uploadActivity } = require('../middleware/upload');
+const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload');
 
 /**
  * Activity Routes
@@ -15,8 +18,11 @@ const { uploadActivity } = require('../middleware/upload');
  * All routes require authentication and admin role
  * 
  * Routes:
- * - POST / - Create new activity (with file uploads)
+ * - POST / - Create new activity (with SCORM file and cover image upload)
  * - GET / - Get all activities (with filtering and pagination)
+ * - GET /:id - Get single activity by ID
+ * - PUT /:id - Update activity (title, description, coverImage, starsAwarded, isPublished)
+ * - DELETE /:id - Archive activity (soft delete)
  */
 
 // All routes require authentication
@@ -30,6 +36,15 @@ router.post('/', uploadActivity, createActivity);
 
 // Get all activities
 router.get('/', getAllActivities);
+
+// Get single activity by ID
+router.get('/:id', getActivityById);
+
+// Update activity (with optional cover image upload, no SCORM file)
+router.put('/:id', uploadActivityUpdate, updateActivity);
+
+// Archive activity
+router.delete('/:id', archiveActivity);
 
 module.exports = router;
 

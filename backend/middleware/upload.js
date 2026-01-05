@@ -3,6 +3,26 @@ const path = require('path');
 const fs = require('fs');
 
 /**
+ * Generate filename with date/time formatter
+ * Format: YYYYMMDD-HHMMSS-random.ext
+ */
+const generateFileName = (originalname) => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const random = Math.round(Math.random() * 1E9);
+  
+  const ext = path.extname(originalname);
+  const dateTime = `${year}${month}${day}-${hours}${minutes}${seconds}`;
+  
+  return `${dateTime}-${random}${ext}`;
+};
+
+/**
  * File Upload Middleware
  * 
  * Handles file uploads for activities, books, and other content
@@ -52,11 +72,8 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename: timestamp-random-originalname
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
+    // Generate unique filename using date/time formatter
+    cb(null, generateFileName(file.originalname));
   },
 });
 
@@ -127,11 +144,8 @@ const scormStorage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Generate unique filename: timestamp-random-originalname
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext);
-    cb(null, `${name}-${uniqueSuffix}${ext}`);
+    // Generate unique filename using date/time formatter
+    cb(null, generateFileName(file.originalname));
   },
 });
 
@@ -182,10 +196,8 @@ const uploadActivity = multer({
       cb(null, uploadPath);
     },
     filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = path.extname(file.originalname);
-      const name = path.basename(file.originalname, ext);
-      cb(null, `${name}-${uniqueSuffix}${ext}`);
+      // Generate unique filename using date/time formatter
+      cb(null, generateFileName(file.originalname));
     },
   }),
   fileFilter: function (req, file, cb) {
@@ -218,10 +230,48 @@ const uploadActivity = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
+// Middleware for activity update (cover image only, no SCORM file)
+const uploadActivityUpdate = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadPath = path.join(__dirname, '../uploads/media/images');
+      
+      // Ensure directory exists
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      // Generate unique filename using date/time formatter
+      cb(null, generateFileName(file.originalname));
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    // Only allow cover image
+    if (file.fieldname === 'coverImage') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
+    } else {
+      cb(new Error('Only cover image is allowed for updates'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+  },
+}).fields([
+  { name: 'coverImage', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
   uploadScorm,
   uploadActivity,
+  uploadActivityUpdate,
 };
 

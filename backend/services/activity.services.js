@@ -46,7 +46,7 @@ const createActivity = async (userId, activityData, files = {}) => {
 
   // Process SCORM file and create Media record
   const relativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-  const scormFileUrl = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+  const scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
   
   const scormMedia = await Media.create({
     type: 'video', // Using 'video' type for SCORM files (or we could add 'scorm' type)
@@ -63,7 +63,7 @@ const createActivity = async (userId, activityData, files = {}) => {
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
     const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`;
+    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
   }
 
   // Parse tags
@@ -132,6 +132,8 @@ const getAllActivities = async (queryParams = {}) => {
   const query = {};
 
   // Note: type filter removed since activities are now SCORM-based only
+  // Exclude archived activities by default
+  query.isArchived = false;
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -173,8 +175,143 @@ const getAllActivities = async (queryParams = {}) => {
   };
 };
 
+/**
+ * Get Activity By ID Service
+ * 
+ * Retrieves a single activity by ID
+ * 
+ * @param {String} activityId - Activity's MongoDB ID
+ * @returns {Object} Activity with populated data
+ * @throws {Error} If activity not found
+ */
+const getActivityById = async (activityId) => {
+  const activity = await Activity.findById(activityId)
+    .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
+    .populate('createdBy', 'name email')
+    .lean();
+
+  if (!activity) {
+    throw new Error('Activity not found');
+  }
+
+  return activity;
+};
+
+/**
+ * Update Activity Service
+ * 
+ * Updates activity fields: title, description, coverImage, starsAwarded, isPublished
+ * SCORM file cannot be changed
+ * 
+ * @param {String} activityId - Activity's MongoDB ID
+ * @param {String} userId - Admin user's MongoDB ID (for verification)
+ * @param {Object} updateData - Data to update
+ * @param {Array} files - Uploaded files (coverImage only)
+ * @returns {Object} Updated activity with populated data
+ * @throws {Error} If activity not found or validation fails
+ */
+const updateActivity = async (activityId, userId, updateData, files = {}) => {
+  const {
+    title,
+    description,
+    starsAwarded,
+    isPublished,
+  } = updateData;
+
+  // Find activity
+  const activity = await Activity.findById(activityId);
+
+  if (!activity) {
+    throw new Error('Activity not found');
+  }
+
+  // Verify user is the creator or admin (you can add role check if needed)
+  // For now, we'll allow any admin to edit
+
+  // Update title
+  if (title !== undefined) {
+    if (!title || !title.trim()) {
+      throw new Error('Title cannot be empty');
+    }
+    activity.title = title.trim();
+  }
+
+  // Update description
+  if (description !== undefined) {
+    activity.description = description?.trim() || null;
+  }
+
+  // Update stars awarded
+  if (starsAwarded !== undefined) {
+    const stars = parseInt(starsAwarded, 10);
+    if (isNaN(stars) || stars < 0) {
+      throw new Error('Stars awarded must be a non-negative number');
+    }
+    activity.starsAwarded = stars;
+  }
+
+  // Update published status
+  if (isPublished !== undefined) {
+    activity.isPublished = isPublished === 'true' || isPublished === true;
+  }
+
+  // Process cover image if provided
+  if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
+    const coverImage = files.coverImage[0];
+    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    activity.coverImage = coverImagePath;
+  }
+
+  await activity.save();
+
+  // Get updated activity with populated data
+  const updatedActivity = await Activity.findById(activityId)
+    .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
+    .populate('createdBy', 'name email')
+    .lean();
+
+  return updatedActivity;
+};
+
+/**
+ * Archive Activity Service
+ * 
+ * Archives (soft deletes) an activity by setting isArchived to true
+ * 
+ * @param {String} activityId - Activity's MongoDB ID
+ * @returns {Object} Archived activity
+ * @throws {Error} If activity not found
+ */
+const archiveActivity = async (activityId) => {
+  const activity = await Activity.findById(activityId);
+
+  if (!activity) {
+    throw new Error('Activity not found');
+  }
+
+  // Archive activity (set isArchived to true and isPublished to false)
+  activity.isArchived = true;
+  activity.isPublished = false;
+  await activity.save();
+
+  // Get archived activity with populated data
+  const archivedActivity = await Activity.findById(activityId)
+    .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
+    .populate('createdBy', 'name email')
+    .lean();
+
+  return archivedActivity;
+};
+
 module.exports = {
   createActivity,
   getAllActivities,
+  getActivityById,
+  updateActivity,
+  archiveActivity,
 };
 

@@ -25,7 +25,7 @@ const AdminActivities = () => {
   useEffect(() => {
     fetchActivities();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.type, filters.isPublished, filters.search, filters.page]);
+  }, [filters.isPublished, filters.search, filters.page]);
 
   const handleAddClick = () => {
     setAddModalOpen(true);
@@ -40,6 +40,10 @@ const AdminActivities = () => {
     fetchActivities();
   };
 
+  const handleRefresh = () => {
+    fetchActivities();
+  };
+
   return (
     <Box>
       {/* Header Section */}
@@ -49,7 +53,7 @@ const AdminActivities = () => {
       <ActivityFilters />
 
       {/* Activities List */}
-      <ActivityItems loading={loading} />
+      <ActivityItems loading={loading} onRefresh={handleRefresh} />
 
       {/* Pagination */}
       <ActivityPaginations pagination={pagination} />

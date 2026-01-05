@@ -1,17 +1,80 @@
-import React from 'react';
-import { Box, Paper, Typography, Stack, Chip, CircularProgress, Grid, Card, CardContent } from '@mui/material';
+import React, { useState } from 'react';
+import {
+  Box,
+  Paper,
+  Typography,
+  Stack,
+  Chip,
+  CircularProgress,
+  Grid,
+  Card,
+  CardContent,
+  IconButton,
+  Menu,
+  MenuItem,
+} from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Description as DescriptionIcon } from '@mui/icons-material';
+import {
+  Description as DescriptionIcon,
+  MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Archive as ArchiveIcon,
+} from '@mui/icons-material';
 import useActivity from '../../../../hooks/activityHook';
+import ActivityEditModal from './ActivityEditModal';
 
 /**
  * ActivityItems Component
  * 
  * Displays list of activities
  */
-const ActivityItems = ({ loading }) => {
+const ActivityItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
-  const { activities } = useActivity();
+  const { activities, archiveActivityData } = useActivity();
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedActivity, setSelectedActivity] = useState(null);
+
+  const handleMenuOpen = (event, activity) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedActivity(activity);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedActivity(null);
+  };
+
+  const handleEdit = () => {
+    if (selectedActivity) {
+      setSelectedActivityId(selectedActivity._id);
+      setEditModalOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleArchive = async () => {
+    if (selectedActivity) {
+      try {
+        await archiveActivityData(selectedActivity._id);
+        if (onRefresh) {
+          onRefresh();
+        }
+      } catch (error) {
+        console.error('Error archiving activity:', error);
+      }
+    }
+    handleMenuClose();
+  };
+
+  const handleEditModalClose = () => {
+    setEditModalOpen(false);
+    setSelectedActivityId(null);
+    if (onRefresh) {
+      onRefresh();
+    }
+  };
 
 
   if (loading) {
@@ -68,47 +131,80 @@ const ActivityItems = ({ loading }) => {
               display: 'flex',
               flexDirection: 'column',
               transition: 'all 0.2s ease',
+              position: 'relative',
               '&:hover': {
                 boxShadow: theme.shadows[4],
                 transform: 'translateY(-4px)',
               },
             }}
           >
+            {/* Action Menu Button */}
+            <IconButton
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                zIndex: 1,
+                backgroundColor: theme.palette.background.paper,
+                '&:hover': {
+                  backgroundColor: theme.palette.custom.bgTertiary,
+                },
+              }}
+              onClick={(e) => handleMenuOpen(e, activity)}
+            >
+              <MoreVertIcon />
+            </IconButton>
+
             <CardContent sx={{ flexGrow: 1, padding: 2.5 }}>
               <Stack spacing={2}>
                 {/* Cover Image or Icon */}
                 {activity.coverImage ? (
                   <Box
-                    component="img"
-                    src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
-                    alt={activity.title}
                     sx={{
+                      position: 'relative',
                       width: '100%',
                       height: 120,
-                      objectFit: 'cover',
                       borderRadius: '8px',
+                      overflow: 'hidden',
                       marginBottom: 1,
                     }}
-                  />
+                  >
+                    <Box
+                      component="img"
+                      src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
+                      alt={activity.title}
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                    {/* SCORM Badge - Absolute positioned */}
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 8,
+                        right: 8,
+                      }}
+                    >
+                      <Chip
+                        label="SCORM"
+                        size="small"
+                        sx={{
+                          backgroundColor: `${theme.palette.primary.main}20`,
+                          color: theme.palette.primary.main,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 600,
+                          backdropFilter: 'blur(4px)',
+                        }}
+                      />
+                    </Box>
+                  </Box>
                 ) : (
                   <Box sx={{ display: 'flex', justifyContent: 'center', padding: 2 }}>
                     <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
                   </Box>
                 )}
-
-                {/* SCORM Badge */}
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Chip
-                    label="SCORM"
-                    size="small"
-                    sx={{
-                      backgroundColor: `${theme.palette.primary.main}20`,
-                      color: theme.palette.primary.main,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                    }}
-                  />
-                </Box>
 
                 {/* Title */}
                 <Typography
@@ -173,6 +269,48 @@ const ActivityItems = ({ loading }) => {
           </Card>
         </Grid>
       ))}
+
+      {/* Action Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            fontFamily: 'Quicksand, sans-serif',
+            minWidth: 150,
+          },
+        }}
+      >
+        <MenuItem
+          onClick={handleEdit}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+          }}
+        >
+          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+          Edit
+        </MenuItem>
+        <MenuItem
+          onClick={handleArchive}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            color: theme.palette.error.main,
+          }}
+        >
+          <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
+          Archive
+        </MenuItem>
+      </Menu>
+
+      {/* Edit Modal */}
+      <ActivityEditModal
+        open={editModalOpen}
+        onClose={handleEditModalClose}
+        activityId={selectedActivityId}
+        onSuccess={handleEditModalClose}
+      />
     </Grid>
   );
 };

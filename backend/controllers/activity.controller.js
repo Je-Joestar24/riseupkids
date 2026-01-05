@@ -82,8 +82,118 @@ const getAllActivities = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get single activity by ID
+ * @route   GET /api/activities/:id
+ * @access  Private (Admin only)
+ */
+const getActivityById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can access activities',
+      });
+    }
+
+    const activity = await activityService.getActivityById(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity retrieved successfully',
+      data: activity,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to retrieve activity',
+    });
+  }
+};
+
+/**
+ * @desc    Update activity
+ * @route   PUT /api/activities/:id
+ * @access  Private (Admin only)
+ * 
+ * Request (multipart/form-data):
+ * - title: String (optional)
+ * - description: String (optional)
+ * - starsAwarded: Number (optional)
+ * - isPublished: Boolean (optional)
+ * - coverImage: File (optional) - New cover image
+ */
+const updateActivity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user._id;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can update activities',
+      });
+    }
+
+    const activity = await activityService.updateActivity(id, userId, req.body, req.files);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity updated successfully',
+      data: activity,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') || error.message.includes('Invalid') || error.message.includes('empty') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to update activity',
+    });
+  }
+};
+
+/**
+ * @desc    Archive activity
+ * @route   DELETE /api/activities/:id
+ * @access  Private (Admin only)
+ */
+const archiveActivity = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can archive activities',
+      });
+    }
+
+    const activity = await activityService.archiveActivity(id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Activity archived successfully',
+      data: activity,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to archive activity',
+    });
+  }
+};
+
 module.exports = {
   createActivity,
   getAllActivities,
+  getActivityById,
+  updateActivity,
+  archiveActivity,
 };
 

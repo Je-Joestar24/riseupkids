@@ -71,6 +71,10 @@ const activitySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -82,6 +86,7 @@ const activitySchema = new mongoose.Schema(
 // Indexes
 activitySchema.index({ createdBy: 1 });
 activitySchema.index({ isPublished: 1 });
+activitySchema.index({ isArchived: 1 });
 activitySchema.index({ scormFile: 1 });
 
 module.exports = mongoose.model('Activity', activitySchema);
