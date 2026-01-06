@@ -51,6 +51,28 @@ const bookSchema = new mongoose.Schema(
       type: String, // File path or URL
       default: null,
     },
+    // SCORM file reference (books are SCORM-powered)
+    scormFile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media',
+      required: [true, 'Please provide a SCORM file for the book'],
+    },
+    // SCORM file path (for direct access)
+    scormFilePath: {
+      type: String,
+      required: true,
+    },
+    // SCORM file URL (for serving)
+    scormFileUrl: {
+      type: String,
+      required: true,
+    },
+    // SCORM file metadata
+    scormFileSize: {
+      type: Number, // in bytes
+      required: true,
+    },
+    // Pages array (optional - kept for backward compatibility, but SCORM file is primary)
     pages: [pageSchema],
     // Audio narration (read-along feature)
     audio: {
@@ -128,6 +150,7 @@ bookSchema.index({ createdBy: 1 });
 bookSchema.index({ isPublished: 1 });
 bookSchema.index({ language: 1 });
 bookSchema.index({ readingLevel: 1 });
+bookSchema.index({ scormFile: 1 });
 
 // Virtual for total pages
 bookSchema.virtual('totalPages').get(function () {

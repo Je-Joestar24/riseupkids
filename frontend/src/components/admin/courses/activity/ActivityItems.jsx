@@ -137,16 +137,17 @@ const ActivityItems = ({ loading, onRefresh }) => {
   return (
     <Grid container spacing={2}>
       {activities.map((activity) => (
-        <Grid item xs={12} sm={6} md={4} lg={3} key={activity._id}>
+        <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={activity._id}>
           <Card
             sx={{
-              borderRadius: '12px',
+              borderRadius: '0px',
               border: `1px solid ${theme.palette.border.main}`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
               transition: 'all 0.2s ease',
               position: 'relative',
+              overflow: 'hidden',
               '&:hover': {
                 boxShadow: theme.shadows[4],
                 transform: 'translateY(-4px)',
@@ -159,10 +160,12 @@ const ActivityItems = ({ loading, onRefresh }) => {
                 position: 'absolute',
                 top: 8,
                 right: 8,
-                zIndex: 1,
+                zIndex: 2,
                 backgroundColor: theme.palette.background.paper,
+                opacity: 0.9,
                 '&:hover': {
                   backgroundColor: theme.palette.custom.bgTertiary,
+                  opacity: 1,
                 },
               }}
               onClick={(e) => handleMenuOpen(e, activity)}
@@ -170,56 +173,166 @@ const ActivityItems = ({ loading, onRefresh }) => {
               <MoreVertIcon />
             </IconButton>
 
+            {/* Cover Image - Full width, perfect square, no padding */}
+            {activity.coverImage ? (
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingTop: '100%', // Creates perfect square (1:1 aspect ratio)
+                  overflow: 'hidden',
+                }}
+              >
+                <Box
+                  component="img"
+                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
+                  alt={activity.title}
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+                {/* Stars Badge - Upper left corner */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <Chip
+                    label={`⭐ ${activity.starsAwarded || 15}`}
+                    size="small"
+                    sx={{
+                      backgroundColor: `${theme.palette.orange.main}e0`,
+                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  />
+                </Box>
+                {/* Published/Draft Badge - Lower right corner */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <Chip
+                    label={activity.isPublished ? 'Published' : 'Draft'}
+                    size="small"
+                    sx={{
+                      backgroundColor: activity.isPublished
+                        ? `${theme.palette.success.main}e0`
+                        : `${theme.palette.grey[600]}e0`,
+                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 500,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  />
+                </Box>
+                {/* SCORM Badge - Lower left corner */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <Chip
+                    label="SCORM"
+                    size="small"
+                    sx={{
+                      backgroundColor: `${theme.palette.primary.main}e0`,
+                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  />
+                </Box>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  width: '100%',
+                  paddingTop: '100%', // Creates perfect square
+                  position: 'relative',
+                  backgroundColor: theme.palette.custom.bgSecondary || theme.palette.grey[100],
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
+                </Box>
+                {/* Stars Badge - Upper left corner (for no cover image) */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <Chip
+                    label={`⭐ ${activity.starsAwarded || 15}`}
+                    size="small"
+                    sx={{
+                      backgroundColor: `${theme.palette.orange.main}e0`,
+                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  />
+                </Box>
+                {/* Published/Draft Badge - Lower right corner (for no cover image) */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    right: 8,
+                    zIndex: 1,
+                  }}
+                >
+                  <Chip
+                    label={activity.isPublished ? 'Published' : 'Draft'}
+                    size="small"
+                    sx={{
+                      backgroundColor: activity.isPublished
+                        ? `${theme.palette.success.main}e0`
+                        : `${theme.palette.grey[600]}e0`,
+                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 500,
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  />
+                </Box>
+              </Box>
+            )}
+
             <CardContent sx={{ flexGrow: 1, padding: 2.5 }}>
               <Stack spacing={2}>
-                {/* Cover Image or Icon */}
-                {activity.coverImage ? (
-                  <Box
-                    sx={{
-                      position: 'relative',
-                      width: '100%',
-                      height: 120,
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                      marginBottom: 1,
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
-                      alt={activity.title}
-                      sx={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                    />
-                    {/* SCORM Badge - Absolute positioned */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        bottom: 8,
-                        right: 8,
-                      }}
-                    >
-                      <Chip
-                        label="SCORM"
-                        size="small"
-                        sx={{
-                          backgroundColor: `${theme.palette.primary.main}20`,
-                          color: theme.palette.primary.main,
-                          fontFamily: 'Quicksand, sans-serif',
-                          fontWeight: 600,
-                          backdropFilter: 'blur(4px)',
-                        }}
-                      />
-                    </Box>
-                  </Box>
-                ) : (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', padding: 2 }}>
-                    <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
-                  </Box>
-                )}
 
                 {/* Title */}
                 <Typography
@@ -251,34 +364,6 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     {activity.description}
                   </Typography>
                 )}
-
-                {/* Stars and Status */}
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Chip
-                    label={`⭐ ${activity.starsAwarded || 15} stars`}
-                    size="small"
-                    sx={{
-                      backgroundColor: theme.palette.orange.light,
-                      color: theme.palette.orange.dark,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                    }}
-                  />
-                  <Chip
-                    label={activity.isPublished ? 'Published' : 'Draft'}
-                    size="small"
-                    sx={{
-                      backgroundColor: activity.isPublished
-                        ? theme.palette.success.light
-                        : theme.palette.grey[300],
-                      color: activity.isPublished
-                        ? theme.palette.success.dark
-                        : theme.palette.grey[700],
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 500,
-                    }}
-                  />
-                </Box>
               </Stack>
             </CardContent>
           </Card>

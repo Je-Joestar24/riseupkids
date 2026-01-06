@@ -63,6 +63,28 @@ const mediaSchema = new mongoose.Schema(
       default: 10,
       min: 0,
     },
+    // SCORM file support for videos (Adobe SCORM file)
+    // When type is 'video', this allows the video to have an associated SCORM file
+    scormFile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media', // SCORM file stored as separate Media record
+      default: null,
+    },
+    // SCORM file path (for direct access)
+    scormFilePath: {
+      type: String,
+      default: null,
+    },
+    // SCORM file URL (for serving)
+    scormFileUrl: {
+      type: String,
+      default: null,
+    },
+    // SCORM file metadata
+    scormFileSize: {
+      type: Number, // in bytes
+      default: null,
+    },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -90,6 +112,7 @@ const mediaSchema = new mongoose.Schema(
 mediaSchema.index({ type: 1 });
 mediaSchema.index({ uploadedBy: 1 });
 mediaSchema.index({ isActive: 1 });
+mediaSchema.index({ scormFile: 1 });
 
 // Pre-save hook to set url based on availability
 mediaSchema.pre('save', function (next) {

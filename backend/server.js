@@ -15,6 +15,9 @@ const parentsRoutes = require('./routes/parents.routes');
 const childrenRoutes = require('./routes/children.routes');
 const courseRoutes = require('./routes/course.routes');
 const activityRoutes = require('./routes/activity.routes');
+const bookRoutes = require('./routes/book.routes');
+const videoRoutes = require('./routes/video.routes');
+const audioAssignmentRoutes = require('./routes/audioAssignment.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -44,6 +47,9 @@ app.use('/api/parents', parentsRoutes);
 app.use('/api/children', childrenRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/books', bookRoutes);
+app.use('/api/videos', videoRoutes);
+app.use('/api/audio-assignments', audioAssignmentRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -57,7 +63,10 @@ app.get('/', (req, res) => {
       parents: '/api/parents',
       children: '/api/children',
       courses: '/api/courses',
-      activities: '/api/activities'
+      activities: '/api/activities',
+      books: '/api/books',
+      videos: '/api/videos',
+      audioAssignments: '/api/audio-assignments'
     }
   });
 });

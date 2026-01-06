@@ -23,7 +23,7 @@ const audioAssignmentProgressSchema = new mongoose.Schema(
     // Status
     status: {
       type: String,
-      enum: ['not_started', 'in_progress', 'completed', 'submitted'],
+      enum: ['not_started', 'in_progress', 'completed', 'submitted', 'approved', 'rejected'],
       default: 'not_started',
     },
     // Recorded audio submission
@@ -57,6 +57,22 @@ const audioAssignmentProgressSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Admin review fields
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+    adminFeedback: {
+      type: String,
+      trim: true,
+      maxlength: [1000, 'Feedback cannot exceed 1000 characters'],
+      default: null,
+    },
     // Number of attempts
     attempts: {
       type: Number,
@@ -79,6 +95,8 @@ const audioAssignmentProgressSchema = new mongoose.Schema(
 audioAssignmentProgressSchema.index({ child: 1, audioAssignment: 1 }, { unique: true });
 audioAssignmentProgressSchema.index({ child: 1, status: 1 });
 audioAssignmentProgressSchema.index({ audioAssignment: 1, status: 1 });
+audioAssignmentProgressSchema.index({ reviewedBy: 1 });
+audioAssignmentProgressSchema.index({ status: 1, reviewedAt: 1 });
 
 // Pre-save hook to update timestamps
 audioAssignmentProgressSchema.pre('save', function (next) {
@@ -90,6 +108,9 @@ audioAssignmentProgressSchema.pre('save', function (next) {
   }
   if (this.status === 'submitted' && !this.submittedAt) {
     this.submittedAt = new Date();
+  }
+  if ((this.status === 'approved' || this.status === 'rejected') && !this.reviewedAt) {
+    this.reviewedAt = new Date();
   }
   if (this.status === 'in_progress' || this.status === 'completed' || this.status === 'submitted') {
     this.attempts += 1;
