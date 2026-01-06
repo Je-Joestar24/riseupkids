@@ -55,7 +55,7 @@ const AppRouter = () => {
           }
         />
         <Route
-          path="/admin/courses/activities"
+          path="/admin/courses/contents"
           element={
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>

@@ -22,12 +22,14 @@ import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
- * ActivityEditModal Component
+ * BookEditModal Component
  * 
- * Modal for editing activities
- * Can only edit: title, description, coverImage, starsAwarded, isPublished
+ * Modal for editing books
+ * Can only edit: title, description, coverImage, language, readingLevel,
+ * estimatedReadingTime, requiredReadingCount, starsPerReading, totalStarsAwarded, isPublished
+ * SCORM file cannot be changed
  */
-const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TYPES.ACTIVITY, onSuccess }) => {
+const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
   const theme = useTheme();
   const {
     fetchContent,
@@ -40,7 +42,12 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    starsAwarded: 15,
+    language: 'en',
+    readingLevel: 'beginner',
+    estimatedReadingTime: null,
+    requiredReadingCount: 5,
+    starsPerReading: 10,
+    totalStarsAwarded: 50,
     isPublished: false,
   });
 
@@ -51,50 +58,44 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
 
-  // Fetch activity data when modal opens
+  // Fetch book data when modal opens
   useEffect(() => {
-    if (open && activityId && contentType === CONTENT_TYPES.ACTIVITY) {
-      // Check if we already have the correct activity loaded
-      const hasCorrectActivity = currentContent && currentContent._id === activityId;
-      const isDifferentActivity = lastFetchedIdRef.current !== activityId;
+    if (open && bookId) {
+      const hasCorrectBook = currentContent && currentContent._id === bookId;
+      const isDifferentBook = lastFetchedIdRef.current !== bookId;
       
-      // Only fetch if:
-      // 1. We don't have the correct activity loaded
-      // 2. We're not already fetching
-      // 3. This is a different activity than we last fetched
-      // 4. Content type is ACTIVITY (prevent fetching wrong content type)
-      if (!hasCorrectActivity && !isFetchingRef.current && isDifferentActivity) {
+      if (!hasCorrectBook && !isFetchingRef.current && isDifferentBook) {
         isFetchingRef.current = true;
-        lastFetchedIdRef.current = activityId;
-        fetchContent(CONTENT_TYPES.ACTIVITY, activityId)
+        lastFetchedIdRef.current = bookId;
+        fetchContent(CONTENT_TYPES.BOOK, bookId)
           .catch((error) => {
-            // On error, don't reset lastFetchedIdRef to prevent infinite retry loop
-            // Only reset if it's a different error (not 404)
-            console.error('Error fetching activity:', error);
-            // Keep lastFetchedIdRef set to prevent retry loop
+            console.error('Error fetching book:', error);
           })
           .finally(() => {
             isFetchingRef.current = false;
           });
       }
     } else if (!open) {
-      // Reset when modal closes
       setIsInitialized(false);
       isFetchingRef.current = false;
       lastFetchedIdRef.current = null;
       clearContent();
     }
-    // Only depend on open, activityId, and contentType - currentContent is checked inside
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, contentType]);
+  }, [open, bookId]);
 
-  // Update form data when currentContent changes (only once when it first loads)
+  // Update form data when currentContent changes
   useEffect(() => {
-    if (open && activityId && currentContent && currentContent._id === activityId && !isInitialized) {
+    if (open && bookId && currentContent && currentContent._id === bookId && !isInitialized) {
       setFormData({
         title: currentContent.title || '',
         description: currentContent.description || '',
-        starsAwarded: currentContent.starsAwarded || 15,
+        language: currentContent.language || 'en',
+        readingLevel: currentContent.readingLevel || 'beginner',
+        estimatedReadingTime: currentContent.estimatedReadingTime || null,
+        requiredReadingCount: currentContent.requiredReadingCount || 5,
+        starsPerReading: currentContent.starsPerReading || 10,
+        totalStarsAwarded: currentContent.totalStarsAwarded || 50,
         isPublished: currentContent.isPublished || false,
       });
       setCurrentCoverImage(currentContent.coverImage);
@@ -102,7 +103,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
       setIsInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, currentContent?._id]);
+  }, [open, bookId, currentContent?._id]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -112,13 +113,12 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
       setSelectedCoverImage(file);
-      // Create preview URL
       const url = URL.createObjectURL(file);
       setImagePreviewUrl(url);
     }
   };
 
-  // Cleanup object URL when component unmounts or image changes
+  // Cleanup object URL
   useEffect(() => {
     return () => {
       if (imagePreviewUrl) {
@@ -129,26 +129,31 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
 
   const handleSubmit = async () => {
     try {
-      // Create FormData
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title);
       formDataToSend.append('description', formData.description || '');
-      formDataToSend.append('starsAwarded', formData.starsAwarded);
+      formDataToSend.append('language', formData.language);
+      formDataToSend.append('readingLevel', formData.readingLevel);
+      if (formData.estimatedReadingTime) {
+        formDataToSend.append('estimatedReadingTime', formData.estimatedReadingTime);
+      }
+      formDataToSend.append('requiredReadingCount', formData.requiredReadingCount);
+      formDataToSend.append('starsPerReading', formData.starsPerReading);
+      formDataToSend.append('totalStarsAwarded', formData.totalStarsAwarded);
       formDataToSend.append('isPublished', formData.isPublished);
 
-      // Add cover image if a new one is selected
       if (selectedCoverImage) {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
-      await updateContentData(contentType, activityId, formDataToSend);
+      await updateContentData(CONTENT_TYPES.BOOK, bookId, formDataToSend);
       
       if (onSuccess) {
         onSuccess();
       }
       handleClose();
     } catch (error) {
-      console.error('Error updating activity:', error);
+      console.error('Error updating book:', error);
     }
   };
 
@@ -156,14 +161,18 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
     setFormData({
       title: '',
       description: '',
-      starsAwarded: 15,
+      language: 'en',
+      readingLevel: 'beginner',
+      estimatedReadingTime: null,
+      requiredReadingCount: 5,
+      starsPerReading: 10,
+      totalStarsAwarded: 50,
       isPublished: false,
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
-    // Cleanup preview URL
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
       setImagePreviewUrl(null);
@@ -206,7 +215,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             fontWeight: 700,
           }}
         >
-          Edit Activity
+          Edit Book
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
@@ -217,7 +226,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
         <Stack spacing={3} sx={{ marginTop: '20px' }}>
           {/* Title */}
           <TextField
-            label="Activity Title"
+            label="Book Title"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
             required
@@ -246,12 +255,95 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             }}
           />
 
-          {/* Stars Awarded */}
+          {/* Language */}
+          <FormControl fullWidth>
+            <InputLabel>Language</InputLabel>
+            <Select
+              value={formData.language}
+              onChange={(e) => handleInputChange('language', e.target.value)}
+              label="Language"
+              sx={{
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              <MenuItem value="en">English</MenuItem>
+              <MenuItem value="es">Spanish</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Reading Level */}
+          <FormControl fullWidth>
+            <InputLabel>Reading Level</InputLabel>
+            <Select
+              value={formData.readingLevel}
+              onChange={(e) => handleInputChange('readingLevel', e.target.value)}
+              label="Reading Level"
+              sx={{
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              <MenuItem value="beginner">Beginner</MenuItem>
+              <MenuItem value="intermediate">Intermediate</MenuItem>
+              <MenuItem value="advanced">Advanced</MenuItem>
+            </Select>
+          </FormControl>
+
+          {/* Estimated Reading Time */}
           <TextField
-            label="Stars Awarded"
+            label="Estimated Reading Time (minutes)"
             type="number"
-            value={formData.starsAwarded}
-            onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
+            value={formData.estimatedReadingTime || ''}
+            onChange={(e) => handleInputChange('estimatedReadingTime', parseInt(e.target.value) || null)}
+            inputProps={{ min: 0 }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
+          {/* Required Reading Count */}
+          <TextField
+            label="Required Reading Count"
+            type="number"
+            value={formData.requiredReadingCount}
+            onChange={(e) => handleInputChange('requiredReadingCount', parseInt(e.target.value) || 1)}
+            inputProps={{ min: 1 }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
+          {/* Stars Per Reading */}
+          <TextField
+            label="Stars Per Reading"
+            type="number"
+            value={formData.starsPerReading}
+            onChange={(e) => handleInputChange('starsPerReading', parseInt(e.target.value) || 0)}
+            inputProps={{ min: 0 }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
+          {/* Total Stars Awarded */}
+          <TextField
+            label="Total Stars Awarded (on completion)"
+            type="number"
+            value={formData.totalStarsAwarded}
+            onChange={(e) => handleInputChange('totalStarsAwarded', parseInt(e.target.value) || 0)}
             inputProps={{ min: 0 }}
             fullWidth
             sx={{
@@ -275,7 +367,6 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
               Cover Image (Optional)
             </Typography>
             
-            {/* Current or New Cover Image Preview */}
             {displayCoverImage && (
               <Box
                 component="img"
@@ -294,11 +385,11 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             <input
               accept="image/*"
               style={{ display: 'none' }}
-              id="cover-image-upload-edit"
+              id="book-cover-image-upload-edit"
               type="file"
               onChange={handleCoverImageChange}
             />
-            <label htmlFor="cover-image-upload-edit">
+            <label htmlFor="book-cover-image-upload-edit">
               <Button
                 variant="outlined"
                 component="span"
@@ -374,12 +465,12 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             },
           }}
         >
-          {loading ? 'Updating...' : 'Update Activity'}
+          {loading ? 'Updating...' : 'Update Book'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default ActivityEditModal;
+export default BookEditModal;
 

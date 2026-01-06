@@ -23,14 +23,15 @@ import {
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
-import ActivityEditModal from './ActivityEditModal';
+import ContentEditModal from './ContentEditModl';
 
 /**
- * ActivityItems Component
- * 
- * Displays list of activities
+ * ContentItems Component
+ *
+ * Displays list of content items (currently activities/books/videos/audio)
+ * Cards are perfect squares on top, no border radius, matching child-friendly layout.
  */
-const ActivityItems = ({ loading, onRefresh }) => {
+const ContentItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
   const {
     contentItems,
@@ -40,59 +41,57 @@ const ActivityItems = ({ loading, onRefresh }) => {
     filters,
   } = useContent();
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [selectedActivityId, setSelectedActivityId] = useState(null);
+  const [selectedContentId, setSelectedContentId] = useState(null);
+  const [selectedContentType, setSelectedContentType] = useState(CONTENT_TYPES.ACTIVITY);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
 
-  const handleMenuOpen = (event, activity) => {
+  const handleMenuOpen = (event, item) => {
     setAnchorEl(event.currentTarget);
-    setSelectedActivity(activity);
+    setSelectedItem(item);
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-    setSelectedActivity(null);
+    setSelectedItem(null);
   };
 
   const handleEdit = () => {
-    if (selectedActivity) {
-      setSelectedActivityId(selectedActivity._id);
+    if (selectedItem) {
+      setSelectedContentId(selectedItem._id);
+      setSelectedContentType(selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY);
       setEditModalOpen(true);
     }
     handleMenuClose();
   };
 
   const handleArchive = async () => {
-    if (selectedActivity) {
+    if (selectedItem) {
       try {
-        const type = selectedActivity._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+        const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
         if (type === CONTENT_TYPES.ACTIVITY) {
-          await archiveContentData(type, selectedActivity._id);
+          await archiveContentData(type, selectedItem._id);
         } else {
-          await deleteContentData(type, selectedActivity._id);
+          await deleteContentData(type, selectedItem._id);
         }
-        if (onRefresh) {
-          onRefresh();
-        }
+        if (onRefresh) onRefresh();
       } catch (error) {
-        console.error('Error archiving activity:', error);
+        console.error('Error archiving content:', error);
       }
     }
     handleMenuClose();
   };
 
   const handleRestore = async () => {
-    if (selectedActivity) {
+    if (selectedItem) {
       try {
-        const type = selectedActivity._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+        const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
         if (type === CONTENT_TYPES.ACTIVITY) {
-          await restoreContentData(type, selectedActivity._id);
+          await restoreContentData(type, selectedItem._id);
         }
-        if (onRefresh) {
-          onRefresh();
-        }
+        if (onRefresh) onRefresh();
       } catch (error) {
-        console.error('Error restoring activity:', error);
+        console.error('Error restoring content:', error);
       }
     }
     handleMenuClose();
@@ -100,12 +99,33 @@ const ActivityItems = ({ loading, onRefresh }) => {
 
   const handleEditModalClose = () => {
     setEditModalOpen(false);
-    setSelectedActivityId(null);
-    if (onRefresh) {
-      onRefresh();
+    setSelectedContentId(null);
+    if (onRefresh) onRefresh();
+  };
+
+  const getTypeBadge = (item) => {
+    const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    switch (type) {
+      case CONTENT_TYPES.BOOK:
+        return '📚 Book';
+      case CONTENT_TYPES.VIDEO:
+        return '🎥 Video';
+      case CONTENT_TYPES.AUDIO_ASSIGNMENT:
+        return '🎤 Audio';
+      case CONTENT_TYPES.ACTIVITY:
+      default:
+        return '⭐ Activity';
     }
   };
 
+  const getStarsValue = (item) => {
+    const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    // Books use totalStarsAwarded, others use starsAwarded
+    if (type === CONTENT_TYPES.BOOK) {
+      return item.totalStarsAwarded || 0;
+    }
+    return item.starsAwarded || 0;
+  };
 
   if (loading) {
     return (
@@ -133,7 +153,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
             color: theme.palette.text.secondary,
           }}
         >
-          No activities found
+          No contents found
         </Typography>
         <Typography
           variant="body2"
@@ -143,7 +163,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
             marginTop: 1,
           }}
         >
-          Create your first activity to get started
+          Create your first content item to get started
         </Typography>
       </Paper>
     );
@@ -151,8 +171,8 @@ const ActivityItems = ({ loading, onRefresh }) => {
 
   return (
     <Grid container spacing={2}>
-      {contentItems.map((activity) => (
-        <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={activity._id}>
+      {contentItems.map((item) => (
+        <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={item._id}>
           <Card
             sx={{
               borderRadius: '0px',
@@ -183,25 +203,25 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   opacity: 1,
                 },
               }}
-              onClick={(e) => handleMenuOpen(e, activity)}
+              onClick={(e) => handleMenuOpen(e, item)}
             >
               <MoreVertIcon />
             </IconButton>
 
-            {/* Cover Image - Full width, perfect square, no padding */}
-            {activity.coverImage ? (
+            {/* Cover / Placeholder - full width square */}
+            {item.coverImage ? (
               <Box
                 sx={{
                   position: 'relative',
                   width: '100%',
-                  paddingTop: '100%', // Creates perfect square (1:1 aspect ratio)
+                  paddingTop: '100%',
                   overflow: 'hidden',
                 }}
               >
                 <Box
                   component="img"
-                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
-                  alt={activity.title}
+                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.coverImage}`}
+                  alt={item.title}
                   sx={{
                     position: 'absolute',
                     top: 0,
@@ -211,7 +231,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     objectFit: 'cover',
                   }}
                 />
-                {/* Stars Badge - Upper left corner */}
+                {/* Type Badge - Upper left */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -221,7 +241,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   }}
                 >
                   <Chip
-                    label={`⭐ ${activity.starsAwarded || 15}`}
+                    label={getTypeBadge(item)}
                     size="small"
                     sx={{
                       backgroundColor: `${theme.palette.orange.main}e0`,
@@ -232,7 +252,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     }}
                   />
                 </Box>
-                {/* Published/Draft Badge - Lower right corner */}
+                {/* Published/Draft Badge - Lower right */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -242,10 +262,10 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   }}
                 >
                   <Chip
-                    label={activity.isPublished ? 'Published' : 'Draft'}
+                    label={item.isPublished ? 'Published' : 'Draft'}
                     size="small"
                     sx={{
-                      backgroundColor: activity.isPublished
+                      backgroundColor: item.isPublished
                         ? `${theme.palette.success.main}e0`
                         : `${theme.palette.grey[600]}e0`,
                       color: theme.palette.textCustom.inverse || theme.palette.common.white,
@@ -255,7 +275,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     }}
                   />
                 </Box>
-                {/* SCORM Badge - Lower left corner */}
+                {/* Stars / SCORM badge - Lower left */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -265,7 +285,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   }}
                 >
                   <Chip
-                    label="SCORM"
+                    label={`⭐ ${getStarsValue(item)}`}
                     size="small"
                     sx={{
                       backgroundColor: `${theme.palette.primary.main}e0`,
@@ -281,7 +301,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
               <Box
                 sx={{
                   width: '100%',
-                  paddingTop: '100%', // Creates perfect square
+                  paddingTop: '100%',
                   position: 'relative',
                   backgroundColor: theme.palette.custom.bgSecondary || theme.palette.grey[100],
                   display: 'flex',
@@ -299,7 +319,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                 >
                   <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
                 </Box>
-                {/* Stars Badge - Upper left corner (for no cover image) */}
+                {/* Type Badge - Upper left */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -309,7 +329,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   }}
                 >
                   <Chip
-                    label={`⭐ ${activity.starsAwarded || 15}`}
+                    label={getTypeBadge(item)}
                     size="small"
                     sx={{
                       backgroundColor: `${theme.palette.orange.main}e0`,
@@ -320,7 +340,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     }}
                   />
                 </Box>
-                {/* Published/Draft Badge - Lower right corner (for no cover image) */}
+                {/* Published/Draft Badge - Lower right */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -330,10 +350,10 @@ const ActivityItems = ({ loading, onRefresh }) => {
                   }}
                 >
                   <Chip
-                    label={activity.isPublished ? 'Published' : 'Draft'}
+                    label={item.isPublished ? 'Published' : 'Draft'}
                     size="small"
                     sx={{
-                      backgroundColor: activity.isPublished
+                      backgroundColor: item.isPublished
                         ? `${theme.palette.success.main}e0`
                         : `${theme.palette.grey[600]}e0`,
                       color: theme.palette.textCustom.inverse || theme.palette.common.white,
@@ -348,7 +368,6 @@ const ActivityItems = ({ loading, onRefresh }) => {
 
             <CardContent sx={{ flexGrow: 1, padding: 2.5 }}>
               <Stack spacing={2}>
-
                 {/* Title */}
                 <Typography
                   variant="h6"
@@ -360,11 +379,11 @@ const ActivityItems = ({ loading, onRefresh }) => {
                     lineHeight: 1.4,
                   }}
                 >
-                  {activity.title}
+                  {item.title}
                 </Typography>
 
                 {/* Description */}
-                {activity.description && (
+                {item.description && (
                   <Typography
                     variant="body2"
                     sx={{
@@ -376,7 +395,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
                       overflow: 'hidden',
                     }}
                   >
-                    {activity.description}
+                    {item.description}
                   </Typography>
                 )}
               </Stack>
@@ -398,18 +417,16 @@ const ActivityItems = ({ loading, onRefresh }) => {
           },
         }}
       >
-        {!selectedActivity?.isArchived && (
-          <MenuItem
-            onClick={handleEdit}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Edit
-          </MenuItem>
-        )}
-        {selectedActivity?.isArchived ? (
+        <MenuItem
+          onClick={handleEdit}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+          }}
+        >
+          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+          Edit
+        </MenuItem>
+        {selectedItem?._contentType === CONTENT_TYPES.ACTIVITY && selectedItem?.isArchived ? (
           <MenuItem
             onClick={handleRestore}
             sx={{
@@ -434,16 +451,18 @@ const ActivityItems = ({ loading, onRefresh }) => {
         )}
       </Menu>
 
-      {/* Edit Modal */}
-      <ActivityEditModal
+      {/* Unified Edit Modal (currently activities only) */}
+      <ContentEditModal
         open={editModalOpen}
         onClose={handleEditModalClose}
-        activityId={selectedActivityId}
+        contentId={selectedContentId}
+        contentType={selectedContentType}
         onSuccess={handleEditModalClose}
       />
     </Grid>
   );
 };
 
-export default ActivityItems;
+export default ContentItems;
+
 

@@ -22,6 +22,7 @@ const createVideo = async (userId, videoData, files = {}) => {
     starsAwarded,
     badgeAwarded,
     tags,
+    isPublished,
   } = videoData;
 
   // Validate required fields
@@ -56,12 +57,15 @@ const createVideo = async (userId, videoData, files = {}) => {
   
   const videoMedia = await Media.create({
     type: 'video',
-    title: videoFile.originalname,
-    filePath: videoFile.path,
-    url: videoFileUrl,
+    title: title?.trim() || videoFile.originalname, // Use provided title, fallback to filename
+    description: description?.trim() || null,
+    filePath: videoFile.path, // Keep full path for server operations (deletion, etc.)
+    url: videoFileUrl, // Relative path for client access
     mimeType: videoFile.mimetype,
     size: videoFile.size,
     duration: duration ? parseInt(duration, 10) : null,
+    starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
+    isPublished: isPublished === 'true' || isPublished === true,
     uploadedBy: userId,
   });
 
@@ -72,8 +76,8 @@ const createVideo = async (userId, videoData, files = {}) => {
   const scormMedia = await Media.create({
     type: 'video', // Using 'video' type for SCORM files
     title: scormFile.originalname,
-    filePath: scormFile.path,
-    url: scormFileUrl,
+    filePath: scormFile.path, // Keep full path for server operations
+    url: scormFileUrl, // Relative path for client access
     mimeType: scormFile.mimetype,
     size: scormFile.size,
     uploadedBy: userId,
@@ -81,10 +85,13 @@ const createVideo = async (userId, videoData, files = {}) => {
 
   // Link SCORM file to video Media
   videoMedia.scormFile = scormMedia._id;
-  videoMedia.scormFilePath = scormFile.path;
-  videoMedia.scormFileUrl = scormFileUrl;
+  videoMedia.scormFilePath = scormFile.path; // Keep full path for server operations
+  videoMedia.scormFileUrl = scormFileUrl; // Relative path for client access
   videoMedia.scormFileSize = scormFile.size;
-  videoMedia.starsAwarded = starsAwarded ? parseInt(starsAwarded, 10) : 10;
+  // Attach optional badge to the video media
+  if (badgeAwarded) {
+    videoMedia.badgeAwarded = badgeAwarded;
+  }
   await videoMedia.save();
 
   // Process cover image if provided
@@ -149,10 +156,16 @@ const getAllVideos = async (queryParams = {}) => {
     scormFile: { $exists: true, $ne: null },
   };
 
+  // Support both isActive and isPublished filters
   if (isActive !== undefined) {
     query.isActive = isActive === 'true' || isActive === true;
   } else {
     query.isActive = true; // Default to active only
+  }
+
+  // Also support isPublished filter (for consistency with other content types)
+  if (queryParams.isPublished !== undefined) {
+    query.isPublished = queryParams.isPublished === 'true' || queryParams.isPublished === true;
   }
 
   if (search) {
@@ -170,6 +183,7 @@ const getAllVideos = async (queryParams = {}) => {
   // Get videos
   const videos = await Media.find(query)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -206,6 +220,7 @@ const getVideoById = async (videoId) => {
     scormFile: { $exists: true, $ne: null },
   })
     .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .lean();
 
@@ -235,6 +250,8 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     description,
     duration,
     starsAwarded,
+    badgeAwarded,
+    isPublished,
   } = updateData;
 
   // Find video
@@ -275,6 +292,25 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     video.starsAwarded = stars;
   }
 
+  // Update published status
+  if (isPublished !== undefined) {
+    video.isPublished = isPublished === 'true' || isPublished === true;
+  }
+
+  // Update badge awarded
+  if (badgeAwarded !== undefined) {
+    if (badgeAwarded) {
+      const badge = await Badge.findById(badgeAwarded);
+      if (!badge) {
+        throw new Error('Invalid badge ID');
+      }
+      video.badgeAwarded = badgeAwarded;
+    } else {
+      // Allow clearing the badge
+      video.badgeAwarded = null;
+    }
+  }
+
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
@@ -288,6 +324,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
   // Get updated video with populated data
   const updatedVideo = await Media.findById(videoId)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .lean();
 

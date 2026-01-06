@@ -118,5 +118,26 @@ audioAssignmentProgressSchema.pre('save', function (next) {
   next();
 });
 
+// Post-save hook to award badge when audio assignment is approved/completed
+audioAssignmentProgressSchema.post('save', async function (doc) {
+  // Award badge when status is 'approved' or 'completed'
+  if (doc.status === 'approved' || doc.status === 'completed') {
+    try {
+      const AudioAssignment = mongoose.model('AudioAssignment');
+      const { awardBadgeForAudioAssignment } = require('../services/badgeAward.service');
+      
+      // Fetch audio assignment with badgeAwarded field
+      const audioAssignment = await AudioAssignment.findById(doc.audioAssignment).select('badgeAwarded');
+      
+      if (audioAssignment && audioAssignment.badgeAwarded) {
+        await awardBadgeForAudioAssignment(doc.child, audioAssignment);
+      }
+    } catch (error) {
+      console.error('Error awarding badge for audio assignment completion:', error);
+      // Don't throw - badge awarding is not critical
+    }
+  }
+});
+
 module.exports = mongoose.model('AudioAssignmentProgress', audioAssignmentProgressSchema);
 

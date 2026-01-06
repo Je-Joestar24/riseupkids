@@ -123,5 +123,26 @@ progressSchema.pre('save', function (next) {
   next();
 });
 
+// Post-save hook to award badge when activity is completed
+progressSchema.post('save', async function (doc) {
+  // Only award badge for standalone activities (not lesson items)
+  if (doc.status === 'completed' && doc.activity && !doc.lessonItem) {
+    try {
+      const Activity = mongoose.model('Activity');
+      const { awardBadgeForActivity } = require('../services/badgeAward.service');
+      
+      // Fetch activity with badgeAwarded field
+      const activity = await Activity.findById(doc.activity).select('badgeAwarded');
+      
+      if (activity && activity.badgeAwarded) {
+        await awardBadgeForActivity(doc.child, activity);
+      }
+    } catch (error) {
+      console.error('Error awarding badge for activity completion:', error);
+      // Don't throw - badge awarding is not critical
+    }
+  }
+});
+
 module.exports = mongoose.model('Progress', progressSchema);
 

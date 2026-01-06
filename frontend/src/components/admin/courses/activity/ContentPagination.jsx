@@ -10,14 +10,14 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import useContent from '../../../../hooks/contentHook';
-import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
- * ActivityPaginations Component
- * 
- * Pagination controls for activities list
+ * ContentPagination Component
+ *
+ * Pagination controls for unified contents list.
+ * Always visible, with items-per-page selector and range summary.
  */
-const ActivityPaginations = () => {
+const ContentPagination = () => {
   const theme = useTheme();
   const { pagination, filters, updateFilters, fetchContents } = useContent();
 
@@ -28,7 +28,7 @@ const ActivityPaginations = () => {
   const handlePageChange = (event, newPage) => {
     const newFilters = { ...filters, page: newPage };
     updateFilters(newFilters);
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+    fetchContents(filters.contentType, newFilters);
   };
 
   const handleLimitChange = (event) => {
@@ -38,7 +38,7 @@ const ActivityPaginations = () => {
       limit: parseInt(event.target.value, 10),
     };
     updateFilters(newFilters);
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+    fetchContents(filters.contentType, newFilters);
   };
 
   const itemsPerPage = pagination.limit || 8;
@@ -110,12 +110,12 @@ const ActivityPaginations = () => {
           fontSize: '0.875rem',
         }}
       >
-        Showing {startItem} to {endItem} of {totalItems} activities
+        Showing {startItem} to {endItem} of {totalItems} items
       </Typography>
 
       {/* Pagination Controls */}
       <Pagination
-        count={totalPages}
+        count={totalPages || 1}
         page={currentPage}
         onChange={handlePageChange}
         color="primary"
@@ -138,5 +138,6 @@ const ActivityPaginations = () => {
   );
 };
 
-export default ActivityPaginations;
+export default ContentPagination;
+
 

@@ -10,25 +10,52 @@ import {
   Paper,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useSearchParams } from 'react-router-dom';
 import { Clear as ClearIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
- * ActivityFilters Component
- * 
- * Filter controls for activities list
+ * ContentFilters Component
+ *
+ * Filter controls for unified contents list
+ * Updates URL query parameter when content type changes
  */
-const ActivityFilters = () => {
+const ContentFilters = () => {
   const theme = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { filters, updateFilters, resetFilters, fetchContents } = useContent();
+
+  // Map CONTENT_TYPES to URL type parameter
+  const getUrlTypeFromContentType = (contentType) => {
+    const urlMap = {
+      [CONTENT_TYPES.ACTIVITY]: 'activities',
+      [CONTENT_TYPES.BOOK]: 'books',
+      [CONTENT_TYPES.VIDEO]: 'videos',
+      [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
+    };
+    return urlMap[contentType] || 'activities';
+  };
+
+  // Update URL when content type changes
+  const updateUrlType = (contentType) => {
+    const urlType = getUrlTypeFromContentType(contentType);
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (urlType === 'activities') {
+      // Remove type param for default (activities)
+      newSearchParams.delete('type');
+    } else {
+      newSearchParams.set('type', urlType);
+    }
+    setSearchParams(newSearchParams, { replace: true });
+  };
 
   const handleSearchChange = (event) => {
     const newFilters = { ...filters, search: event.target.value, page: 1 };
     updateFilters(newFilters);
     // Debounce search - fetch after user stops typing
-    clearTimeout(window.activitySearchTimeout);
-    window.activitySearchTimeout = setTimeout(() => {
+    clearTimeout(window.contentSearchTimeout);
+    window.contentSearchTimeout = setTimeout(() => {
       fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
     }, 500);
   };
@@ -48,11 +75,16 @@ const ActivityFilters = () => {
       isArchived: value === CONTENT_TYPES.ACTIVITY ? filters.isArchived : undefined,
     };
     updateFilters(newFilters);
+    updateUrlType(value || CONTENT_TYPES.ACTIVITY);
     fetchContents(value || CONTENT_TYPES.ACTIVITY, newFilters);
   };
 
   const handleClearFilters = () => {
     resetFilters();
+    // Clear URL type parameter when resetting filters
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.delete('type');
+    setSearchParams(newSearchParams, { replace: true });
     fetchContents(CONTENT_TYPES.ACTIVITY);
   };
 
@@ -100,41 +132,41 @@ const ActivityFilters = () => {
             }}
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activities</MenuItem>
-            {/* Future: enable when frontend for other types is ready */}
-            {/* <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Videos</MenuItem>
-            <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignments</MenuItem> */}
+            <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignments</MenuItem>
           </Select>
         </FormControl>
 
         {/* Search Field */}
-        <TextField
-          placeholder="Search by title or description..."
-          value={filters.search || ''}
-          onChange={handleSearchChange}
-          size="small"
-          sx={{
-            flex: 1,
-            minWidth: 250,
-            '& .MuiOutlinedInput-root': {
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-              '& fieldset': {
-                borderColor: theme.palette.border.main,
+        <div style={{ flex: 1, minWidth: 250 }}>
+          <TextField
+            placeholder="Search by title or description..."
+            value={filters.search || ''}
+            onChange={handleSearchChange}
+            size="small"
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                fontFamily: 'Quicksand, sans-serif',
+                borderRadius: '8px',
+                backgroundColor: theme.palette.custom.bgSecondary,
+                '& fieldset': {
+                  borderColor: theme.palette.border.main,
+                },
+                '&:hover fieldset': {
+                  borderColor: theme.palette.primary.main,
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: theme.palette.primary.main,
+                },
               },
-              '&:hover fieldset': {
-                borderColor: theme.palette.primary.main,
-              },
-              '&.Mui-focused fieldset': {
-                borderColor: theme.palette.primary.main,
-              },
-            },
-          }}
-        />
+            }}
+          />
+        </div>
 
         {/* Published Status Filter */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel
             sx={{
               fontFamily: 'Quicksand, sans-serif',
@@ -163,34 +195,36 @@ const ActivityFilters = () => {
           </Select>
         </FormControl>
 
-        {/* Archived Status Filter */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            Archive
-          </InputLabel>
-          <Select
-            value={filters.isArchived !== undefined ? String(filters.isArchived) : ''}
-            label="Archive"
-            onChange={(e) =>
-              handleFilterChange(
-                'isArchived',
-                e.target.value === '' ? undefined : e.target.value === 'true'
-              )
-            }
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-            }}
-          >
-            <MenuItem value="">Active</MenuItem>
-            <MenuItem value="true">Archived</MenuItem>
-          </Select>
-        </FormControl>
+        {/* Archived Status Filter (only relevant for activities) */}
+        {filters.contentType === CONTENT_TYPES.ACTIVITY && (
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              Archive
+            </InputLabel>
+            <Select
+              value={filters.isArchived !== undefined ? String(filters.isArchived) : ''}
+              label="Archive"
+              onChange={(e) =>
+                handleFilterChange(
+                  'isArchived',
+                  e.target.value === '' ? undefined : e.target.value === 'true'
+                )
+              }
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                borderRadius: '8px',
+                backgroundColor: theme.palette.custom.bgSecondary,
+              }}
+            >
+              <MenuItem value="">Active</MenuItem>
+              <MenuItem value="true">Archived</MenuItem>
+            </Select>
+          </FormControl>
+        )}
 
         {/* Clear Filters Button */}
         {hasActiveFilters && (
@@ -212,5 +246,6 @@ const ActivityFilters = () => {
   );
 };
 
-export default ActivityFilters;
+export default ContentFilters;
+
 

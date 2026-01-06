@@ -122,6 +122,12 @@ const bookSchema = new mongoose.Schema(
       default: 50,
       min: 0,
     },
+    // Badge awarded for completion (when requirement is met - 5 readings)
+    badgeAwarded: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Badge',
+      default: null,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -151,6 +157,7 @@ bookSchema.index({ isPublished: 1 });
 bookSchema.index({ language: 1 });
 bookSchema.index({ readingLevel: 1 });
 bookSchema.index({ scormFile: 1 });
+bookSchema.index({ badgeAwarded: 1 });
 
 // Virtual for total pages
 bookSchema.virtual('totalPages').get(function () {

@@ -22,12 +22,14 @@ import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
- * ActivityEditModal Component
+ * AudioEditModal Component
  * 
- * Modal for editing activities
- * Can only edit: title, description, coverImage, starsAwarded, isPublished
+ * Modal for editing audio assignments
+ * Can only edit: title, description, instructions, coverImage, estimatedDuration,
+ * starsAwarded, isStarAssignment, isPublished
+ * Reference audio cannot be changed
  */
-const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TYPES.ACTIVITY, onSuccess }) => {
+const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
   const theme = useTheme();
   const {
     fetchContent,
@@ -40,7 +42,10 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    starsAwarded: 15,
+    instructions: '',
+    estimatedDuration: null,
+    starsAwarded: 10,
+    isStarAssignment: false,
     isPublished: false,
   });
 
@@ -51,50 +56,42 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
 
-  // Fetch activity data when modal opens
+  // Fetch audio assignment data when modal opens
   useEffect(() => {
-    if (open && activityId && contentType === CONTENT_TYPES.ACTIVITY) {
-      // Check if we already have the correct activity loaded
-      const hasCorrectActivity = currentContent && currentContent._id === activityId;
-      const isDifferentActivity = lastFetchedIdRef.current !== activityId;
+    if (open && audioId) {
+      const hasCorrectAudio = currentContent && currentContent._id === audioId;
+      const isDifferentAudio = lastFetchedIdRef.current !== audioId;
       
-      // Only fetch if:
-      // 1. We don't have the correct activity loaded
-      // 2. We're not already fetching
-      // 3. This is a different activity than we last fetched
-      // 4. Content type is ACTIVITY (prevent fetching wrong content type)
-      if (!hasCorrectActivity && !isFetchingRef.current && isDifferentActivity) {
+      if (!hasCorrectAudio && !isFetchingRef.current && isDifferentAudio) {
         isFetchingRef.current = true;
-        lastFetchedIdRef.current = activityId;
-        fetchContent(CONTENT_TYPES.ACTIVITY, activityId)
+        lastFetchedIdRef.current = audioId;
+        fetchContent(CONTENT_TYPES.AUDIO_ASSIGNMENT, audioId)
           .catch((error) => {
-            // On error, don't reset lastFetchedIdRef to prevent infinite retry loop
-            // Only reset if it's a different error (not 404)
-            console.error('Error fetching activity:', error);
-            // Keep lastFetchedIdRef set to prevent retry loop
+            console.error('Error fetching audio assignment:', error);
           })
           .finally(() => {
             isFetchingRef.current = false;
           });
       }
     } else if (!open) {
-      // Reset when modal closes
       setIsInitialized(false);
       isFetchingRef.current = false;
       lastFetchedIdRef.current = null;
       clearContent();
     }
-    // Only depend on open, activityId, and contentType - currentContent is checked inside
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, contentType]);
+  }, [open, audioId]);
 
-  // Update form data when currentContent changes (only once when it first loads)
+  // Update form data when currentContent changes
   useEffect(() => {
-    if (open && activityId && currentContent && currentContent._id === activityId && !isInitialized) {
+    if (open && audioId && currentContent && currentContent._id === audioId && !isInitialized) {
       setFormData({
         title: currentContent.title || '',
         description: currentContent.description || '',
-        starsAwarded: currentContent.starsAwarded || 15,
+        instructions: currentContent.instructions || '',
+        estimatedDuration: currentContent.estimatedDuration || null,
+        starsAwarded: currentContent.starsAwarded || 10,
+        isStarAssignment: currentContent.isStarAssignment || false,
         isPublished: currentContent.isPublished || false,
       });
       setCurrentCoverImage(currentContent.coverImage);
@@ -102,7 +99,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
       setIsInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, activityId, currentContent?._id]);
+  }, [open, audioId, currentContent?._id]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -112,13 +109,12 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
       setSelectedCoverImage(file);
-      // Create preview URL
       const url = URL.createObjectURL(file);
       setImagePreviewUrl(url);
     }
   };
 
-  // Cleanup object URL when component unmounts or image changes
+  // Cleanup object URL
   useEffect(() => {
     return () => {
       if (imagePreviewUrl) {
@@ -129,26 +125,29 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
 
   const handleSubmit = async () => {
     try {
-      // Create FormData
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title);
       formDataToSend.append('description', formData.description || '');
+      formDataToSend.append('instructions', formData.instructions);
+      if (formData.estimatedDuration) {
+        formDataToSend.append('estimatedDuration', formData.estimatedDuration);
+      }
       formDataToSend.append('starsAwarded', formData.starsAwarded);
+      formDataToSend.append('isStarAssignment', formData.isStarAssignment);
       formDataToSend.append('isPublished', formData.isPublished);
 
-      // Add cover image if a new one is selected
       if (selectedCoverImage) {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
-      await updateContentData(contentType, activityId, formDataToSend);
+      await updateContentData(CONTENT_TYPES.AUDIO_ASSIGNMENT, audioId, formDataToSend);
       
       if (onSuccess) {
         onSuccess();
       }
       handleClose();
     } catch (error) {
-      console.error('Error updating activity:', error);
+      console.error('Error updating audio assignment:', error);
     }
   };
 
@@ -156,14 +155,16 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
     setFormData({
       title: '',
       description: '',
-      starsAwarded: 15,
+      instructions: '',
+      estimatedDuration: null,
+      starsAwarded: 10,
+      isStarAssignment: false,
       isPublished: false,
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
-    // Cleanup preview URL
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
       setImagePreviewUrl(null);
@@ -206,7 +207,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             fontWeight: 700,
           }}
         >
-          Edit Activity
+          Edit Audio Assignment
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
@@ -217,7 +218,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
         <Stack spacing={3} sx={{ marginTop: '20px' }}>
           {/* Title */}
           <TextField
-            label="Activity Title"
+            label="Audio Assignment Title"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
             required
@@ -246,6 +247,39 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             }}
           />
 
+          {/* Instructions */}
+          <TextField
+            label="Instructions"
+            value={formData.instructions}
+            onChange={(e) => handleInputChange('instructions', e.target.value)}
+            multiline
+            rows={3}
+            required
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
+          {/* Estimated Duration */}
+          <TextField
+            label="Estimated Duration (minutes)"
+            type="number"
+            value={formData.estimatedDuration || ''}
+            onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || null)}
+            inputProps={{ min: 0 }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
           {/* Stars Awarded */}
           <TextField
             label="Stars Awarded"
@@ -262,6 +296,23 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             }}
           />
 
+          {/* Is Star Assignment */}
+          <FormControl fullWidth>
+            <InputLabel>Is Star Assignment?</InputLabel>
+            <Select
+              value={formData.isStarAssignment ? 'true' : 'false'}
+              onChange={(e) => handleInputChange('isStarAssignment', e.target.value === 'true')}
+              label="Is Star Assignment?"
+              sx={{
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              <MenuItem value="false">No</MenuItem>
+              <MenuItem value="true">Yes</MenuItem>
+            </Select>
+          </FormControl>
+
           {/* Cover Image Upload */}
           <Box>
             <Typography
@@ -275,7 +326,6 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
               Cover Image (Optional)
             </Typography>
             
-            {/* Current or New Cover Image Preview */}
             {displayCoverImage && (
               <Box
                 component="img"
@@ -294,11 +344,11 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             <input
               accept="image/*"
               style={{ display: 'none' }}
-              id="cover-image-upload-edit"
+              id="audio-cover-image-upload-edit"
               type="file"
               onChange={handleCoverImageChange}
             />
-            <label htmlFor="cover-image-upload-edit">
+            <label htmlFor="audio-cover-image-upload-edit">
               <Button
                 variant="outlined"
                 component="span"
@@ -362,7 +412,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !formData.title}
+          disabled={loading || !formData.title || !formData.instructions}
           sx={{
             backgroundColor: theme.palette.orange.main,
             color: theme.palette.textCustom.inverse,
@@ -374,12 +424,12 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
             },
           }}
         >
-          {loading ? 'Updating...' : 'Update Activity'}
+          {loading ? 'Updating...' : 'Update Audio Assignment'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default ActivityEditModal;
+export default AudioEditModal;
 

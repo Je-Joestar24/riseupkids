@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -22,90 +22,126 @@ import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
- * ActivityAddModal Component
+ * VideoEditModal Component
  * 
- * Modal for creating new activities with file upload support
+ * Modal for editing videos
+ * Can only edit: title, description, coverImage (thumbnail), duration, starsAwarded, isPublished
+ * Video file and SCORM file cannot be changed
  */
-const ActivityAddModal = ({ open, onClose, onSuccess }) => {
+const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
   const theme = useTheme();
-  const { createNewContent, loading } = useContent();
+  const {
+    fetchContent,
+    updateContentData,
+    loading,
+    currentContent,
+    clearContent,
+  } = useContent();
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    starsAwarded: 15,
+    duration: null,
+    starsAwarded: 10,
     isPublished: false,
-    tags: [],
   });
 
-  const [selectedFiles, setSelectedFiles] = useState({
-    scormFile: null,
-    coverImage: null,
-  });
+  const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [currentCoverImage, setCurrentCoverImage] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const isFetchingRef = useRef(false);
+  const lastFetchedIdRef = useRef(null);
+
+  // Fetch video data when modal opens
+  useEffect(() => {
+    if (open && videoId) {
+      const hasCorrectVideo = currentContent && currentContent._id === videoId;
+      const isDifferentVideo = lastFetchedIdRef.current !== videoId;
+      
+      if (!hasCorrectVideo && !isFetchingRef.current && isDifferentVideo) {
+        isFetchingRef.current = true;
+        lastFetchedIdRef.current = videoId;
+        fetchContent(CONTENT_TYPES.VIDEO, videoId)
+          .catch((error) => {
+            console.error('Error fetching video:', error);
+          })
+          .finally(() => {
+            isFetchingRef.current = false;
+          });
+      }
+    } else if (!open) {
+      setIsInitialized(false);
+      isFetchingRef.current = false;
+      lastFetchedIdRef.current = null;
+      clearContent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, videoId]);
+
+  // Update form data when currentContent changes
+  useEffect(() => {
+    if (open && videoId && currentContent && currentContent._id === videoId && !isInitialized) {
+      setFormData({
+        title: currentContent.title || '',
+        description: currentContent.description || '',
+        duration: currentContent.duration || null,
+        starsAwarded: currentContent.starsAwarded || 10,
+        isPublished: currentContent.isPublished || false,
+      });
+      // Videos use 'thumbnail' field, but we map it to 'coverImage' in the slice
+      setCurrentCoverImage(currentContent.coverImage || currentContent.thumbnail);
+      setSelectedCoverImage(null);
+      setIsInitialized(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, videoId, currentContent?._id]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleFileChange = (type, file) => {
-    if (type === 'scormFile') {
-      setSelectedFiles((prev) => ({
-        ...prev,
-        scormFile: file ? file[0] : null,
-      }));
-    } else if (type === 'coverImage') {
-      setSelectedFiles((prev) => ({
-        ...prev,
-        coverImage: file ? file[0] : null,
-      }));
+  const handleCoverImageChange = (event) => {
+    if (event.target.files && event.target.files.length > 0) {
+      const file = event.target.files[0];
+      setSelectedCoverImage(file);
+      const url = URL.createObjectURL(file);
+      setImagePreviewUrl(url);
     }
   };
 
+  // Cleanup object URL
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+      }
+    };
+  }, [imagePreviewUrl]);
+
   const handleSubmit = async () => {
     try {
-      // Validate SCORM file
-      if (!selectedFiles.scormFile) {
-        alert('Please upload a SCORM file (ZIP format)');
-        return;
-      }
-
-      // Create FormData
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title);
       formDataToSend.append('description', formData.description || '');
+      if (formData.duration) {
+        formDataToSend.append('duration', formData.duration);
+      }
       formDataToSend.append('starsAwarded', formData.starsAwarded);
       formDataToSend.append('isPublished', formData.isPublished);
 
-      // Add tags
-      if (formData.tags.length > 0) {
-        formDataToSend.append('tags', JSON.stringify(formData.tags));
+      if (selectedCoverImage) {
+        formDataToSend.append('coverImage', selectedCoverImage);
       }
 
-      // Add SCORM file (required)
-      formDataToSend.append('scormFile', selectedFiles.scormFile);
-
-      // Add cover image (optional)
-      if (selectedFiles.coverImage) {
-        formDataToSend.append('coverImage', selectedFiles.coverImage);
-      }
-
-      await createNewContent(CONTENT_TYPES.ACTIVITY, formDataToSend);
-      
-      // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        starsAwarded: 15,
-        isPublished: false,
-        tags: [],
-      });
-      setSelectedFiles({ scormFile: null, coverImage: null });
+      await updateContentData(CONTENT_TYPES.VIDEO, videoId, formDataToSend);
       
       if (onSuccess) {
         onSuccess();
       }
+      handleClose();
     } catch (error) {
-      console.error('Error creating activity:', error);
+      console.error('Error updating video:', error);
     }
   };
 
@@ -113,13 +149,26 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
     setFormData({
       title: '',
       description: '',
-      starsAwarded: 15,
+      duration: null,
+      starsAwarded: 10,
       isPublished: false,
-      tags: [],
     });
-    setSelectedFiles({ scormFile: null, coverImage: null });
+    setSelectedCoverImage(null);
+    setCurrentCoverImage(null);
+    setIsInitialized(false);
+    isFetchingRef.current = false;
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
     onClose();
   };
+
+  const displayCoverImage = selectedCoverImage && imagePreviewUrl
+    ? imagePreviewUrl
+    : currentCoverImage
+    ? `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${currentCoverImage}`
+    : null;
 
   return (
     <Dialog
@@ -140,7 +189,7 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: 3,
-          borderBottom: `1px solid ${theme.palette.border.main}`
+          borderBottom: `1px solid ${theme.palette.border.main}`,
         }}
       >
         <Typography
@@ -150,18 +199,18 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             fontWeight: 700,
           }}
         >
-          Create New Activity
+          Edit Video
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ padding: 3}}>
-        <Stack spacing={3} sx={{marginTop: '20px' }}>
+      <DialogContent sx={{ padding: 3 }}>
+        <Stack spacing={3} sx={{ marginTop: '20px' }}>
           {/* Title */}
           <TextField
-            label="Activity Title"
+            label="Video Title"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
             required
@@ -169,7 +218,7 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             sx={{
               '& .MuiOutlinedInput-root': {
                 borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif'
+                fontFamily: 'Quicksand, sans-serif',
               },
             }}
           />
@@ -181,6 +230,22 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             onChange={(e) => handleInputChange('description', e.target.value)}
             multiline
             rows={3}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
+
+          {/* Duration */}
+          <TextField
+            label="Duration (seconds)"
+            type="number"
+            value={formData.duration || ''}
+            onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || null)}
+            inputProps={{ min: 0 }}
             fullWidth
             sx={{
               '& .MuiOutlinedInput-root': {
@@ -206,65 +271,7 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             }}
           />
 
-          {/* SCORM File Upload (Required) */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 600,
-                marginBottom: 1,
-              }}
-            >
-              SCORM File <span style={{ color: 'red' }}>*</span>
-            </Typography>
-            <input
-              accept=".zip,application/zip,application/x-zip-compressed"
-              style={{ display: 'none' }}
-              id="scorm-upload"
-              type="file"
-              onChange={(e) => handleFileChange('scormFile', e.target.files)}
-            />
-            <label htmlFor="scorm-upload">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<CloudUploadIcon />}
-                fullWidth
-                required
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
-              >
-                Upload SCORM File (ZIP)
-              </Button>
-            </label>
-            {selectedFiles.scormFile && (
-              <Box sx={{ marginTop: 1 }}>
-                <Chip
-                  label={selectedFiles.scormFile.name}
-                  size="small"
-                  sx={{ margin: 0.5 }}
-                  onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                />
-              </Box>
-            )}
-            <Typography
-              variant="caption"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                color: theme.palette.text.secondary,
-                fontSize: '0.75rem',
-                marginTop: 0.5,
-                display: 'block',
-              }}
-            >
-              SCORM files must be in ZIP format. Maximum file size: 500MB
-            </Typography>
-          </Box>
-
-          {/* Cover Image Upload (Optional) */}
+          {/* Cover Image Upload */}
           <Box>
             <Typography
               variant="subtitle2"
@@ -276,14 +283,30 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             >
               Cover Image (Optional)
             </Typography>
+            
+            {displayCoverImage && (
+              <Box
+                component="img"
+                src={displayCoverImage}
+                alt="Cover preview"
+                sx={{
+                  width: '100%',
+                  maxHeight: 200,
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  marginBottom: 2,
+                }}
+              />
+            )}
+
             <input
               accept="image/*"
               style={{ display: 'none' }}
-              id="cover-image-upload"
+              id="video-cover-image-upload-edit"
               type="file"
-              onChange={(e) => handleFileChange('coverImage', e.target.files)}
+              onChange={handleCoverImageChange}
             />
-            <label htmlFor="cover-image-upload">
+            <label htmlFor="video-cover-image-upload-edit">
               <Button
                 variant="outlined"
                 component="span"
@@ -294,16 +317,16 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
                   fontFamily: 'Quicksand, sans-serif',
                 }}
               >
-                Upload Cover Image
+                {selectedCoverImage ? 'Change Cover Image' : 'Upload New Cover Image'}
               </Button>
             </label>
-            {selectedFiles.coverImage && (
+            {selectedCoverImage && (
               <Box sx={{ marginTop: 1 }}>
                 <Chip
-                  label={selectedFiles.coverImage.name}
+                  label={selectedCoverImage.name}
                   size="small"
                   sx={{ margin: 0.5 }}
-                  onDelete={() => setSelectedFiles((prev) => ({ ...prev, coverImage: null }))}
+                  onDelete={() => setSelectedCoverImage(null)}
                 />
               </Box>
             )}
@@ -347,7 +370,7 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !formData.title || !selectedFiles.scormFile}
+          disabled={loading || !formData.title}
           sx={{
             backgroundColor: theme.palette.orange.main,
             color: theme.palette.textCustom.inverse,
@@ -359,12 +382,12 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
             },
           }}
         >
-          {loading ? 'Creating...' : 'Create Activity'}
+          {loading ? 'Updating...' : 'Update Video'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default ActivityAddModal;
+export default VideoEditModal;
 

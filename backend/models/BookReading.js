@@ -91,6 +91,39 @@ bookReadingSchema.pre('save', function (next) {
   next();
 });
 
+// Post-save hook to award badge when book requirement is met (5 readings)
+bookReadingSchema.post('save', async function (doc) {
+  // Only check when a reading is completed
+  if (doc.status === 'completed') {
+    try {
+      const Book = mongoose.model('Book');
+      const { awardBadgeForBook } = require('../services/badgeAward.service');
+      
+      // Check if requirement is met (5 readings)
+      const isRequirementMet = await this.constructor.isRequirementMet(doc.child, doc.book);
+      
+      if (isRequirementMet) {
+        // Fetch book with badgeAwarded field
+        const book = await Book.findById(doc.book).select('badgeAwarded requiredReadingCount');
+        
+        if (book && book.badgeAwarded) {
+          // Check if badge was already awarded (prevent duplicate awards)
+          // We'll check by counting completed readings - if exactly 5, award badge
+          const completedCount = await this.constructor.getCompletedReadingCount(doc.child, doc.book);
+          
+          // Only award if this is exactly the required reading count (5th reading)
+          if (completedCount === book.requiredReadingCount) {
+            await awardBadgeForBook(doc.child, book);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error awarding badge for book completion:', error);
+      // Don't throw - badge awarding is not critical
+    }
+  }
+});
+
 /**
  * Static method to get reading count for a child and book
  * @param {ObjectId} childId - Child profile ID
@@ -113,7 +146,10 @@ bookReadingSchema.statics.getCompletedReadingCount = async function (childId, bo
  */
 bookReadingSchema.statics.isRequirementMet = async function (childId, bookId) {
   const count = await this.getCompletedReadingCount(childId, bookId);
-  return count >= 5;
+  const Book = mongoose.model('Book');
+  const book = await Book.findById(bookId).select('requiredReadingCount');
+  const requiredCount = book?.requiredReadingCount || 5;
+  return count >= requiredCount;
 };
 
 module.exports = mongoose.model('BookReading', bookReadingSchema);

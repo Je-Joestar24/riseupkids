@@ -1,31 +1,75 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, Paper, Stack, Button } from '@mui/material';
+import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Add as AddIcon } from '@mui/icons-material';
-import ActivityHeader from '../../components/admin/courses/activity/ActivityHeader';
-import ActivityFilters from '../../components/admin/courses/activity/ActivityFilters';
-import ActivityItems from '../../components/admin/courses/activity/ActivityItems';
-import ActivityPaginations from '../../components/admin/courses/activity/ActivityPaginations';
-import ActivityAddModal from '../../components/admin/courses/activity/ActivityAddModal';
-import useActivity from '../../hooks/activityHook';
+import { useSearchParams } from 'react-router-dom';
+import ContentHeader from '../../components/admin/courses/activity/ContentHeader';
+import ContentFilters from '../../components/admin/courses/activity/ContentFilters';
+import ContentItems from '../../components/admin/courses/activity/ContentItems';
+import ContentPagination from '../../components/admin/courses/activity/ContentPagination';
+import ContentAddModal from '../../components/admin/courses/activity/ContentAddModal';
+import useContent from '../../hooks/contentHook';
+import { CONTENT_TYPES } from '../../services/contentService';
 
 /**
- * AdminActivities Page
+ * AdminActivities Page (Contents)
  * 
- * Main page for managing activities
+ * Main page for managing all content types (activities, books, videos, audio)
+ * Supports URL persistence: /admin/courses/contents?type=books
  */
 const AdminActivities = () => {
   const theme = useTheme();
-  const { fetchActivities, loading, pagination } = useActivity();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { fetchContents, loading, pagination, filters, setContentTypeFilter } = useContent();
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const { filters } = useActivity();
+  // Map URL type parameter to CONTENT_TYPES
+  const getContentTypeFromUrl = (typeParam) => {
+    const typeMap = {
+      'activity': CONTENT_TYPES.ACTIVITY,
+      'activities': CONTENT_TYPES.ACTIVITY,
+      'book': CONTENT_TYPES.BOOK,
+      'books': CONTENT_TYPES.BOOK,
+      'video': CONTENT_TYPES.VIDEO,
+      'videos': CONTENT_TYPES.VIDEO,
+      'audio': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+      'audioAssignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+      'audio-assignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+    };
+    return typeMap[typeParam?.toLowerCase()] || CONTENT_TYPES.ACTIVITY;
+  };
 
-  // Fetch activities on component mount and when filters change
+  // Map CONTENT_TYPES to URL type parameter
+  const getUrlTypeFromContentType = (contentType) => {
+    const urlMap = {
+      [CONTENT_TYPES.ACTIVITY]: 'activities',
+      [CONTENT_TYPES.BOOK]: 'books',
+      [CONTENT_TYPES.VIDEO]: 'videos',
+      [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
+    };
+    return urlMap[contentType] || 'activities';
+  };
+
+  // Initialize content type from URL on mount
   useEffect(() => {
-    fetchActivities();
+    if (!isInitialized) {
+      const urlType = searchParams.get('type');
+      if (urlType) {
+        const contentType = getContentTypeFromUrl(urlType);
+        setContentTypeFilter(contentType);
+      }
+      setIsInitialized(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.isPublished, filters.isArchived, filters.search, filters.page, filters.limit]);
+  }, []);
+
+  // Fetch contents (default to activities) on component mount and when filters change
+  useEffect(() => {
+    if (isInitialized) {
+      fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.contentType, filters.isPublished, filters.isArchived, filters.search, filters.page, filters.limit, isInitialized]);
 
   const handleAddClick = () => {
     setAddModalOpen(true);
@@ -35,35 +79,31 @@ const AdminActivities = () => {
     setAddModalOpen(false);
   };
 
-  const handleActivityCreated = () => {
+  const handleContentCreated = () => {
     setAddModalOpen(false);
-    fetchActivities();
+    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
   };
 
   const handleRefresh = () => {
-    fetchActivities();
+    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
   };
 
   return (
     <Box>
       {/* Header Section */}
-      <ActivityHeader onAddClick={handleAddClick} />
+      <ContentHeader onAddClick={handleAddClick} />
 
       {/* Filters Section */}
-      <ActivityFilters />
+      <ContentFilters />
 
-      {/* Activities List */}
-      <ActivityItems loading={loading} onRefresh={handleRefresh} />
+      {/* Contents List */}
+      <ContentItems loading={loading} onRefresh={handleRefresh} />
 
       {/* Pagination */}
-      <ActivityPaginations />
+      <ContentPagination />
 
-      {/* Add Activity Modal */}
-      <ActivityAddModal
-        open={addModalOpen}
-        onClose={handleModalClose}
-        onSuccess={handleActivityCreated}
-      />
+      {/* Add Content Modal */}
+      <ContentAddModal open={addModalOpen} onClose={handleModalClose} onSuccess={handleContentCreated} />
     </Box>
   );
 };

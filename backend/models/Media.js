@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const path = require('path');
 
 const mediaSchema = new mongoose.Schema(
   {
@@ -57,6 +58,12 @@ const mediaSchema = new mongoose.Schema(
       type: String, // File path or URL for video thumbnails
       default: null,
     },
+    // Optional badge awarded for completing this media (primarily for videos)
+    badgeAwarded: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Badge',
+      default: null,
+    },
     // Stars awarded for watching (for videos)
     starsAwarded: {
       type: Number,
@@ -100,6 +107,11 @@ const mediaSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Published status (for videos and other content types)
+    isPublished: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -112,15 +124,35 @@ const mediaSchema = new mongoose.Schema(
 mediaSchema.index({ type: 1 });
 mediaSchema.index({ uploadedBy: 1 });
 mediaSchema.index({ isActive: 1 });
+mediaSchema.index({ isPublished: 1 });
 mediaSchema.index({ scormFile: 1 });
+mediaSchema.index({ badgeAwarded: 1 });
 
 // Pre-save hook to set url based on availability
 mediaSchema.pre('save', function (next) {
-  // Always set url - prefer cloudUrl if available, otherwise use filePath
+  // Always set url - prefer cloudUrl if available
+  // If url is already set (from service), use it
+  // Otherwise, if filePath is a relative path (starts with /uploads), use it
+  // Otherwise, convert full filePath to relative path
   if (this.cloudUrl) {
     this.url = this.cloudUrl;
-  } else if (this.filePath) {
-    this.url = this.filePath;
+  } else if (!this.url && this.filePath) {
+    // If filePath already starts with /uploads, it's already relative
+    if (this.filePath.startsWith('/uploads')) {
+      this.url = this.filePath;
+    } else {
+      // Convert full path to relative path
+      // filePath format: D:\UPWORK\RiseUpKids\backend\uploads\media\videos\file.mp4
+      // We need: /uploads/media/videos/file.mp4
+      const uploadsIndex = this.filePath.indexOf('uploads');
+      if (uploadsIndex !== -1) {
+        const relativePath = this.filePath.substring(uploadsIndex + 'uploads'.length).replace(/\\/g, '/');
+        this.url = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
+      } else {
+        // Fallback: use filePath as-is
+        this.url = this.filePath;
+      }
+    }
   }
   next();
 });
