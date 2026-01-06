@@ -24,7 +24,7 @@ const ContentHeader = ({ onAddClick }) => {
         return 'Audio Assignments';
       case CONTENT_TYPES.ACTIVITY:
       default:
-        return 'Activities';
+        return 'Activityy';
     }
   };
 

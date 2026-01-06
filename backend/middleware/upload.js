@@ -38,6 +38,7 @@ const ensureUploadDirs = () => {
     path.join(__dirname, '../uploads/media/videos'),
     path.join(__dirname, '../uploads/media/audio'),
     path.join(__dirname, '../uploads/media/other'),
+    path.join(__dirname, '../uploads/courses'),
   ];
 
   dirs.forEach(dir => {
@@ -533,6 +534,40 @@ const uploadAudioAssignmentUpdate = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
+// Middleware for course cover image upload
+const uploadCourse = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadPath = path.join(__dirname, '../uploads/courses');
+      
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      cb(null, generateFileName(file.originalname));
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'coverImage') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
+    } else {
+      cb(new Error('Only cover image is allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+  },
+}).fields([
+  { name: 'coverImage', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -545,5 +580,6 @@ module.exports = {
   uploadVideoUpdate,
   uploadAudioAssignment,
   uploadAudioAssignmentUpdate,
+  uploadCourse,
 };
 

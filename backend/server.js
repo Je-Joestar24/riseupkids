@@ -14,6 +14,7 @@ const authRoutes = require('./routes/auth.routes');
 const parentsRoutes = require('./routes/parents.routes');
 const childrenRoutes = require('./routes/children.routes');
 const courseRoutes = require('./routes/course.routes');
+const contentCollectionRoutes = require('./routes/contentCollection.routes');
 const activityRoutes = require('./routes/activity.routes');
 const bookRoutes = require('./routes/book.routes');
 const videoRoutes = require('./routes/video.routes');
@@ -45,7 +46,10 @@ app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/parents', parentsRoutes);
 app.use('/api/children', childrenRoutes);
+// Course routes: /api/courses/activity-groups (existing activity groups)
 app.use('/api/courses', courseRoutes);
+// Content Collection routes: /api/courses (root - create, list, get, update, delete courses)
+app.use('/api/courses', contentCollectionRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/videos', videoRoutes);
