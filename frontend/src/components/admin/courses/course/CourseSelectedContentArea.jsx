@@ -135,7 +135,7 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
                   <Card
                     sx={{
                       position: 'relative',
-                      borderRadius: '12px',
+                      borderRadius: '0px',
                       border: `1px solid ${theme.palette.border.main}`,
                       backgroundColor: theme.palette.background.paper,
                       overflow: 'hidden',
@@ -236,10 +236,10 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
                             color: theme.palette.common.white,
                             fontFamily: 'Quicksand, sans-serif',
                             fontWeight: 600,
-                            fontSize: '0.75rem',
-                            height: 24,
+                            fontSize: '1.125rem', // 25% smaller than doubled (1.5rem * 0.75)
+                            height: 36, // 25% smaller than doubled (48 * 0.75)
                             '& .MuiChip-label': {
-                              padding: '0 8px',
+                              padding: '0 12px', // 25% smaller than doubled (16px * 0.75)
                             },
                           }}
                         />
@@ -262,10 +262,10 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
                             color: theme.palette.common.white,
                             fontFamily: 'Quicksand, sans-serif',
                             fontWeight: 500,
-                            fontSize: '0.7rem',
-                            height: 22,
+                            fontSize: '1.05rem', // 25% smaller than doubled (1.4rem * 0.75)
+                            height: 33, // 25% smaller than doubled (44 * 0.75)
                             '& .MuiChip-label': {
-                              padding: '0 6px',
+                              padding: '0 9px', // 25% smaller than doubled (12px * 0.75)
                             },
                           }}
                         />
@@ -286,14 +286,14 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
                         sx={{
                           fontFamily: 'Quicksand, sans-serif',
                           fontWeight: 600,
-                          fontSize: '0.75rem',
+                          fontSize: '1.125rem', // 25% smaller than doubled (1.5rem * 0.75)
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
                           color: theme.palette.text.primary,
-                          minHeight: '2.25rem',
+                          minHeight: '3.375rem', // 25% smaller than doubled (4.5rem * 0.75)
                           lineHeight: 1.2,
                         }}
                       >

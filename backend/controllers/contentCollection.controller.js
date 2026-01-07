@@ -67,6 +67,7 @@ const createCourse = async (req, res) => {
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
+ * - isArchived: Filter by archived status (true/false, default: false - excludes archived)
  * - search: Search in title/description
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 10)
@@ -186,9 +187,78 @@ const updateCourse = async (req, res) => {
 };
 
 /**
- * @desc    Delete course
+ * @desc    Archive course (soft delete)
+ * @route   PATCH /api/courses/:id/archive
+ * @access  Private (Admin only)
+ */
+const archiveCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can archive courses',
+      });
+    }
+
+    const result = await courseService.archiveCourse(id);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: { id: result.id },
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') || error.message.includes('already') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to archive course',
+    });
+  }
+};
+
+/**
+ * @desc    Unarchive course (restore)
+ * @route   PATCH /api/courses/:id/unarchive
+ * @access  Private (Admin only)
+ */
+const unarchiveCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can unarchive courses',
+      });
+    }
+
+    const result = await courseService.unarchiveCourse(id);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: { id: result.id },
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') || error.message.includes('not archived') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to unarchive course',
+    });
+  }
+};
+
+/**
+ * @desc    Delete course (permanent hard delete)
  * @route   DELETE /api/courses/:id
  * @access  Private (Admin only)
+ * 
+ * WARNING: This permanently deletes the course and cannot be undone.
+ * Consider using archive instead for soft delete.
  */
 const deleteCourse = async (req, res) => {
   try {
@@ -223,6 +293,8 @@ module.exports = {
   getAllCourses,
   getCourseById,
   updateCourse,
+  archiveCourse,
+  unarchiveCourse,
   deleteCourse,
 };
 

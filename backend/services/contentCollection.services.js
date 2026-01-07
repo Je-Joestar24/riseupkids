@@ -190,6 +190,7 @@ const createCourse = async (userId, courseData, files = {}) => {
 const getAllCourses = async (queryParams = {}) => {
   const {
     isPublished,
+    isArchived,
     search,
     page = 1,
     limit = 10,
@@ -197,6 +198,13 @@ const getAllCourses = async (queryParams = {}) => {
 
   // Build query
   const query = {};
+
+  // By default, exclude archived courses unless explicitly requested
+  if (isArchived === undefined || isArchived === 'false' || isArchived === false) {
+    query.isArchived = false;
+  } else if (isArchived === 'true' || isArchived === true) {
+    query.isArchived = true;
+  }
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -245,8 +253,10 @@ const getAllCourses = async (queryParams = {}) => {
  * @returns {Object} Course with populated contents
  * @throws {Error} If course not found
  */
-const getCourseById = async (courseId) => {
-  const course = await Course.findById(courseId)
+const getCourseById = async (courseId, includeArchived = false) => {
+  // By default, exclude archived courses unless explicitly requested
+  const query = includeArchived ? { _id: courseId } : { _id: courseId, isArchived: false };
+  const course = await Course.findOne(query)
     .populate('createdBy', 'name email')
     .lean();
 
@@ -454,9 +464,63 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
 };
 
 /**
+ * Archive Course Service
+ * 
+ * Archives a course (soft delete - sets isArchived to true)
+ * Archived courses are hidden from normal listings but can be restored
+ * 
+ * @param {String} courseId - Course's MongoDB ID
+ * @returns {Object} Archived course info
+ * @throws {Error} If course not found
+ */
+const archiveCourse = async (courseId) => {
+  const course = await Course.findById(courseId);
+
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  if (course.isArchived) {
+    throw new Error('Course is already archived');
+  }
+
+  course.isArchived = true;
+  await course.save();
+
+  return { message: 'Course archived successfully', id: courseId };
+};
+
+/**
+ * Unarchive Course Service
+ * 
+ * Restores an archived course (sets isArchived to false)
+ * 
+ * @param {String} courseId - Course's MongoDB ID
+ * @returns {Object} Unarchived course info
+ * @throws {Error} If course not found
+ */
+const unarchiveCourse = async (courseId) => {
+  const course = await Course.findById(courseId);
+
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  if (!course.isArchived) {
+    throw new Error('Course is not archived');
+  }
+
+  course.isArchived = false;
+  await course.save();
+
+  return { message: 'Course unarchived successfully', id: courseId };
+};
+
+/**
  * Delete Course Service
  * 
- * Deletes a course (hard delete - removes from database)
+ * Deletes a course permanently (hard delete - removes from database)
+ * This action cannot be undone
  * 
  * @param {String} courseId - Course's MongoDB ID
  * @returns {Object} Deleted course info
@@ -488,6 +552,8 @@ module.exports = {
   getAllCourses,
   getCourseById,
   updateCourse,
+  archiveCourse,
+  unarchiveCourse,
   deleteCourse,
 };
 

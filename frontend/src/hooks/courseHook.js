@@ -4,6 +4,8 @@ import {
   createCourse,
   fetchCourseById,
   updateCourse,
+  archiveCourse,
+  unarchiveCourse,
   deleteCourse,
   clearError,
   setFilters,
@@ -134,7 +136,55 @@ export const useCourse = () => {
   };
 
   /**
-   * Delete course
+   * Archive course (soft delete)
+   * @param {String} courseId - Course's ID
+   * @returns {Promise} Archive result
+   */
+  const archiveCourseData = async (courseId) => {
+    try {
+      const result = await dispatch(archiveCourse(courseId)).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Course archived successfully!',
+        type: 'success',
+      }));
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to archive course',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Unarchive course (restore)
+   * @param {String} courseId - Course's ID
+   * @returns {Promise} Unarchive result
+   */
+  const unarchiveCourseData = async (courseId) => {
+    try {
+      const result = await dispatch(unarchiveCourse(courseId)).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Course unarchived successfully!',
+        type: 'success',
+      }));
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to unarchive course',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Delete course (permanent hard delete)
    * @param {String} courseId - Course's ID
    * @returns {Promise} Delete result
    */
@@ -295,6 +345,8 @@ export const useCourse = () => {
     fetchCourse,
     createNewCourse,
     updateCourseData,
+    archiveCourseData,
+    unarchiveCourseData,
     deleteCourseData,
     updateFilters,
     resetFilters,

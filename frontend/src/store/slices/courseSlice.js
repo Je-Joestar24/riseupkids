@@ -62,7 +62,37 @@ export const updateCourse = createAsyncThunk(
 );
 
 /**
- * Async thunk for deleting a course
+ * Async thunk for archiving a course
+ */
+export const archiveCourse = createAsyncThunk(
+  'course/archiveCourse',
+  async (courseId, { rejectWithValue }) => {
+    try {
+      const response = await courseService.archiveCourse(courseId);
+      return { courseId, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to archive course');
+    }
+  }
+);
+
+/**
+ * Async thunk for unarchiving a course
+ */
+export const unarchiveCourse = createAsyncThunk(
+  'course/unarchiveCourse',
+  async (courseId, { rejectWithValue }) => {
+    try {
+      const response = await courseService.unarchiveCourse(courseId);
+      return { courseId, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to unarchive course');
+    }
+  }
+);
+
+/**
+ * Async thunk for deleting a course (permanent)
  */
 export const deleteCourse = createAsyncThunk(
   'course/deleteCourse',
@@ -92,6 +122,7 @@ const initialState = {
   // Filters
   filters: {
     isPublished: undefined,
+    isArchived: false, // Default: exclude archived courses
     search: '',
     page: 1,
     limit: 10,
@@ -225,6 +256,71 @@ const courseSlice = createSlice({
         state.error = null;
       })
       .addCase(updateCourse.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Archive Course
+    builder
+      .addCase(archiveCourse.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(archiveCourse.fulfilled, (state, action) => {
+        state.loading = false;
+        const { courseId } = action.payload;
+        
+        // Update course in list to mark as archived
+        const index = state.courses.findIndex(
+          (course) => course._id === courseId
+        );
+        if (index !== -1) {
+          state.courses[index].isArchived = true;
+          // Remove from list if not showing archived courses
+          if (!state.filters.isArchived) {
+            state.courses = state.courses.filter(
+              (course) => course._id !== courseId
+            );
+            state.pagination.total = Math.max(0, state.pagination.total - 1);
+          }
+        }
+        
+        // Update current course if it's the same
+        if (state.currentCourse?._id === courseId) {
+          state.currentCourse.isArchived = true;
+        }
+        state.error = null;
+      })
+      .addCase(archiveCourse.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Unarchive Course
+    builder
+      .addCase(unarchiveCourse.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(unarchiveCourse.fulfilled, (state, action) => {
+        state.loading = false;
+        const { courseId } = action.payload;
+        
+        // Update course in list to mark as unarchived
+        const index = state.courses.findIndex(
+          (course) => course._id === courseId
+        );
+        if (index !== -1) {
+          state.courses[index].isArchived = false;
+        }
+        
+        // Update current course if it's the same
+        if (state.currentCourse?._id === courseId) {
+          state.currentCourse.isArchived = false;
+        }
+        state.error = null;
+      })
+      .addCase(unarchiveCourse.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

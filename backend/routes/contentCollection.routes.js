@@ -5,6 +5,8 @@ const {
   getAllCourses,
   getCourseById,
   updateCourse,
+  archiveCourse,
+  unarchiveCourse,
   deleteCourse,
 } = require('../controllers/contentCollection.controller');
 const { protect, authorize } = require('../middleware/auth');
@@ -22,7 +24,9 @@ const { uploadCourse } = require('../middleware/upload');
  * - GET / - Get all courses (with filtering and pagination)
  * - GET /:id - Get single course by ID (with populated contents)
  * - PUT /:id - Update course (title, description, coverImage, isPublished, tags, contents reorder)
- * - DELETE /:id - Delete course (hard delete)
+ * - PATCH /:id/archive - Archive course (soft delete)
+ * - PATCH /:id/unarchive - Unarchive course (restore)
+ * - DELETE /:id - Delete course (permanent hard delete)
  */
 
 // All routes require authentication
@@ -43,7 +47,13 @@ router.get('/:id', getCourseById);
 // Update course (with optional cover image upload)
 router.put('/:id', uploadCourse, updateCourse);
 
-// Delete course
+// Archive course (soft delete)
+router.patch('/:id/archive', archiveCourse);
+
+// Unarchive course (restore)
+router.patch('/:id/unarchive', unarchiveCourse);
+
+// Delete course (permanent hard delete)
 router.delete('/:id', deleteCourse);
 
 module.exports = router;

@@ -60,6 +60,11 @@ const courseSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Archive status (soft delete)
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
     // Tags for categorization
     tags: [
       {
@@ -84,6 +89,7 @@ const courseSchema = new mongoose.Schema(
 // Indexes for efficient queries
 courseSchema.index({ createdBy: 1 });
 courseSchema.index({ isPublished: 1 });
+courseSchema.index({ isArchived: 1 });
 courseSchema.index({ 'contents.contentId': 1, 'contents.contentType': 1 });
 courseSchema.index({ title: 'text', description: 'text' }); // Text search
 

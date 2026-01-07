@@ -107,6 +107,7 @@ const AdminDialogBox = () => {
         maxWidth="xs"
         fullWidth
         PaperProps={{
+          elevation: 8,
           sx: {
             borderRadius: '8px',
             padding: 0,
@@ -191,6 +192,7 @@ const AdminDialogBox = () => {
         maxWidth="sm"
         fullWidth
         PaperProps={{
+          elevation: 8,
           sx: {
             borderRadius: '8px',
             padding: 0,

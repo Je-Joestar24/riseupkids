@@ -16,6 +16,7 @@ import {
   IconButton,
   Chip,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
@@ -26,12 +27,33 @@ import CourseSelectedContentArea from './CourseSelectedContentArea';
 /**
  * CourseAddModal Component
  *
- * Modal for creating new course/content collection
+ * Modal for creating/editing course/content collection
  * Includes form fields, cover image upload, and content selection
+ * Supports both create and edit modes
+ * 
+ * @param {Boolean} open - Modal open state
+ * @param {Function} onClose - Close handler
+ * @param {Function} onSuccess - Success callback
+ * @param {String} mode - 'create' | 'edit' (default: 'create')
+ * @param {String} courseId - Course ID for edit mode (optional if course prop provided)
+ * @param {Object} course - Course object for edit mode (optional, will fetch if courseId provided)
+ * @param {Number} contentCreatedTrigger - External trigger for content creation refresh
+ * @param {Object} createdContentData - Created content data to auto-add
+ * @param {Function} onCreatedContentProcessed - Callback when created content is processed
  */
-const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: externalContentCreatedTrigger, createdContentData, onCreatedContentProcessed }) => {
+const CourseAddModal = ({ 
+  open, 
+  onClose, 
+  onSuccess, 
+  mode = 'create',
+  courseId = null,
+  course: initialCourse = null,
+  contentCreatedTrigger: externalContentCreatedTrigger, 
+  createdContentData, 
+  onCreatedContentProcessed 
+}) => {
   const theme = useTheme();
-  const { createNewCourse, prepareCourseFormData, loading, openDrawer } = useCourse();
+  const { createNewCourse, updateCourseData, fetchCourse, prepareCourseFormData, loading, openDrawer, getCoverImageUrl } = useCourse();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -43,7 +65,10 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
   const [tagInput, setTagInput] = useState('');
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [currentCoverImageUrl, setCurrentCoverImageUrl] = useState(null); // For edit mode - existing cover image
   const [selectedContents, setSelectedContents] = useState([]);
+  const [isFetchingCourse, setIsFetchingCourse] = useState(false);
+  const [courseData, setCourseData] = useState(null);
   
   // Use external trigger if provided, otherwise use internal state
   const [internalContentCreatedTrigger, setInternalContentCreatedTrigger] = useState(0);
@@ -51,7 +76,84 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
     ? externalContentCreatedTrigger 
     : internalContentCreatedTrigger;
 
-  // Reset form when modal opens/closes
+  const isEditMode = mode === 'edit';
+
+  // Fetch course data for edit mode
+  useEffect(() => {
+    if (open && isEditMode && courseId && !courseData && !isFetchingCourse) {
+      const loadCourseData = async () => {
+        setIsFetchingCourse(true);
+        try {
+          const result = await fetchCourse(courseId);
+          if (result?.data) {
+            const course = result.data;
+            setCourseData(course);
+            
+            // Pre-populate form
+            setFormData({
+              title: course.title || '',
+              description: course.description || '',
+              isPublished: course.isPublished || false,
+              tags: course.tags || [],
+            });
+            
+            // Set existing cover image
+            if (course.coverImage) {
+              const coverUrl = getCoverImageUrl(course.coverImage);
+              setCurrentCoverImageUrl(coverUrl);
+            }
+            
+            // Pre-select existing contents
+            if (course.contents && Array.isArray(course.contents)) {
+              const formattedContents = course.contents.map((content) => ({
+                contentId: content._id || content.contentId,
+                contentType: content._contentType || content.contentType,
+                // Include full item data for display
+                ...content,
+                _id: content._id || content.contentId,
+                _contentType: content._contentType || content.contentType,
+              }));
+              setSelectedContents(formattedContents);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching course:', error);
+        } finally {
+          setIsFetchingCourse(false);
+        }
+      };
+      
+      loadCourseData();
+    } else if (open && isEditMode && initialCourse && !courseData) {
+      // Use provided course data directly
+      setCourseData(initialCourse);
+      setFormData({
+        title: initialCourse.title || '',
+        description: initialCourse.description || '',
+        isPublished: initialCourse.isPublished || false,
+        tags: initialCourse.tags || [],
+      });
+      
+      if (initialCourse.coverImage) {
+        const coverUrl = getCoverImageUrl(initialCourse.coverImage);
+        setCurrentCoverImageUrl(coverUrl);
+      }
+      
+      if (initialCourse.contents && Array.isArray(initialCourse.contents)) {
+        const formattedContents = initialCourse.contents.map((content) => ({
+          contentId: content._id || content.contentId,
+          contentType: content._contentType || content.contentType,
+          ...content,
+          _id: content._id || content.contentId,
+          _contentType: content._contentType || content.contentType,
+        }));
+        setSelectedContents(formattedContents);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEditMode, courseId]);
+
+  // Reset form when modal closes
   useEffect(() => {
     if (!open) {
       setFormData({
@@ -63,7 +165,10 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
       setTagInput('');
       setSelectedCoverImage(null);
       setImagePreviewUrl(null);
+      setCurrentCoverImageUrl(null);
       setSelectedContents([]);
+      setCourseData(null);
+      setIsFetchingCourse(false);
       // Don't reset external trigger, only internal one
       if (externalContentCreatedTrigger === undefined) {
         setInternalContentCreatedTrigger(0);
@@ -148,7 +253,18 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
       setSelectedCoverImage(file);
       const url = URL.createObjectURL(file);
       setImagePreviewUrl(url);
+      // Clear current cover image URL when new image is selected
+      setCurrentCoverImageUrl(null);
     }
+  };
+
+  const handleRemoveCoverImage = () => {
+    setSelectedCoverImage(null);
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
+    setCurrentCoverImageUrl(null);
   };
 
   const handleContentSelectionChange = (contents) => {
@@ -191,7 +307,7 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
       }
 
       // Prepare course data
-      const courseData = {
+      const courseDataToSubmit = {
         title: formData.title.trim(),
         description: formData.description?.trim() || '',
         isPublished: formData.isPublished,
@@ -200,17 +316,22 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
       };
 
       // Prepare FormData
-      const formDataToSend = prepareCourseFormData(courseData, selectedCoverImage);
+      const formDataToSend = prepareCourseFormData(courseDataToSubmit, selectedCoverImage);
 
-      // Create course
-      await createNewCourse(formDataToSend);
+      if (isEditMode && courseId) {
+        // Update course
+        await updateCourseData(courseId, formDataToSend);
+      } else {
+        // Create course
+        await createNewCourse(formDataToSend);
+      }
 
       if (onSuccess) {
         onSuccess();
       }
       handleClose();
     } catch (error) {
-      console.error('Error creating course:', error);
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} course:`, error);
       // Error notification is handled by the hook
     }
   };
@@ -270,7 +391,7 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
             fontSize: '1.5rem',
           }}
         >
-          Create New Course
+          {isEditMode ? 'Edit Course' : 'Create New Course'}
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
@@ -283,7 +404,12 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
           overflowY: 'auto',
         }}
       >
-        <Stack spacing={3}>
+        {isFetchingCourse ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Stack spacing={3}>
           {/* Basic Information Section */}
           <Box>
             <Typography
@@ -397,10 +523,11 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
               Cover Image (Optional)
             </Typography>
 
-            {imagePreviewUrl && (
+            {/* Show preview of new image if selected, otherwise show current cover image */}
+            {(imagePreviewUrl || currentCoverImageUrl) && (
               <Box
                 component="img"
-                src={imagePreviewUrl}
+                src={imagePreviewUrl || currentCoverImageUrl}
                 alt="Cover preview"
                 sx={{
                   width: '100%',
@@ -430,23 +557,27 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
                   fontFamily: 'Quicksand, sans-serif',
                 }}
               >
-                {selectedCoverImage ? 'Change Cover Image' : 'Upload Cover Image'}
+                {selectedCoverImage || currentCoverImageUrl ? 'Change Cover Image' : 'Upload Cover Image'}
               </Button>
             </label>
-            {selectedCoverImage && (
-              <Box sx={{ marginTop: 1 }}>
-                <Chip
-                  label={selectedCoverImage.name}
-                  size="small"
-                  sx={{ margin: 0.5 }}
-                  onDelete={() => {
-                    setSelectedCoverImage(null);
-                    if (imagePreviewUrl) {
-                      URL.revokeObjectURL(imagePreviewUrl);
-                      setImagePreviewUrl(null);
-                    }
-                  }}
-                />
+            {(selectedCoverImage || currentCoverImageUrl) && (
+              <Box sx={{ marginTop: 1, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {selectedCoverImage && (
+                  <Chip
+                    label={selectedCoverImage.name}
+                    size="small"
+                    onDelete={handleRemoveCoverImage}
+                    sx={{ fontFamily: 'Quicksand, sans-serif' }}
+                  />
+                )}
+                {currentCoverImageUrl && !selectedCoverImage && (
+                  <Chip
+                    label="Current cover image"
+                    size="small"
+                    onDelete={handleRemoveCoverImage}
+                    sx={{ fontFamily: 'Quicksand, sans-serif' }}
+                  />
+                )}
               </Box>
             )}
           </Box>
@@ -493,6 +624,7 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
             />
           </Box>
         </Stack>
+        )}
       </DialogContent>
 
       <DialogActions
@@ -514,7 +646,7 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading || !formData.title}
+          disabled={loading || isFetchingCourse || !formData.title}
           sx={{
             backgroundColor: theme.palette.orange.main,
             color: theme.palette.textCustom.inverse,
@@ -526,7 +658,9 @@ const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: exter
             },
           }}
         >
-          {loading ? 'Creating...' : 'Create Course'}
+          {loading 
+            ? (isEditMode ? 'Updating...' : 'Creating...') 
+            : (isEditMode ? 'Update Course' : 'Create Course')}
         </Button>
       </DialogActions>
     </Dialog>

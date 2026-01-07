@@ -46,7 +46,8 @@ const CourseFilters = () => {
 
   const hasActiveFilters =
     filters.search ||
-    filters.isPublished !== undefined;
+    filters.isPublished !== undefined ||
+    filters.isArchived !== false;
 
   return (
     <Paper
@@ -121,6 +122,37 @@ const CourseFilters = () => {
             <MenuItem value="">All</MenuItem>
             <MenuItem value="true">Published</MenuItem>
             <MenuItem value="false">Draft</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Archived Status Filter */}
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            Archive
+          </InputLabel>
+          <Select
+            value={filters.isArchived === true ? 'true' : filters.isArchived === false ? 'false' : 'all'}
+            label="Archive"
+            onChange={(e) => {
+              const value = e.target.value;
+              handleFilterChange(
+                'isArchived',
+                value === 'all' ? undefined : value === 'true'
+              );
+            }}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              borderRadius: '8px',
+              backgroundColor: theme.palette.custom.bgSecondary,
+            }}
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="false">Active</MenuItem>
+            <MenuItem value="true">Archived</MenuItem>
           </Select>
         </FormControl>
 

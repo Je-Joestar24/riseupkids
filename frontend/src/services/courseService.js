@@ -18,6 +18,7 @@ const courseService = {
    * Get all courses with filtering and pagination
    * @param {Object} params - Query parameters
    * @param {Boolean} params.isPublished - Filter by published status
+   * @param {Boolean} params.isArchived - Filter by archived status (default: false - excludes archived)
    * @param {String} params.search - Search in title/description
    * @param {Number} params.page - Page number (default: 1)
    * @param {Number} params.limit - Items per page (default: 10)
@@ -84,7 +85,35 @@ const courseService = {
   },
 
   /**
-   * Delete course
+   * Archive course (soft delete)
+   * @param {String} courseId - Course's ID
+   * @returns {Promise} API response
+   */
+  archiveCourse: async (courseId) => {
+    try {
+      const response = await api.patch(`/courses/${courseId}/archive`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Unarchive course (restore)
+   * @param {String} courseId - Course's ID
+   * @returns {Promise} API response
+   */
+  unarchiveCourse: async (courseId) => {
+    try {
+      const response = await api.patch(`/courses/${courseId}/unarchive`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Delete course (permanent hard delete)
    * @param {String} courseId - Course's ID
    * @returns {Promise} API response
    */

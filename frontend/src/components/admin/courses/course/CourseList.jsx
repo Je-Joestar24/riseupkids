@@ -6,6 +6,7 @@ import CourseFilters from './CourseFilters';
 import CourseHeader from './CourseHeader';
 import CoursePagination from './CoursePagination';
 import CourseCard from './CourseCard';
+import CourseAddModal from './CourseAddModal';
 
 /**
  * CourseList Component
@@ -15,9 +16,11 @@ import CourseCard from './CourseCard';
  */
 const CourseList = ({ onAddClick }) => {
   const theme = useTheme();
-  const { courses, loading, error, fetchCourses, filters, deleteCourseData } = useCourse();
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [courseToDelete, setCourseToDelete] = useState(null);
+  const { courses, loading, error, fetchCourses, filters, archiveCourseData, unarchiveCourseData } = useCourse();
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [courseToArchive, setCourseToArchive] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [courseToEdit, setCourseToEdit] = useState(null);
 
   // Fetch courses on component mount
   useEffect(() => {
@@ -29,7 +32,7 @@ const CourseList = ({ onAddClick }) => {
   useEffect(() => {
     fetchCourses();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.search, filters.isPublished, filters.page, filters.limit]);
+  }, [filters.search, filters.isPublished, filters.isArchived, filters.page, filters.limit]);
 
   return (
     <Box>
@@ -134,12 +137,12 @@ const CourseList = ({ onAddClick }) => {
                 <CourseCard
                   course={course}
                   onEdit={(course) => {
-                    // TODO: Implement edit functionality
-                    console.log('Edit course:', course);
+                    setCourseToEdit(course);
+                    setEditModalOpen(true);
                   }}
-                  onDelete={(course) => {
-                    setCourseToDelete(course);
-                    setDeleteDialogOpen(true);
+                  onArchive={(course) => {
+                    setCourseToArchive(course);
+                    setArchiveDialogOpen(true);
                   }}
                   onView={(course) => {
                     // TODO: Implement view functionality
@@ -152,10 +155,10 @@ const CourseList = ({ onAddClick }) => {
         </Box>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Archive/Unarchive Confirmation Dialog */}
       <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        open={archiveDialogOpen}
+        onClose={() => setArchiveDialogOpen(false)}
         PaperProps={{
           elevation: 8,
           sx: {
@@ -170,7 +173,7 @@ const CourseList = ({ onAddClick }) => {
             fontWeight: 600,
           }}
         >
-          Delete Course?
+          {courseToArchive?.isArchived ? 'Restore Course?' : 'Archive Course?'}
         </DialogTitle>
         <DialogContent>
           <Typography
@@ -178,12 +181,14 @@ const CourseList = ({ onAddClick }) => {
               fontFamily: 'Quicksand, sans-serif',
             }}
           >
-            Are you sure you want to delete "{courseToDelete?.title}"? This action cannot be undone.
+            {courseToArchive?.isArchived
+              ? `Are you sure you want to restore "${courseToArchive?.title}"? It will be visible again in the course list.`
+              : `Are you sure you want to archive "${courseToArchive?.title}"? It will be hidden from the course list but can be restored later.`}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button
-            onClick={() => setDeleteDialogOpen(false)}
+            onClick={() => setArchiveDialogOpen(false)}
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 600,
@@ -193,29 +198,52 @@ const CourseList = ({ onAddClick }) => {
           </Button>
           <Button
             onClick={async () => {
-              if (courseToDelete) {
+              if (courseToArchive) {
                 try {
-                  await deleteCourseData(courseToDelete._id);
-                  setDeleteDialogOpen(false);
-                  setCourseToDelete(null);
+                  if (courseToArchive.isArchived) {
+                    await unarchiveCourseData(courseToArchive._id);
+                  } else {
+                    await archiveCourseData(courseToArchive._id);
+                  }
+                  setArchiveDialogOpen(false);
+                  setCourseToArchive(null);
                   // Refresh courses list
                   fetchCourses();
                 } catch (error) {
-                  console.error('Error deleting course:', error);
+                  console.error('Error archiving/unarchiving course:', error);
                 }
               }
             }}
-            color="error"
+            color={courseToArchive?.isArchived ? 'success' : 'warning'}
             variant="contained"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 600,
             }}
           >
-            Delete
+            {courseToArchive?.isArchived ? 'Restore' : 'Archive'}
           </Button>
         </DialogActions>
       </Dialog>
+
+
+      {/* Edit Course Modal */}
+      <CourseAddModal
+        open={editModalOpen}
+        mode="edit"
+        courseId={courseToEdit?._id}
+        course={courseToEdit}
+        onClose={() => {
+          setEditModalOpen(false);
+          setCourseToEdit(null);
+        }}
+        onSuccess={() => {
+          setEditModalOpen(false);
+          setCourseToEdit(null);
+          // Refresh courses list
+          fetchCourses();
+        }}
+      />
 
       {/* Pagination - Always visible */}
       <CoursePagination />

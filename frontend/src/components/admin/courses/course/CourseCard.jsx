@@ -1,21 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Card,
   CardMedia,
   CardContent,
-  CardActions,
   Typography,
   Chip,
   Box,
   IconButton,
-  Tooltip,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   Edit as EditIcon,
-  Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
-  VisibilityOff as VisibilityOffIcon,
+  Archive as ArchiveIcon,
+  Restore as RestoreIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import useCourse from '../../../../hooks/courseHook';
 
@@ -25,27 +25,39 @@ import useCourse from '../../../../hooks/courseHook';
  * Displays a single course/content collection card
  * Shows cover image, title, description, tags, content count, and status
  */
-const CourseCard = ({ course, onEdit, onDelete, onView }) => {
+const CourseCard = ({ course, onEdit, onArchive, onView }) => {
   const theme = useTheme();
   const { getCoverImageUrl } = useCourse();
+  const [anchorEl, setAnchorEl] = useState(null);
 
   const coverImageUrl = getCoverImageUrl(course.coverImage);
   const contentCount = course.contents?.length || course.contentCount || 0;
   const isPublished = course.isPublished;
+  const isArchived = course.isArchived || false;
 
-  const handleEdit = (e) => {
+  const handleMenuOpen = (e) => {
     e.stopPropagation();
+    setAnchorEl(e.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleEdit = () => {
+    handleMenuClose();
     if (onEdit) {
       onEdit(course);
     }
   };
 
-  const handleDelete = (e) => {
-    e.stopPropagation();
-    if (onDelete) {
-      onDelete(course);
+  const handleArchive = () => {
+    handleMenuClose();
+    if (onArchive) {
+      onArchive(course);
     }
   };
+
 
   const handleView = (e) => {
     e.stopPropagation();
@@ -60,7 +72,7 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        borderRadius: '12px',
+        borderRadius: '0px',
         border: `1px solid ${theme.palette.border.main}`,
         backgroundColor: theme.palette.background.paper,
         transition: 'all 0.3s ease',
@@ -73,22 +85,99 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
       }}
       onClick={handleView}
     >
+      {/* Action Menu Button */}
+      <IconButton
+        sx={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 2,
+          backgroundColor: theme.palette.background.paper,
+          opacity: 0.9,
+          '&:hover': {
+            backgroundColor: theme.palette.custom.bgTertiary,
+            opacity: 1,
+          },
+        }}
+        onClick={handleMenuOpen}
+      >
+        <MoreVertIcon />
+      </IconButton>
+
       {/* Cover Image */}
       {coverImageUrl ? (
-        <CardMedia
-          component="img"
-          height="180"
-          image={coverImageUrl}
-          alt={course.title || 'Course cover'}
+        <Box
           sx={{
-            objectFit: 'cover',
-            backgroundColor: theme.palette.custom.bgSecondary,
+            position: 'relative',
+            width: '100%',
+            paddingTop: '100%',
+            overflow: 'hidden',
           }}
-        />
+        >
+          <Box
+            component="img"
+            src={coverImageUrl}
+            alt={course.title || 'Course cover'}
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+          {/* Draft/Published Badge - Upper left */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              zIndex: 1,
+            }}
+          >
+            <Chip
+              label={isPublished ? 'Published' : 'Draft'}
+              size="small"
+              sx={{
+                backgroundColor: isPublished
+                  ? `${theme.palette.success.main}e0`
+                  : `${theme.palette.grey[600]}e0`,
+                color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 500,
+                backdropFilter: 'blur(4px)',
+              }}
+            />
+          </Box>
+          {/* Item Count Badge - Lower right */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              zIndex: 1,
+            }}
+          >
+            <Chip
+              label={`${contentCount} ${contentCount === 1 ? 'item' : 'items'}`}
+              size="small"
+              sx={{
+                backgroundColor: `${theme.palette.primary.main}e0`,
+                color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+              }}
+            />
+          </Box>
+        </Box>
       ) : (
         <Box
           sx={{
-            height: 180,
+            position: 'relative',
+            width: '100%',
+            paddingTop: '100%',
             backgroundColor: theme.palette.custom.bgSecondary,
             display: 'flex',
             alignItems: 'center',
@@ -98,6 +187,10 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
           <Typography
             variant="h4"
             sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
               fontFamily: 'Quicksand, sans-serif',
               color: theme.palette.text.disabled,
               fontWeight: 700,
@@ -105,6 +198,50 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
           >
             {course.title?.charAt(0)?.toUpperCase() || '?'}
           </Typography>
+          {/* Draft/Published Badge - Upper left */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              zIndex: 1,
+            }}
+          >
+            <Chip
+              label={isPublished ? 'Published' : 'Draft'}
+              size="small"
+              sx={{
+                backgroundColor: isPublished
+                  ? `${theme.palette.success.main}e0`
+                  : `${theme.palette.grey[600]}e0`,
+                color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 500,
+                backdropFilter: 'blur(4px)',
+              }}
+            />
+          </Box>
+          {/* Item Count Badge - Lower right */}
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 8,
+              right: 8,
+              zIndex: 1,
+            }}
+          >
+            <Chip
+              label={`${contentCount} ${contentCount === 1 ? 'item' : 'items'}`}
+              size="small"
+              sx={{
+                backgroundColor: `${theme.palette.primary.main}e0`,
+                color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+              }}
+            />
+          </Box>
         </Box>
       )}
 
@@ -117,34 +254,6 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
           flexDirection: 'column',
         }}
       >
-        {/* Status Badge */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 1.5 }}>
-          <Chip
-            label={isPublished ? 'Published' : 'Draft'}
-            size="small"
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 600,
-              backgroundColor: isPublished
-                ? theme.palette.success.light
-                : theme.palette.warning.light,
-              color: isPublished
-                ? theme.palette.success.dark
-                : theme.palette.warning.dark,
-              fontSize: '0.75rem',
-            }}
-          />
-          <Chip
-            label={`${contentCount} ${contentCount === 1 ? 'item' : 'items'}`}
-            size="small"
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              backgroundColor: theme.palette.custom.bgSecondary,
-              color: theme.palette.text.secondary,
-              fontSize: '0.75rem',
-            }}
-          />
-        </Box>
 
         {/* Title */}
         <Typography
@@ -227,58 +336,52 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
         )}
       </CardContent>
 
-      {/* Card Actions */}
-      <CardActions
-        sx={{
-          padding: 1.5,
-          borderTop: `1px solid ${theme.palette.border.main}`,
-          justifyContent: 'space-between',
+      {/* Action Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            fontFamily: 'Quicksand, sans-serif',
+            minWidth: 150,
+          },
         }}
       >
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title={isPublished ? 'Published' : 'Draft'}>
-            <span>
-              <IconButton size="small" disabled>
-                {isPublished ? (
-                  <VisibilityIcon fontSize="small" />
-                ) : (
-                  <VisibilityOffIcon fontSize="small" />
-                )}
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="Edit Course">
-            <IconButton
-              size="small"
-              onClick={handleEdit}
-              sx={{
-                color: theme.palette.primary.main,
-                '&:hover': {
-                  backgroundColor: `${theme.palette.primary.main}20`,
-                },
-              }}
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete Course">
-            <IconButton
-              size="small"
-              onClick={handleDelete}
-              sx={{
-                color: theme.palette.error.main,
-                '&:hover': {
-                  backgroundColor: `${theme.palette.error.main}20`,
-                },
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </CardActions>
+        <MenuItem
+          onClick={handleEdit}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+          }}
+        >
+          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+          Edit
+        </MenuItem>
+        {isArchived ? (
+          <MenuItem
+            onClick={handleArchive}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Restore
+          </MenuItem>
+        ) : (
+          <MenuItem
+            onClick={handleArchive}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.warning.main,
+            }}
+          >
+            <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Archive
+          </MenuItem>
+        )}
+      </Menu>
     </Card>
   );
 };
