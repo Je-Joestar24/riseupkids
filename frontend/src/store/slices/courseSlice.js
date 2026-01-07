@@ -96,6 +96,11 @@ const initialState = {
     page: 1,
     limit: 10,
   },
+  // Content creation drawer state
+  contentDrawer: {
+    open: false,
+    contentType: null,
+  },
   loading: false,
   error: null,
 };
@@ -116,6 +121,15 @@ const courseSlice = createSlice({
     },
     clearCurrentCourse: (state) => {
       state.currentCourse = null;
+    },
+    // Content drawer management
+    openContentDrawer: (state, action) => {
+      state.contentDrawer.open = true;
+      state.contentDrawer.contentType = action.payload || null;
+    },
+    closeContentDrawer: (state) => {
+      state.contentDrawer.open = false;
+      state.contentDrawer.contentType = null;
     },
     resetCourseState: (state) => {
       return initialState;
@@ -249,6 +263,8 @@ export const {
   setFilters,
   clearFilters,
   clearCurrentCourse,
+  openContentDrawer,
+  closeContentDrawer,
   resetCourseState,
 } = courseSlice.actions;
 export default courseSlice.reducer;

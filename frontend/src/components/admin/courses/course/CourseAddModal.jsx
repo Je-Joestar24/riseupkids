@@ -29,9 +29,9 @@ import CourseSelectedContentArea from './CourseSelectedContentArea';
  * Modal for creating new course/content collection
  * Includes form fields, cover image upload, and content selection
  */
-const CourseAddModal = ({ open, onClose, onSuccess }) => {
+const CourseAddModal = ({ open, onClose, onSuccess, contentCreatedTrigger: externalContentCreatedTrigger, createdContentData, onCreatedContentProcessed }) => {
   const theme = useTheme();
-  const { createNewCourse, prepareCourseFormData, loading } = useCourse();
+  const { createNewCourse, prepareCourseFormData, loading, openDrawer } = useCourse();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -44,6 +44,12 @@ const CourseAddModal = ({ open, onClose, onSuccess }) => {
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [selectedContents, setSelectedContents] = useState([]);
+  
+  // Use external trigger if provided, otherwise use internal state
+  const [internalContentCreatedTrigger, setInternalContentCreatedTrigger] = useState(0);
+  const contentCreatedTrigger = externalContentCreatedTrigger !== undefined 
+    ? externalContentCreatedTrigger 
+    : internalContentCreatedTrigger;
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -58,8 +64,12 @@ const CourseAddModal = ({ open, onClose, onSuccess }) => {
       setSelectedCoverImage(null);
       setImagePreviewUrl(null);
       setSelectedContents([]);
+      // Don't reset external trigger, only internal one
+      if (externalContentCreatedTrigger === undefined) {
+        setInternalContentCreatedTrigger(0);
+      }
     }
-  }, [open]);
+  }, [open, externalContentCreatedTrigger]);
 
   // Cleanup object URL
   useEffect(() => {
@@ -69,6 +79,43 @@ const CourseAddModal = ({ open, onClose, onSuccess }) => {
       }
     };
   }, [imagePreviewUrl]);
+
+  // Automatically add created content to selected contents
+  useEffect(() => {
+    if (createdContentData && createdContentData.content) {
+      const { content, contentType: createdContentType } = createdContentData;
+      
+      // Map content type to backend format
+      // createdContentType should already be in backend format ('activity', 'book', etc.)
+      // since CONTENT_TYPES constants use backend format values
+      const backendContentType = createdContentType || 'activity';
+      
+      // Check if content is already selected
+      const isAlreadySelected = selectedContents.some(
+        (item) => item.contentId === content._id && item.contentType === backendContentType
+      );
+
+      if (!isAlreadySelected) {
+        // Add to selected contents
+        const newContentItem = {
+          contentId: content._id,
+          contentType: backendContentType,
+          // Include full item data for display
+          ...content,
+          _id: content._id,
+          _contentType: createdContentType,
+        };
+
+        setSelectedContents((prev) => [...prev, newContentItem]);
+      }
+
+      // Notify parent that we've processed the created content
+      if (onCreatedContentProcessed) {
+        onCreatedContentProcessed();
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createdContentData]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -117,6 +164,22 @@ const CourseAddModal = ({ open, onClose, onSuccess }) => {
           !(item.contentId === contentId && item.contentType === contentType)
       )
     );
+  };
+
+  const handleCreateContentClick = (contentType) => {
+    // Open drawer via Redux (managed at page level)
+    if (openDrawer) {
+      openDrawer(contentType);
+    }
+  };
+
+  const handleContentCreated = () => {
+    // Trigger refresh in ContentSelector when content is created
+    // Only update internal trigger if external one is not provided
+    if (externalContentCreatedTrigger === undefined) {
+      setInternalContentCreatedTrigger((prev) => prev + 1);
+    }
+    // External trigger is managed by parent (AdminCourses)
   };
 
   const handleSubmit = async () => {
@@ -425,6 +488,8 @@ const CourseAddModal = ({ open, onClose, onSuccess }) => {
             <ContentSelector
               selectedContents={selectedContents}
               onSelectionChange={handleContentSelectionChange}
+              onCreateContentClick={handleCreateContentClick}
+              onContentCreated={contentCreatedTrigger} // Trigger refresh when content is created
             />
           </Box>
         </Stack>

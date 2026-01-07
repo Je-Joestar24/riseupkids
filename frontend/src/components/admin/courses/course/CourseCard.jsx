@@ -237,13 +237,15 @@ const CourseCard = ({ course, onEdit, onDelete, onView }) => {
       >
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           <Tooltip title={isPublished ? 'Published' : 'Draft'}>
-            <IconButton size="small" disabled>
-              {isPublished ? (
-                <VisibilityIcon fontSize="small" />
-              ) : (
-                <VisibilityOffIcon fontSize="small" />
-              )}
-            </IconButton>
+            <span>
+              <IconButton size="small" disabled>
+                {isPublished ? (
+                  <VisibilityIcon fontSize="small" />
+                ) : (
+                  <VisibilityOffIcon fontSize="small" />
+                )}
+              </IconButton>
+            </span>
           </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', gap: 0.5 }}>

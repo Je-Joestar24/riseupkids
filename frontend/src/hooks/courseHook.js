@@ -9,6 +9,8 @@ import {
   setFilters,
   clearFilters,
   clearCurrentCourse,
+  openContentDrawer,
+  closeContentDrawer,
 } from '../store/slices/courseSlice';
 import { showNotification } from '../store/slices/uiSlice';
 
@@ -25,6 +27,7 @@ export const useCourse = () => {
     currentCourse,
     pagination,
     filters,
+    contentDrawer = { open: false, contentType: null },
     loading,
     error,
   } = useSelector((state) => state.course);
@@ -263,12 +266,28 @@ export const useCourse = () => {
     return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   };
 
+  /**
+   * Open content creation drawer
+   * @param {String} contentType - Content type to create (optional)
+   */
+  const openDrawer = (contentType = null) => {
+    dispatch(openContentDrawer(contentType));
+  };
+
+  /**
+   * Close content creation drawer
+   */
+  const closeDrawer = () => {
+    dispatch(closeContentDrawer());
+  };
+
   return {
     // State
     courses,
     currentCourse,
     pagination,
     filters,
+    contentDrawer,
     loading,
     error,
     // Methods
@@ -281,6 +300,9 @@ export const useCourse = () => {
     resetFilters,
     clearCourseError,
     clearCourse,
+    // Drawer management
+    openDrawer,
+    closeDrawer,
     // Helpers
     prepareCourseFormData,
     getContentTypeLabel,

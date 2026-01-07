@@ -17,9 +17,10 @@ import {
   CardContent,
   Checkbox,
   FormControlLabel,
+  Button,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CheckCircle as CheckCircleIcon, Image as ImageIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CheckCircle as CheckCircleIcon, Image as ImageIcon, Add as AddIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
@@ -28,8 +29,9 @@ import { CONTENT_TYPES } from '../../../../services/contentService';
  *
  * Modular component for selecting existing content items to add to a course
  * Supports multi-select across different content types
+ * Includes button to create new content in a drawer
  */
-const ContentSelector = ({ selectedContents = [], onSelectionChange }) => {
+const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateContentClick, onContentCreated }) => {
   const theme = useTheme();
   const { fetchContents, allContentItems, loading, CONTENT_TYPES: CONTENT_TYPES_CONST } = useContent();
 
@@ -70,30 +72,42 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange }) => {
   }, [selectedContents]);
 
   // Fetch content when type changes and store directly in local state
-  useEffect(() => {
-    const fetchContent = async () => {
-      try {
-        const result = await fetchContents(contentType, { limit: 50, isPublished: true });
-        // Extract items from result (result has { contentType, response } structure)
-        // response has { success, data, pagination } structure
-        let items = [];
-        if (result?.response?.data) {
-          items = Array.isArray(result.response.data) ? result.response.data : [];
-        } else if (result?.data) {
-          // Fallback: direct data property (if response structure is different)
-          items = Array.isArray(result.data) ? result.data : [];
-        }
-        // Ensure each item has _contentType for identification
-        items = items.map(item => ({ ...item, _contentType: contentType }));
-        setLocalContentItems(items);
-      } catch (error) {
-        console.error('Error fetching content:', error);
-        setLocalContentItems([]);
+  const fetchContent = async () => {
+    try {
+      const result = await fetchContents(contentType, { limit: 50, isPublished: true });
+      // Extract items from result (result has { contentType, response } structure)
+      // response has { success, data, pagination } structure
+      let items = [];
+      if (result?.response?.data) {
+        items = Array.isArray(result.response.data) ? result.response.data : [];
+      } else if (result?.data) {
+        // Fallback: direct data property (if response structure is different)
+        items = Array.isArray(result.data) ? result.data : [];
       }
-    };
+      // Ensure each item has _contentType for identification
+      items = items.map(item => ({ ...item, _contentType: contentType }));
+      setLocalContentItems(items);
+    } catch (error) {
+      console.error('Error fetching content:', error);
+      setLocalContentItems([]);
+    }
+  };
+
+  useEffect(() => {
     fetchContent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentType]);
+
+  // Refresh content when new content is created (onContentCreated changes)
+  useEffect(() => {
+    // Trigger refresh when onContentCreated changes (it's a number that increments)
+    // This happens when content is created via the drawer
+    if (onContentCreated !== undefined && onContentCreated !== null && onContentCreated > 0) {
+      // Refetch current content type to show newly created content
+      fetchContent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onContentCreated]);
 
   const handleContentTypeChange = (newType) => {
     setContentType(newType);
@@ -277,6 +291,31 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange }) => {
             },
           }}
         />
+
+        {/* Create Content Button */}
+        {onCreateContentClick && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => onCreateContentClick(contentType)}
+            sx={{
+              backgroundColor: theme.palette.orange.main,
+              color: theme.palette.textCustom.inverse,
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 600,
+              borderRadius: '8px',
+              textTransform: 'none',
+              paddingX: 2.5,
+              paddingY: 1,
+              whiteSpace: 'nowrap',
+              '&:hover': {
+                backgroundColor: theme.palette.orange.dark,
+              },
+            }}
+          >
+            Create Content
+          </Button>
+        )}
       </Box>
 
       {/* Selected Items Display */}

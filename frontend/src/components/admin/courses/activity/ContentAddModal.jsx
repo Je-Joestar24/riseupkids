@@ -34,28 +34,30 @@ import { CONTENT_TYPES } from '../../../../services/contentService';
  * 
  * Automatically detects current content type from filters/URL
  */
-const ContentAddModal = ({ open, onClose, onSuccess }) => {
+const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderAsDrawer = false }) => {
   const theme = useTheme();
   const { createNewContent, loading, filters } = useContent();
 
-  // Initialize with current content type from filters
-  const [contentType, setContentType] = useState(filters.contentType || CONTENT_TYPES.ACTIVITY);
+  // Initialize with initialContentType prop, or current content type from filters, or default
+  const [contentType, setContentType] = useState(
+    initialContentType || filters.contentType || CONTENT_TYPES.ACTIVITY
+  );
 
-  // Update content type when modal opens or filters change
+  // Update content type when modal opens, filters change, or initialContentType changes
   useEffect(() => {
     if (open) {
-      // Set to current content type when modal opens
-      const currentType = filters.contentType || CONTENT_TYPES.ACTIVITY;
+      // Priority: initialContentType > filters.contentType > default
+      const currentType = initialContentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
       setContentType(currentType);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, filters.contentType]);
+  }, [open, filters.contentType, initialContentType]);
 
   const [formData, setFormData] = useState({
     // common
     title: '',
     description: '',
-    isPublished: false,
+    isPublished: renderAsDrawer ? true : false, // Default to published when creating from drawer
     tags: [],
     starsAwarded: 15,
     // book-specific
@@ -96,7 +98,7 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
     setFormData({
       title: '',
       description: '',
-      isPublished: false,
+      isPublished: renderAsDrawer ? true : false, // Default to published when creating from drawer
       tags: [],
       starsAwarded: 15,
       language: 'en',
@@ -200,9 +202,12 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
         }
       }
 
-      await createNewContent(contentType, fd);
+      const result = await createNewContent(contentType, fd);
       resetState();
-      if (onSuccess) onSuccess();
+      // Pass created content data to onSuccess callback
+      if (onSuccess) {
+        onSuccess(result?.data || null, contentType);
+      }
     } catch (error) {
       console.error('Error creating content:', error);
     }
@@ -730,6 +735,132 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
     }
   };
 
+  // Form content (reusable in both Dialog and Drawer)
+  const formContent = (
+    <>
+      <Stack spacing={3} sx={{ marginTop: renderAsDrawer ? 0 : '20px', padding: renderAsDrawer ? 3 : 0 }}>
+        {/* Content Type Selector */}
+        <FormControl fullWidth>
+          <InputLabel>Content Type</InputLabel>
+          <Select
+            value={contentType}
+            label="Content Type"
+            onChange={(e) => setContentType(e.target.value)}
+            sx={{
+              borderRadius: '10px',
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
+            <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Title */}
+        <TextField
+          label="Title"
+          value={formData.title}
+          onChange={(e) => handleInputChange('title', e.target.value)}
+          required
+          fullWidth
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '10px',
+              fontFamily: 'Quicksand, sans-serif',
+            },
+          }}
+        />
+
+        {/* Description */}
+        <TextField
+          label="Description"
+          value={formData.description}
+          onChange={(e) => handleInputChange('description', e.target.value)}
+          multiline
+          rows={3}
+          fullWidth
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '10px',
+              fontFamily: 'Quicksand, sans-serif',
+            },
+          }}
+        />
+
+        {/* Type-specific numeric / logical fields */}
+        {renderTypeSpecificFields()}
+
+        {/* File inputs based on type + cover image */}
+        {renderFileInputs()}
+
+        {/* Published Toggle */}
+        <FormControl fullWidth>
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={formData.isPublished ? 'true' : 'false'}
+            onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+            label="Status"
+            sx={{
+              borderRadius: '10px',
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            <MenuItem value="false">Draft</MenuItem>
+            <MenuItem value="true">Published</MenuItem>
+          </Select>
+        </FormControl>
+      </Stack>
+
+      {/* Actions */}
+      <Box
+        sx={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 2,
+          padding: 3,
+          borderTop: renderAsDrawer ? `1px solid ${theme.palette.border.main}` : 'none',
+          marginTop: renderAsDrawer ? 2 : 0,
+        }}
+      >
+        <Button
+          onClick={handleClose}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 600,
+            borderRadius: '10px',
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={loading || !formData.title}
+          sx={{
+            backgroundColor: theme.palette.orange.main,
+            color: theme.palette.textCustom.inverse,
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 600,
+            borderRadius: '10px',
+            '&:hover': {
+              backgroundColor: theme.palette.orange.dark,
+            },
+          }}
+        >
+          {loading ? 'Creating...' : 'Create'}
+        </Button>
+      </Box>
+    </>
+  );
+
+  // If rendering as drawer, return just the form content
+  if (renderAsDrawer) {
+    return formContent;
+  }
+
+  // Otherwise, render as Dialog
   return (
     <Dialog
       open={open}
@@ -769,116 +900,8 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
       </DialogTitle>
 
       <DialogContent sx={{ padding: 3 }}>
-        <Stack spacing={3} sx={{ marginTop: '20px' }}>
-          {/* Content Type Selector */}
-          <FormControl fullWidth>
-            <InputLabel>Content Type</InputLabel>
-            <Select
-              value={contentType}
-              label="Content Type"
-              onChange={(e) => setContentType(e.target.value)}
-              sx={{
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
-              <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM)</MenuItem>
-              <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
-              <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
-            </Select>
-          </FormControl>
-
-          {/* Title */}
-          <TextField
-            label="Title"
-            value={formData.title}
-            onChange={(e) => handleInputChange('title', e.target.value)}
-            required
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
-
-          {/* Description */}
-          <TextField
-            label="Description"
-            value={formData.description}
-            onChange={(e) => handleInputChange('description', e.target.value)}
-            multiline
-            rows={3}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
-
-          {/* Type-specific numeric / logical fields */}
-          {renderTypeSpecificFields()}
-
-          {/* File inputs based on type + cover image */}
-          {renderFileInputs()}
-
-          {/* Published Toggle */}
-          <FormControl fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={formData.isPublished ? 'true' : 'false'}
-              onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
-              label="Status"
-              sx={{
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              <MenuItem value="false">Draft</MenuItem>
-              <MenuItem value="true">Published</MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
+        {formContent}
       </DialogContent>
-
-      <DialogActions
-        sx={{
-          padding: 3,
-          borderTop: `1px solid ${theme.palette.border.main}`,
-        }}
-      >
-        <Button
-          onClick={handleClose}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 600,
-            borderRadius: '10px',
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={loading || !formData.title}
-          sx={{
-            backgroundColor: theme.palette.orange.main,
-            color: theme.palette.textCustom.inverse,
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 600,
-            borderRadius: '10px',
-            '&:hover': {
-              backgroundColor: theme.palette.orange.dark,
-            },
-          }}
-        >
-          {loading ? 'Creating...' : 'Create'}
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 };
