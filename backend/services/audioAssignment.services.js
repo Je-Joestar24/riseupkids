@@ -121,7 +121,7 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
  * @param {Boolean} [queryParams.isStarAssignment] - Filter by star assignment status
  * @param {String} [queryParams.search] - Search in title/description/instructions
  * @param {Number} [queryParams.page] - Page number (default: 1)
- * @param {Number} [queryParams.limit] - Items per page (default: 8)
+ * @param {Number} [queryParams.limit] - Items per page (default: 10)
  * @returns {Object} Audio assignments with pagination info
  */
 const getAllAudioAssignments = async (queryParams = {}) => {
@@ -130,7 +130,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
     isStarAssignment,
     search,
     page = 1,
-    limit = 8,
+    limit = 10,
   } = queryParams;
 
   // Build query
@@ -154,7 +154,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 8;
+  const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
   // Get audio assignments

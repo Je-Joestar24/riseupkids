@@ -54,7 +54,7 @@ const createActivity = async (req, res) => {
  * - isArchived: Filter by archived status (true/false, default: false)
  * - search: Search in title/description
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 8)
+ * - limit: Items per page (default: 10)
  */
 const getAllActivities = async (req, res) => {
   try {

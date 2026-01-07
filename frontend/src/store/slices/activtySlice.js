@@ -97,7 +97,7 @@ const initialState = {
   currentActivity: null,
   pagination: {
     page: 1,
-    limit: 8,
+    limit: 10,
     total: 0,
     pages: 0,
   },
@@ -106,7 +106,7 @@ const initialState = {
     isArchived: undefined,
     search: '',
     page: 1,
-    limit: 8,
+    limit: 10,
   },
   loading: false,
   error: null,

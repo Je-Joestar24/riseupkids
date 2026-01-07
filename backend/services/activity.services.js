@@ -126,7 +126,7 @@ const getAllActivities = async (queryParams = {}) => {
     isArchived,
     search,
     page = 1,
-    limit = 8,
+    limit = 10,
   } = queryParams;
 
   // Build query
@@ -153,7 +153,7 @@ const getAllActivities = async (queryParams = {}) => {
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 8;
+  const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
   // Get activities

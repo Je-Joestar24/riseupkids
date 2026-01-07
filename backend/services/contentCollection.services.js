@@ -184,7 +184,7 @@ const createCourse = async (userId, courseData, files = {}) => {
  * @param {Boolean} [queryParams.isPublished] - Filter by published status
  * @param {String} [queryParams.search] - Search in title/description
  * @param {Number} [queryParams.page] - Page number (default: 1)
- * @param {Number} [queryParams.limit] - Items per page (default: 8)
+ * @param {Number} [queryParams.limit] - Items per page (default: 10)
  * @returns {Object} Courses with pagination info
  */
 const getAllCourses = async (queryParams = {}) => {
@@ -192,7 +192,7 @@ const getAllCourses = async (queryParams = {}) => {
     isPublished,
     search,
     page = 1,
-    limit = 8,
+    limit = 10,
   } = queryParams;
 
   // Build query
@@ -211,7 +211,7 @@ const getAllCourses = async (queryParams = {}) => {
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 8;
+  const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
   // Get courses

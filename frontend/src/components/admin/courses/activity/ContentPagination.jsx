@@ -41,7 +41,7 @@ const ContentPagination = () => {
     fetchContents(filters.contentType, newFilters);
   };
 
-  const itemsPerPage = pagination.limit || 8;
+  const itemsPerPage = pagination.limit || 10;
   const currentPage = pagination.page || 1;
   const totalItems = pagination.total || 0;
   const totalPages = pagination.pages || 1;
@@ -93,10 +93,10 @@ const ContentPagination = () => {
               },
             }}
           >
-            <MenuItem value={8}>8</MenuItem>
-            <MenuItem value={16}>16</MenuItem>
-            <MenuItem value={24}>24</MenuItem>
-            <MenuItem value={32}>32</MenuItem>
+            <MenuItem value={5}>5</MenuItem>
+            <MenuItem value={10}>10</MenuItem>
+            <MenuItem value={20}>20</MenuItem>
+            <MenuItem value={50}>50</MenuItem>
           </Select>
         </FormControl>
       </Box>

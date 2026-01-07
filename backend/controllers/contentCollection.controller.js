@@ -69,7 +69,7 @@ const createCourse = async (req, res) => {
  * - isPublished: Filter by published status (true/false)
  * - search: Search in title/description
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 8)
+ * - limit: Items per page (default: 10)
  */
 const getAllCourses = async (req, res) => {
   try {

@@ -56,7 +56,7 @@ const createAudioAssignment = async (req, res) => {
  * - isStarAssignment: Filter by star assignment status (true/false)
  * - search: Search in title/description/instructions
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 8)
+ * - limit: Items per page (default: 10)
  */
 const getAllAudioAssignments = async (req, res) => {
   try {

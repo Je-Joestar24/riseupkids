@@ -5,8 +5,8 @@ const path = require('path');
 /**
  * Create Video Service
  * 
- * Creates a new video with playable video file, SCORM file (from Adobe), and cover image
- * Videos have dual content: playable video + SCORM interactive
+ * Creates a new video with playable video file, optional SCORM file (from Adobe), and cover image
+ * Videos can be video-only or video + SCORM interactive
  * 
  * @param {String} userId - Admin user's MongoDB ID
  * @param {Object} videoData - Video data
@@ -35,13 +35,8 @@ const createVideo = async (userId, videoData, files = {}) => {
     throw new Error('Please provide a video file');
   }
 
-  // Validate SCORM file is provided
-  if (!files.scormFile || !Array.isArray(files.scormFile) || files.scormFile.length === 0) {
-    throw new Error('Please provide a SCORM file (ZIP format) from Adobe');
-  }
-
   const videoFile = files.videoFile[0];
-  const scormFile = files.scormFile[0];
+  const scormFile = files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0 ? files.scormFile[0] : null;
 
   // Validate badge if provided
   if (badgeAwarded) {
@@ -69,29 +64,33 @@ const createVideo = async (userId, videoData, files = {}) => {
     uploadedBy: userId,
   });
 
-  // Process SCORM file and create Media record
-  const scormRelativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-  const scormFileUrl = `/uploads${scormRelativePath.startsWith('/') ? scormRelativePath : `/${scormRelativePath}`}`;
-  
-  const scormMedia = await Media.create({
-    type: 'video', // Using 'video' type for SCORM files
-    title: scormFile.originalname,
-    filePath: scormFile.path, // Keep full path for server operations
-    url: scormFileUrl, // Relative path for client access
-    mimeType: scormFile.mimetype,
-    size: scormFile.size,
-    uploadedBy: userId,
-  });
-
-  // Link SCORM file to video Media
-  videoMedia.scormFile = scormMedia._id;
-  videoMedia.scormFilePath = scormFile.path; // Keep full path for server operations
-  videoMedia.scormFileUrl = scormFileUrl; // Relative path for client access
-  videoMedia.scormFileSize = scormFile.size;
   // Attach optional badge to the video media
   if (badgeAwarded) {
     videoMedia.badgeAwarded = badgeAwarded;
   }
+
+  // Process SCORM file if provided (optional)
+  if (scormFile) {
+    const scormRelativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const scormFileUrl = `/uploads${scormRelativePath.startsWith('/') ? scormRelativePath : `/${scormRelativePath}`}`;
+    
+    const scormMedia = await Media.create({
+      type: 'video', // Using 'video' type for SCORM files
+      title: scormFile.originalname,
+      filePath: scormFile.path, // Keep full path for server operations
+      url: scormFileUrl, // Relative path for client access
+      mimeType: scormFile.mimetype,
+      size: scormFile.size,
+      uploadedBy: userId,
+    });
+
+    // Link SCORM file to video Media
+    videoMedia.scormFile = scormMedia._id;
+    videoMedia.scormFilePath = scormFile.path; // Keep full path for server operations
+    videoMedia.scormFileUrl = scormFileUrl; // Relative path for client access
+    videoMedia.scormFileSize = scormFile.size;
+  }
+
   await videoMedia.save();
 
   // Process cover image if provided
@@ -133,13 +132,14 @@ const createVideo = async (userId, videoData, files = {}) => {
 /**
  * Get All Videos Service
  * 
- * Retrieves all videos (Media with type='video' and scormFile exists) with optional filtering and pagination
+ * Retrieves all videos (Media with type='video') with optional filtering and pagination
+ * Videos can have optional SCORM files
  * 
  * @param {Object} queryParams - Query parameters
  * @param {Boolean} [queryParams.isActive] - Filter by active status
  * @param {String} [queryParams.search] - Search in title/description
  * @param {Number} [queryParams.page] - Page number (default: 1)
- * @param {Number} [queryParams.limit] - Items per page (default: 8)
+ * @param {Number} [queryParams.limit] - Items per page (default: 10)
  * @returns {Object} Videos with pagination info
  */
 const getAllVideos = async (queryParams = {}) => {
@@ -147,13 +147,12 @@ const getAllVideos = async (queryParams = {}) => {
     isActive,
     search,
     page = 1,
-    limit = 8,
+    limit = 10,
   } = queryParams;
 
-  // Build query - videos are Media with type='video' and scormFile exists
+  // Build query - videos are Media with type='video' (SCORM is optional)
   const query = {
     type: 'video',
-    scormFile: { $exists: true, $ne: null },
   };
 
   // Support both isActive and isPublished filters
@@ -177,7 +176,7 @@ const getAllVideos = async (queryParams = {}) => {
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
-  const limitNum = parseInt(limit, 10) || 8;
+  const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
   // Get videos
@@ -207,7 +206,7 @@ const getAllVideos = async (queryParams = {}) => {
 /**
  * Get Video By ID Service
  * 
- * Retrieves a single video by ID
+ * Retrieves a single video by ID (SCORM is optional)
  * 
  * @param {String} videoId - Video's MongoDB ID (Media ID)
  * @returns {Object} Video with populated data
@@ -217,7 +216,6 @@ const getVideoById = async (videoId) => {
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
-    scormFile: { $exists: true, $ne: null },
   })
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
@@ -254,11 +252,10 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     isPublished,
   } = updateData;
 
-  // Find video
+  // Find video (SCORM is optional)
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
-    scormFile: { $exists: true, $ne: null },
   });
 
   if (!video) {
@@ -335,7 +332,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
  * Delete Video Service
  * 
  * Deletes a video (hard delete - removes from database)
- * Also deletes associated SCORM file
+ * Also deletes associated SCORM file if it exists
  * 
  * @param {String} videoId - Video's MongoDB ID
  * @returns {Object} Deleted video info
@@ -345,7 +342,6 @@ const deleteVideo = async (videoId) => {
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
-    scormFile: { $exists: true, $ne: null },
   });
 
   if (!video) {

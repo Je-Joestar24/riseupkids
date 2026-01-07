@@ -69,7 +69,7 @@ All endpoints require:
 - `isPublished` (Boolean, optional) - Filter by published status
 - `search` (String, optional) - Search in title/description
 - `page` (Number, optional) - Page number (default: 1)
-- `limit` (Number, optional) - Items per page (default: 8)
+- `limit` (Number, optional) - Items per page (default: 10)
 
 **Example:**
 ```
@@ -95,7 +95,7 @@ GET /api/courses?isPublished=true&search=math&page=1&limit=10
   ],
   "pagination": {
     "page": 1,
-    "limit": 8,
+    "limit": 10,
     "total": 20,
     "pages": 3
   }

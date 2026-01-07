@@ -13,7 +13,7 @@ const videoService = require('../services/video.services');
  * - badgeAwarded: String (optional) - Badge ID
  * - tags: JSON String (optional) - Array of tag strings
  * - videoFile: File (required) - Playable video file
- * - scormFile: File (required) - SCORM ZIP file from Adobe
+ * - scormFile: File (optional) - SCORM ZIP file from Adobe (optional for video-only lessons)
  * - coverImage: File (optional) - Cover image/thumbnail for the video
  */
 const createVideo = async (req, res) => {
@@ -54,7 +54,7 @@ const createVideo = async (req, res) => {
  * - isPublished: Filter by published status (true/false)
  * - search: Search in title/description
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 8)
+ * - limit: Items per page (default: 10)
  */
 const getAllVideos = async (req, res) => {
   try {

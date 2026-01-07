@@ -102,7 +102,7 @@ const initialState = {
   // Pagination
   pagination: {
     page: 1,
-    limit: 8,
+    limit: 10,
     total: 0,
     pages: 0,
   },
@@ -113,7 +113,7 @@ const initialState = {
     isArchived: undefined, // For activities only
     search: '',
     page: 1,
-    limit: 8,
+    limit: 10,
     // Type-specific filters
     typeSpecific: {
       // Books

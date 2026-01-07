@@ -167,16 +167,15 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
           alert('Please upload a video file.');
           return;
         }
-        if (!selectedFiles.scormFile) {
-          alert('Please upload a SCORM file (ZIP) for the video.');
-          return;
-        }
+        // SCORM file is now optional for videos
         if (formData.duration) {
           fd.append('duration', formData.duration);
         }
         fd.append('starsAwarded', formData.starsAwarded || 10);
         fd.append('videoFile', selectedFiles.videoFile);
-        fd.append('scormFile', selectedFiles.scormFile);
+        if (selectedFiles.scormFile) {
+          fd.append('scormFile', selectedFiles.scormFile);
+        }
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -573,7 +572,7 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
               )}
             </Box>
 
-            {/* SCORM file for video (required) */}
+            {/* SCORM file for video (optional) */}
             <Box>
               <Typography
                 variant="subtitle2"
@@ -583,7 +582,7 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
                   marginBottom: 1,
                 }}
               >
-                Video SCORM File <span style={{ color: 'red' }}>*</span>
+                Video SCORM File (Optional)
               </Typography>
               <input
                 accept=".zip,application/zip,application/x-zip-compressed"
