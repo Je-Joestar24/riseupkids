@@ -737,6 +737,7 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
       maxWidth="md"
       fullWidth
       PaperProps={{
+        elevation: 8,
         sx: {
           borderRadius: '16px',
           fontFamily: 'Quicksand, sans-serif',
@@ -753,10 +754,11 @@ const ContentAddModal = ({ open, onClose, onSuccess }) => {
         }}
       >
         <Typography
-          variant="h5"
+          component="span"
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 700,
+            fontSize: '1.5rem',
           }}
         >
           {getDialogTitle()}

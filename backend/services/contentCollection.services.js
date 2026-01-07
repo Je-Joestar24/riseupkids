@@ -126,10 +126,10 @@ const createCourse = async (userId, courseData, files = {}) => {
         const book = await Book.findById(contentId);
         contentExists = !!book;
       } else if (contentType === 'video') {
+        // SCORM is optional for videos now
         const video = await Media.findOne({
           _id: contentId,
           type: 'video',
-          scormFile: { $exists: true, $ne: null },
         });
         contentExists = !!video;
       } else if (contentType === 'audioAssignment') {
@@ -274,10 +274,10 @@ const getCourseById = async (courseId) => {
           .lean();
         contentData = book ? { ...book, _contentType: 'book' } : null;
       } else if (contentItem.contentType === 'video') {
+        // SCORM is optional for videos now
         const video = await Media.findOne({
           _id: contentItem.contentId,
           type: 'video',
-          scormFile: { $exists: true, $ne: null },
         })
           .populate('scormFile', 'type title url mimeType size')
           .populate('badgeAwarded', 'name description icon image category rarity')
@@ -394,10 +394,10 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
         } else if (contentItem.contentType === 'book') {
           contentExists = !!(await Book.findById(contentItem.contentId));
         } else if (contentItem.contentType === 'video') {
+          // SCORM is optional for videos now
           contentExists = !!(await Media.findOne({
             _id: contentItem.contentId,
             type: 'video',
-            scormFile: { $exists: true, $ne: null },
           }));
         } else if (contentItem.contentType === 'audioAssignment') {
           contentExists = !!(await AudioAssignment.findById(contentItem.contentId));

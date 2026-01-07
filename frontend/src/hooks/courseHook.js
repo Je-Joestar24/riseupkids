@@ -245,6 +245,24 @@ export const useCourse = () => {
     return grouped;
   };
 
+  /**
+   * Get full URL for course cover image
+   * @param {String} coverImagePath - Relative cover image path (e.g., /uploads/courses/...)
+   * @returns {String} Full URL for the cover image
+   */
+  const getCoverImageUrl = (coverImagePath) => {
+    if (!coverImagePath) return null;
+    
+    // If already a full URL, return as-is
+    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
+      return coverImagePath;
+    }
+    
+    // Build full URL from relative path
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
+  };
+
   return {
     // State
     courses,
@@ -267,6 +285,7 @@ export const useCourse = () => {
     prepareCourseFormData,
     getContentTypeLabel,
     groupContentsByType,
+    getCoverImageUrl,
   };
 };
 
