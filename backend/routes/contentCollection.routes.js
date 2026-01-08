@@ -10,6 +10,7 @@ const {
   deleteCourse,
   getDefaultCourses,
   toggleDefaultStatus,
+  reorderCourses,
 } = require('../controllers/contentCollection.controller');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadCourse } = require('../middleware/upload');
@@ -45,6 +46,9 @@ router.get('/', getAllCourses);
 
 // Get all default courses
 router.get('/default', getDefaultCourses);
+
+// Reorder courses
+router.patch('/reorder', reorderCourses);
 
 // Get single course by ID
 router.get('/:id', getCourseById);

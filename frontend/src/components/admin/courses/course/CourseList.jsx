@@ -14,7 +14,7 @@ import CourseAddModal from './CourseAddModal';
  * Main component for displaying courses/content collections list
  * Includes filters, header, pagination, and course items display
  */
-const CourseList = ({ onAddClick }) => {
+const CourseList = ({ onAddClick, onReorderClick }) => {
   const theme = useTheme();
   const { courses, loading, error, fetchCourses, filters, archiveCourseData, unarchiveCourseData } = useCourse();
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -37,7 +37,7 @@ const CourseList = ({ onAddClick }) => {
   return (
     <Box>
       {/* Header */}
-      <CourseHeader onAddClick={onAddClick} />
+      <CourseHeader onAddClick={onAddClick} onReorderClick={onReorderClick} />
 
       {/* Filters - Always visible */}
       <CourseFilters />

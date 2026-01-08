@@ -7,7 +7,7 @@ const {
   updateContentProgress,
   markCourseCompleted,
 } = require('../controllers/courseProgress.controller');
-const { protect } = require('../middleware/auth.middleware');
+const { protect } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(protect);

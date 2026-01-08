@@ -20,6 +20,7 @@ const courseService = {
    * @param {Boolean} params.isPublished - Filter by published status
    * @param {Boolean} params.isArchived - Filter by archived status (default: false - excludes archived)
    * @param {String} params.search - Search in title/description
+   * @param {String} params.sortBy - Sort order ('createdAt' for date created descending, 'order' for stepOrder ascending)
    * @param {Number} params.page - Page number (default: 1)
    * @param {Number} params.limit - Items per page (default: 10)
    * @returns {Promise} API response with courses data and pagination
@@ -120,6 +121,24 @@ const courseService = {
   deleteCourse: async (courseId) => {
     try {
       const response = await api.delete(`/courses/${courseId}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Reorder courses
+   * @param {Array} courseIds - Array of course IDs in the desired order
+   * @param {Number} startIndex - Optional: starting index for stepOrder (default: 0)
+   * @returns {Promise} API response with updated courses data
+   */
+  reorderCourses: async (courseIds, startIndex = 0) => {
+    try {
+      const response = await api.patch('/courses/reorder', {
+        courseIds,
+        startIndex,
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || error.message;

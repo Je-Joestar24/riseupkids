@@ -7,6 +7,7 @@ import {
   archiveCourse,
   unarchiveCourse,
   deleteCourse,
+  reorderCourses,
   clearError,
   setFilters,
   clearFilters,
@@ -208,6 +209,34 @@ export const useCourse = () => {
   };
 
   /**
+   * Reorder courses
+   * @param {Array} courseIds - Array of course IDs in the desired order
+   * @param {Number} startIndex - Optional: starting index for stepOrder (default: 0)
+   * @returns {Promise} Reorder result
+   */
+  const reorderCoursesData = async (courseIds, startIndex = 0) => {
+    try {
+      const result = await dispatch(reorderCourses({ courseIds, startIndex })).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Courses reordered successfully!',
+        type: 'success',
+      }));
+      
+      // Refresh course list to reflect new order
+      await fetchCourses(filters);
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to reorder courses',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
    * Clear error state
    */
   const clearCourseError = () => {
@@ -348,6 +377,7 @@ export const useCourse = () => {
     archiveCourseData,
     unarchiveCourseData,
     deleteCourseData,
+    reorderCoursesData,
     updateFilters,
     resetFilters,
     clearCourseError,

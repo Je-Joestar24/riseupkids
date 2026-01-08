@@ -194,6 +194,7 @@ const getAllCourses = async (queryParams = {}) => {
     isPublished,
     isArchived,
     search,
+    sortBy = 'createdAt', // Default sort: createdAt
     page = 1,
     limit = 10,
   } = queryParams;
@@ -224,26 +225,79 @@ const getAllCourses = async (queryParams = {}) => {
   const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
-  // Get courses
-  const courses = await Course.find(query)
-    .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limitNum)
-    .lean();
+  // Build sort object based on sortBy parameter
+  let sortObject = {};
+  
+  if (sortBy === 'order' || sortBy === 'stepOrder') {
+    // Sort by stepOrder (ascending), then createdAt (descending) for those without stepOrder
+    // MongoDB aggregation would be better, but for simplicity, we'll use a two-step approach
+    // First, get all courses
+    const allCourses = await Course.find(query)
+      .populate('createdBy', 'name email')
+      .lean();
+    
+    // Sort in memory: courses with stepOrder first (ascending), then by createdAt (descending)
+    allCourses.sort((a, b) => {
+      const aHasOrder = a.stepOrder !== null && a.stepOrder !== undefined;
+      const bHasOrder = b.stepOrder !== null && b.stepOrder !== undefined;
+      
+      if (aHasOrder && bHasOrder) {
+        // Both have stepOrder, sort by stepOrder ascending
+        if (a.stepOrder !== b.stepOrder) {
+          return a.stepOrder - b.stepOrder;
+        }
+        // If stepOrder is same, sort by createdAt descending
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      } else if (aHasOrder && !bHasOrder) {
+        // a has order, b doesn't - a comes first
+        return -1;
+      } else if (!aHasOrder && bHasOrder) {
+        // b has order, a doesn't - b comes first
+        return 1;
+      } else {
+        // Neither has order, sort by createdAt descending
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      }
+    });
+    
+    // Apply pagination
+    const courses = allCourses.slice(skip, skip + limitNum);
+    const total = allCourses.length;
+    
+    return {
+      courses,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    };
+  } else {
+    // Default: sort by createdAt descending
+    sortObject = { createdAt: -1 };
+    
+    // Get courses
+    const courses = await Course.find(query)
+      .populate('createdBy', 'name email')
+      .sort(sortObject)
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
 
-  // Get total count
-  const total = await Course.countDocuments(query);
+    // Get total count
+    const total = await Course.countDocuments(query);
 
-  return {
-    courses,
-    pagination: {
-      page: pageNum,
-      limit: limitNum,
-      total,
-      pages: Math.ceil(total / limitNum),
-    },
-  };
+    return {
+      courses,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    };
+  }
 };
 
 /**
@@ -437,6 +491,7 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
           newContents.push({
             contentId: contentItem.contentId,
             contentType: contentItem.contentType,
+            step: contentItem.step || 1, // Default to step 1 if not provided
             order: orderIndex++,
             addedAt: contentItem.addedAt || new Date(),
           });
@@ -609,6 +664,163 @@ const toggleDefaultStatus = async (courseId, isDefault) => {
   return course;
 };
 
+/**
+ * Reorder Courses Service
+ * 
+ * Reorders courses by assigning stepOrder values with gaps
+ * Uses gap-based system: 10, 20, 30, 40... for efficient reordering
+ * 
+ * @param {Array} courseIds - Array of course IDs in the desired order
+ * @param {Number} startIndex - Optional: starting index for stepOrder (default: 0)
+ * @returns {Object} Updated courses with new stepOrder values
+ * @throws {Error} If validation fails or courses not found
+ */
+const reorderCourses = async (courseIds, startIndex = 0) => {
+  // Validate input
+  if (!Array.isArray(courseIds) || courseIds.length === 0) {
+    throw new Error('courseIds must be a non-empty array');
+  }
+
+  // Remove duplicates
+  const uniqueCourseIds = [...new Set(courseIds.map(id => id.toString()))];
+
+  if (uniqueCourseIds.length !== courseIds.length) {
+    throw new Error('Duplicate course IDs found');
+  }
+
+  // Fetch all courses to reorder
+  const courses = await Course.find({
+    _id: { $in: uniqueCourseIds },
+  }).lean();
+
+  if (courses.length !== uniqueCourseIds.length) {
+    throw new Error('One or more courses not found');
+  }
+
+  // Create a map for quick lookup
+  const courseMap = new Map();
+  courses.forEach(course => {
+    courseMap.set(course._id.toString(), course);
+  });
+
+  // Get courses in the order specified by courseIds
+  const orderedCourses = uniqueCourseIds.map(id => courseMap.get(id)).filter(Boolean);
+
+  // Check if this is first-time ordering (all have null stepOrder)
+  const allUnordered = orderedCourses.every(course => 
+    course.stepOrder === null || course.stepOrder === undefined
+  );
+
+  // Check if all are already ordered
+  const allOrdered = orderedCourses.every(course => 
+    course.stepOrder !== null && course.stepOrder !== undefined
+  );
+
+  // Calculate new stepOrder values with gaps
+  const GAP_SIZE = 10;
+  const updates = [];
+  const startValue = startIndex * GAP_SIZE + GAP_SIZE; // Start from 10, 20, 30...
+
+  if (allUnordered) {
+    // First time ordering: assign stepOrder with gaps
+    orderedCourses.forEach((course, index) => {
+      const newStepOrder = startValue + (index * GAP_SIZE);
+      updates.push({
+        updateOne: {
+          filter: { _id: course._id },
+          update: { $set: { stepOrder: newStepOrder } },
+        },
+      });
+    });
+  } else if (allOrdered) {
+    // Reordering existing ordered courses
+    // Find the range of existing stepOrders
+    const existingOrders = orderedCourses
+      .map(c => c.stepOrder)
+      .filter(order => order !== null && order !== undefined)
+      .sort((a, b) => a - b);
+
+    const minOrder = Math.min(...existingOrders);
+    const maxOrder = Math.max(...existingOrders);
+
+    // Check if we need to shift other courses
+    // For now, we'll assign new stepOrder values within the range
+    // If the new order requires more space, we'll expand the range
+    const rangeSize = maxOrder - minOrder;
+    const requiredSize = (orderedCourses.length - 1) * GAP_SIZE;
+
+    let baseOrder = minOrder;
+    if (requiredSize > rangeSize) {
+      // Need more space, start from a lower value
+      baseOrder = Math.max(1, minOrder - (requiredSize - rangeSize));
+    }
+
+    // Assign new stepOrder values
+    orderedCourses.forEach((course, index) => {
+      const newStepOrder = baseOrder + (index * GAP_SIZE);
+      if (course.stepOrder !== newStepOrder) {
+        updates.push({
+          updateOne: {
+            filter: { _id: course._id },
+            update: { $set: { stepOrder: newStepOrder } },
+          },
+        });
+      }
+    });
+
+    // If we expanded the range, we might need to shift other courses
+    // For simplicity, we'll only update the courses in the provided list
+    // Future enhancement: detect and shift affected courses outside the list
+  } else {
+    // Mixed: some ordered, some unordered
+    // Find the first ordered course's stepOrder to use as reference
+    const firstOrderedCourse = orderedCourses.find(c => 
+      c.stepOrder !== null && c.stepOrder !== undefined
+    );
+
+    let baseOrder = startValue;
+    if (firstOrderedCourse) {
+      // Use the first ordered course's stepOrder as base
+      baseOrder = firstOrderedCourse.stepOrder;
+    }
+
+    // Assign stepOrder values, maintaining gaps
+    orderedCourses.forEach((course, index) => {
+      const newStepOrder = baseOrder + (index * GAP_SIZE);
+      if (course.stepOrder !== newStepOrder) {
+        updates.push({
+          updateOne: {
+            filter: { _id: course._id },
+            update: { $set: { stepOrder: newStepOrder } },
+          },
+        });
+      }
+    });
+  }
+
+  // Execute bulk update
+  if (updates.length > 0) {
+    await Course.bulkWrite(updates);
+  }
+
+  // Fetch updated courses
+  const updatedCourses = await Course.find({
+    _id: { $in: uniqueCourseIds },
+  })
+    .populate('createdBy', 'name email')
+    .lean();
+
+  // Sort by the order in courseIds
+  const sortedUpdatedCourses = uniqueCourseIds.map(id => 
+    updatedCourses.find(c => c._id.toString() === id)
+  ).filter(Boolean);
+
+  return {
+    updated: updates.length,
+    courses: sortedUpdatedCourses,
+  };
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -619,5 +831,6 @@ module.exports = {
   deleteCourse,
   getDefaultCourses,
   toggleDefaultStatus,
+  reorderCourses,
 };
 

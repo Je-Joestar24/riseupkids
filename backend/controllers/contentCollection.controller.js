@@ -69,6 +69,8 @@ const createCourse = async (req, res) => {
  * - isPublished: Filter by published status (true/false)
  * - isArchived: Filter by archived status (true/false, default: false - excludes archived)
  * - search: Search in title/description
+ * - sortBy: Sort order ('createdAt' for date created descending, 'order' for stepOrder ascending)
+ *   Default: 'createdAt'. When sorting by 'order', courses without stepOrder fall back to createdAt
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 10)
  */
@@ -362,6 +364,67 @@ const toggleDefaultStatus = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Reorder courses
+ * @route   PATCH /api/courses/reorder
+ * @access  Private (Admin only)
+ * 
+ * Request body:
+ * {
+ *   "courseIds": ["courseId1", "courseId2", "courseId3", ...],
+ *   "startIndex": 0  // Optional: starting index for stepOrder (default: 0)
+ * }
+ */
+const reorderCourses = async (req, res) => {
+  try {
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can reorder courses',
+      });
+    }
+
+    const { courseIds, startIndex } = req.body;
+
+    // Validate courseIds
+    if (!Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'courseIds must be a non-empty array',
+      });
+    }
+
+    // Validate startIndex if provided
+    if (startIndex !== undefined && (typeof startIndex !== 'number' || startIndex < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'startIndex must be a non-negative number',
+      });
+    }
+
+    const result = await courseService.reorderCourses(courseIds, startIndex || 0);
+
+    res.status(200).json({
+      success: true,
+      message: 'Courses reordered successfully',
+      data: result,
+    });
+  } catch (error) {
+    const statusCode = 
+      error.message.includes('not found') || 
+      error.message.includes('must be') || 
+      error.message.includes('Duplicate') 
+        ? 400 
+        : 500;
+    
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to reorder courses',
+    });
+  }
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -372,5 +435,6 @@ module.exports = {
   deleteCourse,
   getDefaultCourses,
   toggleDefaultStatus,
+  reorderCourses,
 };
 

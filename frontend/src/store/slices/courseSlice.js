@@ -106,6 +106,21 @@ export const deleteCourse = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk for reordering courses
+ */
+export const reorderCourses = createAsyncThunk(
+  'course/reorderCourses',
+  async ({ courseIds, startIndex = 0 }, { rejectWithValue }) => {
+    try {
+      const response = await courseService.reorderCourses(courseIds, startIndex);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to reorder courses');
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // List of courses
@@ -124,6 +139,7 @@ const initialState = {
     isPublished: undefined,
     isArchived: false, // Default: exclude archived courses
     search: '',
+    sortBy: 'createdAt', // Default: sort by createdAt descending
     page: 1,
     limit: 10,
   },
@@ -348,6 +364,48 @@ const courseSlice = createSlice({
         state.error = null;
       })
       .addCase(deleteCourse.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Reorder Courses
+    builder
+      .addCase(reorderCourses.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(reorderCourses.fulfilled, (state, action) => {
+        state.loading = false;
+        const response = action.payload;
+        
+        if (response.data && response.data.courses) {
+          // Update courses in the list with new stepOrder values
+          const updatedCourses = response.data.courses;
+          const courseMap = new Map();
+          
+          // Create a map of updated courses
+          updatedCourses.forEach((course) => {
+            courseMap.set(course._id, course);
+          });
+          
+          // Update courses in the current list
+          state.courses = state.courses.map((course) => {
+            const updated = courseMap.get(course._id);
+            return updated || course;
+          });
+          
+          // Update current course if it was reordered
+          if (state.currentCourse) {
+            const updatedCurrent = courseMap.get(state.currentCourse._id);
+            if (updatedCurrent) {
+              state.currentCourse = updatedCurrent;
+            }
+          }
+        }
+        
+        state.error = null;
+      })
+      .addCase(reorderCourses.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

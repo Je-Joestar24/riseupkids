@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import CourseList from '../../components/admin/courses/course/CourseList';
 import CourseAddModal from '../../components/admin/courses/course/CourseAddModal';
 import CourseContentDrawer from '../../components/admin/courses/course/CourseContentDrawer';
+import CourseOrganizerModal from '../../components/admin/courses/course/CourseOrganizerModal';
 import { useCourse } from '../../hooks/courseHook';
 
 /**
@@ -13,9 +14,10 @@ import { useCourse } from '../../hooks/courseHook';
  */
 const AdminCourses = () => {
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   const [contentCreatedTrigger, setContentCreatedTrigger] = useState(0);
   const [createdContentData, setCreatedContentData] = useState(null);
-  const { contentDrawer, closeDrawer, fetchCourses, filters } = useCourse();
+  const { contentDrawer, closeDrawer, fetchCourses, filters, courses } = useCourse();
 
   const handleAddClick = () => {
     setAddModalOpen(true);
@@ -29,6 +31,14 @@ const AdminCourses = () => {
     setAddModalOpen(false);
     // Refresh course list
     fetchCourses(filters);
+  };
+
+  const handleReorderClick = () => {
+    setReorderModalOpen(true);
+  };
+
+  const handleReorderModalClose = () => {
+    setReorderModalOpen(false);
   };
 
   const handleContentCreated = (createdContent, contentType) => {
@@ -49,7 +59,7 @@ const AdminCourses = () => {
         backgroundColor: 'transparent',
       }}
     >
-      <CourseList onAddClick={handleAddClick} />
+      <CourseList onAddClick={handleAddClick} onReorderClick={handleReorderClick} />
       
       {/* Add Course Modal */}
       <CourseAddModal
@@ -59,6 +69,13 @@ const AdminCourses = () => {
         contentCreatedTrigger={contentCreatedTrigger}
         createdContentData={createdContentData}
         onCreatedContentProcessed={() => setCreatedContentData(null)}
+      />
+
+      {/* Reorder Courses Modal */}
+      <CourseOrganizerModal
+        open={reorderModalOpen}
+        onClose={handleReorderModalClose}
+        courses={courses}
       />
 
       {/* Content Creation Drawer - Managed by Redux */}

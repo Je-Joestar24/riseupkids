@@ -47,7 +47,8 @@ const CourseFilters = () => {
   const hasActiveFilters =
     filters.search ||
     filters.isPublished !== undefined ||
-    filters.isArchived !== false;
+    filters.isArchived !== false ||
+    (filters.sortBy && filters.sortBy !== 'createdAt');
 
   return (
     <Paper
@@ -153,6 +154,30 @@ const CourseFilters = () => {
             <MenuItem value="all">All</MenuItem>
             <MenuItem value="false">Active</MenuItem>
             <MenuItem value="true">Archived</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Sort By Filter */}
+        <FormControl size="small" sx={{ minWidth: 160 }}>
+          <InputLabel
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            Sort By
+          </InputLabel>
+          <Select
+            value={filters.sortBy || 'createdAt'}
+            label="Sort By"
+            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              borderRadius: '8px',
+              backgroundColor: theme.palette.custom.bgSecondary,
+            }}
+          >
+            <MenuItem value="createdAt">Date Created (Newest)</MenuItem>
+            <MenuItem value="order">Step Order</MenuItem>
           </Select>
         </FormControl>
 
