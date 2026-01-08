@@ -11,6 +11,7 @@ const {
   getDefaultCourses,
   toggleDefaultStatus,
   reorderCourses,
+  reorderCourseContents,
 } = require('../controllers/contentCollection.controller');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadCourse } = require('../middleware/upload');
@@ -25,10 +26,14 @@ const { uploadCourse } = require('../middleware/upload');
  * Routes:
  * - POST / - Create new course (with cover image upload and contents)
  * - GET / - Get all courses (with filtering and pagination)
+ * - GET /default - Get all default courses
+ * - PATCH /reorder - Reorder courses
  * - GET /:id - Get single course by ID (with populated contents)
  * - PUT /:id - Update course (title, description, coverImage, isPublished, tags, contents reorder)
+ * - PATCH /:id/contents/reorder - Reorder contents within a course (by type)
  * - PATCH /:id/archive - Archive course (soft delete)
  * - PATCH /:id/unarchive - Unarchive course (restore)
+ * - PATCH /:id/default - Toggle default status
  * - DELETE /:id - Delete course (permanent hard delete)
  */
 
@@ -52,6 +57,9 @@ router.patch('/reorder', reorderCourses);
 
 // Get single course by ID
 router.get('/:id', getCourseById);
+
+// Reorder course contents (must be before /:id/archive to avoid route conflicts)
+router.patch('/:id/contents/reorder', reorderCourseContents);
 
 // Update course (with optional cover image upload)
 router.put('/:id', uploadCourse, updateCourse);

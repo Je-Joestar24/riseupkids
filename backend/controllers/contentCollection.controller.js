@@ -425,6 +425,83 @@ const reorderCourses = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Reorder course contents
+ * @route   PATCH /api/courses/:id/contents/reorder
+ * @access  Private (Admin only)
+ * 
+ * Request body:
+ * {
+ *   "contentType": "book",  // Required: 'book', 'activity', 'video', 'audioAssignment'
+ *   "contentIds": ["contentId1", "contentId2", "contentId3", ...]  // In desired order
+ * }
+ */
+const reorderCourseContents = async (req, res) => {
+  try {
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can reorder course contents',
+      });
+    }
+
+    const { id: courseId } = req.params;
+    const { contentType, contentIds } = req.body;
+
+    // Validate contentType
+    if (!contentType) {
+      return res.status(400).json({
+        success: false,
+        message: 'contentType is required',
+      });
+    }
+
+    const validContentTypes = ['activity', 'book', 'video', 'audioAssignment'];
+    if (!validContentTypes.includes(contentType)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid content type. Must be one of: ${validContentTypes.join(', ')}`,
+      });
+    }
+
+    // Validate contentIds
+    if (!Array.isArray(contentIds) || contentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'contentIds must be a non-empty array',
+      });
+    }
+
+    const updatedCourse = await courseService.reorderCourseContents(courseId, contentType, contentIds);
+
+    res.status(200).json({
+      success: true,
+      message: 'Course contents reordered successfully',
+      data: {
+        course: updatedCourse,
+        updated: contentIds.length,
+      },
+    });
+  } catch (error) {
+    const statusCode = 
+      error.message.includes('not found') || 
+      error.message.includes('required') || 
+      error.message.includes('Invalid') ||
+      error.message.includes('must be') ||
+      error.message.includes('Duplicate') ||
+      error.message.includes('mismatch') ||
+      error.message.includes('not found in this course')
+        ? 400 
+        : 500;
+    
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to reorder course contents',
+    });
+  }
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -436,5 +513,6 @@ module.exports = {
   getDefaultCourses,
   toggleDefaultStatus,
   reorderCourses,
+  reorderCourseContents,
 };
 

@@ -9,9 +9,11 @@ import {
   Chip,
   IconButton,
   Paper,
+  Button,
+  Stack,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, Image as ImageIcon } from '@mui/icons-material';
+import { Close as CloseIcon, Image as ImageIcon, Reorder as ReorderIcon } from '@mui/icons-material';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
@@ -22,7 +24,7 @@ import { CONTENT_TYPES } from '../../../../services/contentService';
  * - Always shows square images (placeholder if no image)
  * - Displays stars for each content item
  */
-const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
+const CourseSelectedContentArea = ({ selectedContents = [], onRemove, onReorder }) => {
   const theme = useTheme();
 
   // Map backend content type to frontend format
@@ -94,17 +96,34 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove }) => {
 
   return (
     <Box sx={{ marginTop: 3 }}>
-      <Typography
-        variant="subtitle1"
-        sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontWeight: 600,
-          marginBottom: 2.5,
-          color: theme.palette.text.primary,
-        }}
-      >
-        Selected Contents ({selectedContents.length})
-      </Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ marginBottom: 2.5 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 600,
+            color: theme.palette.text.primary,
+          }}
+        >
+          Selected Contents ({selectedContents.length})
+        </Typography>
+        {onReorder && selectedContents.length > 0 && (
+          <Button
+            variant="outlined"
+            startIcon={<ReorderIcon />}
+            onClick={onReorder}
+            size="small"
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 600,
+              borderRadius: '8px',
+              textTransform: 'none',
+            }}
+          >
+            Reorder Contents
+          </Button>
+        )}
+      </Stack>
 
       {nonEmptyGroups.map(([contentType, items]) => (
         <Box key={contentType} sx={{ marginBottom: 4 }}>

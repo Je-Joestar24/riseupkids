@@ -144,6 +144,25 @@ const courseService = {
       throw error.response?.data?.message || error.message;
     }
   },
+
+  /**
+   * Reorder course contents
+   * @param {String} courseId - Course's ID
+   * @param {String} contentType - Content type to reorder ('book', 'activity', 'video', 'audioAssignment')
+   * @param {Array} contentIds - Array of content IDs in the desired order
+   * @returns {Promise} API response with updated course data
+   */
+  reorderCourseContents: async (courseId, contentType, contentIds) => {
+    try {
+      const response = await api.patch(`/courses/${courseId}/contents/reorder`, {
+        contentType,
+        contentIds,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
 };
 
 export default courseService;

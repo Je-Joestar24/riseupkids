@@ -821,6 +821,135 @@ const reorderCourses = async (courseIds, startIndex = 0) => {
   };
 };
 
+/**
+ * Reorder Course Contents Service
+ * 
+ * Reorders contents of a specific type within a course
+ * Maintains step assignments (preserves step from original content)
+ * Updates order values within the same step and type
+ * 
+ * @param {String} courseId - Course's MongoDB ID
+ * @param {String} contentType - Content type to reorder ('book', 'activity', 'video', 'audioAssignment')
+ * @param {Array} contentIds - Array of content IDs in the desired order
+ * @returns {Object} Updated course with reordered contents
+ * @throws {Error} If validation fails or course/content not found
+ */
+const reorderCourseContents = async (courseId, contentType, contentIds) => {
+  // Validate input
+  if (!courseId) {
+    throw new Error('Course ID is required');
+  }
+
+  if (!contentType) {
+    throw new Error('Content type is required');
+  }
+
+  const validContentTypes = ['activity', 'book', 'video', 'audioAssignment'];
+  if (!validContentTypes.includes(contentType)) {
+    throw new Error(`Invalid content type. Must be one of: ${validContentTypes.join(', ')}`);
+  }
+
+  if (!Array.isArray(contentIds) || contentIds.length === 0) {
+    throw new Error('contentIds must be a non-empty array');
+  }
+
+  // Remove duplicates
+  const uniqueContentIds = [...new Set(contentIds.map(id => id.toString()))];
+  if (uniqueContentIds.length !== contentIds.length) {
+    throw new Error('Duplicate content IDs found');
+  }
+
+  // Get course
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  // Filter contents by contentType
+  const contentsOfType = (course.contents || []).filter(
+    (item) => item.contentType === contentType
+  );
+
+  if (contentsOfType.length === 0) {
+    throw new Error(`No contents of type '${contentType}' found in this course`);
+  }
+
+  // Validate all contentIds exist in course and are correct type
+  const contentIdSet = new Set(contentsOfType.map(item => item.contentId.toString()));
+  const invalidIds = uniqueContentIds.filter(id => !contentIdSet.has(id));
+
+  if (invalidIds.length > 0) {
+    throw new Error(
+      `The following content IDs are not found in this course or are not of type '${contentType}': ${invalidIds.join(', ')}`
+    );
+  }
+
+  // Check if all provided contentIds match the contents in the course
+  if (uniqueContentIds.length !== contentsOfType.length) {
+    throw new Error(
+      `Content IDs count mismatch. Expected ${contentsOfType.length} contents of type '${contentType}', but received ${uniqueContentIds.length}`
+    );
+  }
+
+  // Create a map of contentId -> content item for quick lookup
+  const contentMap = new Map();
+  contentsOfType.forEach(item => {
+    contentMap.set(item.contentId.toString(), item);
+  });
+
+  // Group contents by step to maintain step assignments
+  const stepGroups = new Map();
+  uniqueContentIds.forEach((contentId, index) => {
+    const contentItem = contentMap.get(contentId);
+    if (contentItem) {
+      const step = contentItem.step || 1;
+      if (!stepGroups.has(step)) {
+        stepGroups.set(step, []);
+      }
+      stepGroups.get(step).push({
+        contentId: contentItem.contentId,
+        contentType: contentItem.contentType,
+        step: step,
+        addedAt: contentItem.addedAt || new Date(),
+      });
+    }
+  });
+
+  // Update order values within each step (0, 1, 2, ...)
+  stepGroups.forEach((items, step) => {
+    items.forEach((item, orderIndex) => {
+      item.order = orderIndex;
+    });
+  });
+
+  // Rebuild the contents array:
+  // 1. Keep all contents that are NOT of the reordered type
+  // 2. Add the reordered contents in the new order
+  const otherContents = (course.contents || []).filter(
+    (item) => item.contentType !== contentType
+  );
+
+  // Flatten step groups back into array, maintaining step order
+  const reorderedContents = [];
+  const sortedSteps = Array.from(stepGroups.keys()).sort((a, b) => a - b);
+  sortedSteps.forEach(step => {
+    reorderedContents.push(...stepGroups.get(step));
+  });
+
+  // Combine: other contents + reordered contents
+  course.contents = [...otherContents, ...reorderedContents];
+
+  // Save course (pre-save hook will handle final sorting: step -> contentType -> order)
+  await course.save();
+
+  // Get updated course with populated data
+  const updatedCourse = await Course.findById(courseId)
+    .populate('createdBy', 'name email')
+    .lean();
+
+  return updatedCourse;
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -832,5 +961,6 @@ module.exports = {
   getDefaultCourses,
   toggleDefaultStatus,
   reorderCourses,
+  reorderCourseContents,
 };
 

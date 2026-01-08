@@ -8,6 +8,7 @@ import {
   unarchiveCourse,
   deleteCourse,
   reorderCourses,
+  reorderCourseContents,
   clearError,
   setFilters,
   clearFilters,
@@ -237,6 +238,37 @@ export const useCourse = () => {
   };
 
   /**
+   * Reorder course contents
+   * @param {String} courseId - Course's ID
+   * @param {String} contentType - Content type to reorder ('book', 'activity', 'video', 'audioAssignment')
+   * @param {Array} contentIds - Array of content IDs in the desired order
+   * @returns {Promise} Reorder result
+   */
+  const reorderCourseContentsData = async (courseId, contentType, contentIds) => {
+    try {
+      const result = await dispatch(reorderCourseContents({ courseId, contentType, contentIds })).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Course contents reordered successfully!',
+        type: 'success',
+      }));
+      
+      // Refresh current course if it's the same
+      if (currentCourse?._id === courseId) {
+        await fetchCourse(courseId);
+      }
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to reorder course contents',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
    * Clear error state
    */
   const clearCourseError = () => {
@@ -378,6 +410,7 @@ export const useCourse = () => {
     unarchiveCourseData,
     deleteCourseData,
     reorderCoursesData,
+    reorderCourseContentsData,
     updateFilters,
     resetFilters,
     clearCourseError,

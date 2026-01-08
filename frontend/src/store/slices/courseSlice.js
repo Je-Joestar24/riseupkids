@@ -121,6 +121,21 @@ export const reorderCourses = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk for reordering course contents
+ */
+export const reorderCourseContents = createAsyncThunk(
+  'course/reorderCourseContents',
+  async ({ courseId, contentType, contentIds }, { rejectWithValue }) => {
+    try {
+      const response = await courseService.reorderCourseContents(courseId, contentType, contentIds);
+      return { courseId, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to reorder course contents');
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // List of courses
@@ -406,6 +421,38 @@ const courseSlice = createSlice({
         state.error = null;
       })
       .addCase(reorderCourses.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Reorder Course Contents
+    builder
+      .addCase(reorderCourseContents.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(reorderCourseContents.fulfilled, (state, action) => {
+        state.loading = false;
+        const { courseId, response } = action.payload;
+        const updatedCourse = response.data?.course;
+        
+        if (updatedCourse) {
+          // Update course in courses list
+          const index = state.courses.findIndex(
+            (course) => course._id === courseId
+          );
+          if (index !== -1) {
+            state.courses[index] = updatedCourse;
+          }
+          
+          // Update current course if it's the same
+          if (state.currentCourse?._id === courseId) {
+            state.currentCourse = updatedCourse;
+          }
+        }
+        state.error = null;
+      })
+      .addCase(reorderCourseContents.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

@@ -23,6 +23,7 @@ import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-m
 import useCourse from '../../../../hooks/courseHook';
 import ContentSelector from './ContentSelector';
 import CourseSelectedContentArea from './CourseSelectedContentArea';
+import ContentReorderModal from './ContentReorderModal';
 
 /**
  * CourseAddModal Component
@@ -69,6 +70,7 @@ const CourseAddModal = ({
   const [selectedContents, setSelectedContents] = useState([]);
   const [isFetchingCourse, setIsFetchingCourse] = useState(false);
   const [courseData, setCourseData] = useState(null);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
   
   // Use external trigger if provided, otherwise use internal state
   const [internalContentCreatedTrigger, setInternalContentCreatedTrigger] = useState(0);
@@ -108,6 +110,9 @@ const CourseAddModal = ({
               const formattedContents = course.contents.map((content) => ({
                 contentId: content._id || content.contentId,
                 contentType: content._contentType || content.contentType,
+                // Preserve step and order from backend (_step, _order) or use defaults
+                step: content._step !== undefined ? content._step : (content.step !== undefined ? content.step : 1),
+                order: content._order !== undefined ? content._order : (content.order !== undefined ? content.order : 0),
                 // Include full item data for display
                 ...content,
                 _id: content._id || content.contentId,
@@ -143,6 +148,9 @@ const CourseAddModal = ({
         const formattedContents = initialCourse.contents.map((content) => ({
           contentId: content._id || content.contentId,
           contentType: content._contentType || content.contentType,
+          // Preserve step and order from backend (_step, _order) or use defaults
+          step: content._step !== undefined ? content._step : (content.step !== undefined ? content.step : 1),
+          order: content._order !== undefined ? content._order : (content.order !== undefined ? content.order : 0),
           ...content,
           _id: content._id || content.contentId,
           _contentType: content._contentType || content.contentType,
@@ -201,10 +209,19 @@ const CourseAddModal = ({
       );
 
       if (!isAlreadySelected) {
-        // Add to selected contents
+        // Calculate order: count existing contents of same type in Step 1
+        const existingOfType = selectedContents.filter(
+          (c) => 
+            (c.contentType || c._contentType) === backendContentType && 
+            (c.step || c._step || 1) === 1
+        );
+        
+        // Add to selected contents with auto-assigned step and order
         const newContentItem = {
           contentId: content._id,
           contentType: backendContentType,
+          step: 1, // Default step
+          order: existingOfType.length, // Next order number
           // Include full item data for display
           ...content,
           _id: content._id,
@@ -269,7 +286,33 @@ const CourseAddModal = ({
 
   const handleContentSelectionChange = (contents) => {
     // Contents should include full item data (contentId, contentType, and item details)
-    setSelectedContents(contents);
+    // Auto-assign step and order values for new contents
+    const updatedContents = contents.map((item) => {
+      // If item already has step and order, preserve them
+      if (item.step !== undefined && item.order !== undefined) {
+        return item;
+      }
+      
+      // Auto-assign step: 1 (default)
+      const step = item.step || item._step || 1;
+      const contentType = item.contentType || item._contentType;
+      
+      // Calculate order: count existing contents of same type in the same step
+      const existingOfType = contents.filter(
+        (c) => 
+          (c.contentId || c._id) !== (item.contentId || item._id) && // Not the current item
+          (c.contentType || c._contentType) === contentType &&
+          (c.step || c._step || 1) === step
+      );
+      
+      return {
+        ...item,
+        step: step,
+        order: existingOfType.length, // Next order number
+      };
+    });
+    
+    setSelectedContents(updatedContents);
   };
 
   const handleRemoveContent = (contentId, contentType) => {
@@ -280,6 +323,46 @@ const CourseAddModal = ({
           !(item.contentId === contentId && item.contentType === contentType)
       )
     );
+  };
+
+  const handleReorderClick = () => {
+    setReorderModalOpen(true);
+  };
+
+  const handleReorderModalClose = () => {
+    setReorderModalOpen(false);
+  };
+
+  const handleReorderSave = (reorderedContents) => {
+    // Update selectedContents with reordered contents
+    // Update order values to be sequential within each step and type
+    const groupedByStepAndType = {};
+    
+    reorderedContents.forEach((item) => {
+      const step = item.step || item._step || 1;
+      const contentType = item.contentType || item._contentType;
+      const key = `${step}-${contentType}`;
+      
+      if (!groupedByStepAndType[key]) {
+        groupedByStepAndType[key] = [];
+      }
+      groupedByStepAndType[key].push(item);
+    });
+    
+    // Update order values sequentially within each group
+    const updatedContents = [];
+    Object.keys(groupedByStepAndType).sort().forEach((key) => {
+      const items = groupedByStepAndType[key];
+      items.forEach((item, index) => {
+        updatedContents.push({
+          ...item,
+          order: index,
+          step: item.step || item._step || 1,
+        });
+      });
+    });
+    
+    setSelectedContents(updatedContents);
   };
 
   const handleCreateContentClick = (contentType) => {
@@ -613,6 +696,7 @@ const CourseAddModal = ({
               <CourseSelectedContentArea
                 selectedContents={selectedContents}
                 onRemove={handleRemoveContent}
+                onReorder={handleReorderClick}
               />
             )}
 
@@ -663,6 +747,15 @@ const CourseAddModal = ({
             : (isEditMode ? 'Update Course' : 'Create Course')}
         </Button>
       </DialogActions>
+
+      {/* Content Reorder Modal */}
+      <ContentReorderModal
+        open={reorderModalOpen}
+        onClose={handleReorderModalClose}
+        contents={selectedContents}
+        onSave={handleReorderSave}
+        courseId={isEditMode ? courseId : null}
+      />
     </Dialog>
   );
 };
