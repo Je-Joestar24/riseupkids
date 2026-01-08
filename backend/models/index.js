@@ -19,6 +19,7 @@ const StarEarning = require('./StarEarning');
 const ExploreContent = require('./ExploreContent');
 const ActivityGroup = require('./ActivityGroup');
 const Course = require('./Course');
+const CourseProgress = require('./CourseProgress');
 
 module.exports = {
   User,
@@ -31,6 +32,7 @@ module.exports = {
   Activity,
   ActivityGroup,
   Course,
+  CourseProgress,
   Progress,
   Announcement,
   ChildStats,

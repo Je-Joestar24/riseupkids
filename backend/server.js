@@ -15,6 +15,7 @@ const parentsRoutes = require('./routes/parents.routes');
 const childrenRoutes = require('./routes/children.routes');
 const courseRoutes = require('./routes/course.routes');
 const contentCollectionRoutes = require('./routes/contentCollection.routes');
+const courseProgressRoutes = require('./routes/courseProgress.routes');
 const activityRoutes = require('./routes/activity.routes');
 const bookRoutes = require('./routes/book.routes');
 const videoRoutes = require('./routes/video.routes');
@@ -50,6 +51,8 @@ app.use('/api/children', childrenRoutes);
 app.use('/api/courses', courseRoutes);
 // Content Collection routes: /api/courses (root - create, list, get, update, delete courses)
 app.use('/api/courses', contentCollectionRoutes);
+// Course Progress routes: /api/course-progress
+app.use('/api/course-progress', courseProgressRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/videos', videoRoutes);
@@ -67,6 +70,7 @@ app.get('/', (req, res) => {
       parents: '/api/parents',
       children: '/api/children',
       courses: '/api/courses',
+      courseProgress: '/api/course-progress',
       activities: '/api/activities',
       books: '/api/books',
       videos: '/api/videos',

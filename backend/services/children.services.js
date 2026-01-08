@@ -1,4 +1,4 @@
-const { ChildProfile, Journey, Lesson } = require('../models');
+const { ChildProfile, Journey, Lesson, Course, CourseProgress } = require('../models');
 
 /**
  * Get All Children Service
@@ -128,6 +128,9 @@ const createChild = async (parentId, childData) => {
     isActive: true,
   });
 
+  // Assign default courses to the new child
+  await assignDefaultCourses(child._id, child.age);
+
   // Get created child with populated fields
   const createdChild = await ChildProfile.findById(child._id)
     .populate('currentJourney', 'title description order')
@@ -135,6 +138,84 @@ const createChild = async (parentId, childData) => {
     .lean();
 
   return createdChild;
+};
+
+/**
+ * Assign default courses to a child
+ * Finds all default courses and creates CourseProgress entries
+ * First course is unlocked, others are locked (if sequential)
+ * 
+ * @param {String} childId - Child's MongoDB ID
+ * @param {Number} childAge - Child's age (optional, for age-based filtering)
+ * @returns {Array} Array of assigned default courses
+ */
+const assignDefaultCourses = async (childId, childAge) => {
+  // Find all default courses
+  let query = { isDefault: true, isPublished: true, isArchived: false };
+
+  // Optional: Filter by age range if child has age
+  if (childAge !== undefined && childAge !== null) {
+    query.$or = [
+      { ageRange: { $exists: false } }, // No age restriction
+      {
+        $and: [
+          {
+            $or: [
+              { 'ageRange.min': { $exists: false } }, // No min age
+              { 'ageRange.min': { $lte: childAge } },
+            ],
+          },
+          {
+            $or: [
+              { 'ageRange.max': { $exists: false } }, // No max age
+              { 'ageRange.max': { $gte: childAge } },
+            ],
+          },
+        ],
+      },
+    ];
+  }
+
+  const defaultCourses = await Course.find(query).sort({ stepOrder: 1, createdAt: 1 });
+
+  if (defaultCourses.length === 0) {
+    return []; // No default courses to assign
+  }
+
+  // Create CourseProgress entries for each default course
+  const progressEntries = [];
+  let firstUnlocked = false;
+
+  for (const course of defaultCourses) {
+    // Determine initial status
+    let initialStatus = 'not_started';
+    
+    // If course is sequential and has prerequisites, check if accessible
+    if (course.isSequential && course.prerequisites && course.prerequisites.length > 0) {
+      // Check if prerequisites are completed (should be none for new child, so locked)
+      initialStatus = 'locked';
+    } else if (!firstUnlocked) {
+      // First course without prerequisites is unlocked
+      initialStatus = 'not_started';
+      firstUnlocked = true;
+    } else if (course.isSequential) {
+      // Subsequent sequential courses are locked until previous ones are completed
+      initialStatus = 'locked';
+    }
+
+    progressEntries.push({
+      child: childId,
+      course: course._id,
+      status: initialStatus,
+      progressPercentage: 0,
+    });
+  }
+
+  if (progressEntries.length > 0) {
+    await CourseProgress.insertMany(progressEntries);
+  }
+
+  return defaultCourses;
 };
 
 /**
@@ -321,5 +402,6 @@ module.exports = {
   updateChild,
   deleteChild,
   restoreChild,
+  assignDefaultCourses,
 };
 

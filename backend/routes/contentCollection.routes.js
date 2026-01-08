@@ -8,6 +8,8 @@ const {
   archiveCourse,
   unarchiveCourse,
   deleteCourse,
+  getDefaultCourses,
+  toggleDefaultStatus,
 } = require('../controllers/contentCollection.controller');
 const { protect, authorize } = require('../middleware/auth');
 const { uploadCourse } = require('../middleware/upload');
@@ -41,6 +43,9 @@ router.post('/', uploadCourse, createCourse);
 // Get all courses
 router.get('/', getAllCourses);
 
+// Get all default courses
+router.get('/default', getDefaultCourses);
+
 // Get single course by ID
 router.get('/:id', getCourseById);
 
@@ -52,6 +57,9 @@ router.patch('/:id/archive', archiveCourse);
 
 // Unarchive course (restore)
 router.patch('/:id/unarchive', unarchiveCourse);
+
+// Toggle default status
+router.patch('/:id/default', toggleDefaultStatus);
 
 // Delete course (permanent hard delete)
 router.delete('/:id', deleteCourse);

@@ -288,6 +288,80 @@ const deleteCourse = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get all default courses
+ * @route   GET /api/courses/default
+ * @access  Private (Admin only)
+ */
+const getDefaultCourses = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can view default courses',
+      });
+    }
+
+    const courses = await courseService.getDefaultCourses();
+
+    res.status(200).json({
+      success: true,
+      data: courses,
+      count: courses.length,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get default courses',
+    });
+  }
+};
+
+/**
+ * @desc    Toggle default status of a course
+ * @route   PATCH /api/courses/:id/default
+ * @access  Private (Admin only)
+ * 
+ * Request body:
+ * {
+ *   "isDefault": true  // or false
+ * }
+ */
+const toggleDefaultStatus = async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can modify default course status',
+      });
+    }
+
+    const { id } = req.params;
+    const { isDefault } = req.body;
+
+    if (typeof isDefault !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isDefault must be a boolean value',
+      });
+    }
+
+    const course = await courseService.toggleDefaultStatus(id, isDefault);
+
+    res.status(200).json({
+      success: true,
+      message: `Course ${isDefault ? 'marked as' : 'removed from'} default courses`,
+      data: course,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to toggle default status',
+    });
+  }
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -296,5 +370,7 @@ module.exports = {
   archiveCourse,
   unarchiveCourse,
   deleteCourse,
+  getDefaultCourses,
+  toggleDefaultStatus,
 };
 

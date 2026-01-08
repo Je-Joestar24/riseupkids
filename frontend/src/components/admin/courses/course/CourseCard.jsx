@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Card,
-  CardMedia,
   CardContent,
   Typography,
   Chip,
@@ -69,6 +68,7 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
   return (
     <Card
       sx={{
+        position: 'relative',
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
@@ -77,6 +77,7 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
         backgroundColor: theme.palette.background.paper,
         transition: 'all 0.3s ease',
         cursor: 'pointer',
+        overflow: 'visible',
         '&:hover': {
           boxShadow: theme.shadows[8],
           transform: 'translateY(-4px)',
@@ -85,7 +86,7 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
       }}
       onClick={handleView}
     >
-      {/* Action Menu Button */}
+      {/* Action Menu Button - Always visible */}
       <IconButton
         sx={{
           position: 'absolute',
@@ -93,10 +94,11 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
           right: 8,
           zIndex: 2,
           backgroundColor: theme.palette.background.paper,
-          opacity: 0.9,
+          opacity: 1,
+          boxShadow: theme.shadows[2],
           '&:hover': {
             backgroundColor: theme.palette.custom.bgTertiary,
-            opacity: 1,
+            boxShadow: theme.shadows[4],
           },
         }}
         onClick={handleMenuOpen}

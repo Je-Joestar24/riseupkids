@@ -110,12 +110,13 @@ const createCourse = async (userId, courseData, files = {}) => {
         courseContents.push({
           contentId: createdContent._id,
           contentType: contentType,
+          step: contentItem.step || 1, // Default to step 1 if not provided
           order: orderIndex++,
         });
       }
     } else if (contentItem.contentId && contentItem.contentType) {
       // Add existing content (validate it exists and is unique)
-      const { contentId, contentType } = contentItem;
+      const { contentId, contentType, step } = contentItem;
 
       // Verify content exists
       let contentExists = false;
@@ -150,6 +151,7 @@ const createCourse = async (userId, courseData, files = {}) => {
         courseContents.push({
           contentId: contentId,
           contentType: contentType,
+          step: step || 1, // Default to step 1 if not provided
           order: orderIndex++,
         });
       }
@@ -311,6 +313,7 @@ const getCourseById = async (courseId, includeArchived = false) => {
         populatedContents.push({
           ...contentData,
           _order: contentItem.order,
+          _step: contentItem.step || 1,
           _addedAt: contentItem.addedAt,
         });
       }
@@ -320,12 +323,29 @@ const getCourseById = async (courseId, includeArchived = false) => {
     }
   }
 
-  // Sort by order
-  populatedContents.sort((a, b) => (a._order || 0) - (b._order || 0));
+  // Sort by: step -> contentType -> order
+  populatedContents.sort((a, b) => {
+    const stepA = a._step || 1;
+    const stepB = b._step || 1;
+    if (stepA !== stepB) {
+      return stepA - stepB;
+    }
+    const typeA = a._contentType || '';
+    const typeB = b._contentType || '';
+    if (typeA !== typeB) {
+      return typeA.localeCompare(typeB);
+    }
+    return (a._order || 0) - (b._order || 0);
+  });
+
+  // Get organized by steps structure
+  const courseDoc = await Course.findById(courseId);
+  const contentsBySteps = courseDoc ? courseDoc.getContentsBySteps() : [];
 
   return {
     ...course,
     contents: populatedContents,
+    contentsBySteps, // Contents organized by steps and content types
   };
 };
 
@@ -547,6 +567,48 @@ const deleteCourse = async (courseId) => {
   return { message: 'Course deleted successfully', id: courseId };
 };
 
+/**
+ * Get Default Courses Service
+ * 
+ * Retrieves all courses marked as default
+ * 
+ * @returns {Array} Array of default courses
+ */
+const getDefaultCourses = async () => {
+  const courses = await Course.find({
+    isDefault: true,
+    isPublished: true,
+    isArchived: false,
+  })
+    .sort({ stepOrder: 1, createdAt: 1 })
+    .populate('createdBy', 'name email')
+    .lean();
+
+  return courses;
+};
+
+/**
+ * Toggle Default Status Service
+ * 
+ * Marks or unmarks a course as default
+ * 
+ * @param {String} courseId - Course's MongoDB ID
+ * @param {Boolean} isDefault - Whether to mark as default
+ * @returns {Object} Updated course
+ * @throws {Error} If course not found
+ */
+const toggleDefaultStatus = async (courseId, isDefault) => {
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  course.isDefault = isDefault;
+  await course.save();
+
+  return course;
+};
+
 module.exports = {
   createCourse,
   getAllCourses,
@@ -555,5 +617,7 @@ module.exports = {
   archiveCourse,
   unarchiveCourse,
   deleteCourse,
+  getDefaultCourses,
+  toggleDefaultStatus,
 };
 
