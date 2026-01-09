@@ -46,9 +46,14 @@ const ParentsChild = () => {
   }, [isAuthenticated, user]);
 
   const handleSelectChild = (child) => {
-    // TODO: Set selected child and navigate to child dashboard
-    // Navigate to child dashboard when ready
-    // navigate(`/child/${child._id}/dashboard`);
+    // Store selected child in sessionStorage for child session
+    if (child && child._id) {
+      sessionStorage.setItem('selectedChildId', child._id);
+      sessionStorage.setItem('selectedChild', JSON.stringify(child));
+      
+      // Navigate to child home page
+      navigate(`/child/${child._id}/home`);
+    }
   };
 
   const handleAddNewChild = () => {
@@ -68,10 +73,7 @@ const ParentsChild = () => {
 
   const handleSettings = () => {
     // TODO: Navigate to settings page
-    dispatch(showNotification({
-      message: 'Settings feature coming soon',
-      type: 'info',
-    }));
+    console.log('Settings feature coming soon');
   };
 
   if (!isAuthenticated || !user || user.role !== 'parent') {

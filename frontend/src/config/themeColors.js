@@ -31,6 +31,7 @@ export const themeColors = {
   textMuted: '#64748b',
   textInverse: '#ffffff',
   textTeal: '#62caca',
+  textSubheading: 'oklch(0.446 0.03 256.802)', // Subheading color for welcome card
 
   // Border colors
   border: '#e2e8f0',
