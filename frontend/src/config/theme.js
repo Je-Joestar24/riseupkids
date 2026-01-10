@@ -10,8 +10,8 @@ import { createTheme } from '@mui/material/styles';
 
 // Color palette matching CSS variables
 const colors = {
-  primary: '#62caca',        // --theme-primary
-  secondary: '#85c2b9',       // --theme-secondary
+  primary: '#85c2b9',        // --theme-primary
+  secondary: '#62caca',       // --theme-secondary
   accent: '#f2af10',         // --theme-accent (yellow)
   orange: '#e98a68',         // --theme-orange
   success: '#10b981',        // --theme-success

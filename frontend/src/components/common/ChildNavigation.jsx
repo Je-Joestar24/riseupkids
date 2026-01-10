@@ -101,7 +101,8 @@ const ChildNavigation = ({ childId }) => {
           boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
           backgroundColor: themeColors.bgCard,
           display: 'flex',
-          alignItems: 'center'
+          alignItems: 'center',
+          borderRadius: '0px'
         }}
         elevation={0}
       >

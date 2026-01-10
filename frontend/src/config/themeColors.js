@@ -7,8 +7,8 @@
 
 export const themeColors = {
   // Primary colors
-  primary: '#62caca',
-  secondary: '#85c2b9',
+  primary: '#85c2b9',
+  secondary: '#62caca',
   accent: '#f2af10',
   orange: '#e98a68',
   success: '#10b981',
