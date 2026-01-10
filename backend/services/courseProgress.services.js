@@ -1,6 +1,21 @@
 const { Course, CourseProgress, ChildProfile } = require('../models');
 
 /**
+ * Count courses in "in_progress" or "not_started" status for a child
+ * Maximum allowed is 2
+ * 
+ * @param {String} childId - Child's MongoDB ID
+ * @returns {Number} Count of in-progress courses
+ */
+const countInProgressCourses = async (childId) => {
+  const count = await CourseProgress.countDocuments({
+    child: childId,
+    status: { $in: ['in_progress', 'not_started'] },
+  });
+  return count;
+};
+
+/**
  * Check if a child can access a course
  * Verifies prerequisites are completed if course is sequential
  * 
@@ -99,7 +114,33 @@ const getChildCourses = async (childId, queryParams = {}) => {
   }
 
   // Get all accessible courses
-  const courses = await Course.find(courseQuery).sort({ stepOrder: 1, createdAt: 1 });
+  // Sort: courses with stepOrder first (ascending), then courses without stepOrder (by createdAt)
+  // This ensures ordered courses appear first, followed by unordered ones
+  const courses = await Course.find(courseQuery).sort({ 
+    stepOrder: 1, // null values come first in ascending, but we'll handle this
+    createdAt: 1 
+  });
+  
+  // Post-process sorting: ensure courses with stepOrder come before those without
+  // MongoDB's null handling can vary, so we'll explicitly sort
+  courses.sort((a, b) => {
+    const aHasOrder = a.stepOrder !== null && a.stepOrder !== undefined;
+    const bHasOrder = b.stepOrder !== null && b.stepOrder !== undefined;
+    
+    if (aHasOrder && bHasOrder) {
+      // Both have stepOrder, sort by stepOrder ascending
+      return a.stepOrder - b.stepOrder;
+    } else if (aHasOrder && !bHasOrder) {
+      // a has order, b doesn't - a comes first
+      return -1;
+    } else if (!aHasOrder && bHasOrder) {
+      // b has order, a doesn't - b comes first
+      return 1;
+    } else {
+      // Neither has order, sort by createdAt ascending
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    }
+  });
 
   // Get all progress for this child
   const progressMap = {};
@@ -109,7 +150,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
   });
 
   // Combine courses with progress and check access
-  const coursesWithProgress = await Promise.all(
+  let coursesWithProgress = await Promise.all(
     courses.map(async (course) => {
       const progress = progressMap[course._id.toString()] || null;
       const accessCheck = await checkCourseAccess(childId, course._id);
@@ -132,6 +173,149 @@ const getChildCourses = async (childId, queryParams = {}) => {
       };
     })
   );
+
+  // Enforce 1-course limit: only 1 course can be in "in_progress" or "not_started" at a time
+  // Keep completed courses as-is, but limit active courses
+  // Lock courses beyond the first 1 (in order) that are in progress/not_started
+  // If no course is in progress and there are accessible locked courses, unlock the next one
+  const MAX_IN_PROGRESS = 1;
+  let inProgressCount = 0;
+  const coursesToLock = []; // Track courses that need to be locked in the database
+  let courseToUnlock = null; // Track the next course that should be unlocked and set to in_progress
+
+  // First pass: count current in-progress courses and find if we need to unlock one
+  const currentInProgress = coursesWithProgress.filter(
+    (item) => item.status === 'in_progress' || item.status === 'not_started'
+  );
+
+  // If no course is in progress, find the first accessible locked course and unlock it
+  if (currentInProgress.length === 0) {
+    for (const item of coursesWithProgress) {
+      if (item.status === 'locked' && item.accessible && item.status !== 'completed') {
+        // This is the next course that should be unlocked and started
+        courseToUnlock = {
+          progressId: item.progress?._id || null,
+          courseId: item.course._id,
+        };
+        break; // Only unlock one course at a time
+      }
+    }
+  }
+
+  // If we're unlocking a course, it counts towards the in-progress limit
+  if (courseToUnlock) {
+    inProgressCount = 1; // The course we're unlocking will be in_progress
+  }
+
+  // Second pass: enforce the limit and update statuses
+  coursesWithProgress = coursesWithProgress.map((item) => {
+    // Check if this course should be unlocked and started
+    if (courseToUnlock && courseToUnlock.courseId.toString() === item.course._id.toString()) {
+      inProgressCount = 1; // Mark that we have an in-progress course
+      return {
+        ...item,
+        status: 'in_progress',
+        accessible: true,
+        progress: item.progress
+          ? {
+              ...item.progress,
+              status: 'in_progress',
+              startedAt: item.progress.startedAt || new Date(),
+              currentStep: item.progress.currentStep || 1,
+            }
+          : {
+              status: 'in_progress',
+              progressPercentage: 0,
+              startedAt: new Date(),
+              currentStep: 1,
+            },
+      };
+    }
+
+    // Keep completed courses as-is
+    if (item.status === 'completed') {
+      return item;
+    }
+
+    // For courses that are "in_progress" or "not_started", enforce the 1-course limit
+    if (item.status === 'in_progress' || item.status === 'not_started') {
+      if (inProgressCount < MAX_IN_PROGRESS) {
+        inProgressCount++;
+        // First course should be "in_progress" if it's "not_started" (automatically start it)
+        if (item.status === 'not_started' && item.progress) {
+          // Update to in_progress in the database
+          courseToUnlock = {
+            progressId: item.progress._id,
+            courseId: item.course._id,
+          };
+          return {
+            ...item,
+            status: 'in_progress',
+            progress: {
+              ...item.progress,
+              status: 'in_progress',
+              startedAt: item.progress.startedAt || new Date(),
+              currentStep: item.progress.currentStep || 1,
+            },
+          };
+        }
+        return item; // Keep as unlocked (within limit)
+      } else {
+        // Lock this course as we've reached the limit
+        // Track it for database update
+        if (item.progress) {
+          coursesToLock.push(item.progress._id);
+        }
+        return {
+          ...item,
+          status: 'locked',
+          accessible: false,
+          progress: item.progress
+            ? {
+                ...item.progress,
+                status: 'locked',
+              }
+            : null,
+        };
+      }
+    }
+
+    // Already locked courses stay locked
+    return item;
+  });
+
+  // Update database records for course that needs to be unlocked and started
+  if (courseToUnlock) {
+    if (courseToUnlock.progressId) {
+      await CourseProgress.findOneAndUpdate(
+        { _id: courseToUnlock.progressId },
+        {
+          status: 'in_progress',
+          startedAt: new Date(),
+          currentStep: 1,
+        },
+        { new: true }
+      ).catch((err) => console.error('Error updating progress to in_progress:', err));
+    } else {
+      // Create new progress entry
+      await CourseProgress.create({
+        child: childId,
+        course: courseToUnlock.courseId,
+        status: 'in_progress',
+        progressPercentage: 0,
+        startedAt: new Date(),
+        currentStep: 1,
+      }).catch((err) => console.error('Error creating progress entry:', err));
+    }
+  }
+
+  // Update database records for courses that need to be locked
+  if (coursesToLock.length > 0) {
+    await CourseProgress.updateMany(
+      { _id: { $in: coursesToLock } },
+      { status: 'locked' }
+    ).catch((err) => console.error('Error updating progress status to locked:', err));
+  }
 
   // Filter by status if provided
   if (status) {
@@ -238,6 +422,15 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
       throw new Error('Course is locked. Complete prerequisites first.');
     }
 
+    // Check if we can start a new course (enforce 1-course limit)
+    const currentInProgressCount = await countInProgressCourses(childId);
+    const MAX_IN_PROGRESS = 1;
+
+    if (currentInProgressCount >= MAX_IN_PROGRESS) {
+      throw new Error('Maximum 1 course in progress. Complete the current course before starting another.');
+    }
+
+    // Can start this course
     progress = await CourseProgress.create({
       child: childId,
       course: courseId,
@@ -247,6 +440,21 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
       currentStep: 1,
     });
     await progress.populate('course');
+  } else if (progress.status === 'locked') {
+    // Check if we can unlock this course
+    const currentInProgressCount = await countInProgressCourses(childId);
+    const MAX_IN_PROGRESS = 1;
+
+    if (currentInProgressCount >= MAX_IN_PROGRESS) {
+      throw new Error('Maximum 1 course in progress. Complete the current course before starting another.');
+    }
+
+    // Unlock and start the course
+    progress.status = 'in_progress';
+    if (!progress.startedAt) {
+      progress.startedAt = new Date();
+    }
+    await progress.save();
   }
 
   // Mark content as completed (with step)
@@ -273,30 +481,74 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
 
 /**
  * Unlock next course in sequence after completing a course
+ * Only unlocks if no courses are in progress (enforces 1-course limit)
+ * Automatically sets the next course to "in_progress" instead of "not_started"
  * 
  * @param {String} childId - Child's MongoDB ID
  * @param {String} completedCourseId - Completed course's MongoDB ID
  */
 const unlockNextCourse = async (childId, completedCourseId) => {
-  const completedCourse = await Course.findById(completedCourseId);
-  if (!completedCourse || !completedCourse.stepOrder) {
-    return; // No sequential ordering
+  // Check how many courses are currently in progress
+  const currentInProgressCount = await countInProgressCourses(childId);
+  const MAX_IN_PROGRESS = 1;
+
+  // If we already have 1 course in progress, don't unlock more
+  if (currentInProgressCount >= MAX_IN_PROGRESS) {
+    return; // Cannot unlock more courses, limit reached
   }
 
-  // Find courses that have this course as a prerequisite
-  const nextCourses = await Course.find({
-    isSequential: true,
-    prerequisites: completedCourseId,
-    isPublished: true,
-    isArchived: false,
+  const completedCourse = await Course.findById(completedCourseId);
+  if (!completedCourse) {
+    return; // Course not found
+  }
+
+  // Get all published courses for this child, sorted by stepOrder
+  let courseQuery = { isPublished: true, isArchived: false };
+  const allCourses = await Course.find(courseQuery).sort({ 
+    stepOrder: 1,
+    createdAt: 1 
   });
 
-  // Check if all prerequisites are met for each next course
-  for (const nextCourse of nextCourses) {
+  // Post-process sorting: ensure courses with stepOrder come before those without
+  allCourses.sort((a, b) => {
+    const aHasOrder = a.stepOrder !== null && a.stepOrder !== undefined;
+    const bHasOrder = b.stepOrder !== null && b.stepOrder !== undefined;
+    
+    if (aHasOrder && bHasOrder) {
+      return a.stepOrder - b.stepOrder;
+    } else if (aHasOrder && !bHasOrder) {
+      return -1;
+    } else if (!aHasOrder && bHasOrder) {
+      return 1;
+    } else {
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    }
+  });
+
+  // Find the next course after the completed one
+  const completedIndex = allCourses.findIndex(
+    (c) => c._id.toString() === completedCourseId.toString()
+  );
+
+  if (completedIndex === -1) {
+    return; // Completed course not found in list
+  }
+
+  // Find the next accessible course after the completed one
+  for (let i = completedIndex + 1; i < allCourses.length; i++) {
+    const nextCourse = allCourses[i];
+
+    // Check if we've reached the limit (should be 0 since we just completed one)
+    const currentCount = await countInProgressCourses(childId);
+    if (currentCount >= MAX_IN_PROGRESS) {
+      break; // Stop unlocking, limit reached
+    }
+
+    // Check if course is accessible (prerequisites met)
     const accessCheck = await checkCourseAccess(childId, nextCourse._id);
 
     if (accessCheck.accessible) {
-      // Get or create progress and unlock it
+      // Get or create progress and set it to "in_progress" (not "not_started")
       let progress = await CourseProgress.findOne({
         child: childId,
         course: nextCourse._id,
@@ -306,13 +558,20 @@ const unlockNextCourse = async (childId, completedCourseId) => {
         progress = await CourseProgress.create({
           child: childId,
           course: nextCourse._id,
-          status: 'not_started',
+          status: 'in_progress', // Automatically start the next course
           progressPercentage: 0,
+          startedAt: new Date(),
+          currentStep: 1,
         });
       } else if (progress.status === 'locked') {
-        progress.status = 'not_started';
+        progress.status = 'in_progress'; // Automatically start it
+        progress.startedAt = progress.startedAt || new Date();
+        progress.currentStep = progress.currentStep || 1;
         await progress.save();
       }
+      
+      // Only unlock one course at a time (the next one in sequence)
+      break;
     }
   }
 };

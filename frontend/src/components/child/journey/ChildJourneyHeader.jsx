@@ -44,7 +44,7 @@ const ChildJourneyHeader = ({ week = 3, totalWeeks = 36 }) => {
           fontFamily: theme.typography.fontFamily,
         }}
       >
-        Week {week} of {totalWeeks}
+        Step {week} of {totalWeeks}
       </Typography>
     </Box>
   );

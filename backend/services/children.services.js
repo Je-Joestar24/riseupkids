@@ -183,31 +183,33 @@ const assignDefaultCourses = async (childId, childAge) => {
   }
 
   // Create CourseProgress entries for each default course
+  // Enforce 1-course limit: only 1 course can be in "in_progress" or "not_started" at a time
+  // The first course is automatically set to "in_progress" to start it immediately
   const progressEntries = [];
-  let firstUnlocked = false;
+  let unlockedCount = 0;
+  const MAX_IN_PROGRESS = 1;
 
   for (const course of defaultCourses) {
     // Determine initial status
-    let initialStatus = 'not_started';
+    let initialStatus = 'locked'; // Default to locked
     
-    // If course is sequential and has prerequisites, check if accessible
+    // If course is sequential and has prerequisites, it's locked
     if (course.isSequential && course.prerequisites && course.prerequisites.length > 0) {
-      // Check if prerequisites are completed (should be none for new child, so locked)
       initialStatus = 'locked';
-    } else if (!firstUnlocked) {
-      // First course without prerequisites is unlocked
-      initialStatus = 'not_started';
-      firstUnlocked = true;
-    } else if (course.isSequential) {
-      // Subsequent sequential courses are locked until previous ones are completed
-      initialStatus = 'locked';
+    } else if (unlockedCount < MAX_IN_PROGRESS) {
+      // First course without prerequisites is unlocked and set to "in_progress" (not "not_started")
+      initialStatus = 'in_progress'; // Automatically start the first course
+      unlockedCount++;
     }
+    // All other courses remain locked
 
     progressEntries.push({
       child: childId,
       course: course._id,
       status: initialStatus,
       progressPercentage: 0,
+      startedAt: initialStatus === 'in_progress' ? new Date() : null,
+      currentStep: initialStatus === 'in_progress' ? 1 : undefined,
     });
   }
 

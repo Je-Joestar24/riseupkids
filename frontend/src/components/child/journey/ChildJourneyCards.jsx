@@ -7,38 +7,31 @@ import { themeColors } from '../../../config/themeColors';
  * ChildJourneyCards Component
  * 
  * Card grid for displaying journey courses
- * 3-column grid layout with completed and in-progress examples
+ * 3-column grid layout with course data from API
  */
-const ChildJourneyCards = () => {
+const ChildJourneyCards = ({ courses = [] }) => {
   const theme = useTheme();
 
-  // Example card data - will be replaced with course API data later
-  const exampleCards = [
-    {
-      id: 1,
-      title: 'Journey Rise Up 1',
-      description: 'Learn letters and sounds.',
-      image: '/api/placeholder/400/300',
-      step: 1,
-      status: 'completed', // 'completed', 'in_progress', 'locked'
-    },
-    {
-      id: 2,
-      title: 'Shape Explorer 1',
-      description: 'Discover shapes around us.',
-      image: '/api/placeholder/400/300',
-      step: 3,
-      status: 'in_progress', // 'completed', 'in_progress', 'locked'
-    },
-    {
-      id: 3,
-      title: 'Locked Week',
-      description: 'Complete previous weeks to unlock',
-      image: '/api/placeholder/400/300',
-      step: 4,
-      status: 'locked', // 'completed', 'in_progress', 'locked'
-    },
-  ];
+  // Get cover image URL helper
+  const getCoverImageUrl = (coverImagePath) => {
+    if (!coverImagePath) return null;
+    
+    // If already a full URL, return as-is
+    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
+      return coverImagePath;
+    }
+    
+    // Build full URL from relative path
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
+  };
+
+  // Truncate description to 50 characters with ellipsis
+  const truncateDescription = (text, maxLength = 50) => {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + '...';
+  };
 
   // Get border color based on status
   const getBorderColor = (status) => {
@@ -46,9 +39,10 @@ const ChildJourneyCards = () => {
       case 'completed':
         return themeColors.secondary; // #85c2b9
       case 'in_progress':
+      case 'not_started': // Treat not_started as in_progress for display
         return themeColors.accent; // #f2af10
       case 'locked':
-        return themeColors.bgOverlay; // oklch(0.446 0.03 256.802)
+        return 'rgb(212, 230, 227)'; // oklch(0.446 0.03 256.802)
       default:
         return themeColors.bgSecondary;
     }
@@ -60,6 +54,7 @@ const ChildJourneyCards = () => {
       case 'completed':
         return themeColors.primary; // #62caca
       case 'in_progress':
+      case 'not_started': // Treat not_started as in_progress for display
         return themeColors.accent; // #f2af10
       case 'locked':
         return themeColors.orange; // #e98a68
@@ -72,9 +67,12 @@ const ChildJourneyCards = () => {
   const getStepBadgeBackground = (status) => {
     switch (status) {
       case 'in_progress':
+      case 'not_started': // Treat not_started as in_progress for display
         return themeColors.accent; // #f2af10
       case 'completed':
         return themeColors.primary; // #62caca
+      case 'locked':
+        return themeColors.bgTertiary;
       default:
         return themeColors.bgTertiary;
     }
@@ -120,7 +118,7 @@ const ChildJourneyCards = () => {
       );
     }
 
-    if (status === 'in_progress') {
+    if (status === 'in_progress' || status === 'not_started') {
       return (
         <Box
           sx={{
@@ -180,28 +178,54 @@ const ChildJourneyCards = () => {
           gap: '16px',
         }}
       >
-        {exampleCards.map((card) => {
-          const isLocked = card.status === 'locked';
-          
-          return (
-            <Card
-              key={card.id}
+        {courses.length === 0 ? (
+          <Box
+            sx={{
+              gridColumn: '1 / -1',
+              textAlign: 'center',
+              padding: '40px 20px',
+            }}
+          >
+            <Typography
               sx={{
-                backgroundColor: themeColors.bgCard,
-                borderRadius: '0px',
-                overflow: 'hidden',
-                boxShadow: theme.shadows[4],
-                border: `3px solid ${getBorderColor(card.status)}`,
-                position: 'relative',
-                opacity: isLocked ? 0.7 : 1,
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                cursor: isLocked ? 'not-allowed' : 'pointer',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                  boxShadow: theme.shadows[8],
-                },
+                color: themeColors.textInverse,
+                fontSize: '18px',
+                fontFamily: theme.typography.fontFamily,
               }}
             >
+              No courses available yet. Check back soon!
+            </Typography>
+          </Box>
+        ) : (
+          courses.map((courseItem, index) => {
+            const course = courseItem.course || {};
+            const status = courseItem.status || 'not_started';
+            const isLocked = status === 'locked';
+            // Use sequential position for step display (1, 2, 3...) 
+            // Courses are already sorted by stepOrder from backend, so index + 1 represents the sequential position
+            // This displays as "Step 1", "Step 2", etc. regardless of raw stepOrder values (10, 20, 30...)
+            const stepOrder = index + 1;
+            const coverImageUrl = getCoverImageUrl(course.coverImage);
+            
+            return (
+              <Card
+                key={course._id || course.id}
+                sx={{
+                  backgroundColor: themeColors.bgCard,
+                  borderRadius: '0px',
+                  overflow: 'hidden',
+                  boxShadow: theme.shadows[4],
+                  border: `3px solid ${getBorderColor(status)}`,
+                  position: 'relative',
+                  opacity: isLocked ? 0.7 : 1,
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                    boxShadow: theme.shadows[8],
+                  },
+                }}
+              >
               {/* Image Container */}
               <Box
                 sx={{
@@ -261,27 +285,43 @@ const ChildJourneyCards = () => {
                   </Box>
                 ) : (
                   <>
-                    {/* Placeholder for image - will use course thumbnail later */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: 'gray',
-                        color: themeColors.textInverse,
-                        fontSize: '48px',
-                      }}
-                    >
-                      📚
-                    </Box>
+                    {/* Course cover image */}
+                    {coverImageUrl ? (
+                      <Box
+                        component="img"
+                        src={coverImageUrl}
+                        alt={course.title || 'Course cover'}
+                        sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: 'gray',
+                          color: themeColors.textInverse,
+                          fontSize: '48px',
+                        }}
+                      >
+                        📚
+                      </Box>
+                    )}
 
                     {/* Status Icon - Top Left */}
-                    {renderStatusIcon(card.status)}
+                    {renderStatusIcon(status)}
 
                     {/* Step Badge - Top Right */}
                     <Box
@@ -291,14 +331,14 @@ const ChildJourneyCards = () => {
                         right: '12px',
                         padding: '4px 12px',
                         borderRadius: '16px',
-                        backgroundColor: getStepBadgeBackground(card.status),
+                        backgroundColor: getStepBadgeBackground(status),
                         color: themeColors.textInverse,
                         fontSize: '12px',
                         fontWeight: 600,
                         boxShadow: theme.shadows[2],
                       }}
                     >
-                      Step {card.step}
+                      Step {stepOrder}
                     </Box>
                   </>
                 )}
@@ -328,7 +368,7 @@ const ChildJourneyCards = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: getIconBackgroundColor(card.status),
+                    backgroundColor: getIconBackgroundColor(status),
                     borderRadius: '450%',
                   }}
                 >
@@ -362,7 +402,7 @@ const ChildJourneyCards = () => {
                     marginBottom: '4px',
                   }}
                 >
-                  {card.title}
+                  {course.title || 'Untitled Course'}
                 </Typography>
 
                 {/* Description */}
@@ -372,16 +412,22 @@ const ChildJourneyCards = () => {
                     color: 'rgb(153, 153, 153)',
                     fontFamily: theme.typography.fontFamily,
                     lineHeight: 1.5,
-                    fontWeight: 600
+                    fontWeight: 600,
                   }}
+                  title={isLocked 
+                    ? 'Complete previous weeks to unlock'
+                    : (course.description || 'No description available')}
                 >
-                  {card.description}
+                  {isLocked 
+                    ? 'Complete previous weeks to unlock'
+                    : truncateDescription(course.description || 'No description available', 50)}
                 </Typography>
               </Box>
             </Box>
           </Card>
           );
-        })}
+          })
+        )}
       </Box>
     </Box>
   );
