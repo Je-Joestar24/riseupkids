@@ -15,6 +15,7 @@ const KidsWallPost = require('./KidsWallPost');
 const BookReading = require('./BookReading');
 const AudioAssignment = require('./AudioAssignment');
 const AudioAssignmentProgress = require('./AudioAssignmentProgress');
+const Chant = require('./Chant');
 const StarEarning = require('./StarEarning');
 const ExploreContent = require('./ExploreContent');
 const ActivityGroup = require('./ActivityGroup');
@@ -41,6 +42,7 @@ module.exports = {
   BookReading,
   AudioAssignment,
   AudioAssignmentProgress,
+  Chant,
   StarEarning,
   ExploreContent,
 };

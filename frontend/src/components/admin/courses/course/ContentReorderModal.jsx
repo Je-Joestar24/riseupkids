@@ -161,6 +161,7 @@ const ContentTypeSection = ({ contentType, items, activeId }) => {
       'book': '📚 Books',
       'video': '🎬 Videos',
       'audioAssignment': '🎵 Audio Assignments',
+      'chant': '🎵 Chants',
     };
     return labels[type] || type;
   };
@@ -171,6 +172,7 @@ const ContentTypeSection = ({ contentType, items, activeId }) => {
       'book': '📚',
       'video': '🎬',
       'audioAssignment': '🎵',
+      'chant': '🎵',
     };
     return icons[type] || '📄';
   };
@@ -274,6 +276,7 @@ const ContentReorderModal = ({ open, onClose, contents: initialContents = [], on
       book: [],
       video: [],
       audioAssignment: [],
+      chant: [],
     };
 
     contentsList.forEach((item) => {
@@ -488,7 +491,7 @@ const ContentReorderModal = ({ open, onClose, contents: initialContents = [], on
     try {
       // Group by type and save each type separately
       const grouped = groupContentsByType(contents);
-      const typeOrder = ['activity', 'book', 'video', 'audioAssignment'];
+      const typeOrder = ['activity', 'book', 'video', 'audioAssignment', 'chant'];
 
       // If courseId exists and we're in edit mode, call API for each type
       if (courseId) {
@@ -524,7 +527,7 @@ const ContentReorderModal = ({ open, onClose, contents: initialContents = [], on
   };
 
   const groupedContents = groupContentsByType(contents);
-  const typeOrder = ['activity', 'book', 'video', 'audioAssignment'];
+  const typeOrder = ['activity', 'book', 'video', 'audioAssignment', 'chant'];
   const nonEmptyTypes = typeOrder.filter((type) => groupedContents[type].length > 0);
 
   return (

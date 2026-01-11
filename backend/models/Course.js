@@ -38,11 +38,11 @@ const courseSchema = new mongoose.Schema(
           required: true,
           // No ref because it can reference different models
         },
-        // Content type: 'activity', 'book', 'video', 'audioAssignment'
+        // Content type: 'activity', 'book', 'video', 'audioAssignment', 'chant'
         contentType: {
           type: String,
           required: true,
-          enum: ['activity', 'book', 'video', 'audioAssignment'],
+          enum: ['activity', 'book', 'video', 'audioAssignment', 'chant'],
         },
         // Step number (1, 2, 3, ...) - contents are organized into steps
         // Within each step, contents are grouped by type and must be completed sequentially
@@ -168,6 +168,7 @@ courseSchema.methods.getContentsBySteps = function () {
           activity: [],
           video: [],
           audioAssignment: [],
+          chant: [],
         },
       });
     }

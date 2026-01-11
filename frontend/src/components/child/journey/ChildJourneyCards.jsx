@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Card, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useNavigate, useParams } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
 
 /**
@@ -11,6 +12,8 @@ import { themeColors } from '../../../config/themeColors';
  */
 const ChildJourneyCards = ({ courses = [] }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
+  const { id: childId } = useParams();
 
   // Get cover image URL helper
   const getCoverImageUrl = (coverImagePath) => {
@@ -207,9 +210,19 @@ const ChildJourneyCards = ({ courses = [] }) => {
             const stepOrder = index + 1;
             const coverImageUrl = getCoverImageUrl(course.coverImage);
             
+            // Handle card click - only for completed or in_progress courses
+            const handleCardClick = () => {
+              const isClickable = (status === 'completed' || status === 'in_progress' || status === 'not_started');
+              if (isClickable && !isLocked && childId && (course._id || course.id)) {
+                const courseId = course._id || course.id;
+                navigate(`/child/${childId}/journey/${courseId}`);
+              }
+            };
+            
             return (
               <Card
                 key={course._id || course.id}
+                onClick={handleCardClick}
                 sx={{
                   backgroundColor: themeColors.bgCard,
                   borderRadius: '0px',
@@ -221,8 +234,8 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   cursor: isLocked ? 'not-allowed' : 'pointer',
                   '&:hover': {
-                    transform: 'scale(1.05)',
-                    boxShadow: theme.shadows[8],
+                    transform: isLocked ? 'none' : 'scale(1.05)',
+                    boxShadow: isLocked ? theme.shadows[4] : theme.shadows[8],
                   },
                 }}
               >

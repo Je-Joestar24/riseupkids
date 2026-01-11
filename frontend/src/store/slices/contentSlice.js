@@ -184,6 +184,8 @@ const contentSlice = createSlice({
           }));
         } else if (contentType === CONTENT_TYPES.AUDIO_ASSIGNMENT) {
           items = response.data || [];
+        } else if (contentType === CONTENT_TYPES.CHANT) {
+          items = response.data || [];
         }
         
         // Add contentType to each item for identification

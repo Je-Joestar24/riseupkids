@@ -183,6 +183,33 @@ export const useCourseProgress = (childId) => {
   }, [childId, dispatch, fetchChildCourses]);
 
   /**
+   * Get course details with populated contents and child profile
+   * @param {String} courseId - Course's ID
+   * @returns {Promise} Course details with contents, child profile, and progress
+   */
+  const fetchCourseDetailsForChild = useCallback(async (courseId) => {
+    if (!childId || !courseId) {
+      throw new Error('Child ID and Course ID are required');
+    }
+
+    try {
+      const response = await courseProgressService.getCourseDetailsForChild(courseId, childId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to fetch course details');
+      }
+    } catch (err) {
+      const errorMessage = err || 'Failed to fetch course details';
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      throw err;
+    }
+  }, [childId, dispatch]);
+
+  /**
    * Get full URL for course cover image
    * @param {String} coverImagePath - Relative cover image path
    * @returns {String} Full URL for the cover image
@@ -224,6 +251,7 @@ export const useCourseProgress = (childId) => {
     // Methods
     fetchChildCourses,
     fetchCourseProgress,
+    fetchCourseDetailsForChild,
     checkAccess,
     updateProgress,
     completeCourse,

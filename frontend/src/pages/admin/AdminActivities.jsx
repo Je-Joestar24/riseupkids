@@ -13,7 +13,7 @@ import { CONTENT_TYPES } from '../../services/contentService';
 /**
  * AdminActivities Page (Contents)
  * 
- * Main page for managing all content types (activities, books, videos, audio)
+ * Main page for managing all content types (activities, books, videos, audio, chants)
  * Supports URL persistence: /admin/courses/contents?type=books
  */
 const AdminActivities = () => {
@@ -35,6 +35,8 @@ const AdminActivities = () => {
       'audio': CONTENT_TYPES.AUDIO_ASSIGNMENT,
       'audioAssignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
       'audio-assignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+      'chant': CONTENT_TYPES.CHANT,
+      'chants': CONTENT_TYPES.CHANT,
     };
     return typeMap[typeParam?.toLowerCase()] || CONTENT_TYPES.ACTIVITY;
   };
@@ -46,6 +48,7 @@ const AdminActivities = () => {
       [CONTENT_TYPES.BOOK]: 'books',
       [CONTENT_TYPES.VIDEO]: 'videos',
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
+      [CONTENT_TYPES.CHANT]: 'chants',
     };
     return urlMap[contentType] || 'activities';
   };

@@ -210,11 +210,51 @@ const markCourseCompleted = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get course details with populated contents for a child
+ * @route   GET /api/course-progress/:courseId/child/:childId/details
+ * @access  Private (Parent/Admin)
+ */
+const getCourseDetailsForChild = async (req, res) => {
+  try {
+    const { courseId, childId } = req.params;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    const courseDetails = await courseProgressService.getCourseDetailsForChild(childId, courseId);
+
+    res.status(200).json({
+      success: true,
+      data: courseDetails,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to get course details',
+    });
+  }
+};
+
 module.exports = {
   checkCourseAccess,
   getChildCourses,
   getCourseProgress,
   updateContentProgress,
   markCourseCompleted,
+  getCourseDetailsForChild,
 };
 

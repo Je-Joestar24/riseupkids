@@ -112,6 +112,8 @@ const ContentItems = ({ loading, onRefresh }) => {
         return '🎥 Video';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return '🎤 Audio';
+      case CONTENT_TYPES.CHANT:
+        return '🎵 Chant';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return '⭐ Activity';

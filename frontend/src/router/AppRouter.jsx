@@ -10,6 +10,7 @@ import AdminLayout from '../layouts/AdminLayout';
 import ChildLayout from '../layouts/ChildLayout';
 import ChildHome from '../pages/child/ChildHome';
 import ChildJourney from '../pages/child/ChildJourney';
+import ChildJourneyModule from '../pages/child/ChildJourneyModule';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
 
@@ -71,6 +72,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
                 <ChildJourney />
+              </ChildRouteWrapper>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/child/:id/journey/:courseId"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ChildRouteWrapper>
+                <ChildJourneyModule />
               </ChildRouteWrapper>
             </AuthedAccess>
           }

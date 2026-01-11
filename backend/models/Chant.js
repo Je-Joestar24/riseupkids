@@ -1,16 +1,16 @@
 const mongoose = require('mongoose');
 
 /**
- * AudioAssignment Model
+ * Chant Model
  * 
- * Audio assignments separate from regular activities
- * Children record audio responses (like "ABC Chant")
+ * Chant content type - similar to audio but with different type/name
+ * Supports optional audio and SCORM files
  */
-const audioAssignmentSchema = new mongoose.Schema(
+const chantSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: [true, 'Please provide an assignment title'],
+      required: [true, 'Please provide a chant title'],
       trim: true,
       maxlength: [200, 'Title cannot exceed 200 characters'],
     },
@@ -21,16 +21,15 @@ const audioAssignmentSchema = new mongoose.Schema(
     },
     instructions: {
       type: String,
-      required: [true, 'Please provide assignment instructions'],
       trim: true,
     },
-    // Reference audio (example/instruction audio)
-    referenceAudio: {
+    // Reference audio (optional - example/instruction audio)
+    audio: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Media',
       default: null,
     },
-    // SCORM file reference (optional - for SCORM-powered audio assignments)
+    // SCORM file reference (optional - for SCORM-powered chants)
     scormFile: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Media',
@@ -71,11 +70,6 @@ const audioAssignmentSchema = new mongoose.Schema(
       type: Number,
       default: 10,
       min: 0,
-    },
-    // Whether this is a "star assignment" (special/high-value)
-    isStarAssignment: {
-      type: Boolean,
-      default: false,
     },
     // Badge awarded for completion (optional)
     badgeAwarded: {
@@ -126,11 +120,9 @@ const audioAssignmentSchema = new mongoose.Schema(
 );
 
 // Indexes
-audioAssignmentSchema.index({ createdBy: 1 });
-audioAssignmentSchema.index({ isPublished: 1 });
-audioAssignmentSchema.index({ lesson: 1, order: 1 });
-audioAssignmentSchema.index({ journey: 1, order: 1 });
-audioAssignmentSchema.index({ isStarAssignment: 1 });
+chantSchema.index({ createdBy: 1 });
+chantSchema.index({ isPublished: 1 });
+chantSchema.index({ lesson: 1, order: 1 });
+chantSchema.index({ journey: 1, order: 1 });
 
-module.exports = mongoose.model('AudioAssignment', audioAssignmentSchema);
-
+module.exports = mongoose.model('Chant', chantSchema);

@@ -258,6 +258,7 @@ export const useContent = () => {
       [CONTENT_TYPES.BOOK]: 'Book',
       [CONTENT_TYPES.VIDEO]: 'Video',
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'Audio Assignment',
+      [CONTENT_TYPES.CHANT]: 'Chant',
     };
     return labels[contentType] || 'Content';
   };

@@ -33,6 +33,7 @@ const ContentFilters = () => {
       [CONTENT_TYPES.BOOK]: 'books',
       [CONTENT_TYPES.VIDEO]: 'videos',
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
+      [CONTENT_TYPES.CHANT]: 'chants',
     };
     return urlMap[contentType] || 'activities';
   };
@@ -135,6 +136,7 @@ const ContentFilters = () => {
             <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Videos</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignments</MenuItem>
+            <MenuItem value={CONTENT_TYPES.CHANT}>Chants</MenuItem>
           </Select>
         </FormControl>
 

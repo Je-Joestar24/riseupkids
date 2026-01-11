@@ -52,7 +52,7 @@ const courseProgressSchema = new mongoose.Schema(
         contentType: {
           type: String,
           required: true,
-          enum: ['activity', 'book', 'video', 'audioAssignment'],
+          enum: ['activity', 'book', 'video', 'audioAssignment', 'chant'],
         },
         step: {
           type: Number,

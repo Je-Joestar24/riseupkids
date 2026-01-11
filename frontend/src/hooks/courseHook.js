@@ -318,7 +318,7 @@ export const useCourse = () => {
 
   /**
    * Get content type label for display
-   * @param {String} contentType - Content type (Activity, Book, Media, AudioAssignment)
+   * @param {String} contentType - Content type (Activity, Book, Media, AudioAssignment, Chant)
    * @returns {String} Human-readable label
    */
   const getContentTypeLabel = (contentType) => {
@@ -327,6 +327,7 @@ export const useCourse = () => {
       'Book': 'Book',
       'Media': 'Video',
       'AudioAssignment': 'Audio Assignment',
+      'Chant': 'Chant',
     };
     return labels[contentType] || contentType;
   };
@@ -342,6 +343,7 @@ export const useCourse = () => {
       Book: [],
       Media: [],
       AudioAssignment: [],
+      Chant: [],
     };
     
     contents.forEach((content) => {

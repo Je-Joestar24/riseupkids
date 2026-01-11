@@ -34,6 +34,7 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove, onReorder 
       'book': CONTENT_TYPES.BOOK,
       'video': CONTENT_TYPES.VIDEO,
       'audioAssignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+      'chant': CONTENT_TYPES.CHANT,
     };
     return mapping[backendType] || backendType;
   };
@@ -45,6 +46,7 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove, onReorder 
       'book': 'Books',
       'video': 'Videos',
       'audioAssignment': 'Audio Assignments',
+      'chant': 'Chants',
     };
     return labels[backendType] || backendType;
   };
@@ -76,6 +78,7 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove, onReorder 
     book: [],
     video: [],
     audioAssignment: [],
+    chant: [],
   };
 
   selectedContents.forEach((item) => {

@@ -3,6 +3,7 @@ const Activity = require('../models/Activity');
 const Book = require('../models/Book');
 const Media = require('../models/Media');
 const AudioAssignment = require('../models/AudioAssignment');
+const Chant = require('../models/Chant');
 const fs = require('fs');
 const path = require('path');
 
@@ -136,6 +137,9 @@ const createCourse = async (userId, courseData, files = {}) => {
       } else if (contentType === 'audioAssignment') {
         const audio = await AudioAssignment.findById(contentId);
         contentExists = !!audio;
+      } else if (contentType === 'chant') {
+        const chant = await Chant.findById(contentId);
+        contentExists = !!chant;
       }
 
       if (!contentExists) {
@@ -358,9 +362,17 @@ const getCourseById = async (courseId, includeArchived = false) => {
       } else if (contentItem.contentType === 'audioAssignment') {
         const audio = await AudioAssignment.findById(contentItem.contentId)
           .populate('referenceAudio', 'type title url mimeType size duration')
+          .populate('scormFile', 'type title url mimeType size')
           .populate('badgeAwarded', 'name description icon image category rarity')
           .lean();
         contentData = audio ? { ...audio, _contentType: 'audioAssignment' } : null;
+      } else if (contentItem.contentType === 'chant') {
+        const chant = await Chant.findById(contentItem.contentId)
+          .populate('audio', 'type title url mimeType size duration')
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        contentData = chant ? { ...chant, _contentType: 'chant' } : null;
       }
 
       if (contentData) {
@@ -485,6 +497,8 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
           }));
         } else if (contentItem.contentType === 'audioAssignment') {
           contentExists = !!(await AudioAssignment.findById(contentItem.contentId));
+        } else if (contentItem.contentType === 'chant') {
+          contentExists = !!(await Chant.findById(contentItem.contentId));
         }
 
         if (contentExists) {

@@ -8,6 +8,7 @@ import api from '../api/axios';
  * - Books (SCORM-based with reading logic)
  * - Videos (playable video + SCORM)
  * - Audio Assignments (reference audio)
+ * - Chants (optional audio and SCORM files)
  * 
  * All methods accept a contentType parameter to route to the correct API endpoint
  */
@@ -18,6 +19,7 @@ export const CONTENT_TYPES = {
   BOOK: 'book',
   VIDEO: 'video',
   AUDIO_ASSIGNMENT: 'audioAssignment',
+  CHANT: 'chant',
 };
 
 // API endpoint mapping
@@ -26,12 +28,13 @@ const API_ENDPOINTS = {
   [CONTENT_TYPES.BOOK]: '/books',
   [CONTENT_TYPES.VIDEO]: '/videos',
   [CONTENT_TYPES.AUDIO_ASSIGNMENT]: '/audio-assignments',
+  [CONTENT_TYPES.CHANT]: '/chants',
 };
 
 const contentService = {
   /**
    * Get all content items with filtering and pagination
-   * @param {String} contentType - Content type (activity, book, video, audioAssignment)
+   * @param {String} contentType - Content type (activity, book, video, audioAssignment, chant)
    * @param {Object} params - Query parameters
    * @param {Boolean} params.isPublished - Filter by published status
    * @param {String} params.search - Search in title/description

@@ -6,6 +6,7 @@ const {
   getCourseProgress,
   updateContentProgress,
   markCourseCompleted,
+  getCourseDetailsForChild,
 } = require('../controllers/courseProgress.controller');
 const { protect } = require('../middleware/auth');
 
@@ -18,6 +19,13 @@ router.use(protect);
  * @access  Private (Parent/Admin)
  */
 router.get('/child/:childId', getChildCourses);
+
+/**
+ * @route   GET /api/course-progress/:courseId/child/:childId/details
+ * @desc    Get course details with populated contents and child profile
+ * @access  Private (Parent/Admin)
+ */
+router.get('/:courseId/child/:childId/details', getCourseDetailsForChild);
 
 /**
  * @route   GET /api/course-progress/:courseId/child/:childId

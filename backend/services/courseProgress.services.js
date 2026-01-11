@@ -1,4 +1,4 @@
-const { Course, CourseProgress, ChildProfile } = require('../models');
+const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant } = require('../models');
 
 /**
  * Count courses in "in_progress" or "not_started" status for a child
@@ -381,7 +381,7 @@ const checkStepAccess = async (childId, courseId, step) => {
  * @param {String} childId - Child's MongoDB ID
  * @param {String} courseId - Course's MongoDB ID
  * @param {String} contentId - Content item's MongoDB ID
- * @param {String} contentType - Content type ('activity', 'book', 'video', 'audioAssignment')
+ * @param {String} contentType - Content type ('activity', 'book', 'video', 'audioAssignment', 'chant')
  * @returns {Object} Updated CourseProgress
  */
 const updateContentProgress = async (childId, courseId, contentId, contentType) => {
@@ -643,6 +643,140 @@ const getCourseProgress = async (childId, courseId) => {
   };
 };
 
+/**
+ * Get course details with populated contents for a child
+ * Returns course with populated contents (books, videos, activities, audio assignments), child profile, and progress
+ * 
+ * @param {String} childId - Child's MongoDB ID
+ * @param {String} courseId - Course's MongoDB ID
+ * @returns {Object} Course details with contents, child profile, and progress
+ * @throws {Error} If course or child not found
+ */
+const getCourseDetailsForChild = async (childId, courseId) => {
+  // Get child profile
+  const childProfile = await ChildProfile.findById(childId);
+  if (!childProfile) {
+    throw new Error('Child profile not found');
+  }
+
+  // Get course
+  const course = await Course.findOne({
+    _id: courseId,
+    isArchived: false,
+  }).lean();
+
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  // Get course progress
+  const progress = await CourseProgress.findOne({
+    child: childId,
+    course: courseId,
+  }).lean();
+
+  // Check access
+  const accessCheck = await checkCourseAccess(childId, courseId);
+
+  // Populate contents based on their types
+  const populatedContents = [];
+
+  for (const contentItem of course.contents || []) {
+    let contentData = null;
+
+    try {
+      if (contentItem.contentType === 'activity') {
+        const activity = await Activity.findById(contentItem.contentId)
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        contentData = activity ? { ...activity, _contentType: 'activity' } : null;
+      } else if (contentItem.contentType === 'book') {
+        const book = await Book.findById(contentItem.contentId)
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        contentData = book ? { ...book, _contentType: 'book' } : null;
+      } else if (contentItem.contentType === 'video') {
+        const video = await Media.findOne({
+          _id: contentItem.contentId,
+          type: 'video',
+        })
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        if (video) {
+          contentData = {
+            ...video,
+            _contentType: 'video',
+            coverImage: video.thumbnail || video.coverImage, // Map thumbnail to coverImage
+          };
+        }
+      } else if (contentItem.contentType === 'audioAssignment') {
+        const audio = await AudioAssignment.findById(contentItem.contentId)
+          .populate('referenceAudio', 'type title url mimeType size duration')
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        contentData = audio ? { ...audio, _contentType: 'audioAssignment' } : null;
+      } else if (contentItem.contentType === 'chant') {
+        const chant = await Chant.findById(contentItem.contentId)
+          .populate('audio', 'type title url mimeType size duration')
+          .populate('scormFile', 'type title url mimeType size')
+          .populate('badgeAwarded', 'name description icon image category rarity')
+          .lean();
+        contentData = chant ? { ...chant, _contentType: 'chant' } : null;
+      }
+
+      if (contentData) {
+        populatedContents.push({
+          ...contentData,
+          _order: contentItem.order,
+          _step: contentItem.step || 1,
+          _addedAt: contentItem.addedAt,
+          // Include original contentId and contentType for reference
+          _contentId: contentItem.contentId,
+          _contentType: contentItem.contentType,
+        });
+      }
+    } catch (error) {
+      console.error(`Error populating content ${contentItem.contentId} (${contentItem.contentType}):`, error);
+      // Continue with other contents even if one fails
+    }
+  }
+
+  // Sort by: step -> contentType -> order
+  populatedContents.sort((a, b) => {
+    const stepA = a._step || 1;
+    const stepB = b._step || 1;
+    if (stepA !== stepB) {
+      return stepA - stepB;
+    }
+    const typeA = a._contentType || '';
+    const typeB = b._contentType || '';
+    if (typeA !== typeB) {
+      return typeA.localeCompare(typeB);
+    }
+    return (a._order || 0) - (b._order || 0);
+  });
+
+  // Get organized by steps structure
+  const courseDoc = await Course.findById(courseId);
+  const contentsBySteps = courseDoc ? courseDoc.getContentsBySteps() : [];
+
+  return {
+    course: {
+      ...course,
+      contents: populatedContents,
+      contentsBySteps,
+    },
+    child: childProfile.toObject(),
+    progress: progress || null,
+    accessible: accessCheck.accessible,
+    missingPrerequisites: accessCheck.missingCourses || [],
+  };
+};
+
 module.exports = {
   checkCourseAccess,
   checkStepAccess,
@@ -652,5 +786,6 @@ module.exports = {
   unlockNextCourse,
   markCourseCompleted,
   getCourseProgress,
+  getCourseDetailsForChild,
 };
 

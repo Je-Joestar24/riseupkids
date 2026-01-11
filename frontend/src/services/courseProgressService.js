@@ -62,7 +62,7 @@ const courseProgressService = {
    * @param {String} courseId - Course's ID
    * @param {String} childId - Child's ID
    * @param {String} contentId - Content item's ID
-   * @param {String} contentType - Content type ('activity', 'book', 'video', 'audioAssignment')
+   * @param {String} contentType - Content type ('activity', 'book', 'video', 'audioAssignment', 'chant')
    * @returns {Promise} API response with updated progress
    */
   updateContentProgress: async (courseId, childId, contentId, contentType) => {
@@ -86,6 +86,21 @@ const courseProgressService = {
   markCourseCompleted: async (courseId, childId) => {
     try {
       const response = await api.post(`/course-progress/${courseId}/child/${childId}/complete`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Get course details with populated contents and child profile
+   * @param {String} courseId - Course's ID
+   * @param {String} childId - Child's ID
+   * @returns {Promise} API response with course details, contents, child profile, and progress
+   */
+  getCourseDetailsForChild: async (courseId, childId) => {
+    try {
+      const response = await api.get(`/course-progress/${courseId}/child/${childId}/details`);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || error.message;

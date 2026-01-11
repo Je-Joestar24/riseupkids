@@ -3,13 +3,14 @@ import ActivityEditModal from './ActivityEditModal';
 import VideoEditModal from './VideoEditModal';
 import BookEditModal from './BooksEditModa';
 import AudioEditModal from './AudioEditModal';
+import ChantEditModal from './ChantEditModal';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 
 /**
  * ContentEditModal
  *
  * Unified wrapper that routes to the appropriate edit modal based on content type.
- * Supports: Activities, Books, Videos, Audio Assignments
+ * Supports: Activities, Books, Videos, Audio Assignments, Chants
  */
 const ContentEditModal = ({ open, onClose, contentId, contentType = CONTENT_TYPES.ACTIVITY, onSuccess }) => {
   // Route to the appropriate edit modal based on content type
@@ -51,6 +52,16 @@ const ContentEditModal = ({ open, onClose, contentId, contentType = CONTENT_TYPE
           open={open}
           onClose={onClose}
           audioId={contentId}
+          onSuccess={onSuccess}
+        />
+      );
+
+    case CONTENT_TYPES.CHANT:
+      return (
+        <ChantEditModal
+          open={open}
+          onClose={onClose}
+          chantId={contentId}
           onSuccess={onSuccess}
         />
       );

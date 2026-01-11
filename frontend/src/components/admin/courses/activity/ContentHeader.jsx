@@ -22,6 +22,8 @@ const ContentHeader = ({ onAddClick }) => {
         return 'Videos';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return 'Audio Assignments';
+      case CONTENT_TYPES.CHANT:
+        return 'Chants';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return 'Activityy';
@@ -36,6 +38,8 @@ const ContentHeader = ({ onAddClick }) => {
         return 'Manage learning videos with SCORM interactions';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return 'Manage audio assignments and speaking activities';
+      case CONTENT_TYPES.CHANT:
+        return 'Manage chants with optional audio and SCORM files';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return 'Manage interactive learning activities for children';
@@ -50,6 +54,8 @@ const ContentHeader = ({ onAddClick }) => {
         return 'videos';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return 'audio assignments';
+      case CONTENT_TYPES.CHANT:
+        return 'chants';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return 'activities';

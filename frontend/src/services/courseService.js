@@ -148,7 +148,7 @@ const courseService = {
   /**
    * Reorder course contents
    * @param {String} courseId - Course's ID
-   * @param {String} contentType - Content type to reorder ('book', 'activity', 'video', 'audioAssignment')
+   * @param {String} contentType - Content type to reorder ('book', 'activity', 'video', 'audioAssignment', 'chant')
    * @param {Array} contentIds - Array of content IDs in the desired order
    * @returns {Promise} API response with updated course data
    */

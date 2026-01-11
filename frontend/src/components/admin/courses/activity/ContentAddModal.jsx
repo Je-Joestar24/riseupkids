@@ -31,6 +31,7 @@ import { CONTENT_TYPES } from '../../../../services/contentService';
  * - Book (SCORM + reading logic)
  * - Video (video + SCORM)
  * - Audio Assignment (reference audio)
+ * - Chant (optional audio and SCORM files)
  * 
  * Automatically detects current content type from filters/URL
  */
@@ -80,6 +81,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     coverImage: null,
     videoFile: null,
     referenceAudio: null,
+    audio: null, // For chants
   });
 
   const handleInputChange = (field, value) => {
@@ -117,6 +119,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       coverImage: null,
       videoFile: null,
       referenceAudio: null,
+      audio: null,
     });
   };
 
@@ -197,6 +200,29 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         if (selectedFiles.referenceAudio) {
           fd.append('referenceAudio', selectedFiles.referenceAudio);
         }
+        if (selectedFiles.coverImage) {
+          fd.append('coverImage', selectedFiles.coverImage);
+        }
+      }
+
+      if (contentType === CONTENT_TYPES.CHANT) {
+        // Instructions are optional for chants
+        if (formData.instructions) {
+          fd.append('instructions', formData.instructions.trim());
+        }
+        if (formData.estimatedDuration) {
+          fd.append('estimatedDuration', formData.estimatedDuration);
+        }
+        fd.append('starsAwarded', formData.starsAwarded || 10);
+        // Optional audio file
+        if (selectedFiles.audio) {
+          fd.append('audio', selectedFiles.audio);
+        }
+        // Optional SCORM file
+        if (selectedFiles.scormFile) {
+          fd.append('scormFile', selectedFiles.scormFile);
+        }
+        // Optional cover image
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -401,6 +427,53 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               label="Star Assignment (high-value task)"
               sx={{
                 '& .MuiTypography-root': {
+                  fontFamily: 'Quicksand, sans-serif',
+                },
+              }}
+            />
+          </>
+        );
+      case CONTENT_TYPES.CHANT:
+        return (
+          <>
+            <TextField
+              label="Instructions (Optional)"
+              value={formData.instructions}
+              onChange={(e) => handleInputChange('instructions', e.target.value)}
+              multiline
+              rows={3}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
+                  fontFamily: 'Quicksand, sans-serif',
+                },
+              }}
+            />
+            <TextField
+              label="Estimated Duration (minutes)"
+              type="number"
+              value={formData.estimatedDuration}
+              onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || 0)}
+              inputProps={{ min: 0 }}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
+                  fontFamily: 'Quicksand, sans-serif',
+                },
+              }}
+            />
+            <TextField
+              label="Stars Awarded"
+              type="number"
+              value={formData.starsAwarded}
+              onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
+              inputProps={{ min: 0 }}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
                   fontFamily: 'Quicksand, sans-serif',
                 },
               }}
@@ -673,6 +746,100 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           </>
         )}
 
+        {contentType === CONTENT_TYPES.CHANT && (
+          <>
+            {/* Audio file (optional) */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Audio File (Optional)
+              </Typography>
+              <input
+                accept="audio/*"
+                style={{ display: 'none' }}
+                id="chant-audio-upload"
+                type="file"
+                onChange={(e) => handleFileChange('audio', e.target.files)}
+              />
+              <label htmlFor="chant-audio-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<CloudUploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  }}
+                >
+                  Upload Audio File
+                </Button>
+              </label>
+              {selectedFiles.audio && (
+                <Box sx={{ marginTop: 1 }}>
+                  <Chip
+                    label={selectedFiles.audio.name}
+                    size="small"
+                    sx={{ margin: 0.5 }}
+                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, audio: null }))}
+                  />
+                </Box>
+              )}
+            </Box>
+
+            {/* SCORM file for chant (optional) */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                SCORM File (Optional)
+              </Typography>
+              <input
+                accept=".zip,application/zip,application/x-zip-compressed"
+                style={{ display: 'none' }}
+                id="chant-scorm-upload"
+                type="file"
+                onChange={(e) => handleFileChange('scormFile', e.target.files)}
+              />
+              <label htmlFor="chant-scorm-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<CloudUploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  }}
+                >
+                  Upload SCORM File (ZIP)
+                </Button>
+              </label>
+              {selectedFiles.scormFile && (
+                <Box sx={{ marginTop: 1 }}>
+                  <Chip
+                    label={selectedFiles.scormFile.name}
+                    size="small"
+                    sx={{ margin: 0.5 }}
+                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
+                  />
+                </Box>
+              )}
+            </Box>
+          </>
+        )}
+
         {/* Cover image shared by all types (optional) */}
         <Box>
           <Typography
@@ -729,6 +896,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         return 'Create New Video';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return 'Create New Audio Assignment';
+      case CONTENT_TYPES.CHANT:
+        return 'Create New Chant';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return 'Create New Activity';
@@ -755,6 +924,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM)</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
+            <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>
           </Select>
         </FormControl>
 

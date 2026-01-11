@@ -20,6 +20,7 @@ const activityRoutes = require('./routes/activity.routes');
 const bookRoutes = require('./routes/book.routes');
 const videoRoutes = require('./routes/video.routes');
 const audioAssignmentRoutes = require('./routes/audioAssignment.routes');
+const chantRoutes = require('./routes/chant.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -57,6 +58,7 @@ app.use('/api/activities', activityRoutes);
 app.use('/api/books', bookRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/audio-assignments', audioAssignmentRoutes);
+app.use('/api/chants', chantRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -74,7 +76,8 @@ app.get('/', (req, res) => {
       activities: '/api/activities',
       books: '/api/books',
       videos: '/api/videos',
-      audioAssignments: '/api/audio-assignments'
+      audioAssignments: '/api/audio-assignments',
+      chants: '/api/chants'
     }
   });
 });

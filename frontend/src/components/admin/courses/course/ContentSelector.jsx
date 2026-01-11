@@ -49,6 +49,7 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateCon
       'book': CONTENT_TYPES.BOOK,
       'video': CONTENT_TYPES.VIDEO,
       'audioAssignment': CONTENT_TYPES.AUDIO_ASSIGNMENT,
+      'chant': CONTENT_TYPES.CHANT,
     };
     return mapping[backendType] || backendType;
   };
@@ -121,6 +122,7 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateCon
       [CONTENT_TYPES.BOOK]: 'book',
       [CONTENT_TYPES.VIDEO]: 'video',
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audioAssignment',
+      [CONTENT_TYPES.CHANT]: 'chant',
     };
     return mapping[frontendType] || frontendType;
   };
@@ -228,6 +230,7 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateCon
       [CONTENT_TYPES.BOOK]: 'Book',
       [CONTENT_TYPES.VIDEO]: 'Video',
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'Audio Assignment',
+      [CONTENT_TYPES.CHANT]: 'Chant',
     };
     return labels[type] || type;
   };
@@ -273,6 +276,7 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateCon
             <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Videos</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignments</MenuItem>
+            <MenuItem value={CONTENT_TYPES.CHANT}>Chants</MenuItem>
           </Select>
         </FormControl>
 
