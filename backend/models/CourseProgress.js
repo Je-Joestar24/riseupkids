@@ -68,6 +68,50 @@ const courseProgressSchema = new mongoose.Schema(
           type: Date,
           default: null,
         },
+        // SCORM progress data (optional, only for SCORM content)
+        scormProgress: {
+          lessonStatus: {
+            type: String,
+            enum: ['passed', 'failed', 'completed', 'incomplete', 'browsed', 'not attempted'],
+            default: 'not attempted',
+          },
+          score: {
+            raw: {
+              type: Number,
+              default: null,
+            },
+            max: {
+              type: Number,
+              default: 100,
+            },
+            min: {
+              type: Number,
+              default: 0,
+            },
+          },
+          timeSpent: {
+            type: String, // HH:MM:SS.SS format
+            default: '00:00:00.00',
+          },
+          suspendData: {
+            type: String, // Resume data (max 4096 chars)
+            default: '',
+          },
+          entry: {
+            type: String,
+            enum: ['ab-initio', 'resume', ''],
+            default: 'ab-initio',
+          },
+          exit: {
+            type: String,
+            enum: ['normal', 'time-out', 'suspend', 'logout', ''],
+            default: '',
+          },
+          lastAccessed: {
+            type: Date,
+            default: Date.now,
+          },
+        },
       },
     ],
     // Track which steps are completed

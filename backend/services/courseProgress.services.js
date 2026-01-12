@@ -777,6 +777,157 @@ const getCourseDetailsForChild = async (childId, courseId) => {
   };
 };
 
+/**
+ * Update SCORM progress for a content item
+ * 
+ * @param {String} childId - Child's MongoDB ID
+ * @param {String} courseId - Course's MongoDB ID
+ * @param {String} contentId - Content item's MongoDB ID
+ * @param {String} contentType - Content type ('audioAssignment' or 'chant')
+ * @param {Object} progressData - SCORM progress data
+ * @returns {Object} Updated progress
+ */
+const updateScormProgress = async (childId, courseId, contentId, contentType, progressData) => {
+  // Verify course exists and contains this content
+  const course = await Course.findById(courseId);
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  // Find the content item to get its step
+  const contentItem = course.contents.find(
+    (item) =>
+      item.contentId.toString() === contentId.toString() &&
+      item.contentType === contentType
+  );
+
+  if (!contentItem) {
+    throw new Error('Content not found in course');
+  }
+
+  const step = contentItem.step;
+
+  // Get or create progress
+  let progress = await CourseProgress.findOne({
+    child: childId,
+    course: courseId,
+  });
+
+  if (!progress) {
+    progress = await CourseProgress.create({
+      child: childId,
+      course: courseId,
+      status: 'in_progress',
+      progressPercentage: 0,
+      startedAt: new Date(),
+    });
+  }
+
+  // Find or create content progress entry
+  let contentProgressItem = progress.contentProgress.find(
+    (item) =>
+      item.contentId.toString() === contentId.toString() &&
+      item.contentType === contentType &&
+      item.step === step
+  );
+
+  if (!contentProgressItem) {
+    // Create new content progress entry
+    progress.contentProgress.push({
+      contentId,
+      contentType,
+      step,
+      status: 'in_progress',
+      scormProgress: {},
+    });
+    contentProgressItem = progress.contentProgress[progress.contentProgress.length - 1];
+  }
+
+  // Update SCORM progress data
+  if (progressData.lessonStatus) {
+    contentProgressItem.scormProgress.lessonStatus = progressData.lessonStatus;
+    
+    // Update content status based on SCORM lesson status
+    if (progressData.lessonStatus === 'completed' || progressData.lessonStatus === 'passed') {
+      contentProgressItem.status = 'completed';
+      contentProgressItem.completedAt = new Date();
+    } else if (progressData.lessonStatus === 'incomplete' || progressData.lessonStatus === 'browsed') {
+      contentProgressItem.status = 'in_progress';
+    }
+  }
+
+  if (progressData.score !== undefined) {
+    contentProgressItem.scormProgress.score = {
+      raw: progressData.score.raw || progressData.score || null,
+      max: progressData.score.max || 100,
+      min: progressData.score.min || 0,
+    };
+  }
+
+  if (progressData.timeSpent) {
+    contentProgressItem.scormProgress.timeSpent = progressData.timeSpent;
+  }
+
+  if (progressData.suspendData !== undefined) {
+    contentProgressItem.scormProgress.suspendData = progressData.suspendData || '';
+  }
+
+  if (progressData.entry) {
+    contentProgressItem.scormProgress.entry = progressData.entry;
+  }
+
+  if (progressData.exit) {
+    contentProgressItem.scormProgress.exit = progressData.exit;
+  }
+
+  contentProgressItem.scormProgress.lastAccessed = new Date();
+
+  // Update overall course progress
+  progress.updateProgressPercentage(course);
+
+  // Check if step is completed
+  if (progress.isStepCompleted(step, course)) {
+    progress.markStepCompleted(step);
+  }
+
+  await progress.save();
+
+  return progress;
+};
+
+/**
+ * Get SCORM progress for a content item
+ * 
+ * @param {String} childId - Child's MongoDB ID
+ * @param {String} courseId - Course's MongoDB ID
+ * @param {String} contentId - Content item's MongoDB ID
+ * @param {String} contentType - Content type ('audioAssignment' or 'chant')
+ * @returns {Object|null} SCORM progress data or null
+ */
+const getScormProgress = async (childId, courseId, contentId, contentType) => {
+  const progress = await CourseProgress.findOne({
+    child: childId,
+    course: courseId,
+  });
+
+  if (!progress) {
+    return null;
+  }
+
+  // Find content progress entry
+  const contentProgressItem = progress.contentProgress.find(
+    (item) =>
+      item.contentId.toString() === contentId.toString() &&
+      item.contentType === contentType
+  );
+
+  if (!contentProgressItem || !contentProgressItem.scormProgress) {
+    return null;
+  }
+
+  return contentProgressItem.scormProgress;
+};
+
 module.exports = {
   checkCourseAccess,
   checkStepAccess,
@@ -787,5 +938,7 @@ module.exports = {
   markCourseCompleted,
   getCourseProgress,
   getCourseDetailsForChild,
+  updateScormProgress,
+  getScormProgress,
 };
 

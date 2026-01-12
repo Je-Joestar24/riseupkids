@@ -21,6 +21,7 @@ const bookRoutes = require('./routes/book.routes');
 const videoRoutes = require('./routes/video.routes');
 const audioAssignmentRoutes = require('./routes/audioAssignment.routes');
 const chantRoutes = require('./routes/chant.routes');
+const scormRoutes = require('./routes/scorm.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -43,6 +44,9 @@ app.get('/favicon.ico', (req, res) => {
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Serve extracted SCORM packages
+app.use('/scorm', express.static(path.join(__dirname, 'uploads/scorm')));
+
 // Routes
 app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
@@ -59,6 +63,7 @@ app.use('/api/books', bookRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/audio-assignments', audioAssignmentRoutes);
 app.use('/api/chants', chantRoutes);
+app.use('/api/scorm', scormRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -77,7 +82,8 @@ app.get('/', (req, res) => {
       books: '/api/books',
       videos: '/api/videos',
       audioAssignments: '/api/audio-assignments',
-      chants: '/api/chants'
+      chants: '/api/chants',
+      scorm: '/api/scorm'
     }
   });
 });

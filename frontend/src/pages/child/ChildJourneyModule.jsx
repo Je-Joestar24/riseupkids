@@ -333,18 +333,18 @@ const ChildJourneyModule = ({ childId }) => {
             onVideoClick={handleVideoClick}
           />
 
-          {/* Audio Assignments Component */}
-          <ChildModuleAudio
-            audioAssignments={audioAssignments}
-            courseProgress={courseDetails}
-            onAudioClick={handleAudioClick}
-          />
-
           {/* Chants Component */}
           <ChildModuleChants
             chants={chants}
             courseProgress={courseDetails}
             onChantClick={handleAudioClick} // Use same handler as audio for now
+          />
+
+          {/* Audio Assignments Component */}
+          <ChildModuleAudio
+            audioAssignments={audioAssignments}
+            courseProgress={courseDetails}
+            onAudioClick={handleAudioClick}
           />
 
           {/* Footer Component */}
