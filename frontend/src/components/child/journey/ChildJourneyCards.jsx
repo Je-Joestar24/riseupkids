@@ -3,6 +3,7 @@ import { Box, Card, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate, useParams } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
+import footstepsIcon from '../../../assets/images/footsteps.png';
 
 /**
  * ChildJourneyCards Component
@@ -51,18 +52,18 @@ const ChildJourneyCards = ({ courses = [] }) => {
     }
   };
 
-  // Get icon background color based on status
-  const getIconBackgroundColor = (status) => {
+  // Get icon border color based on status
+  const getIconBorderColor = (status) => {
     switch (status) {
       case 'completed':
-        return themeColors.primary; // #62caca
+        return themeColors.secondary; // #62caca (green circle border)
       case 'in_progress':
       case 'not_started': // Treat not_started as in_progress for display
-        return themeColors.accent; // #f2af10
+        return themeColors.accent; // #f2af10 (yellow border)
       case 'locked':
-        return themeColors.orange; // #e98a68
+        return themeColors.orange; // #e98a68 (orange border)
       default:
-        return themeColors.bgTertiary;
+        return themeColors.border;
     }
   };
 
@@ -373,7 +374,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   flexShrink: 0,
                 }}
               >
-                {/* Horizontal Rectangle Icon */}
+                {/* Footsteps Icon */}
                 <Box
                   sx={{
                     width: '48px',
@@ -381,18 +382,24 @@ const ChildJourneyCards = ({ courses = [] }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: getIconBackgroundColor(status),
-                    borderRadius: '450%',
+                    borderRadius: '50%',
+                    border: `0.5px solid ${getIconBorderColor(status)}`,
+                    overflow: 'hidden',
+                    backgroundColor: `${getIconBorderColor(status)}`,
                   }}
                 >
-                  {/* Horizontal rectangle - white */}
+                  {/* Footsteps image */}
                   <Box
+                    component="img"
+                    src={footstepsIcon}
+                    alt="Footsteps icon"
                     sx={{
-                      width: '24px',
-                      height: '12px',
-                      borderRadius: '0px',
-                      backgroundColor: themeColors.textInverse, // White
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      padding: '0px',
                     }}
+                    aria-hidden="true"
                   />
                 </Box>
               </Box>
@@ -415,7 +422,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                     marginBottom: '4px',
                   }}
                 >
-                  {course.title || 'Untitled Course'}
+                  {isLocked ? 'Locked Step' : course.title || 'Untitled Course'}
                 </Typography>
 
                 {/* Description */}
@@ -428,7 +435,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                     fontWeight: 600,
                   }}
                   title={isLocked 
-                    ? 'Complete previous weeks to unlock'
+                    ? 'Complete previous steps to unlock'
                     : (course.description || 'No description available')}
                 >
                   {isLocked 

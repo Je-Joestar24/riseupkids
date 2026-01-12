@@ -95,7 +95,7 @@ const ChildJourneySummary = ({
         maxWidth: '100%',
         padding: '24px',
         margin: '0 auto',
-        backgroundColor: 'rgb(212, 230, 227)',
+        backgroundColor: 'rgb(244, 237, 216)',
         borderRadius: '24px', // rounded-3xl
         boxShadow: theme.shadows[8], // shadow-xl
         marginTop: '48px', // mt-12 equivalent
@@ -106,7 +106,7 @@ const ChildJourneySummary = ({
         sx={{
           fontSize: '24px',
           fontWeight: 600,
-          color: themeColors.textInverse, // White
+          color: themeColors.orange, // White
           textAlign: 'center',
           marginBottom: '5px',
           fontFamily: theme.typography.fontFamily,
@@ -156,7 +156,7 @@ const ChildJourneySummary = ({
               sx={{
                 fontSize: '24px',
                 fontWeight: 600,
-                color: themeColors.textInverse, // White
+                color: themeColors.text, // White
                 fontFamily: theme.typography.fontFamily,
                 marginBottom: '4px',
               }}
@@ -168,7 +168,7 @@ const ChildJourneySummary = ({
             <Typography
               sx={{
                 fontSize: '14px', // text-sm
-                color: themeColors.textInverse, // White
+                color: themeColors.text, // White
                 fontFamily: theme.typography.fontFamily,
               }}
             >

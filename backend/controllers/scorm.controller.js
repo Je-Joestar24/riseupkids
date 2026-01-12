@@ -2,6 +2,8 @@ const scormService = require('../services/scorm.service');
 const courseProgressService = require('../services/courseProgress.services');
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
+const Book = require('../models/Book');
+const Media = require('../models/Media');
 const path = require('path');
 const fs = require('fs-extra');
 
@@ -11,17 +13,17 @@ const fs = require('fs-extra');
  * @access  Private
  * 
  * Query parameters:
- * - contentType: 'audioAssignment' or 'chant'
+ * - contentType: 'audioAssignment', 'chant', 'book', or 'video'
  */
 const getLaunchUrl = async (req, res) => {
   try {
     const { contentId } = req.params;
     const { contentType } = req.query;
     
-    if (!contentType || !['audioAssignment', 'chant'].includes(contentType)) {
+    if (!contentType || !['audioAssignment', 'chant', 'book', 'video'].includes(contentType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid contentType. Must be "audioAssignment" or "chant"',
+        message: 'Invalid contentType. Must be "audioAssignment", "chant", "book", or "video"',
       });
     }
     
@@ -31,6 +33,10 @@ const getLaunchUrl = async (req, res) => {
       content = await AudioAssignment.findById(contentId);
     } else if (contentType === 'chant') {
       content = await Chant.findById(contentId);
+    } else if (contentType === 'book') {
+      content = await Book.findById(contentId);
+    } else if (contentType === 'video') {
+      content = await Media.findById(contentId);
     }
     
     if (!content) {
@@ -159,10 +165,10 @@ const saveProgress = async (req, res) => {
     const { contentType, progressData } = req.body;
     const userId = req.user._id;
     
-    if (!contentType || !['audioAssignment', 'chant'].includes(contentType)) {
+    if (!contentType || !['audioAssignment', 'chant', 'book', 'video'].includes(contentType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid contentType. Must be "audioAssignment" or "chant"',
+        message: 'Invalid contentType. Must be "audioAssignment", "chant", "book", or "video"',
       });
     }
     
@@ -188,6 +194,10 @@ const saveProgress = async (req, res) => {
       content = await AudioAssignment.findById(contentId);
     } else if (contentType === 'chant') {
       content = await Chant.findById(contentId);
+    } else if (contentType === 'book') {
+      content = await Book.findById(contentId);
+    } else if (contentType === 'video') {
+      content = await Media.findById(contentId);
     }
     
     if (!content) {
@@ -246,7 +256,7 @@ const saveProgress = async (req, res) => {
  * @access  Private
  * 
  * Query parameters:
- * - contentType: 'audioAssignment' or 'chant'
+ * - contentType: 'audioAssignment', 'chant', 'book', or 'video'
  */
 const getProgress = async (req, res) => {
   try {
@@ -254,10 +264,10 @@ const getProgress = async (req, res) => {
     const { contentType } = req.query;
     const userId = req.user._id;
     
-    if (!contentType || !['audioAssignment', 'chant'].includes(contentType)) {
+    if (!contentType || !['audioAssignment', 'chant', 'book', 'video'].includes(contentType)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid contentType. Must be "audioAssignment" or "chant"',
+        message: 'Invalid contentType. Must be "audioAssignment", "chant", "book", or "video"',
       });
     }
     

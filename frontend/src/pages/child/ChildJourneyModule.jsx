@@ -11,6 +11,8 @@ import ChildModuleVideos from '../../components/child/module/ChildModuleVideos';
 import ChildModuleAudio from '../../components/child/module/ChildModuleAudio';
 import ChildModuleChants from '../../components/child/module/ChildModuleChants';
 import ChildModuleFooter from '../../components/child/module/ChildModuleFooter';
+import ScormPlayer from '../../components/child/common/ScormPlayer';
+import VideoPlayerModal from '../../components/child/common/VideoPlayerModal';
 
 /**
  * ChildJourneyModule Page
@@ -26,6 +28,12 @@ const ChildJourneyModule = ({ childId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { fetchChildCourses, fetchCourseDetailsForChild, getCoverImageUrl } = useCourseProgress(childId);
+  
+  // Modal states
+  const [scormOpen, setScormOpen] = useState(false);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedContent, setSelectedContent] = useState(null);
+  const [selectedContentType, setSelectedContentType] = useState(null);
 
   useEffect(() => {
     const loadCourse = async () => {
@@ -240,28 +248,64 @@ const ChildJourneyModule = ({ childId }) => {
   const audioAssignments = getAudioAssignments();
   const chants = getChants();
 
-  // Handle book click
+  // Handle book click - Open SCORM player directly
   const handleBookClick = (book) => {
-    // Navigate to book detail page or handle book click
-    console.log('Book clicked:', book);
-    // You can implement navigation here, e.g.:
-    // navigate(`/child/${childId}/book/${book.contentId || book._id}`);
+    const bookId = book._id || book._contentId || book.contentId || book.id;
+    if (bookId && (book.scormFile || book.scormFileUrl || book.scormFilePath)) {
+      setSelectedContent(book);
+      setSelectedContentType('book');
+      setScormOpen(true);
+    } else {
+      console.warn('Book does not have SCORM file:', book);
+    }
   };
 
-  // Handle video click
+  // Handle video click - Open video player first, then SCORM if available
   const handleVideoClick = (video) => {
-    // Navigate to video player page or handle video click
-    console.log('Video clicked:', video);
-    // You can implement navigation here, e.g.:
-    // navigate(`/child/${childId}/video/${video.contentId || video._id}`);
+    const videoId = video._id || video._contentId || video.contentId || video.id;
+    if (videoId) {
+      setSelectedContent(video);
+      setVideoModalOpen(true);
+    }
   };
 
-  // Handle audio click
+  // Handle chant click - Open SCORM player directly
+  const handleChantClick = (chant) => {
+    const chantId = chant._id || chant._contentId || chant.contentId || chant.id;
+    if (chantId && (chant.scormFile || chant.scormFileUrl || chant.scormFilePath)) {
+      setSelectedContent(chant);
+      setSelectedContentType('chant');
+      setScormOpen(true);
+    } else {
+      console.warn('Chant does not have SCORM file:', chant);
+    }
+  };
+
+  // Handle audio click - Open SCORM player directly (if SCORM exists)
   const handleAudioClick = (audio) => {
-    // Navigate to audio assignment page or handle audio click
-    console.log('Audio clicked:', audio);
-    // You can implement navigation here, e.g.:
-    // navigate(`/child/${childId}/audio/${audio.contentId || audio._id}`);
+    const audioId = audio._id || audio._contentId || audio.contentId || audio.id;
+    if (audioId && (audio.scormFile || audio.scormFileUrl || audio.scormFilePath)) {
+      setSelectedContent(audio);
+      setSelectedContentType('audioAssignment');
+      setScormOpen(true);
+    } else {
+      console.warn('Audio assignment does not have SCORM file:', audio);
+    }
+  };
+
+  // Handle SCORM completion
+  const handleScormComplete = (data) => {
+    console.log('SCORM completed:', data);
+    // Refresh course details to update progress
+    if (courseId) {
+      fetchCourseDetailsForChild(courseId)
+        .then((details) => {
+          setCourseDetails(details);
+        })
+        .catch((err) => {
+          console.error('Failed to refresh course details:', err);
+        });
+    }
   };
 
   return (
@@ -337,7 +381,7 @@ const ChildJourneyModule = ({ childId }) => {
           <ChildModuleChants
             chants={chants}
             courseProgress={courseDetails}
-            onChantClick={handleAudioClick} // Use same handler as audio for now
+            onChantClick={handleChantClick}
           />
 
           {/* Audio Assignments Component */}
@@ -351,6 +395,38 @@ const ChildJourneyModule = ({ childId }) => {
           <ChildModuleFooter />
         </Box>
       </Box>
+
+      {/* SCORM Player Modal */}
+      {selectedContent && selectedContentType && (
+        <ScormPlayer
+          open={scormOpen}
+          onClose={() => {
+            setScormOpen(false);
+            setSelectedContent(null);
+            setSelectedContentType(null);
+          }}
+          contentId={selectedContent._id || selectedContent._contentId || selectedContent.contentId || selectedContent.id}
+          contentType={selectedContentType}
+          contentTitle={selectedContent.title || 'Interactive Content'}
+          onComplete={handleScormComplete}
+        />
+      )}
+
+      {/* Video Player Modal */}
+      {selectedContent && (
+        <VideoPlayerModal
+          open={videoModalOpen}
+          onClose={() => {
+            setVideoModalOpen(false);
+            setSelectedContent(null);
+          }}
+          video={selectedContent}
+          onVideoComplete={(video) => {
+            console.log('Video completed:', video);
+            // Video completion is handled in VideoPlayerModal
+          }}
+        />
+      )}
     </Box>
   );
 };
