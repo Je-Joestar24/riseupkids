@@ -42,6 +42,7 @@ const ensureUploadDirs = () => {
     path.join(__dirname, '../uploads/media/audio'),
     path.join(__dirname, '../uploads/media/other'),
     path.join(__dirname, '../uploads/courses'),
+    path.join(__dirname, '../uploads/kids-wall'),
   ];
 
   dirs.forEach(dir => {
@@ -666,6 +667,48 @@ const uploadChantUpdate = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
+// Middleware for KidsWall image uploads
+const uploadKidsWallImage = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadPath = path.join(__dirname, '../uploads/kids-wall');
+      
+      // Ensure directory exists
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      // Generate unique filename using date/time formatter
+      cb(null, generateFileName(file.originalname));
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    // Only allow image files
+    const allowedImageMimes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+    ];
+
+    if (allowedImageMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error('Invalid file type. Only image files (JPEG, PNG, GIF, WebP) are allowed'),
+        false
+      );
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB max file size
+  },
+});
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -681,5 +724,6 @@ module.exports = {
   uploadChant,
   uploadChantUpdate,
   uploadCourse,
+  uploadKidsWallImage,
 };
 

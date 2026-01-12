@@ -1,0 +1,283 @@
+const kidsWallService = require('../services/kidsWall.service');
+const { ChildProfile } = require('../models');
+
+/**
+ * @desc    Get all posts for a child
+ * @route   GET /api/kids-wall/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const getAllPosts = async (req, res) => {
+  try {
+    const { childId } = req.params;
+    const filters = req.query;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    const posts = await kidsWallService.getChildPosts(childId, filters);
+
+    res.status(200).json({
+      success: true,
+      message: 'Posts retrieved successfully',
+      data: posts,
+      count: posts.length,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve posts',
+    });
+  }
+};
+
+/**
+ * @desc    Get single post by ID
+ * @route   GET /api/kids-wall/:postId/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const getPostById = async (req, res) => {
+  try {
+    const { postId, childId } = req.params;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    const post = await kidsWallService.getPostById(postId, childId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Post retrieved successfully',
+      data: post,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to retrieve post',
+    });
+  }
+};
+
+/**
+ * @desc    Create new post with image
+ * @route   POST /api/kids-wall/child/:childId
+ * @access  Private (Parent/Admin)
+ * 
+ * Request body (multipart/form-data):
+ * - title: String (required, max 200 chars)
+ * - content: String (required, max 1000 chars) - used as description
+ * - image: File (required, image file)
+ */
+const createPost = async (req, res) => {
+  try {
+    const { childId } = req.params;
+    const { title, content } = req.body;
+    const imageFile = req.file;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    // Validate required fields
+    if (!title || !content) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and description are required',
+      });
+    }
+
+    if (!imageFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'Image is required',
+      });
+    }
+
+    // Create post
+    const post = await kidsWallService.createPostWithImage(
+      childId,
+      { title, content },
+      imageFile,
+      req.user._id
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Post created successfully',
+      data: post,
+    });
+  } catch (error) {
+    // Clean up uploaded file if post creation failed
+    if (req.file && req.file.path) {
+      try {
+        const fs = require('fs-extra');
+        await fs.remove(req.file.path);
+      } catch (cleanupError) {
+        console.error('Error cleaning up uploaded file:', cleanupError);
+      }
+    }
+
+    const statusCode = error.message.includes('required') || 
+                      error.message.includes('exceed') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to create post',
+    });
+  }
+};
+
+/**
+ * @desc    Update existing post
+ * @route   PATCH /api/kids-wall/:postId/child/:childId
+ * @access  Private (Parent/Admin)
+ * 
+ * Request body (multipart/form-data, all fields optional):
+ * - title: String (max 200 chars)
+ * - content: String (max 1000 chars)
+ * - image: File (optional, new image file)
+ */
+const updatePost = async (req, res) => {
+  try {
+    const { postId, childId } = req.params;
+    const { title, content } = req.body;
+    const imageFile = req.file;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    // At least one field must be provided
+    if (!title && !content && !imageFile) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one field (title, content, or image) must be provided',
+      });
+    }
+
+    // Update post
+    const post = await kidsWallService.updatePostWithImage(
+      postId,
+      childId,
+      { title, content },
+      imageFile,
+      req.user._id
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Post updated successfully',
+      data: post,
+    });
+  } catch (error) {
+    // Clean up uploaded file if update failed
+    if (req.file && req.file.path) {
+      try {
+        const fs = require('fs-extra');
+        await fs.remove(req.file.path);
+      } catch (cleanupError) {
+        console.error('Error cleaning up uploaded file:', cleanupError);
+      }
+    }
+
+    const statusCode = error.message.includes('not found') ? 404 : 
+                      error.message.includes('required') || 
+                      error.message.includes('exceed') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to update post',
+    });
+  }
+};
+
+/**
+ * @desc    Delete post (soft delete)
+ * @route   DELETE /api/kids-wall/:postId/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const deletePost = async (req, res) => {
+  try {
+    const { postId, childId } = req.params;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    await kidsWallService.deletePost(postId, childId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Post deleted successfully',
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to delete post',
+    });
+  }
+};
+
+module.exports = {
+  getAllPosts,
+  getPostById,
+  createPost,
+  updatePost,
+  deletePost,
+};
