@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllPosts,
+  getChildPosts,
   getPostById,
   createPost,
   updatePost,
@@ -20,7 +21,8 @@ router.use(protect);
  * Child ID is passed as route parameter
  * 
  * Routes:
- * - GET    /child/:childId              - Get all posts for a child
+ * - GET    /                            - Get all posts (feed - all children)
+ * - GET    /child/:childId              - Get all posts for a specific child
  * - GET    /:postId/child/:childId      - Get single post by ID
  * - POST   /child/:childId              - Create new post (with image upload)
  * - PATCH  /:postId/child/:childId     - Update post
@@ -28,11 +30,18 @@ router.use(protect);
  */
 
 /**
- * @route   GET /api/kids-wall/child/:childId
- * @desc    Get all posts for a child
+ * @route   GET /api/kids-wall
+ * @desc    Get all posts (feed - shows all posts from all children)
  * @access  Private (Parent/Admin)
  */
-router.get('/child/:childId', getAllPosts);
+router.get('/all', getAllPosts);
+
+/**
+ * @route   GET /api/kids-wall/child/:childId
+ * @desc    Get all posts for a specific child
+ * @access  Private (Parent/Admin)
+ */
+router.get('/child/:childId', getChildPosts);
 
 /**
  * @route   GET /api/kids-wall/:postId/child/:childId

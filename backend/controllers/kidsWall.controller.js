@@ -2,11 +2,43 @@ const kidsWallService = require('../services/kidsWall.service');
 const { ChildProfile } = require('../models');
 
 /**
- * @desc    Get all posts for a child
- * @route   GET /api/kids-wall/child/:childId
+ * @desc    Get all posts (feed) - shows all posts from all children, newest first
+ * @route   GET /api/kids-wall
  * @access  Private (Parent/Admin)
  */
 const getAllPosts = async (req, res) => {
+  try {
+    const filters = {
+      ...req.query,
+      // Default to showing only approved posts in feed
+      isApproved: req.query.isApproved !== undefined ? req.query.isApproved === 'true' : true,
+      isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : true,
+    };
+
+    // Get all posts (feed view) - no childId filter, shows posts from all children
+    const posts = await kidsWallService.getChildPosts(null, filters);
+
+    res.status(200).json({
+      success: true,
+      message: 'Posts retrieved successfully',
+      data: posts,
+      count: posts.length,
+    });
+  } catch (error) {
+    console.error('Error in getAllPosts:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve posts',
+    });
+  }
+};
+
+/**
+ * @desc    Get all posts for a specific child
+ * @route   GET /api/kids-wall/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const getChildPosts = async (req, res) => {
   try {
     const { childId } = req.params;
     const filters = req.query;
@@ -83,7 +115,7 @@ const getPostById = async (req, res) => {
 };
 
 /**
- * @desc    Create new post with image
+ * @desc    Create new post with image (instantly approved, no pending status)
  * @route   POST /api/kids-wall/child/:childId
  * @access  Private (Parent/Admin)
  * 
@@ -91,6 +123,8 @@ const getPostById = async (req, res) => {
  * - title: String (required, max 200 chars)
  * - content: String (required, max 1000 chars) - used as description
  * - image: File (required, image file)
+ * 
+ * Note: Posts are instantly approved upon creation (isApproved: true)
  */
 const createPost = async (req, res) => {
   try {
@@ -276,6 +310,7 @@ const deletePost = async (req, res) => {
 
 module.exports = {
   getAllPosts,
+  getChildPosts,
   getPostById,
   createPost,
   updatePost,

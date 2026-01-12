@@ -100,7 +100,7 @@ const kidsWallPostSchema = new mongoose.Schema(
     // Moderation
     isApproved: {
       type: Boolean,
-      default: false, // Posts need parent/admin approval
+      default: true, // Posts are instantly approved (no pending status)
     },
     approvedBy: {
       type: mongoose.Schema.Types.ObjectId,

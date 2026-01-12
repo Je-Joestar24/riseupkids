@@ -12,23 +12,26 @@ const fs = require('fs-extra');
 
 /**
  * Get all posts for a child
- * @param {String} childId - Child profile ID
+ * @param {String} childId - Child profile ID (optional, if not provided returns all posts)
  * @param {Object} filters - Optional filters (isApproved, isActive)
  * @returns {Promise<Array>} Array of posts
  */
 const getChildPosts = async (childId, filters = {}) => {
   try {
-    // Verify child exists
-    const child = await ChildProfile.findById(childId);
-    if (!child) {
-      throw new Error('Child not found');
-    }
-
     // Build query
     const query = {
-      child: childId,
       isActive: filters.isActive !== undefined ? filters.isActive : true,
     };
+
+    // If childId is provided, filter by child
+    if (childId) {
+      // Verify child exists
+      const child = await ChildProfile.findById(childId);
+      if (!child) {
+        throw new Error('Child not found');
+      }
+      query.child = childId;
+    }
 
     // Add optional filters
     if (filters.isApproved !== undefined) {
@@ -39,7 +42,7 @@ const getChildPosts = async (childId, filters = {}) => {
     const posts = await KidsWallPost.find(query)
       .populate({
         path: 'child',
-        select: 'displayName avatar',
+        select: 'displayName avatar age',
       })
       .populate({
         path: 'images',
@@ -69,7 +72,7 @@ const getPostById = async (postId, childId) => {
     })
       .populate({
         path: 'child',
-        select: 'displayName avatar',
+        select: 'displayName avatar age',
       })
       .populate({
         path: 'images',
@@ -181,22 +184,24 @@ const createPostWithImage = async (childId, postData, imageFile, uploadedBy) => 
     // Create Media record for image
     const media = await createMediaFromFile(imageFile, uploadedBy);
 
-    // Create post
+    // Create post - instantly approved (no pending status)
     const post = await KidsWallPost.create({
       child: childId,
       type: 'image',
       title: postData.title.trim(),
       content: postData.content.trim(),
       images: [media._id],
-      isApproved: false, // Requires parent/admin approval
+      isApproved: true, // Instantly approved - no pending status
       isActive: true,
+      approvedBy: uploadedBy, // Set the approver (parent/admin who created it)
+      approvedAt: new Date(), // Set approval timestamp
     });
 
     // Populate and return
     const populatedPost = await KidsWallPost.findById(post._id)
       .populate({
         path: 'child',
-        select: 'displayName avatar',
+        select: 'displayName avatar age',
       })
       .populate({
         path: 'images',
@@ -289,7 +294,7 @@ const updatePostWithImage = async (postId, childId, postData, imageFile, uploade
     )
       .populate({
         path: 'child',
-        select: 'displayName avatar',
+        select: 'displayName avatar age',
       })
       .populate({
         path: 'images',

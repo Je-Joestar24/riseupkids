@@ -109,6 +109,7 @@ const ChildDialogBox = () => {
         maxWidth="sm"
         fullWidth
         PaperProps={{
+          elevation: 8,
           sx: {
             borderRadius: '16px',
             padding: '24px',
@@ -165,6 +166,7 @@ const ChildDialogBox = () => {
         maxWidth="sm"
         fullWidth
         PaperProps={{
+          elevation: 8,
           sx: {
             borderRadius: '16px',
             padding: '24px',

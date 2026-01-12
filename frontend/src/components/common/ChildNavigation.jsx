@@ -5,11 +5,33 @@ import { useTheme } from '@mui/material/styles';
 import {
   HomeIcon,
   GlobeAltIcon,
-  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import childDarkIcon from '../../assets/images/child_dark.png';
 import childWhiteIcon from '../../assets/images/child.png';
 import { themeColors } from '../../config/themeColors';
+
+/**
+ * Custom Sparkles Icon Component (SVG)
+ */
+const SparklesIcon = ({ color = 'currentColor', size = 36 }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"></path>
+    <path d="M20 2v4"></path>
+    <path d="M22 4h-4"></path>
+    <circle cx="4" cy="20" r="2"></circle>
+  </svg>
+);
 
 /**
  * ChildNavigation Component
@@ -158,14 +180,20 @@ const ChildNavigation = ({ childId }) => {
                   justifyContent: 'center',
                   width: '36px',
                   height: '36px',
-                  color: isActive ? 'white' : inactiveColor,
+                  color: isActive 
+                    ? (item.value === 'wall' ? themeColors.secondary : 'white')
+                    : inactiveColor,
                   '& > *': {
                     width: '36px !important',
                     height: '36px !important',
                   },
                   '& svg': {
-                    color: isActive ? 'white' : inactiveColor,
-                    stroke: isActive ? 'white' : inactiveColor,
+                    color: isActive 
+                      ? (item.value === 'wall' ? themeColors.secondary : 'white')
+                      : inactiveColor,
+                    stroke: isActive 
+                      ? (item.value === 'wall' ? themeColors.secondary : 'white')
+                      : inactiveColor,
                   },
                 }}
               >
@@ -178,6 +206,11 @@ const ChildNavigation = ({ childId }) => {
                       height: '36px',
                       objectFit: 'contain',
                     }}
+                  />
+                ) : item.value === 'wall' ? (
+                  <SparklesIcon
+                    color={isActive ? themeColors.secondary : inactiveColor}
+                    size={36}
                   />
                 ) : (
                   <Icon
@@ -196,7 +229,9 @@ const ChildNavigation = ({ childId }) => {
                   fontFamily: 'Quicksand, sans-serif',
                   fontSize: '14px',
                   fontWeight: isActive ? 700 : 500,
-                  color: isActive ? 'white' : inactiveColor,
+                  color: isActive 
+                    ? (item.value === 'wall' ? themeColors.secondary : 'white')
+                    : inactiveColor,
                   textTransform: 'none',
                   lineHeight: 1,
                   marginBottom: '10px'

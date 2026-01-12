@@ -54,7 +54,7 @@ const AdminSidebar = () => {
       icon: <MenuBookOutlined />,
       path: '/admin/courses',
       subItems: [
-        { text: 'Courses', icon: <BookOutlined />, path: '/admin/courses' },
+        { text: 'Module', icon: <BookOutlined />, path: '/admin/courses' },
         { text: 'Contents', icon: <AssignmentOutlined />, path: '/admin/courses/contents' },
       ],
     },

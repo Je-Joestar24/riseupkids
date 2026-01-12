@@ -11,6 +11,7 @@ import ChildLayout from '../layouts/ChildLayout';
 import ChildHome from '../pages/child/ChildHome';
 import ChildJourney from '../pages/child/ChildJourney';
 import ChildJourneyModule from '../pages/child/ChildJourneyModule';
+import ChildKidsWall from '../pages/child/ChildKidsWall';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
 
@@ -101,7 +102,7 @@ const AppRouter = () => {
           element={
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
-                <ChildHome /> {/* Placeholder - will be replaced with Kids' Wall page */}
+                <ChildKidsWall />
               </ChildRouteWrapper>
             </AuthedAccess>
           }
