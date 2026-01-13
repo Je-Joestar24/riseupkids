@@ -131,22 +131,30 @@ const ChildModuleVideos = forwardRef(({ videos = [], courseProgress = null, onVi
   };
 
   // Check if video is completed (stars awarded = watched required count)
+  // Use checkbox logic: if all 5 checkboxes are filled, stars were already awarded
   const isVideoCompleted = (video) => {
-    // Use _contentId or _id from populated video data
-    const videoId = video._contentId || video._id || video.contentId;
-    if (!videoId) return false;
+    // Use checkbox logic - if all 5 checkboxes are filled, stars were already awarded
+    const progressCircles = getVideoProgress(video);
+    const normalizedId = video._contentId || video._id || video.contentId;
     
-    // Normalize videoId to string for consistent matching
-    const normalizedId = String(videoId);
+    if (!normalizedId) return false;
     
-    // Check if stars were awarded (means required watch count was reached)
-    const watchStatus = videoWatches[normalizedId];
+    // Get watch status to check required watch count
+    const watchStatus = videoWatches[String(normalizedId)];
+    const requiredWatchCount = watchStatus?.requiredWatchCount || 5;
+    
+    // If all checkboxes are filled (progressCircles >= requiredWatchCount), stars were already awarded
+    if (progressCircles >= requiredWatchCount) {
+      return true;
+    }
+    
+    // Fallback: check starsAwarded flag from API
     if (watchStatus && watchStatus.starsAwarded) {
       return true;
     }
     
     // Fallback: check course progress completion
-    const key = `${videoId.toString()}-video`;
+    const key = `${normalizedId.toString()}-video`;
     return completedVideos.has(key);
   };
 
@@ -208,17 +216,24 @@ const ChildModuleVideos = forwardRef(({ videos = [], courseProgress = null, onVi
           // Video is already populated with full data from API
           const videoId = video._id || video._contentId || video.contentId || video.id;
           
-          // Check if stars are awarded (required watch count reached)
+          // Calculate progress circles
+          const progressCircles = getVideoProgress(video);
+          
+          // Use checkbox logic: if all 5 checkboxes are filled, stars were already awarded
+          // This is more reliable than checking the API flag
           const normalizedId = videoId ? String(videoId) : null;
           const watchStatus = normalizedId ? videoWatches[normalizedId] : null;
-          const starsAwarded = watchStatus?.starsAwarded || false;
+          const requiredWatchCount = watchStatus?.requiredWatchCount || 5;
+          
+          // Stars were already awarded if all checkboxes are filled
+          const starsAlreadyAwarded = progressCircles >= requiredWatchCount;
           
           return (
             <ChildModuleVideoCards
               key={videoId || index}
               video={video}
-              isCompleted={starsAwarded} // Only show completion checkbox when stars are awarded
-              progressCircles={getVideoProgress(video)}
+              isCompleted={starsAlreadyAwarded} // Show completion checkbox when all checkboxes are filled
+              progressCircles={progressCircles}
               onCardClick={() => {
                 if (onVideoClick) {
                   onVideoClick(video);

@@ -1,4 +1,4 @@
-const { ChildProfile, Journey, Lesson, Course, CourseProgress } = require('../models');
+const { ChildProfile, Journey, Lesson, Course, CourseProgress, ChildStats } = require('../models');
 
 /**
  * Get All Children Service
@@ -29,7 +29,26 @@ const getAllChildren = async (parentId, queryParams = {}) => {
     .sort({ createdAt: -1 }) // Newest first
     .lean();
 
-  return children;
+  // Populate stats for each child
+  const childrenWithStats = await Promise.all(
+    children.map(async (child) => {
+      const stats = await ChildStats.findOne({ child: child._id })
+        .select('totalStars currentStreak totalBadges badges')
+        .lean();
+      
+      return {
+        ...child,
+        stats: stats || {
+          totalStars: 0,
+          currentStreak: 0,
+          totalBadges: 0,
+          badges: [],
+        },
+      };
+    })
+  );
+
+  return childrenWithStats;
 };
 
 /**
@@ -55,7 +74,20 @@ const getChildById = async (childId, parentId) => {
     throw new Error('Child profile not found or does not belong to you');
   }
 
-  return child;
+  // Populate stats
+  const stats = await ChildStats.findOne({ child: childId })
+    .select('totalStars currentStreak totalBadges badges')
+    .lean();
+
+  return {
+    ...child,
+    stats: stats || {
+      totalStars: 0,
+      currentStreak: 0,
+      totalBadges: 0,
+      badges: [],
+    },
+  };
 };
 
 /**

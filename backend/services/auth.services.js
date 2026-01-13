@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
-const { ChildProfile } = require('../models');
+const { ChildProfile, ChildStats } = require('../models');
 
 /**
  * Generate JWT Token
@@ -130,10 +130,30 @@ const login = async (email, password) => {
   // Get additional data based on role
   let additionalData = {};
 
-  // If parent, get child profiles
+  // If parent, get child profiles with stats
   if (user.role === 'parent') {
-    const childProfiles = await ChildProfile.find({ parent: user._id, isActive: true });
-    additionalData.childProfiles = childProfiles;
+    const childProfiles = await ChildProfile.find({ parent: user._id, isActive: true }).lean();
+    
+    // Populate stats for each child
+    const childProfilesWithStats = await Promise.all(
+      childProfiles.map(async (child) => {
+        const stats = await ChildStats.findOne({ child: child._id })
+          .select('totalStars currentStreak totalBadges badges')
+          .lean();
+        
+        return {
+          ...child,
+          stats: stats || {
+            totalStars: 0,
+            currentStreak: 0,
+            totalBadges: 0,
+            badges: [],
+          },
+        };
+      })
+    );
+    
+    additionalData.childProfiles = childProfilesWithStats;
   }
 
   // If child, get parent info and child profile
@@ -183,12 +203,33 @@ const getCurrentUser = async (userId) => {
   // Get additional data based on role
   let additionalData = {};
 
-  // If parent, get child profiles
+  // If parent, get child profiles with stats
   if (user.role === 'parent') {
     const childProfiles = await ChildProfile.find({ parent: user._id, isActive: true })
       .populate('currentJourney', 'title description')
-      .populate('currentLesson', 'title description');
-    additionalData.childProfiles = childProfiles;
+      .populate('currentLesson', 'title description')
+      .lean();
+    
+    // Populate stats for each child
+    const childProfilesWithStats = await Promise.all(
+      childProfiles.map(async (child) => {
+        const stats = await ChildStats.findOne({ child: child._id })
+          .select('totalStars currentStreak totalBadges badges')
+          .lean();
+        
+        return {
+          ...child,
+          stats: stats || {
+            totalStars: 0,
+            currentStreak: 0,
+            totalBadges: 0,
+            badges: [],
+          },
+        };
+      })
+    );
+    
+    additionalData.childProfiles = childProfilesWithStats;
   }
 
   // If child, get parent info and child profile

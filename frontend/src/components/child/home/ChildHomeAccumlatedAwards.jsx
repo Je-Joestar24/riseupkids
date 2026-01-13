@@ -11,23 +11,59 @@ import { themeColors } from '../../../config/themeColors';
  * Shows achievement metrics in a grid layout
  */
 const ChildHomeAccumlatedAwards = ({ child }) => {
-  // Get achievement data from child or use defaults
-  const getAchievements = () => {
-    if (child) {
+  const [achievements, setAchievements] = React.useState({
+    dayStreak: 0,
+    totalStars: 0,
+    badges: 0,
+  });
+
+  // Get achievement data from child profile stats
+  const getAchievements = React.useCallback(() => {
+    if (child && child.stats) {
       return {
-        dayStreak: child.dayStreak || 7,
-        totalStars: child.totalStars || 245,
-        badges: child.badges || 12,
+        dayStreak: child.stats.currentStreak || 0,
+        totalStars: child.stats.totalStars || 0,
+        badges: child.stats.totalBadges || (child.stats.badges ? child.stats.badges.length : 0),
       };
     }
+    
+    // Fallback defaults
     return {
-      dayStreak: 7,
-      totalStars: 245,
-      badges: 12,
+      dayStreak: 0,
+      totalStars: 0,
+      badges: 0,
     };
-  };
+  }, [child]);
 
-  const achievements = getAchievements();
+  // Update achievements when child changes
+  React.useEffect(() => {
+    setAchievements(getAchievements());
+  }, [getAchievements]);
+
+  // Listen for child stats updates
+  React.useEffect(() => {
+    const handleStatsUpdate = () => {
+      // Re-fetch child data from sessionStorage
+      try {
+        const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
+        const updatedChild = childProfiles.find(c => c._id === child?._id);
+        if (updatedChild) {
+          setAchievements({
+            dayStreak: updatedChild.stats?.currentStreak || 0,
+            totalStars: updatedChild.stats?.totalStars || 0,
+            badges: updatedChild.stats?.totalBadges || (updatedChild.stats?.badges ? updatedChild.stats.badges.length : 0),
+          });
+        }
+      } catch (error) {
+        console.error('Error updating achievements:', error);
+      }
+    };
+    
+    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+    return () => {
+      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+    };
+  }, [child?._id]);
 
   return (
     <Box

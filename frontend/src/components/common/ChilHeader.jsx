@@ -12,20 +12,51 @@ import { themeColors } from '../../config/themeColors';
  * Sticky header for child interface
  * Shows logo centered and points/star button on the right
  */
-const ChildHeader = () => {
+const ChildHeader = ({ childId }) => {
   const theme = useTheme();
+  const [totalStars, setTotalStars] = React.useState(0);
 
-  // Get points from sessionStorage or default
-  const getPoints = () => {
+  // Get total stars from child profile stats
+  const getTotalStars = React.useCallback(() => {
     try {
-      const childProfile = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
-      return childProfile.points || 245; // Default to 245 if not available
+      const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
+      const child = childProfiles.find(c => c._id === childId);
+      
+      if (child && child.stats) {
+        return child.stats.totalStars || 0;
+      }
+      
+      // Fallback: try selectedChild
+      const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
+      if (selectedChild.stats) {
+        return selectedChild.stats.totalStars || 0;
+      }
+      
+      return 0;
     } catch (error) {
-      return 245;
+      return 0;
     }
-  };
+  }, [childId]);
 
-  const points = getPoints();
+  // Update stars when component mounts or childId changes
+  React.useEffect(() => {
+    setTotalStars(getTotalStars());
+  }, [getTotalStars, childId]);
+
+  // Listen for child stats updates
+  React.useEffect(() => {
+    const handleStatsUpdate = () => {
+      console.log('[ChilHeader] Child stats updated event received, refreshing stars...');
+      const newStars = getTotalStars();
+      console.log('[ChilHeader] New total stars:', newStars);
+      setTotalStars(newStars);
+    };
+    
+    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+    return () => {
+      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+    };
+  }, [getTotalStars]);
 
   const handlePointsClick = () => {
     // TODO: Implement points view functionality
@@ -120,7 +151,7 @@ const ChildHeader = () => {
                 color: 'white',
               }}
             >
-              {points}
+              {totalStars}
             </Typography>
           </IconButton>
 

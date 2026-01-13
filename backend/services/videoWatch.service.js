@@ -1,4 +1,4 @@
-const { VideoWatch, Media, ChildProfile, StarEarning } = require('../models');
+const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
 
 /**
  * Mark video as watched (completed)
@@ -59,26 +59,50 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
     // Award stars
     const starsToAward = video.starsAwarded || 10;
 
-    // Create StarEarning record
-    await StarEarning.create({
-      child: childId,
-      stars: starsToAward,
-      source: {
-        type: 'video',
-        contentId: videoId,
-        contentType: 'Media',
-        metadata: {
-          videoTitle: video.title,
-          watchCount: videoWatch.watchCount,
-          requiredWatchCount,
+    try {
+      // Create StarEarning record
+      await StarEarning.create({
+        child: childId,
+        stars: starsToAward,
+        source: {
+          type: 'video',
+          contentId: videoId,
+          contentType: 'Media',
+          metadata: {
+            videoTitle: video.title,
+            watchCount: videoWatch.watchCount,
+            requiredWatchCount,
+          },
         },
-      },
-      description: `Earned ${starsToAward} stars for watching "${video.title}" ${requiredWatchCount} times`,
-    });
+        description: `Earned ${starsToAward} stars for watching "${video.title}" ${requiredWatchCount} times`,
+      });
 
-    // Update VideoWatch record
-    videoWatch.starsAwarded = true;
-    videoWatch.starsAwardedAt = new Date();
+      // Update ChildStats to accumulate total stars
+      const childStats = await ChildStats.getOrCreate(childId);
+      const previousTotalStars = childStats.totalStars || 0;
+      await childStats.addStars(starsToAward);
+      
+      // Verify the stars were actually added
+      await childStats.save(); // Explicit save to ensure persistence
+      const updatedStats = await ChildStats.findById(childStats._id);
+      
+      if (updatedStats.totalStars !== previousTotalStars + starsToAward) {
+        console.error(`[VideoWatch] Stars not properly added! Expected: ${previousTotalStars + starsToAward}, Got: ${updatedStats.totalStars}`);
+        // Try to fix it manually
+        updatedStats.totalStars = previousTotalStars + starsToAward;
+        await updatedStats.save();
+      }
+      
+      console.log(`[VideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId}. Total stars: ${previousTotalStars} -> ${updatedStats.totalStars}`);
+
+      // Update VideoWatch record
+      videoWatch.starsAwarded = true;
+      videoWatch.starsAwardedAt = new Date();
+    } catch (error) {
+      console.error(`[VideoWatch] Error awarding stars for video ${videoId}, child ${childId}:`, error);
+      // Don't throw - allow the watch to be recorded even if star awarding fails
+      // This prevents blocking video watch tracking if there's a stats issue
+    }
   }
 
   await videoWatch.save();

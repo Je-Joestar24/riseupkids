@@ -15,6 +15,7 @@ import ChildKidsWall from '../pages/child/ChildKidsWall';
 import ChildShareSomething from '../pages/child/ChildShareSomething';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
+import ChildExplore from '../pages/child/ChildExplore';
 
 /**
  * ChildRouteWrapper Component
@@ -93,7 +94,7 @@ const AppRouter = () => {
           element={
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
-                <ChildHome /> {/* Placeholder - will be replaced with Explore page */}
+                <ChildExplore />
               </ChildRouteWrapper>
             </AuthedAccess>
           }

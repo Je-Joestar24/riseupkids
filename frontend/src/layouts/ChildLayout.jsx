@@ -25,7 +25,7 @@ const ChildLayout = ({ children, childId }) => {
       }}
     >
       {/* Sticky Header */}
-      <ChildHeader />
+      <ChildHeader childId={childId} />
 
       {/* Scrollable Content Area */}
       <Box

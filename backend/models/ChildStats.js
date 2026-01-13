@@ -107,9 +107,25 @@ childStatsSchema.index({ currentStreak: -1 }); // For streak leaderboards
  */
 childStatsSchema.methods.addStars = async function (stars) {
   if (stars > 0) {
-    this.totalStars += stars;
+    const previousTotal = this.totalStars || 0;
+    this.totalStars = (this.totalStars || 0) + stars;
+    
+    // Ensure totalStars is a number
+    if (typeof this.totalStars !== 'number' || isNaN(this.totalStars)) {
+      console.error(`[ChildStats] Invalid totalStars value: ${this.totalStars}, resetting to ${previousTotal + stars}`);
+      this.totalStars = previousTotal + stars;
+    }
+    
     await this.updateStreak();
-    await this.save();
+    
+    // Save with validation
+    try {
+      await this.save({ validateBeforeSave: true });
+      console.log(`[ChildStats] Stars added successfully: ${previousTotal} + ${stars} = ${this.totalStars}`);
+    } catch (error) {
+      console.error(`[ChildStats] Error saving stars for child ${this.child}:`, error);
+      throw error;
+    }
   }
   return this;
 };

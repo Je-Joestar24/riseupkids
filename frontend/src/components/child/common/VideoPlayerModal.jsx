@@ -150,10 +150,57 @@ const VideoPlayerModal = ({
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   
   // Get video watch methods from hook
-  const { markVideoWatched, updateProgress } = useCourseProgress(childId);
+  const { markVideoWatched, updateProgress, getVideoWatchStatus } = useCourseProgress(childId);
+  
+  // State to track if stars were already awarded before this watch
+  const [starsAlreadyAwarded, setStarsAlreadyAwarded] = useState(false);
+  // State to track watch status before this watch (to compare after)
+  const [watchStatusBefore, setWatchStatusBefore] = useState(null);
 
   // Check if video has SCORM file
   const hasScorm = !!(video?.scormFile || video?.scormFileUrl || video?.scormFilePath);
+
+  // Check video watch status when video opens
+  // Use checkbox logic: if watch count >= required count, stars were already awarded
+  // Store the status to compare after watching
+  useEffect(() => {
+    const checkVideoStatus = async () => {
+      if (open && childId && video) {
+        const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
+        if (videoId) {
+          try {
+            const status = await getVideoWatchStatus(videoId);
+            const currentWatchCount = status?.currentWatchCount || 0;
+            const requiredWatchCount = status?.requiredWatchCount || 5;
+            
+            // Store status before watching for comparison
+            setWatchStatusBefore({
+              currentWatchCount,
+              requiredWatchCount,
+              starsAwarded: status?.starsAwarded || false,
+            });
+            
+            // Use checkbox logic: if all checkboxes are filled, stars were already awarded
+            const allCheckboxesFilled = currentWatchCount >= requiredWatchCount;
+            
+            // Also check the starsAwarded flag as fallback
+            const starsAwardedFlag = status?.starsAwarded || false;
+            
+            setStarsAlreadyAwarded(allCheckboxesFilled || starsAwardedFlag);
+          } catch (error) {
+            console.error('Error checking video status:', error);
+            setStarsAlreadyAwarded(false);
+            setWatchStatusBefore(null);
+          }
+        }
+      } else {
+        setStarsAlreadyAwarded(false);
+        setWatchStatusBefore(null);
+      }
+    };
+    
+    checkVideoStatus();
+  }, [open, childId, video, getVideoWatchStatus]);
 
   // Get video URL
   useEffect(() => {
@@ -181,6 +228,8 @@ const VideoPlayerModal = ({
       setShowCompletionDialog(false);
       setWatchResult(null);
       setIsRecordingWatch(false);
+      setStarsAlreadyAwarded(false);
+      setWatchStatusBefore(null);
     }
   }, [video, open]);
 
@@ -266,13 +315,36 @@ const VideoPlayerModal = ({
     if (childId && videoId) {
       setIsRecordingWatch(true);
       try {
+        // Check if stars were already awarded BEFORE this watch
+        const starsWereAlreadyAwarded = watchStatusBefore?.starsAwarded || false;
+        const watchCountBefore = watchStatusBefore?.currentWatchCount || 0;
+        const requiredWatchCount = watchStatusBefore?.requiredWatchCount || 5;
+        
         // Mark video as watched (100% completion)
         const result = await markVideoWatched(videoId, 100);
-        setWatchResult(result);
         
-        // Only update course progress if stars were awarded (required watch count reached)
+        // Determine if stars were JUST awarded in this watch
+        // Stars were just awarded if:
+        // 1. They weren't awarded before this watch
+        // 2. The watch count after is >= required count
+        // 3. The result says stars were awarded
+        const watchCountAfter = result?.videoWatch?.watchCount || 0;
+        const starsJustAwarded = result?.starsAwarded && result?.starsAwardedAt && 
+          !starsWereAlreadyAwarded && 
+          watchCountAfter >= requiredWatchCount;
+        
+        // Update result to reflect if stars were just awarded or already earned
+        const updatedResult = {
+          ...result,
+          starsJustAwarded, // New flag to indicate stars were just awarded
+          starsWereAlreadyAwarded, // Flag to indicate stars were already earned
+        };
+        
+        setWatchResult(updatedResult);
+        
+        // Only update course progress if stars were JUST awarded (not already earned)
         // This ensures videos are only marked as completed in course progress when fully watched
-        if (courseId && updateProgress && result?.starsAwarded) {
+        if (courseId && updateProgress && starsJustAwarded) {
           try {
             await updateProgress(courseId, videoId, 'video');
           } catch (progressError) {
@@ -281,7 +353,7 @@ const VideoPlayerModal = ({
           }
         }
         
-        // Show completion dialog
+        // Show completion dialog - DON'T call onVideoComplete yet, wait for user to close dialog
         setShowCompletionDialog(true);
       } catch (error) {
         console.error('Error recording video watch:', error);
@@ -295,10 +367,8 @@ const VideoPlayerModal = ({
       setShowCompletionDialog(true);
     }
     
-    // Call original callback
-    if (onVideoComplete) {
-      onVideoComplete(video);
-    }
+    // DON'T call onVideoComplete here - wait until user closes the completion dialog
+    // This prevents the modal from closing/reloading before user sees the message
   };
 
   // Handle SCORM start
@@ -328,10 +398,23 @@ const VideoPlayerModal = ({
   // Handle completion dialog close
   const handleCompletionDialogClose = () => {
     setShowCompletionDialog(false);
+    
+    // Now call onVideoComplete callback AFTER user has seen the message
+    // This triggers refreshes but only after the dialog is closed
+    if (onVideoComplete) {
+      // Small delay to ensure dialog is fully closed before triggering refreshes
+      setTimeout(() => {
+        onVideoComplete(video);
+      }, 100);
+    }
+    
     // If video has SCORM, don't close modal yet (user can start SCORM)
-    // Otherwise, close modal
+    // Otherwise, close modal after a short delay to let user see the message
     if (!hasScorm) {
-      handleConfirmedClose();
+      // Small delay before closing to ensure user saw the message
+      setTimeout(() => {
+        handleConfirmedClose();
+      }, 300);
     }
   };
 
@@ -664,7 +747,8 @@ const VideoPlayerModal = ({
           </Typography>
           {watchResult && (
             <Box sx={{ marginTop: 2 }}>
-              {watchResult.starsAwarded && watchResult.starsAwardedAt ? (
+              {watchResult.starsJustAwarded ? (
+                // Stars were JUST awarded in this watch
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
@@ -676,7 +760,20 @@ const VideoPlayerModal = ({
                 >
                   ⭐ You earned {watchResult.starsToAward} stars! ⭐
                 </Typography>
+              ) : watchResult.starsWereAlreadyAwarded || starsAlreadyAwarded ? (
+                // Stars were already earned before this watch
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: '1.3rem',
+                    color: themeColors.warning,
+                    fontWeight: 600,
+                  }}
+                >
+                  ⭐ Stars already earned for this video! ⭐
+                </Typography>
               ) : (
+                // Still need to watch more times
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',

@@ -3,6 +3,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { themeColors } from '../../config/themeColors';
 import useCourseProgress from '../../hooks/courseProgressHook';
+import { useAuth } from '../../hooks/userHook';
 import ChildModuleHeader from '../../components/child/module/ChildModuleHeader';
 import ChildModuleBreadCrumbs from '../../components/child/module/ChildModuleBreadCrumbs';
 import ChildModuleProgress from '../../components/child/module/ChildModuleProgress';
@@ -28,6 +29,7 @@ const ChildJourneyModule = ({ childId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { fetchChildCourses, fetchCourseDetailsForChild, getCoverImageUrl } = useCourseProgress(childId);
+  const { fetchCurrentUser } = useAuth();
   
   // Modal states
   const [scormOpen, setScormOpen] = useState(false);
@@ -423,7 +425,7 @@ const ChildJourneyModule = ({ childId }) => {
       {selectedContent && (
         <VideoPlayerModal
           open={videoModalOpen}
-          onClose={() => {
+          onClose={async () => {
             setVideoModalOpen(false);
             setSelectedContent(null);
             // Refresh course details to update video watch progress
@@ -442,21 +444,35 @@ const ChildJourneyModule = ({ childId }) => {
                 videosRef.current.refreshWatches();
               }
             }, 800); // Slightly longer delay to ensure backend has updated
+            
+            // Refresh child profile stats to update total stars in header and awards
+            setTimeout(async () => {
+              try {
+                console.log('[ChildJourneyModule] Refreshing child stats after video modal close...');
+                await fetchCurrentUser();
+                console.log('[ChildJourneyModule] Child stats refreshed successfully');
+                // Force page refresh of child data by triggering a re-render
+                window.dispatchEvent(new Event('childStatsUpdated'));
+              } catch (error) {
+                console.error('[ChildJourneyModule] Error refreshing child stats:', error);
+              }
+            }, 1500); // Wait for backend to update stats (increased delay to ensure DB update completes)
           }}
           video={selectedContent}
           childId={childId}
           courseId={courseId}
-          onVideoComplete={(video) => {
+          onVideoComplete={async (video) => {
             console.log('Video completed:', video);
             // Video completion is handled in VideoPlayerModal
             // Watch count and stars are automatically recorded
+            // Delay all refreshes to ensure user has seen the completion message
             // Refresh course details to update progress
             if (courseId) {
               setTimeout(() => {
                 fetchCourseDetailsForChild(courseId).then((details) => {
                   setCourseDetails(details);
                 }).catch(console.error);
-              }, 500); // Small delay to ensure backend has updated
+              }, 1000); // Delay to ensure user saw the completion message
             }
             // Trigger video watches refresh
             setTimeout(() => {
@@ -465,7 +481,20 @@ const ChildJourneyModule = ({ childId }) => {
               if (videosRef.current) {
                 videosRef.current.refreshWatches();
               }
-            }, 800); // Slightly longer delay to ensure backend has updated
+            }, 1200); // Delay to ensure user saw the completion message
+            
+            // Refresh child profile stats to update total stars in header and awards
+            setTimeout(async () => {
+              try {
+                console.log('[ChildJourneyModule] Refreshing child stats after video completion...');
+                await fetchCurrentUser();
+                console.log('[ChildJourneyModule] Child stats refreshed successfully');
+                // Force page refresh of child data by triggering a re-render
+                window.dispatchEvent(new Event('childStatsUpdated'));
+              } catch (error) {
+                console.error('[ChildJourneyModule] Error refreshing child stats:', error);
+              }
+            }, 2000); // Longer delay to ensure user saw the completion message and backend has updated
           }}
         />
       )}
