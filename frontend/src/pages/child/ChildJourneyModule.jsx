@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { themeColors } from '../../config/themeColors';
@@ -34,6 +34,10 @@ const ChildJourneyModule = ({ childId }) => {
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedContentType, setSelectedContentType] = useState(null);
+  
+  // Refresh trigger for video watches
+  const [videoWatchRefreshTrigger, setVideoWatchRefreshTrigger] = useState(0);
+  const videosRef = useRef(null);
 
   useEffect(() => {
     const loadCourse = async () => {
@@ -372,9 +376,12 @@ const ChildJourneyModule = ({ childId }) => {
 
           {/* Videos Component */}
           <ChildModuleVideos
+            ref={videosRef}
             videos={videos}
             courseProgress={courseDetails}
             onVideoClick={handleVideoClick}
+            childId={childId}
+            refreshTrigger={videoWatchRefreshTrigger}
           />
 
           {/* Chants Component */}
@@ -419,11 +426,46 @@ const ChildJourneyModule = ({ childId }) => {
           onClose={() => {
             setVideoModalOpen(false);
             setSelectedContent(null);
+            // Refresh course details to update video watch progress
+            if (courseId) {
+              setTimeout(() => {
+                fetchCourseDetailsForChild(courseId).then((details) => {
+                  setCourseDetails(details);
+                }).catch(console.error);
+              }, 500); // Small delay to ensure backend has updated
+            }
+            // Trigger video watches refresh
+            setTimeout(() => {
+              setVideoWatchRefreshTrigger(prev => prev + 1);
+              // Also call refresh directly via ref
+              if (videosRef.current) {
+                videosRef.current.refreshWatches();
+              }
+            }, 800); // Slightly longer delay to ensure backend has updated
           }}
           video={selectedContent}
+          childId={childId}
+          courseId={courseId}
           onVideoComplete={(video) => {
             console.log('Video completed:', video);
             // Video completion is handled in VideoPlayerModal
+            // Watch count and stars are automatically recorded
+            // Refresh course details to update progress
+            if (courseId) {
+              setTimeout(() => {
+                fetchCourseDetailsForChild(courseId).then((details) => {
+                  setCourseDetails(details);
+                }).catch(console.error);
+              }, 500); // Small delay to ensure backend has updated
+            }
+            // Trigger video watches refresh
+            setTimeout(() => {
+              setVideoWatchRefreshTrigger(prev => prev + 1);
+              // Also call refresh directly via ref
+              if (videosRef.current) {
+                videosRef.current.refreshWatches();
+              }
+            }, 800); // Slightly longer delay to ensure backend has updated
           }}
         />
       )}

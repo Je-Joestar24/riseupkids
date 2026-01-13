@@ -70,6 +70,12 @@ const mediaSchema = new mongoose.Schema(
       default: 10,
       min: 0,
     },
+    // Number of times video must be watched to earn stars (for videos)
+    requiredWatchCount: {
+      type: Number,
+      default: 5, // Default to 5 watches
+      min: 1,
+    },
     // SCORM file support for videos (Adobe SCORM file)
     // When type is 'video', this allows the video to have an associated SCORM file
     scormFile: {

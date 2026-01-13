@@ -1,4 +1,4 @@
-const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant } = require('../models');
+const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant, VideoWatch } = require('../models');
 
 /**
  * Count courses in "in_progress" or "not_started" status for a child
@@ -455,6 +455,20 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
       progress.startedAt = new Date();
     }
     await progress.save();
+  }
+
+  // For videos, verify that stars were awarded (required watch count reached) before marking as completed
+  if (contentType === 'video') {
+    // Check if video has been watched the required number of times
+    const videoWatch = await VideoWatch.findOne({
+      child: childId,
+      video: contentId,
+    });
+
+    if (!videoWatch || !videoWatch.starsAwarded) {
+      // Video hasn't been watched enough times yet - don't mark as completed
+      throw new Error('Video must be watched the required number of times before it can be marked as completed');
+    }
   }
 
   // Mark content as completed (with step)

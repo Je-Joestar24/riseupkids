@@ -108,4 +108,7 @@ const courseProgressService = {
   },
 };
 
+// Re-export videoWatchService methods for convenience
+// Import videoWatchService separately for video watch operations
+
 export default courseProgressService;

@@ -23,6 +23,7 @@ const audioAssignmentRoutes = require('./routes/audioAssignment.routes');
 const chantRoutes = require('./routes/chant.routes');
 const scormRoutes = require('./routes/scorm.routes');
 const kidsWallRoutes = require('./routes/kidsWall.routes');
+const videoWatchRoutes = require('./routes/videoWatch.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -66,6 +67,7 @@ app.use('/api/audio-assignments', audioAssignmentRoutes);
 app.use('/api/chants', chantRoutes);
 app.use('/api/scorm', scormRoutes);
 app.use('/api/kids-wall', kidsWallRoutes);
+app.use('/api/video-watch', videoWatchRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -86,7 +88,8 @@ app.get('/', (req, res) => {
       audioAssignments: '/api/audio-assignments',
       chants: '/api/chants',
       scorm: '/api/scorm',
-      kidsWall: '/api/kids-wall'
+      kidsWall: '/api/kids-wall',
+      videoWatch: '/api/video-watch'
     }
   });
 });

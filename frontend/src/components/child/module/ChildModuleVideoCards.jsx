@@ -210,20 +210,26 @@ const ChildModuleVideoCards = ({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 transition: 'all 0.2s ease',
+                                padding: 0, // No padding - checkmark fills the circle
                             }}
                         >
                             {isFilled && (
                                 <svg
                                     xmlns="http://www.w3.org/2000/svg"
-                                    width="20"
-                                    height="20"
+                                    width="28"
+                                    height="28"
                                     viewBox="0 0 24 24"
                                     fill="none"
                                     stroke={themeColors.textInverse}
-                                    strokeWidth="2"
+                                    strokeWidth="3"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
                                     aria-hidden="true"
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        padding: '2px', // Minimal padding to prevent clipping
+                                    }}
                                 >
                                     <path d="m9 12 2 2 4-4"></path>
                                 </svg>

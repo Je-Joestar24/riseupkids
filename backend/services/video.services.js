@@ -23,6 +23,7 @@ const createVideo = async (userId, videoData, files = {}) => {
     badgeAwarded,
     tags,
     isPublished,
+    requiredWatchCount,
   } = videoData;
 
   // Validate required fields
@@ -60,6 +61,7 @@ const createVideo = async (userId, videoData, files = {}) => {
     size: videoFile.size,
     duration: duration ? parseInt(duration, 10) : null,
     starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
+    requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5, // Default to 5
     isPublished: isPublished === 'true' || isPublished === true,
     uploadedBy: userId,
   });
@@ -250,6 +252,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     starsAwarded,
     badgeAwarded,
     isPublished,
+    requiredWatchCount,
   } = updateData;
 
   // Find video (SCORM is optional)
@@ -287,6 +290,15 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
       throw new Error('Stars awarded must be a non-negative number');
     }
     video.starsAwarded = stars;
+  }
+
+  // Update required watch count
+  if (requiredWatchCount !== undefined) {
+    const count = parseInt(requiredWatchCount, 10);
+    if (isNaN(count) || count < 1) {
+      throw new Error('Required watch count must be at least 1');
+    }
+    video.requiredWatchCount = count;
   }
 
   // Update published status

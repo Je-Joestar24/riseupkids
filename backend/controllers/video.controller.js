@@ -10,6 +10,7 @@ const videoService = require('../services/video.services');
  * - description: String (optional)
  * - duration: Number (optional) - in seconds
  * - starsAwarded: Number (optional, default: 10)
+ * - requiredWatchCount: Number (optional, default: 5) - Number of times video must be watched to earn stars
  * - badgeAwarded: String (optional) - Badge ID
  * - tags: JSON String (optional) - Array of tag strings
  * - videoFile: File (required) - Playable video file
@@ -125,6 +126,7 @@ const getVideoById = async (req, res) => {
  * - description: String (optional)
  * - duration: Number (optional) - in seconds
  * - starsAwarded: Number (optional)
+ * - requiredWatchCount: Number (optional) - Number of times video must be watched to earn stars
  * - coverImage: File (optional) - New cover image/thumbnail
  */
 const updateVideo = async (req, res) => {

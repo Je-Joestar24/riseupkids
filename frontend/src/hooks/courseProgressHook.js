@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import courseProgressService from '../services/courseProgressService';
+import videoWatchService from '../services/videoWatchService';
 import { showNotification } from '../store/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 
@@ -243,6 +244,140 @@ export const useCourseProgress = (childId) => {
     return { completed, current, locked };
   }, [courses]);
 
+  /**
+   * Mark video as watched (completed)
+   * Increments watch count and awards stars when required count is reached
+   * @param {String} videoId - Video's ID (Media ID)
+   * @param {Number} [completionPercentage] - Optional completion percentage (0-100, default: 100)
+   * @returns {Promise} Watch result with star award info
+   */
+  const markVideoWatched = useCallback(async (videoId, completionPercentage = 100) => {
+    if (!childId || !videoId) {
+      throw new Error('Child ID and Video ID are required');
+    }
+
+    try {
+      const response = await videoWatchService.markVideoWatched(videoId, childId, completionPercentage);
+      
+      if (response.success && response.data) {
+        const { videoWatch, requiredWatchCount, starsAwarded, starsAwardedAt, starsToAward } = response.data;
+        
+        // Show success notification
+        if (starsAwarded && starsAwardedAt) {
+          // Stars were just awarded - show celebratory message
+          dispatch(showNotification({
+            message: `🎉 Awesome! You earned ${starsToAward} stars for watching this video ${requiredWatchCount} times! 🎉`,
+            type: 'success',
+            duration: 5000,
+          }));
+        } else {
+          // Video watched but stars not yet awarded
+          const currentCount = videoWatch?.watchCount || 0;
+          const remaining = Math.max(0, requiredWatchCount - currentCount);
+          if (remaining > 0) {
+            dispatch(showNotification({
+              message: `Great job! Watch ${remaining} more time${remaining > 1 ? 's' : ''} to earn ${starsToAward} stars! ⭐`,
+              type: 'success',
+              duration: 3000,
+            }));
+          }
+        }
+        
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to record video watch');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to record video watch');
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
+  /**
+   * Get video watch status for a child
+   * @param {String} videoId - Video's ID (Media ID)
+   * @returns {Promise} Watch status data
+   */
+  const getVideoWatchStatus = useCallback(async (videoId) => {
+    if (!childId || !videoId) {
+      throw new Error('Child ID and Video ID are required');
+    }
+
+    try {
+      const response = await videoWatchService.getVideoWatchStatus(videoId, childId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to get video watch status');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get video watch status');
+      // Don't show notification for status checks (might be called frequently)
+      throw new Error(errorMessage);
+    }
+  }, [childId]);
+
+  /**
+   * Get all video watch statuses for a child
+   * @returns {Promise} Array of video watch statuses
+   */
+  const getChildVideoWatches = useCallback(async () => {
+    if (!childId) {
+      throw new Error('Child ID is required');
+    }
+
+    try {
+      const response = await videoWatchService.getChildVideoWatches(childId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to get child video watches');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get child video watches');
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
+  /**
+   * Reset video watch count for a child (admin/parent action)
+   * @param {String} videoId - Video's ID (Media ID)
+   * @returns {Promise} Reset result
+   */
+  const resetVideoWatch = useCallback(async (videoId) => {
+    if (!childId || !videoId) {
+      throw new Error('Child ID and Video ID are required');
+    }
+
+    try {
+      const response = await videoWatchService.resetVideoWatch(videoId, childId);
+      if (response.success) {
+        dispatch(showNotification({
+          message: 'Video watch count reset successfully!',
+          type: 'success',
+        }));
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to reset video watch');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to reset video watch');
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
   return {
     // State
     courses,
@@ -255,6 +390,11 @@ export const useCourseProgress = (childId) => {
     checkAccess,
     updateProgress,
     completeCourse,
+    // Video Watch Methods
+    markVideoWatched,
+    getVideoWatchStatus,
+    getChildVideoWatches,
+    resetVideoWatch,
     // Helpers
     getCoverImageUrl,
     getSummaryCounts,
