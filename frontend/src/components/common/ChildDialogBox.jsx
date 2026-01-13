@@ -134,13 +134,27 @@ const ChildDialogBox = () => {
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 600,
-              fontSize: '1.5rem', // Big font for children
-              color: themeColors.text,
+              fontSize: notification.type === 'success' ? '1.75rem' : '1.5rem', // Bigger font for success
+              color: notification.type === 'success' ? themeColors.success : themeColors.text,
               marginTop: '1rem',
+              lineHeight: 1.4,
             }}
           >
             {notification.message}
           </Typography>
+          {notification.type === 'success' && (
+            <Typography
+              variant="body2"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '1rem',
+                color: themeColors.textSecondary,
+                marginTop: '0.5rem',
+              }}
+            >
+              Everyone can see your amazing work now!
+            </Typography>
+          )}
         </DialogContent>
 
         {notification.type === 'loading' && (

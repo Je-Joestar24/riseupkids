@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Box, Typography, IconButton, Button } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 
@@ -45,39 +45,9 @@ const StarIcon = ({ isStarred, size = 16 }) => (
  * 
  * Displays posts in a card grid layout
  */
-const KidsWallCards = ({ posts = [], onDelete }) => {
-  // State for likes and stars (local state for now, can be connected to backend later)
-  const [likedPosts, setLikedPosts] = useState(new Set());
-  const [starredPosts, setStarredPosts] = useState(new Set());
-
+const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, currentChildId }) => {
   // List of random emojis for child avatars
   const emojiList = ['🎨', '🎭', '🎪', '🎯', '🎲', '🎮', '🎸', '🎺', '🎻', '🎤', '🎧', '🎬', '🎥', '📷', '📸', '🎞️', '🎨', '🖌️', '🖍️', '✏️', '✒️', '🖊️', '🖋️', '📝', '💡', '🔍', '🔎', '📚', '📖', '📗', '📘', '📙', '📕', '📓', '📒', '📃', '📄', '📑', '🔖', '🏷️', '💰', '💴', '💵', '💶', '💷', '💸', '💳', '🧾', '💹', '✉️', '📧', '📨', '📩', '📤', '📥', '📦', '📫', '📪', '📬', '📭', '📮', '🗳️', '✏️', '✒️', '🖋️', '🖊️', '🖌️', '🖍️', '📝', '💼', '📁', '📂', '🗂️', '📅', '📆', '🗒️', '🗓️', '📇', '📈', '📉', '📊', '📋', '📌', '📍', '📎', '🖇️', '📏', '📐', '✂️', '🗃️', '🗄️', '🗑️'];
-
-  // Handle like toggle
-  const handleLike = (postId) => {
-    setLikedPosts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
-      } else {
-        newSet.add(postId);
-      }
-      return newSet;
-    });
-  };
-
-  // Handle star toggle
-  const handleStar = (postId) => {
-    setStarredPosts((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(postId)) {
-        newSet.delete(postId);
-      } else {
-        newSet.add(postId);
-      }
-      return newSet;
-    });
-  };
 
   // Get emoji for a post (consistent based on post ID)
   const getEmojiForPost = (postId) => {
@@ -107,6 +77,40 @@ const KidsWallCards = ({ posts = [], onDelete }) => {
     return post.likes?.length || post.likeCount || 0;
   };
 
+  // Check if current child has liked the post
+  const isLikedByCurrentChild = (post) => {
+    if (!currentChildId || !post.likes) return false;
+    return post.likes.some((like) => like.child?._id?.toString() === currentChildId.toString());
+  };
+
+  // Check if current child has starred the post
+  const isStarredByCurrentChild = (post) => {
+    if (!currentChildId || !post.stars) return false;
+    return post.stars.some((star) => star.child?._id?.toString() === currentChildId.toString());
+  };
+
+  // Handle like toggle
+  const handleLike = async (postId) => {
+    if (onToggleLike) {
+      try {
+        await onToggleLike(postId);
+      } catch (err) {
+        console.error('Error toggling like:', err);
+      }
+    }
+  };
+
+  // Handle star toggle
+  const handleStar = async (postId) => {
+    if (onToggleStar) {
+      try {
+        await onToggleStar(postId);
+      } catch (err) {
+        console.error('Error toggling star:', err);
+      }
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -128,8 +132,8 @@ const KidsWallCards = ({ posts = [], onDelete }) => {
         const childAge = child.age || null;
         const emoji = getEmojiForPost(post._id);
         const likeCount = getLikeCount(post);
-        const isLiked = likedPosts.has(post._id);
-        const isStarred = starredPosts.has(post._id);
+        const isLiked = isLikedByCurrentChild(post);
+        const isStarred = isStarredByCurrentChild(post);
 
         return (
           <Box
@@ -216,8 +220,9 @@ const KidsWallCards = ({ posts = [], onDelete }) => {
                       sx={{
                         fontFamily: 'Quicksand, sans-serif',
                         fontSize: '12px',
-                        color: 'oklch(0.446 0.03 256.802)',
+                        color: 'oklch(0.551 0.027 264.364)',
                         lineHeight: 1.2,
+                        fontWeight: 600
                       }}
                     >
                       Age {childAge}
@@ -285,7 +290,7 @@ const KidsWallCards = ({ posts = [], onDelete }) => {
                   aria-label="Like"
                 >
                   <HeartIcon isLiked={isLiked} size={16} />
-                  <span>{likeCount + (isLiked ? 1 : 0)}</span>
+                  <span>{likeCount}</span>
                 </Box>
 
                 {/* Star Icon with "Great!" */}

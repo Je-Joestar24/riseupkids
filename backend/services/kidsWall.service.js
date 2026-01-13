@@ -48,6 +48,14 @@ const getChildPosts = async (childId, filters = {}) => {
         path: 'images',
         select: 'url filePath mimeType size',
       })
+      .populate({
+        path: 'likes.child',
+        select: 'displayName',
+      })
+      .populate({
+        path: 'stars.child',
+        select: 'displayName',
+      })
       .sort({ createdAt: -1 }) // Newest first
       .lean();
 
@@ -77,6 +85,14 @@ const getPostById = async (postId, childId) => {
       .populate({
         path: 'images',
         select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'likes.child',
+        select: 'displayName',
+      })
+      .populate({
+        path: 'stars.child',
+        select: 'displayName',
       })
       .lean();
 
@@ -206,6 +222,14 @@ const createPostWithImage = async (childId, postData, imageFile, uploadedBy) => 
       .populate({
         path: 'images',
         select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'likes.child',
+        select: 'displayName',
+      })
+      .populate({
+        path: 'stars.child',
+        select: 'displayName',
       })
       .lean();
 
@@ -338,6 +362,120 @@ const deletePost = async (postId, childId) => {
   }
 };
 
+/**
+ * Toggle like on a post
+ * @param {String} postId - Post ID
+ * @param {String} childId - Child profile ID who is liking
+ * @returns {Promise<Object>} Updated post
+ */
+const toggleLike = async (postId, childId) => {
+  try {
+    const post = await KidsWallPost.findById(postId);
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    // Check if child already liked
+    const existingLikeIndex = post.likes.findIndex(
+      (like) => like.child.toString() === childId.toString()
+    );
+
+    if (existingLikeIndex !== -1) {
+      // Unlike - remove from array
+      post.likes.splice(existingLikeIndex, 1);
+    } else {
+      // Like - add to array
+      post.likes.push({
+        child: childId,
+        likedAt: new Date(),
+      });
+    }
+
+    await post.save();
+
+    // Return populated post
+    const updatedPost = await KidsWallPost.findById(postId)
+      .populate({
+        path: 'child',
+        select: 'displayName avatar age',
+      })
+      .populate({
+        path: 'images',
+        select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'likes.child',
+        select: 'displayName',
+      })
+      .populate({
+        path: 'stars.child',
+        select: 'displayName',
+      })
+      .lean();
+
+    return updatedPost;
+  } catch (error) {
+    throw new Error(`Failed to toggle like: ${error.message}`);
+  }
+};
+
+/**
+ * Toggle star on a post
+ * @param {String} postId - Post ID
+ * @param {String} childId - Child profile ID who is starring
+ * @returns {Promise<Object>} Updated post
+ */
+const toggleStar = async (postId, childId) => {
+  try {
+    const post = await KidsWallPost.findById(postId);
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    // Check if child already starred
+    const existingStarIndex = post.stars.findIndex(
+      (star) => star.child.toString() === childId.toString()
+    );
+
+    if (existingStarIndex !== -1) {
+      // Unstar - remove from array
+      post.stars.splice(existingStarIndex, 1);
+    } else {
+      // Star - add to array
+      post.stars.push({
+        child: childId,
+        starredAt: new Date(),
+      });
+    }
+
+    await post.save();
+
+    // Return populated post
+    const updatedPost = await KidsWallPost.findById(postId)
+      .populate({
+        path: 'child',
+        select: 'displayName avatar age',
+      })
+      .populate({
+        path: 'images',
+        select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'likes.child',
+        select: 'displayName',
+      })
+      .populate({
+        path: 'stars.child',
+        select: 'displayName',
+      })
+      .lean();
+
+    return updatedPost;
+  } catch (error) {
+    throw new Error(`Failed to toggle star: ${error.message}`);
+  }
+};
+
 module.exports = {
   getChildPosts,
   getPostById,
@@ -345,4 +483,6 @@ module.exports = {
   updatePostWithImage,
   deletePost,
   validatePostData,
+  toggleLike,
+  toggleStar,
 };

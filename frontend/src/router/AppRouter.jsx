@@ -12,6 +12,7 @@ import ChildHome from '../pages/child/ChildHome';
 import ChildJourney from '../pages/child/ChildJourney';
 import ChildJourneyModule from '../pages/child/ChildJourneyModule';
 import ChildKidsWall from '../pages/child/ChildKidsWall';
+import ChildShareSomething from '../pages/child/ChildShareSomething';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
 
@@ -103,6 +104,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
                 <ChildKidsWall />
+              </ChildRouteWrapper>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/child/:id/wall/share"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ChildRouteWrapper>
+                <ChildShareSomething />
               </ChildRouteWrapper>
             </AuthedAccess>
           }

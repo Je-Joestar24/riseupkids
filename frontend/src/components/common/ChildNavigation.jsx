@@ -56,7 +56,7 @@ const ChildNavigation = ({ childId }) => {
     if (path.includes('/home')) return 'home';
     if (path.includes('/journey')) return 'journey';
     if (path.includes('/explore')) return 'explore';
-    if (path.includes('/wall')) return 'wall';
+    if (path.includes('/wall')) return 'wall'; // Includes both /wall and /wall/share
     return 'home'; // Default to home
   };
 

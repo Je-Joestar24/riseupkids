@@ -21,6 +21,8 @@ const ChildKidsWall = ({ childId }) => {
     fetchPosts,
     createPost,
     deletePost,
+    toggleLike,
+    toggleStar,
   } = useKidsWall(childId);
 
   // Fetch posts on mount (feed - all posts)
@@ -62,8 +64,7 @@ const ChildKidsWall = ({ childId }) => {
         sx={{
           maxWidth: '848px',
           width: '100%',
-          margin: '0 auto',
-          padding: { xs: '16px', sm: '32px' },
+          margin: '0 auto'
         }}
       >
         {/* Header */}
@@ -71,6 +72,7 @@ const ChildKidsWall = ({ childId }) => {
 
         {/* Share Something Form */}
         <KidsWallShareSomething
+          childId={childId}
           onSubmit={handleCreatePost}
           loading={loading}
         />
@@ -116,6 +118,9 @@ const ChildKidsWall = ({ childId }) => {
           <KidsWallCards
             posts={posts}
             onDelete={handleDeletePost}
+            onToggleLike={toggleLike}
+            onToggleStar={toggleStar}
+            currentChildId={childId}
           />
         )}
 

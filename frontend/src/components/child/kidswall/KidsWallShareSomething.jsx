@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
 
 /**
@@ -7,14 +8,13 @@ import { themeColors } from '../../../config/themeColors';
  * 
  * Promotional card component encouraging users to share their work
  */
-const KidsWallShareSomething = ({ onSubmit, loading }) => {
-  // Handle button click - this will trigger the form modal or navigation
+const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
+  const navigate = useNavigate();
+
+  // Handle button click - navigate to share page
   const handleShareClick = () => {
-    // This can be used to open a modal or navigate to a form
-    // For now, we'll just call onSubmit if provided
-    if (onSubmit) {
-      // This will be handled by parent component to show form
-      console.log('Share button clicked');
+    if (childId) {
+      navigate(`/child/${childId}/wall/share`);
     }
   };
 
@@ -92,9 +92,11 @@ const KidsWallShareSomething = ({ onSubmit, loading }) => {
           borderRadius: '0px',
           backgroundColor: themeColors.orange,
           color: themeColors.textInverse,
+          transition: 'all 0.3s ease',
           '&:hover': {
             backgroundColor: themeColors.orange,
             opacity: 0.9,
+            transform: 'scale(1.05)',
           },
           '&:disabled': {
             backgroundColor: themeColors.bgTertiary,

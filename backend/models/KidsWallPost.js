@@ -78,6 +78,18 @@ const kidsWallPostSchema = new mongoose.Schema(
         },
       },
     ],
+    stars: [
+      {
+        child: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'ChildProfile',
+        },
+        starredAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     // Comments (if needed in future)
     comments: [
       {
@@ -132,6 +144,11 @@ kidsWallPostSchema.index({ 'relatedContent.contentType': 1, 'relatedContent.cont
 // Virtual for like count
 kidsWallPostSchema.virtual('likeCount').get(function () {
   return this.likes ? this.likes.length : 0;
+});
+
+// Virtual for star count
+kidsWallPostSchema.virtual('starCount').get(function () {
+  return this.stars ? this.stars.length : 0;
 });
 
 // Virtual for comment count

@@ -129,6 +129,38 @@ const kidsWallService = {
       throw error.response?.data?.message || error.message;
     }
   },
+
+  /**
+   * Toggle like on a post
+   * @param {String} postId - Post's ID
+   * @param {String} childId - Child's ID
+   * @returns {Promise} API response with updated post
+   */
+  toggleLike: async (postId, childId) => {
+    try {
+      const response = await api.post(`/kids-wall/${postId}/like/child/${childId}`);
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to toggle like';
+      throw new Error(errorMessage);
+    }
+  },
+
+  /**
+   * Toggle star on a post
+   * @param {String} postId - Post's ID
+   * @param {String} childId - Child's ID
+   * @returns {Promise} API response with updated post
+   */
+  toggleStar: async (postId, childId) => {
+    try {
+      const response = await api.post(`/kids-wall/${postId}/star/child/${childId}`);
+      return response.data;
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to toggle star';
+      throw new Error(errorMessage);
+    }
+  },
 };
 
 export default kidsWallService;

@@ -308,6 +308,86 @@ const deletePost = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Toggle like on a post
+ * @route   POST /api/kids-wall/:postId/like/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const toggleLike = async (req, res) => {
+  try {
+    const { postId, childId } = req.params;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    const post = await kidsWallService.toggleLike(postId, childId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Like toggled successfully',
+      data: post,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to toggle like',
+    });
+  }
+};
+
+/**
+ * @desc    Toggle star on a post
+ * @route   POST /api/kids-wall/:postId/star/child/:childId
+ * @access  Private (Parent/Admin)
+ */
+const toggleStar = async (req, res) => {
+  try {
+    const { postId, childId } = req.params;
+
+    // Verify child belongs to parent (if user is parent)
+    if (req.user.role === 'parent') {
+      const child = await ChildProfile.findOne({
+        _id: childId,
+        parent: req.user._id,
+      });
+
+      if (!child) {
+        return res.status(403).json({
+          success: false,
+          message: 'Child not found or does not belong to you',
+        });
+      }
+    }
+
+    const post = await kidsWallService.toggleStar(postId, childId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Star toggled successfully',
+      data: post,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to toggle star',
+    });
+  }
+};
+
 module.exports = {
   getAllPosts,
   getChildPosts,
@@ -315,4 +395,6 @@ module.exports = {
   createPost,
   updatePost,
   deletePost,
+  toggleLike,
+  toggleStar,
 };

@@ -7,6 +7,8 @@ const {
   createPost,
   updatePost,
   deletePost,
+  toggleLike,
+  toggleStar,
 } = require('../controllers/kidsWall.controller');
 const { protect } = require('../middleware/auth');
 const { uploadKidsWallImage } = require('../middleware/upload');
@@ -70,5 +72,19 @@ router.patch('/:postId/child/:childId', uploadKidsWallImage.single('image'), upd
  * @access  Private (Parent/Admin)
  */
 router.delete('/:postId/child/:childId', deletePost);
+
+/**
+ * @route   POST /api/kids-wall/:postId/like/child/:childId
+ * @desc    Toggle like on a post
+ * @access  Private (Parent/Admin)
+ */
+router.post('/:postId/like/child/:childId', toggleLike);
+
+/**
+ * @route   POST /api/kids-wall/:postId/star/child/:childId
+ * @desc    Toggle star on a post
+ * @access  Private (Parent/Admin)
+ */
+router.post('/:postId/star/child/:childId', toggleStar);
 
 module.exports = router;

@@ -92,8 +92,9 @@ const useKidsWall = (childId) => {
         // Refresh posts list (feed)
         await fetchPosts();
         dispatch(showNotification({
-          message: 'Post created successfully!',
+          message: '🎉 Awesome! Your work is now on the wall! 🎉',
           type: 'success',
+          duration: 5000, // Show for 5 seconds for celebration
         }));
         return response.data;
       } else {
@@ -226,6 +227,88 @@ const useKidsWall = (childId) => {
   }, [childId, dispatch, fetchPosts]);
 
   /**
+   * Toggle like on a post
+   * @param {String} postId - Post ID
+   * @returns {Promise} Updated post
+   */
+  const toggleLike = useCallback(async (postId) => {
+    if (!childId) {
+      throw new Error('Child ID is required');
+    }
+
+    try {
+      const response = await kidsWallService.toggleLike(postId, childId);
+      if (response.success && response.data) {
+        // Update the post in the local state
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post._id === postId ? response.data : post
+          )
+        );
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to toggle like');
+      }
+    } catch (err) {
+      let errorMessage = 'Failed to toggle like';
+      
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err && typeof err === 'object' && err.message) {
+        errorMessage = err.message;
+      }
+      
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
+  /**
+   * Toggle star on a post
+   * @param {String} postId - Post ID
+   * @returns {Promise} Updated post
+   */
+  const toggleStar = useCallback(async (postId) => {
+    if (!childId) {
+      throw new Error('Child ID is required');
+    }
+
+    try {
+      const response = await kidsWallService.toggleStar(postId, childId);
+      if (response.success && response.data) {
+        // Update the post in the local state
+        setPosts((prevPosts) =>
+          prevPosts.map((post) =>
+            post._id === postId ? response.data : post
+          )
+        );
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to toggle star');
+      }
+    } catch (err) {
+      let errorMessage = 'Failed to toggle star';
+      
+      if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err && typeof err === 'object' && err.message) {
+        errorMessage = err.message;
+      }
+      
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
+  /**
    * Refresh posts list
    * @param {Object} filters - Optional filters
    */
@@ -243,6 +326,8 @@ const useKidsWall = (childId) => {
     createPost,
     updatePost,
     deletePost,
+    toggleLike,
+    toggleStar,
     refreshPosts,
   };
 };
