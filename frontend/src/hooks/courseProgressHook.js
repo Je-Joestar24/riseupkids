@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import courseProgressService from '../services/courseProgressService';
 import videoWatchService from '../services/videoWatchService';
+import bookReadingService from '../services/bookReadingService';
 import { showNotification } from '../store/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 
@@ -378,6 +379,56 @@ export const useCourseProgress = (childId) => {
     }
   }, [childId, dispatch]);
 
+  /**
+   * Get book reading status for a specific book
+   * @param {String} bookId - Book's ID
+   * @returns {Promise} Reading status data
+   */
+  const getBookReadingStatus = useCallback(async (bookId) => {
+    if (!childId || !bookId) {
+      throw new Error('Child ID and Book ID are required');
+    }
+
+    try {
+      const response = await bookReadingService.getBookReadingStatus(bookId, childId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to get book reading status');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get book reading status');
+      // Don't show notification for status checks (might be called frequently)
+      throw new Error(errorMessage);
+    }
+  }, [childId]);
+
+  /**
+   * Get all book reading statuses for a child
+   * @returns {Promise} Array of book reading statuses
+   */
+  const getChildBookReadings = useCallback(async () => {
+    if (!childId) {
+      throw new Error('Child ID is required');
+    }
+
+    try {
+      const response = await bookReadingService.getChildBookReadings(childId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || 'Failed to get child book readings');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get child book readings');
+      dispatch(showNotification({
+        message: errorMessage,
+        type: 'error',
+      }));
+      throw new Error(errorMessage);
+    }
+  }, [childId, dispatch]);
+
   return {
     // State
     courses,
@@ -395,6 +446,9 @@ export const useCourseProgress = (childId) => {
     getVideoWatchStatus,
     getChildVideoWatches,
     resetVideoWatch,
+    // Book Reading Methods
+    getBookReadingStatus,
+    getChildBookReadings,
     // Helpers
     getCoverImageUrl,
     getSummaryCounts,

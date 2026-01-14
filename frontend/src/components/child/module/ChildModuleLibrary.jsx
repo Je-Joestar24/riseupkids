@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import ChildModuleCards from './ChildModuleCards';
+import { useCourseProgress } from '../../../hooks/courseProgressHook';
+import { useParams } from 'react-router-dom';
 
 /**
  * ChildModuleLibrary Component
@@ -9,21 +11,59 @@ import ChildModuleCards from './ChildModuleCards';
  * Library section displaying books from the course in a 3-column grid
  */
 const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) => {
-  // Get completed book IDs from progress
-  const getCompletedBooks = () => {
-    const completedBooks = new Set();
-    if (courseProgress?.progress?.contentProgress) {
-      courseProgress.progress.contentProgress
-        .filter((item) => item.contentType === 'book' && item.status === 'completed')
-        .forEach((item) => {
-          const key = `${item.contentId.toString()}-${item.contentType}`;
-          completedBooks.add(key);
-        });
+  const { id: childId } = useParams();
+  const { getChildBookReadings } = useCourseProgress(childId);
+  const [bookReadings, setBookReadings] = useState({}); // Map of bookId -> reading status
+  const [loadingReadings, setLoadingReadings] = useState(false);
+
+  // Fetch book reading statuses for all books
+  const fetchBookReadings = async () => {
+    if (!childId || !books || books.length === 0) {
+      setBookReadings({});
+      return;
     }
-    return completedBooks;
+
+    setLoadingReadings(true);
+    try {
+      const readings = await getChildBookReadings();
+      
+      // Create a map of bookId -> reading status
+      // Handle both string and ObjectId formats
+      const readingMap = {};
+      if (readings && Array.isArray(readings)) {
+        readings.forEach((reading) => {
+          if (reading.bookId) {
+            // Normalize bookId to string for consistent matching
+            const normalizedId = String(reading.bookId);
+            readingMap[normalizedId] = reading;
+          }
+        });
+      }
+      
+      setBookReadings(readingMap);
+    } catch (error) {
+      console.error('Error fetching book readings:', error);
+      // Don't show error to user, just use empty map
+      setBookReadings({});
+    } finally {
+      setLoadingReadings(false);
+    }
   };
 
-  const completedBooks = getCompletedBooks();
+  useEffect(() => {
+    fetchBookReadings();
+  }, [childId, books?.length]); // Only refetch when childId or number of books changes
+
+  // Refresh readings when courseProgress changes (e.g., after book is read)
+  useEffect(() => {
+    if (childId && books && books.length > 0) {
+      // Small delay to ensure backend has updated
+      const timeoutId = setTimeout(() => {
+        fetchBookReadings();
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [courseProgress]);
 
   // Calculate progress circles for each book (0-5)
   const getBookProgress = (book) => {
@@ -31,25 +71,48 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
     const bookId = book._contentId || book._id || book.contentId;
     if (!bookId) return 0;
     
-    // For now, if completed, show all 5 circles filled
-    // In the future, this can be based on reading progress (pages read, etc.)
-    const key = `${bookId.toString()}-book`;
-    if (completedBooks.has(key)) {
-      return 5; // All circles filled if completed
-    }
+    // Normalize bookId to string for consistent matching
+    const normalizedId = String(bookId);
     
-    // You can implement more granular progress tracking here
-    // For example: pages read / total pages * 5
-    return 0;
+    // Get reading status for this book
+    const readingStatus = bookReadings[normalizedId];
+    if (!readingStatus) return 0;
+    
+    // Get current reading count and required reading count
+    const currentReadingCount = readingStatus.currentReadingCount || 0;
+    const requiredReadingCount = readingStatus.requiredReadingCount || 5; // Default to 5
+    
+    // Calculate how many circles to fill (max 5)
+    // Each circle represents one reading, but cap at 5 circles
+    const progressCircles = Math.min(currentReadingCount, 5);
+    
+    return progressCircles;
   };
 
-  // Check if book is completed
+  // Check if book is completed (stars awarded = read required count)
+  // Use checkbox logic: if all 5 checkboxes are filled, stars were already awarded
   const isBookCompleted = (book) => {
-    // Use _contentId or _id from populated book data
-    const bookId = book._contentId || book._id || book.contentId;
-    if (!bookId) return false;
-    const key = `${bookId.toString()}-book`;
-    return completedBooks.has(key);
+    // Use checkbox logic - if all 5 checkboxes are filled, stars were already awarded
+    const progressCircles = getBookProgress(book);
+    const normalizedId = book._contentId || book._id || book.contentId;
+    
+    if (!normalizedId) return false;
+    
+    // Get reading status to check required reading count
+    const readingStatus = bookReadings[String(normalizedId)];
+    const requiredReadingCount = readingStatus?.requiredReadingCount || 5;
+    
+    // If all checkboxes are filled (progressCircles >= requiredReadingCount), stars were already awarded
+    if (progressCircles >= requiredReadingCount) {
+      return true;
+    }
+    
+    // Fallback: check starsAwarded flag from API
+    if (readingStatus && readingStatus.starsAwarded) {
+      return true;
+    }
+    
+    return false;
   };
 
   if (!books || books.length === 0) {

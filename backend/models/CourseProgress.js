@@ -111,9 +111,35 @@ const courseProgressSchema = new mongoose.Schema(
             type: String,
             default: '',
           },
-          lastVideoReached: {
-            type: Boolean,
-            default: false,
+          completion: {
+            isCompleted: {
+              type: Boolean,
+              default: false,
+            },
+            completedAt: {
+              type: Date,
+              default: null,
+            },
+            lastVideoWatchRecorded: {
+              type: Boolean,
+              default: false,
+            },
+            bookReadingRecorded: {
+              type: Boolean,
+              default: false,
+            },
+            bookReadingRecordedAt: {
+              type: Date,
+              default: null,
+            },
+            starsAwarded: {
+              type: Boolean,
+              default: false,
+            },
+            starsAwardedAt: {
+              type: Date,
+              default: null,
+            },
           },
           lastAccessed: {
             type: Date,

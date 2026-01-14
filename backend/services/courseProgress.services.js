@@ -471,6 +471,26 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
     }
   }
 
+  // For books, verify that required reading count is met before marking as completed
+  if (contentType === 'book') {
+    const BookReading = require('../models/BookReading');
+    const Book = require('../models/Book');
+    
+    // Get book to check required reading count
+    const book = await Book.findById(contentId).select('requiredReadingCount');
+    if (!book) {
+      throw new Error('Book not found');
+    }
+    
+    const requiredReadingCount = book.requiredReadingCount || 5;
+    const readingCount = await BookReading.getCompletedReadingCount(childId, contentId);
+    
+    if (readingCount < requiredReadingCount) {
+      // Book hasn't been read enough times yet - don't mark as completed
+      throw new Error(`Book must be read ${requiredReadingCount} times before it can be marked as completed. Current reading count: ${readingCount}`);
+    }
+  }
+
   // Mark content as completed (with step)
   progress.markContentCompleted(contentId, contentType, step, course);
   await progress.save();
@@ -862,9 +882,36 @@ const updateScormProgress = async (childId, courseId, contentId, contentType, pr
     contentProgressItem.scormProgress.lessonStatus = progressData.lessonStatus;
     
     // Update content status based on SCORM lesson status
+    // For books, only mark as completed if reading count requirement is met
     if (progressData.lessonStatus === 'completed' || progressData.lessonStatus === 'passed') {
-      contentProgressItem.status = 'completed';
-      contentProgressItem.completedAt = new Date();
+      // For books, verify reading count requirement before marking as completed
+      if (contentType === 'book') {
+        const BookReading = require('../models/BookReading');
+        const Book = require('../models/Book');
+        
+        // Get book to check required reading count
+        const book = await Book.findById(contentId).select('requiredReadingCount');
+        if (book) {
+          const requiredReadingCount = book.requiredReadingCount || 5;
+          const readingCount = await BookReading.getCompletedReadingCount(childId, contentId);
+          
+          // Only mark as completed if reading count requirement is met
+          if (readingCount >= requiredReadingCount) {
+            contentProgressItem.status = 'completed';
+            contentProgressItem.completedAt = new Date();
+          } else {
+            // Keep as in_progress until requirement is met
+            contentProgressItem.status = 'in_progress';
+          }
+        } else {
+          // Book not found, but still update lesson status
+          contentProgressItem.status = 'in_progress';
+        }
+      } else {
+        // For non-book content (audioAssignment, chant), mark as completed normally
+        contentProgressItem.status = 'completed';
+        contentProgressItem.completedAt = new Date();
+      }
     } else if (progressData.lessonStatus === 'incomplete' || progressData.lessonStatus === 'browsed') {
       contentProgressItem.status = 'in_progress';
     }

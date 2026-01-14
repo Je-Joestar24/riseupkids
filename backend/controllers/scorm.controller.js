@@ -1,12 +1,12 @@
 const scormService = require('../services/scorm.service');
 const courseProgressService = require('../services/courseProgress.services');
+// Content models - only for finding SCORM files (launch operations)
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
 const Book = require('../models/Book');
 const Media = require('../models/Media');
-const { ChildProfile, ChildStats, StarEarning } = require('../models');
-const CourseProgress = require('../models/CourseProgress');
-const Course = require('../models/Course');
+// ChildProfile - only for finding child ID for progress operations
+const { ChildProfile } = require('../models');
 const path = require('path');
 const fs = require('fs-extra');
 
@@ -264,38 +264,48 @@ const saveProgress = async (req, res) => {
       });
     }
     
-    // Update course progress with SCORM data
-    // Find the course that contains this content
-    const Course = require('../models/Course');
-    const course = await Course.findOne({
-      'contents.contentId': contentId,
-      'contents.contentType': contentType,
-    });
-    
-    if (course) {
-      // Update progress via courseProgressService
-      // We'll need to find the child's progress for this course
-      const ChildProfile = require('../models/ChildProfile');
+    // Update course progress with SCORM data via service layer
+    // SCORM controller should NOT directly access Course or CourseProgress models
+    // All progress operations go through courseProgressService
+    try {
+      // Find child profile to get childId
       const child = await ChildProfile.findOne({ parent: userId });
       
       if (child) {
-        // Phase 2: be defensive – SCORM progress should NEVER break playback
-        // If course/content mapping is missing, log and continue without 500
+        // Find course that contains this content (via service if needed, or pass childId/contentId to service)
+        // For now, we'll let the service handle course lookup
+        // The service will find the course and update progress
         try {
-          await courseProgressService.updateScormProgress(
-            child._id,
-            course._id,
-            contentId,
-            contentType,
-            progressData
-          );
+          // Note: courseProgressService.updateScormProgress needs courseId
+          // We need to find course, but we'll do it via a helper or let service handle it
+          // For now, we'll use a minimal approach - find course only for progress update
+          const Course = require('../models/Course');
+          const course = await Course.findOne({
+            'contents.contentId': contentId,
+            'contents.contentType': contentType,
+          });
+          
+          if (course) {
+            await courseProgressService.updateScormProgress(
+              child._id,
+              course._id,
+              contentId,
+              contentType,
+              progressData
+            );
+          }
         } catch (progressError) {
+          // SCORM progress saving should NEVER break SCORM playback
+          // If course/content mapping is missing, log and continue without 500
           console.warn(
-            '[SCORM] Skipping course progress update for SCORM content:',
+            '[SCORM] Skipping course progress update (course/content not found or mapping issue):',
             progressError.message
           );
         }
       }
+    } catch (childError) {
+      // If child lookup fails, log but don't break SCORM
+      console.warn('[SCORM] Could not find child for progress update:', childError.message);
     }
     
     res.json({
@@ -337,7 +347,19 @@ const getProgress = async (req, res) => {
       });
     }
     
-    // Find the course that contains this content
+    // Get SCORM progress via service layer
+    // SCORM controller should NOT directly access Course or CourseProgress models
+    // Find child profile to get childId
+    const child = await ChildProfile.findOne({ parent: userId });
+    
+    if (!child) {
+      return res.status(404).json({
+        success: false,
+        message: 'Child profile not found',
+      });
+    }
+    
+    // Find course that contains this content (minimal access - only for progress lookup)
     const Course = require('../models/Course');
     const course = await Course.findOne({
       'contents.contentId': contentId,
@@ -351,25 +373,14 @@ const getProgress = async (req, res) => {
       });
     }
     
-    // Get child profile
-    const ChildProfile = require('../models/ChildProfile');
-    const child = await ChildProfile.findOne({ parent: userId });
-    
-    if (!child) {
-      return res.status(404).json({
-        success: false,
-        message: 'Child profile not found',
-      });
-    }
-    
-    // Get progress from courseProgressService
+    // Get progress from courseProgressService (service handles CourseProgress access)
     const progress = await courseProgressService.getScormProgress(
       child._id,
       course._id,
       contentId,
       contentType
     );
-    
+  
     res.json({
       success: true,
       data: progress || {
@@ -445,65 +456,7 @@ const getWrapper = async (req, res) => {
       });
     }
     
-    // Find the last video in the SCORM package (server-side)
-    const findLastVideo = async function(scormBasePath) {
-        try {
-            const vrPath = path.join(scormBasePath, 'vr');
-            if (!(await fs.pathExists(vrPath))) {
-                return null;
-            }
-            
-            const files = await fs.readdir(vrPath);
-            const videoFiles = files.filter(file => 
-                file.toLowerCase().endsWith('.mp4') || 
-                file.toLowerCase().endsWith('.webm') ||
-                file.toLowerCase().endsWith('.mov')
-            );
-            
-            if (videoFiles.length === 0) {
-                return null;
-            }
-            
-            // Extract numbers from filenames (e.g., Vi35.mp4 -> 35)
-            const videoNumbers = videoFiles.map(file => {
-                const match = file.match(/(\d+)/);
-                return match ? parseInt(match[1], 10) : 0;
-            });
-            
-            // Sort by number and get the last one
-            videoNumbers.sort((a, b) => a - b);
-            const lastNumber = videoNumbers[videoNumbers.length - 1];
-            
-            // Find the file with the highest number
-            const lastVideo = videoFiles.find(file => {
-                const match = file.match(/(\d+)/);
-                return match && parseInt(match[1], 10) === lastNumber;
-            });
-            
-            if (lastVideo) {
-                return {
-                    filename: lastVideo,
-                    path: path.join('vr', lastVideo),
-                };
-            }
-            
-            // Fallback: if no numbers found, use alphabetical sort
-            videoFiles.sort();
-            return {
-                filename: videoFiles[videoFiles.length - 1],
-                path: path.join('vr', videoFiles[videoFiles.length - 1]),
-            };
-        } catch (err) {
-            console.error('Error finding last video:', err);
-            return null;
-        }
-    };
-    
-    // Get the last video info (server-side)
-    const lastVideoInfo = await findLastVideo(scormBasePathForFiles);
-    if (lastVideoInfo) {
-        console.log('[SCORM] Last video detected:', lastVideoInfo.filename);
-    }
+    // Removed: Last video detection - completion now based on score, progress, and time only
     
     // Read the SCORM HTML file
     let scormHtml = await fs.readFile(scormHtmlPath, 'utf-8');
@@ -598,8 +551,8 @@ const getWrapper = async (req, res) => {
         // This is used extensively by the SCORM driver for debugging
         if (typeof window.WriteToDebug === 'undefined') {
             window.WriteToDebug = function(message) {
-                // Log debug messages to console (can be filtered out in production)
-                console.log('[SCORM Debug]', message);
+                // Suppress debug messages to reduce console spam
+                // Uncomment for debugging: console.log('[SCORM Debug]', message);
             };
         }
         
@@ -1026,16 +979,14 @@ const getWrapper = async (req, res) => {
                 this.commitTimer = null;
                 this.hasUncommittedChanges = false;
                 
-                // PHASE 1: Progress tracking to prevent automatic completion
+                // Progress tracking to prevent automatic completion
                 this.progressData = {
                     firstInteraction: false,        // Has child interacted with content?
-                    minProgressRequired: 80,         // Minimum progress % to consider complete
-                    currentProgress: 0,              // Current progress percentage (0-100)
-                    timeSpent: 0,                   // Time spent in seconds
-                    lastVideoReached: false,         // Has child reached last video?
-                    finalImageReached: false,        // Has child reached final image?
-                    minTimeRequired: 30,             // Minimum time in seconds before allowing completion
-                    sessionStartTime: Date.now(),    // Track session start for manual time calculation
+                    minProgressRequired: 80,       // Minimum progress % to consider complete
+                    currentProgress: 0,            // Current progress percentage (0-100)
+                    timeSpent: 0,                  // Time spent in seconds
+                    minTimeRequired: 30,           // Minimum time in seconds before allowing completion
+                    sessionStartTime: Date.now(),  // Track session start for manual time calculation
                 };
                 
                 console.log('[SCORM API] Created API instance for', contentType, contentId);
@@ -1059,11 +1010,20 @@ const getWrapper = async (req, res) => {
                         'Authorization': 'Bearer ' + authToken,
                     }
                 })
-                .then(res => res.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success && data.data) {
                         if (data.data.suspendData) {
-                            this.data['cmi.suspend_data'] = data.data.suspendData;
+                            // Ensure suspendData is always stored as string (prevent JSON parsing errors)
+                            const suspendDataValue = typeof data.data.suspendData === 'string' 
+                                ? data.data.suspendData 
+                                : JSON.stringify(data.data.suspendData);
+                            this.data['cmi.suspend_data'] = suspendDataValue;
                         }
                         if (data.data.lessonStatus) {
                             this.data['cmi.core.lesson_status'] = data.data.lessonStatus;
@@ -1142,16 +1102,15 @@ const getWrapper = async (req, res) => {
                                'Time:', this.progressData.timeSpent + 's');
                     
                     // Only accept 100-point score if:
-                    // - Final image has been reached, OR
-                    // - Last video reached AND time spent >= 30 seconds, OR
-                    // - Progress is at least 80% AND time spent >= 30 seconds
-                    if (score === 100 && !this.progressData.finalImageReached) {
+                    // - Progress is at least 80% AND time spent >= 30 seconds, OR
+                    // - Score equals max score (allows early completion)
+                    if (score === 100) {
                         const canAcceptScore = 
-                            (this.progressData.lastVideoReached && this.progressData.timeSpent >= this.progressData.minTimeRequired) ||
-                            (this.progressData.currentProgress >= this.progressData.minProgressRequired && this.progressData.timeSpent >= this.progressData.minTimeRequired);
+                            (this.progressData.currentProgress >= this.progressData.minProgressRequired && this.progressData.timeSpent >= this.progressData.minTimeRequired) ||
+                            (maxScore !== null && score === maxScore);
                         
                         if (!canAcceptScore) {
-                            console.log('[SCORM Validation] Blocked automatic 100-point award - insufficient progress. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's', 'Last video:', this.progressData.lastVideoReached, 'Max score:', maxScore !== null ? maxScore : 'N/A');
+                            console.log('[SCORM Validation] Blocked automatic 100-point award - insufficient progress. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's', 'Max score:', maxScore !== null ? maxScore : 'N/A');
                             // Return success but don't store the score
                             this.errorCode = 0;
                             return 'true';
@@ -1163,8 +1122,10 @@ const getWrapper = async (req, res) => {
                 if (element === 'cmi.core.lesson_status' || element === 'cmi.completion_status') {
                     const status = (value || '').toLowerCase();
                     if (status === 'completed' || status === 'passed') {
-                        // Log but don't auto-complete - user must click "Done" button
-                        console.log('[SCORM Validation] Status set to', status, '- but completion requires "Done" button click. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's', 'Last video:', this.progressData.lastVideoReached);
+                        // Log but don't auto-complete - user must click "Done" button (reduced logging)
+                        if (this.progressData.currentProgress >= 80 || status === 'completed' || status === 'passed') {
+                            console.log('[SCORM Validation] Status set to', status, '- but completion requires "Done" button click. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's');
+                        }
                         // Store the status for logging, but don't trigger completion
                         this.data[element] = value;
                         this.errorCode = 0;
@@ -1209,8 +1170,43 @@ const getWrapper = async (req, res) => {
                     entry: this.data['cmi.core.entry'] || 'ab-initio',
                     exit: this.data['cmi.core.exit'] || 'normal',
                     lessonLocation: this.data['cmi.core.lesson_location'] || '',
-                    lastVideoReached: this.progressData.lastVideoReached || false, // Store for completion check
                 };
+                
+                // Ensure suspendData is always a string (prevent JSON parsing errors)
+                let suspendDataValue = this.data['cmi.suspend_data'] || '';
+                if (typeof suspendDataValue !== 'string') {
+                    // If it's an object, try to stringify it, otherwise use empty string
+                    try {
+                        suspendDataValue = typeof suspendDataValue === 'object' 
+                            ? JSON.stringify(suspendDataValue) 
+                            : String(suspendDataValue);
+                    } catch (e) {
+                        console.warn('[SCORM] Error stringifying suspendData:', e);
+                        suspendDataValue = '';
+                    }
+                }
+                
+                const progressDataSafe = {
+                    lessonStatus: this.data['cmi.core.lesson_status'] || 'incomplete',
+                    score: this.data['cmi.core.score.raw'] ? parseFloat(this.data['cmi.core.score.raw']) : null,
+                    scoreMax: this.data['cmi.core.score.max'] ? parseFloat(this.data['cmi.core.score.max']) : null,
+                    scoreMin: this.data['cmi.core.score.min'] ? parseFloat(this.data['cmi.core.score.min']) : null,
+                    timeSpent: this.data['cmi.core.total_time'] || '00:00:00.00',
+                    suspendData: suspendDataValue, // Always a string
+                    entry: this.data['cmi.core.entry'] || 'ab-initio',
+                    exit: this.data['cmi.core.exit'] || 'normal',
+                    lessonLocation: this.data['cmi.core.lesson_location'] || '',
+                };
+                
+                // Log the commit attempt (but don't spam)
+                if (!this.lastCommitLog || (Date.now() - this.lastCommitLog) > 5000) {
+                    console.log('[SCORM] LMSCommit - Saving progress', {
+                        contentId: contentId,
+                        lessonStatus: progressDataSafe.lessonStatus,
+                        score: progressDataSafe.score,
+                    });
+                    this.lastCommitLog = Date.now();
+                }
                 
                 fetch(apiBaseUrl + '/api/scorm/' + contentId + '/progress', {
                     method: 'POST',
@@ -1220,17 +1216,28 @@ const getWrapper = async (req, res) => {
                     },
                     body: JSON.stringify({
                         contentType: contentType,
-                        progressData: progressData
+                        progressData: progressDataSafe
                     })
                 })
-                .then(res => res.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.success) {
                         this.hasUncommittedChanges = false;
+                    } else {
+                        console.warn('[SCORM] LMSCommit - Save returned success=false:', data.message);
                     }
                 })
                 .catch(err => {
-                    console.error('Failed to save progress:', err);
+                    // Only log errors occasionally to avoid spam
+                    if (!this.lastCommitError || (Date.now() - this.lastCommitError) > 10000) {
+                        console.error('[SCORM] LMSCommit - Failed to save progress:', err.message);
+                        this.lastCommitError = Date.now();
+                    }
                 });
                 
                 this.errorCode = 0;
@@ -1311,8 +1318,8 @@ const getWrapper = async (req, res) => {
                 return Math.floor((Date.now() - this.progressData.sessionStartTime) / 1000);
             }
             
-            // PHASE 1: Calculate progress based on lesson location, time, and video detection
-            calculateProgress(lessonLocation, timeSpentSeconds, isLastVideoPlaying, isScormEnded) {
+            // Calculate progress based on lesson location, time, and score
+            calculateProgress(lessonLocation, timeSpentSeconds, score, maxScore) {
                 let progress = 0;
                 
                 // Base progress from lesson location (if available)
@@ -1322,9 +1329,7 @@ const getWrapper = async (req, res) => {
                     const numberMatch = lessonLocation.match(/(\d+)/);
                     if (numberMatch) {
                         const currentSlide = parseInt(numberMatch[1]);
-                        // Estimate total slides based on last video number (if available)
-                        // This is a heuristic - may need adjustment per SCORM package
-                        // For now, assume last video is around slide 30-40, so we estimate 40 total
+                        // Estimate total slides (heuristic - may need adjustment per SCORM package)
                         const estimatedTotalSlides = 40;
                         progress = Math.min((currentSlide / estimatedTotalSlides) * 90, 90);
                     } else {
@@ -1341,19 +1346,16 @@ const getWrapper = async (req, res) => {
                     }
                 }
                 
-                // Boost progress if last video is playing
-                if (isLastVideoPlaying) {
-                    progress = Math.max(progress, 90);
-                }
-                
-                // Full progress if SCORM ended (final image reached)
-                if (isScormEnded) {
-                    progress = 100;
+                // Boost progress based on score (if available)
+                if (score !== null && maxScore !== null && maxScore > 0) {
+                    const scoreProgress = (score / maxScore) * 100;
+                    // Use the higher of location-based or score-based progress
+                    progress = Math.max(progress, scoreProgress);
                 }
                 
                 // Time-based cap: must spend at least minimum time
-                // If too fast, cap progress at 50% (unless final image reached)
-                if (timeSpentSeconds < this.progressData.minTimeRequired && !isScormEnded) {
+                // If too fast, cap progress at 50%
+                if (timeSpentSeconds < this.progressData.minTimeRequired) {
                     progress = Math.min(progress, 50);
                 }
                 
@@ -1370,9 +1372,7 @@ const getWrapper = async (req, res) => {
         // Create API instance IMMEDIATELY
         const api = new SCORMAPI(contentId, contentType, userId);
         
-        // Last video information injected from server (may be null)
-        // Used for detecting when the final VR video is playing
-        const lastVideoInfo = ${JSON.stringify(lastVideoInfo || null)};
+        // Removed: Last video detection - completion now based on score, progress, and time only
         
         // Helper to check if an API object is valid (matches SCORM driver's check)
         const isAPIValid = function(obj) {
@@ -1741,11 +1741,6 @@ const getWrapper = async (req, res) => {
             console.warn('Could not set up window.open proxy:', e);
         }
         
-        // Track if last video has been detected
-        // lastVideoInfo is passed from server-side
-        let lastVideoDetected = false;
-        let lastVideoWatchRecorded = false;
-        
         // Start progress monitoring
         let progressInterval = setInterval(() => {
             try {
@@ -1757,12 +1752,12 @@ const getWrapper = async (req, res) => {
                     const lessonLocation = api.LMSGetValue('cmi.core.lesson_location');
                     const suspendData = api.LMSGetValue('cmi.suspend_data');
                     
-                    // PHASE 1: Parse time spent to seconds (with fallback to session time)
+                    // Parse time spent to seconds (with fallback to session time)
                     const timeSpentSeconds = api.parseTimeToSeconds(time);
                     api.progressData.timeSpent = timeSpentSeconds;
                     
-                    // PHASE 1: Log time tracking for debugging
-                    if (timeSpentSeconds > 0 && timeSpentSeconds % 30 === 0) {
+                    // Log time tracking for debugging (reduced frequency)
+                    if (timeSpentSeconds > 0 && timeSpentSeconds % 60 === 0) {
                         console.log('[SCORM Progress] Time tracking - SCORM time:', time || '(not set)', 'Session time:', timeSpentSeconds + 's');
                     }
                     
@@ -1771,142 +1766,39 @@ const getWrapper = async (req, res) => {
                         isCompleted = true;
                     }
                     
-                    // Detect if SCORM has reached the last slide
+                    // Detect if SCORM has reached the last slide (based on status/exit only)
                     let isLastSlide = isCompleted;
                     if (exit && exit !== '' && exit !== 'normal') {
                         isLastSlide = true;
                     }
-                    if (lessonLocation && (
-                        lessonLocation.includes('final') || 
-                        lessonLocation.includes('end') ||
-                        lessonLocation.includes('complete') ||
-                        lessonLocation.includes('last')
-                    )) {
-                        isLastSlide = true;
-                    }
-                    if (suspendData && (
-                        suspendData.includes('completed') ||
-                        suspendData.includes('finished') ||
-                        suspendData.includes('end') ||
-                        suspendData.includes('final')
-                    )) {
-                        isLastSlide = true;
-                    }
                     
-                    // Detect if last video is playing
-                    let isLastVideoPlaying = false;
-                    let isScormEnded = false;
-                    
-                    if (lastVideoInfo && !lastVideoWatchRecorded) {
-                        const lastVideoFilename = lastVideoInfo.filename;
-                        const lastVideoNameWithoutExt = lastVideoFilename.replace(/\.(mp4|webm|mov)$/i, '');
-                        
-                        // Check multiple ways the video might be referenced
-                        const checks = [
-                            lessonLocation && lessonLocation.includes(lastVideoFilename),
-                            lessonLocation && lessonLocation.includes(lastVideoNameWithoutExt),
-                            lessonLocation && lessonLocation.includes('vr/' + lastVideoFilename),
-                            suspendData && suspendData.includes(lastVideoFilename),
-                            suspendData && suspendData.includes(lastVideoNameWithoutExt),
-                            suspendData && suspendData.includes('vr/' + lastVideoFilename),
-                        ];
-                        
-                        // Also check current URL
-                        try {
-                            const currentUrl = window.location.href || '';
-                            const currentPath = window.location.pathname || '';
-                            checks.push(
-                                currentUrl.includes(lastVideoFilename),
-                                currentUrl.includes(lastVideoNameWithoutExt),
-                                currentPath.includes(lastVideoFilename),
-                                currentPath.includes(lastVideoNameWithoutExt)
-                            );
-                        } catch (e) {
-                            // Can't access URL
+                    // Parse score and max score for progress calculation
+                    let parsedScore = null;
+                    let parsedMaxScore = null;
+                    if (score && score !== '' && score !== 'undefined' && score !== 'null') {
+                        const scoreNum = parseFloat(score);
+                        if (!isNaN(scoreNum)) {
+                            parsedScore = scoreNum;
                         }
-                        
-                        isLastVideoPlaying = checks.some(check => check === true);
-                        
-                        // Detect if SCORM has fully ended (reached final image and stopped)
-                        // This happens when:
-                        // 1. Status is "completed" or "passed" (content finished)
-                        // 2. Exit is set (user reached the end)
-                        // 3. Last video was detected AND status is completed
-                        isScormEnded = isCompleted || 
-                                      (exit && exit !== '' && exit !== 'normal') ||
-                                      (isLastVideoPlaying && (status === 'completed' || status === 'passed'));
-                        
-                        // Debug logging (only once per state change)
-                        if (!lastVideoDetected && lastVideoInfo) {
-                            console.log('[SCORM Debug] Checking for last video:', {
-                                filename: lastVideoFilename,
-                                lessonLocation: lessonLocation || '(empty)',
-                                suspendData: suspendData ? suspendData.substring(0, 50) + '...' : '(empty)',
-                                status: status,
-                                exit: exit,
-                                isCompleted: isCompleted,
-                                checks: checks,
-                                isLastVideoPlaying: isLastVideoPlaying,
-                                isScormEnded: isScormEnded
-                            });
+                    }
+                    const maxScore = api.LMSGetValue('cmi.core.score.max');
+                    if (maxScore && maxScore !== '' && maxScore !== 'undefined' && maxScore !== 'null') {
+                        const maxScoreNum = parseFloat(maxScore);
+                        if (!isNaN(maxScoreNum)) {
+                            parsedMaxScore = maxScoreNum;
                         }
-                        
-                        // Detect when last video starts playing
-                        if (isLastVideoPlaying && !lastVideoDetected) {
-                            lastVideoDetected = true;
-                            // PHASE 1: Update API progress tracking
-                            api.progressData.lastVideoReached = true;
-                            const maxScore = api.LMSGetValue('cmi.core.score.max');
-                            const parsedMaxScore = maxScore && maxScore !== '' ? parseFloat(maxScore) : null;
-                            console.log('[SCORM] ✅ Last video detected as playing:', lastVideoFilename);
-                            console.log('[SCORM Progress] Last video reached - Progress:', api.progressData.currentProgress + '%', 
-                                       'Time:', api.progressData.timeSpent + 's', 
-                                       'Score:', api.progressData.lastScore,
-                                       'Max score:', parsedMaxScore !== null ? parsedMaxScore : 'N/A');
-                            // Save immediately via commit to ensure lastVideoReached is stored
-                            api.LMSCommit('');
-                        }
-                        
-                        // Detect when SCORM has fully ended (final image shown, everything stopped)
-                        if (isScormEnded && !api.progressData.finalImageReached) {
-                            // PHASE 1: Update API progress tracking (for logging only)
-                            api.progressData.finalImageReached = true;
-                            console.log('[SCORM] ✅ SCORM flow ended! Final image reached.');
-                            const maxScore = api.LMSGetValue('cmi.core.score.max');
-                            const parsedMaxScore = maxScore && maxScore !== '' ? parseFloat(maxScore) : null;
-                            console.log('[SCORM Progress] Final image reached - Progress:', api.progressData.currentProgress + '%', 
-                                       'Time:', api.progressData.timeSpent + 's', 
-                                       'Score:', api.progressData.lastScore,
-                                       'Max score:', parsedMaxScore !== null ? parsedMaxScore : 'N/A',
-                                       'Last video:', api.progressData.lastVideoReached);
-                            // NOTE: User must click "Done" button to trigger completion check
-                            // No automatic recording here
-                        }
-                    } else if (!lastVideoInfo) {
-                        // If no last video info, still check if SCORM ended
-                        isScormEnded = isCompleted || (exit && exit !== '' && exit !== 'normal');
                     }
                     
-                    // PHASE 1: Calculate progress AFTER all flags are determined
+                    // Calculate progress based on lesson location, time, and score
                     const calculatedProgress = api.calculateProgress(
                         lessonLocation,
                         timeSpentSeconds,
-                        isLastVideoPlaying || api.progressData.lastVideoReached,
-                        isScormEnded || api.progressData.finalImageReached
+                        parsedScore,
+                        parsedMaxScore
                     );
                     api.progressData.currentProgress = calculatedProgress;
                     
-                    // PHASE 1: Log progress periodically (every 10 seconds to avoid spam)
-                    if (Math.floor(timeSpentSeconds) % 10 === 0 && timeSpentSeconds > 0) {
-                        console.log('[SCORM Progress] Current progress:', calculatedProgress.toFixed(1) + '%', 
-                                   'Time:', timeSpentSeconds + 's', 
-                                   'Score:', parsedScore !== null ? parsedScore : 'N/A',
-                                   'Max score:', parsedMaxScore !== null ? parsedMaxScore : 'N/A',
-                                   'Last video:', api.progressData.lastVideoReached,
-                                   'Final image:', api.progressData.finalImageReached);
-                    }
-                    
-                    // PHASE 1: Format time for display (convert seconds to HH:MM:SS.SS)
+                    // Format time for display (convert seconds to HH:MM:SS.SS)
                     const formatTime = function(seconds) {
                         const hours = Math.floor(seconds / 3600);
                         const minutes = Math.floor((seconds % 3600) / 60);
@@ -1917,22 +1809,12 @@ const getWrapper = async (req, res) => {
                         return hoursStr + ':' + minutesStr + ':' + secsStr;
                     };
                     
-                    // PHASE 1: Parse score safely (handle empty/invalid values)
-                    let parsedScore = null;
-                    let parsedMaxScore = null;
-                    if (score && score !== '' && score !== 'undefined' && score !== 'null') {
-                        const scoreNum = parseFloat(score);
-                        if (!isNaN(scoreNum)) {
-                            parsedScore = scoreNum;
-                        }
-                    }
-                    // Get max score for logging
-                    const maxScore = api.LMSGetValue('cmi.core.score.max');
-                    if (maxScore && maxScore !== '' && maxScore !== 'undefined' && maxScore !== 'null') {
-                        const maxScoreNum = parseFloat(maxScore);
-                        if (!isNaN(maxScoreNum)) {
-                            parsedMaxScore = maxScoreNum;
-                        }
+                    // Log progress periodically (every 10 seconds to avoid spam)
+                    if (Math.floor(timeSpentSeconds) % 10 === 0 && timeSpentSeconds > 0) {
+                        console.log('[SCORM Progress] Current progress:', calculatedProgress.toFixed(1) + '%', 
+                                   'Time:', timeSpentSeconds + 's', 
+                                   'Score:', parsedScore !== null ? parsedScore : 'N/A',
+                                   'Max score:', parsedMaxScore !== null ? parsedMaxScore : 'N/A');
                     }
                     
                     // Send progress update to parent window
@@ -1946,13 +1828,10 @@ const getWrapper = async (req, res) => {
                                 timeSpent: time && time !== '00:00:00.00' ? time : formatTime(timeSpentSeconds), // Use session time if SCORM time is empty
                                 exit: exit || '',
                                 lessonLocation: lessonLocation || '',
-                                suspendData: suspendData || '',
+                                suspendData: (typeof suspendData === 'string' ? suspendData : (suspendData ? JSON.stringify(suspendData) : '')) || '',
                                 isCompleted: isCompleted,
                                 isLastSlide: isLastSlide,
-                                isLastVideoPlaying: isLastVideoPlaying, // Indicates if last video is playing
-                                isScormEnded: isScormEnded, // New: indicates if SCORM flow has fully ended (final image reached)
-                                lastVideoFilename: lastVideoInfo ? lastVideoInfo.filename : null,
-                                // PHASE 1: Include progress data
+                                // Include progress data
                                 progress: calculatedProgress,
                                 timeSpentSeconds: timeSpentSeconds,
                             }
@@ -2116,286 +1995,28 @@ const getWrapper = async (req, res) => {
 };
 
 /**
- * @desc    Check if SCORM completion requirements are met
+ * @desc    DEPRECATED: Check if SCORM completion requirements are met
  * @route   POST /api/scorm/:contentId/check-completion
  * @access  Private
  * 
- * Request body:
- * {
- *   "contentType": "book"
- * }
+ * NOTE: This endpoint has been DEPRECATED and moved to course progress controller.
+ * Use POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete instead.
  * 
- * Response:
- * {
- *   "success": true,
- *   "canComplete": true/false,
- *   "message": "Completion requirements met" or reason why not,
- *   "data": {
- *     "timeSpent": 120,
- *     "estimatedMinTime": 60,
- *     "currentProgress": 85,
- *     "lastVideoReached": true,
- *     "score": 100,
- *     "status": "passed"
- *   }
- * }
+ * This function is kept for backward compatibility but should not be used.
+ * SCORM controller should focus only on SCORM operations, not book completion logic.
  */
 const checkCompletion = async (req, res) => {
-  try {
-    const { contentId } = req.params;
-    const { contentType } = req.body;
-    const userId = req.user._id;
-    
-    if (!contentType || contentType !== 'book') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid contentType. Must be "book"',
-      });
-    }
-    
-    // Get child profile
-    const child = await ChildProfile.findOne({ parent: userId });
-    if (!child) {
-      return res.status(404).json({
-        success: false,
-        message: 'Child profile not found',
-      });
-    }
-    
-    // Get course that contains this content
-    const course = await Course.findOne({
-      'contents.contentId': contentId,
-      'contents.contentType': contentType,
-    });
-    
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: 'Course not found',
-      });
-    }
-    
-    // Get current SCORM progress from CourseProgress
-    const progress = await CourseProgress.findOne({
-      child: child._id,
-      course: course._id,
-    });
-    
-    if (!progress) {
-      return res.status(404).json({
-        success: false,
-        message: 'Progress not found',
-      });
-    }
-    
-    const contentProgressItem = progress.contentProgress.find(
-      item => item.contentId.toString() === contentId.toString() &&
-              item.contentType === contentType
-    );
-    
-    if (!contentProgressItem) {
-      return res.status(404).json({
-        success: false,
-        message: 'Content progress not found',
-      });
-    }
-    
-    const scormProgress = contentProgressItem.scormProgress || {};
-    const timeSpentStr = scormProgress.timeSpent || '00:00:00.00';
-    const timeSpentSeconds = parseTimeToSeconds(timeSpentStr);
-    const estimatedMinTime = 60; // 60 seconds minimum
-    const lessonLocation = scormProgress.lessonLocation || '';
-    const currentProgress = calculateProgressFromLocation(lessonLocation);
-    const lastVideoReached = scormProgress.lastVideoReached || false;
-    const score = scormProgress.score?.raw || null;
-    const scoreMax = scormProgress.score?.max || null;
-    const scoreMin = scormProgress.score?.min || null;
-    const status = scormProgress.lessonStatus || 'not attempted';
-    
-    // Log completion check attempt
-    console.log('[SCORM Completion Check] Time:', timeSpentSeconds + 's', 
-               'Estimated:', estimatedMinTime + 's', 
-               'Progress:', currentProgress + '%', 
-               'Last video:', lastVideoReached,
-               'Score:', score,
-               'Max score:', scoreMax !== null ? scoreMax : 'N/A',
-               'Min score:', scoreMin !== null ? scoreMin : 'N/A',
-               'Status:', status);
-    
-    // Validation rules:
-    // 1. Time must be >= estimated minimum (60 seconds) OR score equals max score
-    // 2. AND (lastVideoReached OR progress >= 80% OR score equals max score)
-    // 3. Score and status are checked but not required for completion
-    
-    // Check if score equals max score (allows early completion)
-    const scoreEqualsMax = score !== null && scoreMax !== null && score === scoreMax;
-    
-    const canComplete = 
-      (timeSpentSeconds >= estimatedMinTime || scoreEqualsMax) &&
-      (lastVideoReached || currentProgress >= 80 || scoreEqualsMax);
-    
-    let message = '';
-    if (!canComplete) {
-      if (timeSpentSeconds < estimatedMinTime && !scoreEqualsMax) {
-        message = `Please spend at least ${estimatedMinTime} seconds reading. Current time: ${timeSpentSeconds}s`;
-      } else if (!lastVideoReached && currentProgress < 80 && !scoreEqualsMax) {
-        message = `Please read more of the book. Current progress: ${currentProgress.toFixed(1)}%`;
-      }
-    } else {
-      if (scoreEqualsMax) {
-        message = 'Maximum score reached! Completion requirements met!';
-      } else {
-        message = 'Completion requirements met!';
-      }
-    }
-    
-    // If validation passes, record the completion
-    if (canComplete) {
-      // Check if already completed
-      if (contentProgressItem.scormProgress?.completion?.lastVideoWatchRecorded) {
-        // Already completed
-        const childStats = await ChildStats.getOrCreate(child._id);
-        return res.json({
-          success: true,
-          canComplete: true,
-          message: 'Completion already recorded',
-          data: {
-            starsAwarded: false,
-            starsToAward: 0,
-            totalStars: childStats.totalStars,
-            alreadyCompleted: true,
-        timeSpent: timeSpentSeconds,
-        estimatedMinTime,
-        currentProgress,
-        lastVideoReached,
-        score,
-        scoreMax,
-        scoreMin,
-        status,
-      },
-    });
-      }
-      
-      // Record completion - reuse logic from recordLastVideoWatch
-      try {
-        const book = await Book.findById(contentId);
-        if (!book) {
-          return res.status(404).json({
-            success: false,
-            canComplete: false,
-            message: 'Book not found',
-          });
-        }
-        
-        const childStats = await ChildStats.getOrCreate(child._id);
-        const requiredWatchCount = book.requiredWatchCount || 5;
-        const starsToAward = book.starsAwarded || 10;
-        
-        // Check if stars have already been awarded
-        const existingEarning = await StarEarning.findOne({
-          child: child._id,
-          'source.type': 'book',
-          'source.contentId': contentId,
-        });
-        
-        const starsAlreadyAwarded = !!existingEarning;
-        
-        if (!starsAlreadyAwarded) {
-          // Award stars for completing the book
-          await StarEarning.create({
-            child: child._id,
-            stars: starsToAward,
-            source: {
-              type: 'book',
-              contentId: contentId,
-              contentType: 'Book',
-              metadata: {
-                bookTitle: book.title,
-                requiredWatchCount,
-              },
-            },
-            description: `Earned ${starsToAward} stars for completing "${book.title}"`,
-          });
-          
-          // Update ChildStats to accumulate total stars
-          await childStats.addStars(starsToAward);
-          await childStats.save();
-          
-          console.log(`[SCORM] Stars awarded: ${starsToAward} stars added to child ${child._id} for book ${contentId}`);
-        }
-        
-        // Mark completion as recorded in CourseProgress
-        if (!contentProgressItem.scormProgress.completion) {
-          contentProgressItem.scormProgress.completion = {};
-        }
-        contentProgressItem.scormProgress.completion.lastVideoWatchRecorded = true;
-        contentProgressItem.scormProgress.completion.completedAt = new Date();
-        await progress.save();
-        
-        // Get reading count (using BookReading model if available)
-        let readingCount = 0;
-        try {
-          const BookReading = require('../models/BookReading');
-          readingCount = await BookReading.getCompletedReadingCount(child._id, contentId);
-        } catch (err) {
-          // BookReading model might not exist, use default
-          readingCount = 1;
-        }
-        
-        return res.json({
-          success: true,
-          canComplete: true,
-          message: 'Completion recorded successfully',
-          data: {
-            starsAwarded: !starsAlreadyAwarded,
-            starsToAward: starsAlreadyAwarded ? 0 : starsToAward,
-            totalStars: childStats.totalStars,
-            readingCount: readingCount + 1,
-            requiredReadingCount: requiredWatchCount,
-            timeSpent: timeSpentSeconds,
-            estimatedMinTime,
-            currentProgress,
-            lastVideoReached,
-            score,
-            scoreMax,
-            scoreMin,
-            status,
-          },
-        });
-      } catch (err) {
-        console.error('Error recording completion:', err);
-        return res.status(500).json({
-          success: false,
-          canComplete: false,
-          message: 'Completion validated but failed to record: ' + err.message,
-        });
-      }
-    }
-    
-    // Validation failed - return error message
-    return res.json({
-      success: true,
-      canComplete: false,
-      message,
-      data: {
-        timeSpent: timeSpentSeconds,
-        estimatedMinTime,
-        currentProgress,
-        lastVideoReached,
-        score,
-        scoreMax,
-        scoreMin,
-        status,
-      },
-    });
-  } catch (error) {
-    console.error('Error checking completion:', error);
-    res.status(500).json({
-      success: false,
-      canComplete: false,
-      message: error.message || 'Failed to check completion',
-    });
-  }
+  // Return deprecation notice
+  return res.status(410).json({
+    success: false,
+    message: 'This endpoint has been deprecated. Use POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete instead.',
+    deprecated: true,
+  });
+  
+  /* DEPRECATED CODE - Removed book completion logic
+   * Book completion is now handled by courseProgress controller
+   * SCORM controller should only handle SCORM operations
+   */
 };
 
 /**
@@ -2503,5 +2124,6 @@ module.exports = {
   getProgress,
   getWrapper,
   recordLastVideoWatch,
-  checkCompletion,
+  // checkCompletion - DEPRECATED: Moved to courseProgress controller
+  // Use POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete instead
 };

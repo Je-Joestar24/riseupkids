@@ -19,8 +19,10 @@ import { launchScorm } from '../../../services/scormService';
 import { useAuth } from '../../../hooks/userHook';
 import { themeColors } from '../../../config/themeColors';
 import useCourseProgress from '../../../hooks/courseProgressHook';
+import courseProgressService from '../../../services/courseProgressService';
 import { useParams } from 'react-router-dom';
 import axios from '../../../api/axios';
+import ScormCompletionDialog from './ScormCompletionDialog';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, isCompleted }) => (
@@ -143,7 +145,8 @@ const ScormPlayer = ({
   const theme = useTheme();
   const { user } = useAuth();
   const { id: childId } = useParams();
-  const { updateProgress } = useCourseProgress(childId);
+  const { getBookReadingStatus } = useCourseProgress(childId);
+  // Removed updateProgress from hook - using service directly to avoid notification dialog
   
   const iframeRef = useRef(null);
   // API is now injected by wrapper HTML, no need for apiRef
@@ -158,10 +161,15 @@ const ScormPlayer = ({
   const [maxScore, setMaxScore] = useState(null); // Track max score for completion check
   const [timeSpent, setTimeSpent] = useState('00:00:00.00');
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0); // Track time in seconds for completion check
+  const [currentProgress, setCurrentProgress] = useState(0); // Track progress percentage (0-100)
   const [isCompleted, setIsCompleted] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false); // Prevent multiple calls
   const [completionError, setCompletionError] = useState(null);
+  const [showCompletionDialog, setShowCompletionDialog] = useState(false);
+  const [completionData, setCompletionData] = useState(null);
+  const [readingProgress, setReadingProgress] = useState({ readingCount: 0, requiredReadingCount: 5 });
   
   // Estimated minimum time for completion (60 seconds)
   const estimatedMinTime = 60;
@@ -169,10 +177,34 @@ const ScormPlayer = ({
   // Get courseId from URL params or context
   const { courseId } = useParams();
 
+  /**
+   * Fetch current book reading progress
+   */
+  const fetchBookReadingProgress = async () => {
+    if (!childId || !contentId || contentType !== 'book') return;
+    
+    try {
+      const response = await getBookReadingStatus(contentId);
+      if (response) {
+        setReadingProgress({
+          readingCount: response.currentReadingCount || 0,
+          requiredReadingCount: response.requiredReadingCount || 5,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching book reading progress:', error);
+      // Don't show error, just use defaults
+    }
+  };
+
   // Load SCORM launch URL when modal opens
   useEffect(() => {
     if (open && contentId && contentType) {
       loadScormContent();
+      // Fetch current reading progress if it's a book
+      if (contentType === 'book' && childId) {
+        fetchBookReadingProgress();
+      }
     } else {
       // Cleanup when modal closes
       cleanup();
@@ -214,8 +246,13 @@ const ScormPlayer = ({
       setMaxScore(null);
       setTimeSpent('00:00:00.00');
       setTimeSpentSeconds(0);
+      setCurrentProgress(0);
       setIsCompleted(false);
       setCompletionError(null);
+      setShowCompletionDialog(false);
+      setCompletionData(null);
+      setReadingProgress({ readingCount: 0, requiredReadingCount: 5 });
+      setIsCompleting(false);
 
       // Map contentType to backend format
       const backendContentType = contentType === 'video' ? 'video' : 
@@ -268,9 +305,8 @@ const ScormPlayer = ({
           suspendData,
           isCompleted: completedFromMessage,
           isLastSlide: isLastSlideFromMessage,
-          isLastVideoPlaying: isLastVideoPlayingFromMessage,
-          isScormEnded: isScormEndedFromMessage,
-          lastVideoFilename
+          progress,
+          timeSpentSeconds: timeSpentSecondsFromMessage
         } = event.data.data;
         
         setCurrentStatus(status || 'not attempted');
@@ -278,9 +314,15 @@ const ScormPlayer = ({
         setMaxScore(scoreMax !== undefined ? scoreMax : null);
         setTimeSpent(timeSpent || '00:00:00.00');
         
+        // Store progress if provided (ensure it's a number)
+        if (progress !== undefined && progress !== null) {
+          const progressNum = typeof progress === 'number' ? progress : parseFloat(progress) || 0;
+          setCurrentProgress(progressNum);
+        }
+        
         // Parse time to seconds for completion check
-        if (timeSpent && event.data.data.timeSpentSeconds !== undefined) {
-          setTimeSpentSeconds(event.data.data.timeSpentSeconds);
+        if (timeSpentSecondsFromMessage !== undefined) {
+          setTimeSpentSeconds(timeSpentSecondsFromMessage);
         } else if (timeSpent && timeSpent !== '00:00:00.00') {
           // Parse time string to seconds (HH:MM:SS.SS format)
           const parts = timeSpent.split(':');
@@ -292,18 +334,8 @@ const ScormPlayer = ({
           }
         }
         
-        // Log for debugging (NO auto-completion)
-        if (isLastVideoPlayingFromMessage) {
-          console.log('[SCORM] Last video is playing:', lastVideoFilename);
-        }
-        
-        if (isScormEndedFromMessage) {
-          console.log('[SCORM] ✅ SCORM flow has fully ended - final image reached! (logged only)');
-        }
-        
         // Log completion data for debugging
-        console.log('[SCORM Progress] Status:', status, 'Score:', score, 'Time:', timeSpent, 
-                   'Last video:', isLastVideoPlayingFromMessage, 'Final image:', isScormEndedFromMessage);
+        console.log('[SCORM Progress] Status:', status, 'Score:', score, 'Time:', timeSpent);
         
         // REMOVED: All auto-completion logic
         // User must click "Done" button to trigger completion check
@@ -374,29 +406,112 @@ const ScormPlayer = ({
    * Handle "Done" button click - check completion requirements
    */
   const handleDoneClick = async () => {
+    // Prevent multiple calls
+    if (isCompleting || isCheckingCompletion) {
+      console.log('[SCORM Frontend] ⚠️ handleDoneClick - Already processing, ignoring duplicate call');
+      console.log('[SCORM Frontend] Current state:', { isCompleting, isCheckingCompletion });
+      return;
+    }
+    
+    const requestId = `frontend-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`\n========== [SCORM Frontend] Request ${requestId} - handleDoneClick STARTED ==========`);
+    console.log(`[SCORM Frontend] Request ${requestId} - Timestamp:`, new Date().toISOString());
+    console.log(`[SCORM Frontend] Request ${requestId} - Content:`, { contentId, contentType });
+    console.log(`[SCORM Frontend] Request ${requestId} - Progress:`, { timeSpentSeconds, currentScore, maxScore });
+    
+    setIsCompleting(true);
     setIsCheckingCompletion(true);
     setCompletionError(null);
     
+    // Validate that we have courseId and childId
+    if (!courseId || !childId) {
+      console.error(`[SCORM Frontend] Request ${requestId} - Missing courseId or childId`);
+      setCompletionError('Unable to complete: Missing course or child information. Please refresh the page.');
+      setIsCompleting(false);
+      setIsCheckingCompletion(false);
+      return;
+    }
+    
     try {
-      const response = await axios.post(`/scorm/${contentId}/check-completion`, {
-        contentType: contentType,
+      // Call the new book completion endpoint
+      const endpoint = `/course-progress/${courseId}/child/${childId}/book/${contentId}/complete`;
+      console.log(`[SCORM Frontend] Request ${requestId} - Sending POST to ${endpoint}`);
+      console.log(`[SCORM Frontend] Request ${requestId} - Request body:`, {
+        score: currentScore,
+        maxScore: maxScore,
+        status: currentStatus,
+        timeSpent: timeSpentSeconds,
+        progress: currentProgress,
+      });
+      
+      // Ensure progress is a number, not null
+      const progressToSend = currentProgress !== null && currentProgress !== undefined 
+        ? currentProgress 
+        : 0;
+      
+      const response = await axios.post(endpoint, {
+        score: currentScore,
+        maxScore: maxScore,
+        status: currentStatus,
+        timeSpent: timeSpentSeconds,
+        progress: progressToSend,
+      });
+      
+      console.log(`[SCORM Frontend] Request ${requestId} - ✅ Response received:`, {
+        success: response.data.success,
+        canComplete: response.data.canComplete,
+        alreadyCompleted: response.data.data?.alreadyCompleted,
+        readingCount: response.data.data?.readingCount,
+        starsAwarded: response.data.data?.starsAwarded,
       });
       
       const data = response.data;
       
       if (data.success && data.canComplete) {
-        // Completion validated - show success and close
+        // Completion validated - show success dialog
         setIsCompleted(true);
         
-        // Update course progress
-        if (courseId && childId) {
-          updateProgress(courseId, contentId, contentType)
+        // Store completion data for dialog
+        const completionDataToStore = {
+          starsAwarded: data.data.starsAwarded || false,
+          starsToAward: data.data.starsToAward || 0,
+          totalStars: data.data.totalStars || 0,
+          readingCount: data.data.readingCount || 0,
+          requiredReadingCount: data.data.requiredReadingCount || 5,
+          requirementMet: data.data.requirementMet || false,
+        };
+        setCompletionData(completionDataToStore);
+        
+        // Update reading progress for header display
+        setReadingProgress({
+          readingCount: data.data.readingCount || 0,
+          requiredReadingCount: data.data.requiredReadingCount || 5,
+        });
+        
+        // Show completion dialog
+        setShowCompletionDialog(true);
+        
+        // Update course progress silently (no notification) - ONLY if requirement is met
+        // For books, this will only succeed if readingCount >= requiredReadingCount
+        // This prevents marking books as completed prematurely (like videos)
+        if (courseId && childId && data.data.requirementMet) {
+          // Only update progress if requirement is met (similar to videos)
+          courseProgressService.updateContentProgress(courseId, childId, contentId, contentType)
             .then(() => {
-              console.log('Course progress updated after SCORM completion');
+              console.log('[SCORM] Course progress updated silently after completion (requirement met)');
             })
             .catch((err) => {
-              console.error('Failed to update course progress:', err);
+              console.error('[SCORM] Failed to update course progress:', err);
+              // Don't show error notification - completion dialog is already showing
+              // This is expected if requirement is not yet met
             });
+        } else if (courseId && childId && !data.data.requirementMet) {
+          console.log('[SCORM] Skipping course progress update - requirement not yet met (reading count:', data.data.readingCount, '/', data.data.requiredReadingCount, ')');
+        }
+        
+        // Refresh reading progress after completion
+        if (contentType === 'book' && childId) {
+          fetchBookReadingProgress();
         }
         
         // Call onComplete callback if provided
@@ -405,28 +520,30 @@ const ScormPlayer = ({
             status: data.data.status || 'completed',
             score: data.data.score,
             timeSpent: timeSpent,
-            isLastSlide: true,
-            isScormEnded: true,
             starsAwarded: data.data.starsAwarded,
             starsToAward: data.data.starsToAward,
-            readingCount: data.data.readingCount,
             totalStars: data.data.totalStars,
           });
         }
-        
-        // Close after a short delay to show success
-        setTimeout(() => {
-          handleConfirmedClose();
-        }, 1500);
       } else {
         // Requirements not met - show error message
-        setCompletionError(data.message || 'Please spend more time reading the book before completing.');
+        const errorMessage = data.message || 'Please spend more time reading the book before completing.';
+        setCompletionError(errorMessage);
+        
+        // Log validation details if available
+        if (data.data?.requirements) {
+          console.log(`[SCORM Frontend] Request ${requestId} - Validation failed:`, data.data.requirements);
+          console.log(`[SCORM Frontend] Request ${requestId} - Current values:`, data.data.current);
+        }
       }
     } catch (err) {
-      console.error('Error checking completion:', err);
+      console.error(`[SCORM Frontend] Request ${requestId} - ❌ Error:`, err);
+      console.error(`[SCORM Frontend] Request ${requestId} - Error response:`, err.response?.data);
       setCompletionError(err.response?.data?.message || 'Failed to check completion. Please try again.');
     } finally {
+      setIsCompleting(false);
       setIsCheckingCompletion(false);
+      console.log(`[SCORM Frontend] Request ${requestId} - ✅ handleDoneClick COMPLETED\n`);
     }
   };
 
@@ -535,6 +652,12 @@ const ScormPlayer = ({
             fontFamily: 'Quicksand, sans-serif',
             maxHeight: '90vh',
             backgroundColor: themeColors.bgCard,
+            overflow: 'hidden', // Hide scrollbar on dialog paper
+            '&::-webkit-scrollbar': {
+              display: 'none', // Hide scrollbar for Chrome, Safari, Edge
+            },
+            scrollbarWidth: 'none', // Hide scrollbar for Firefox
+            msOverflowStyle: 'none', // Hide scrollbar for IE and Edge
           },
         }}
         BackdropProps={{
@@ -569,11 +692,26 @@ const ScormPlayer = ({
           >
             {contentTitle}
           </Typography>
-          {apiInitialized && (
+{/*           {apiInitialized && (
             <Chip
               label={getStatusLabel(currentStatus)}
               sx={{
                 backgroundColor: getStatusColor(currentStatus),
+                color: themeColors.textInverse,
+                fontWeight: 700,
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '1.1rem',
+                padding: '8px 16px',
+                height: 'auto',
+                border: `3px solid ${themeColors.textInverse}`,
+              }}
+            />
+          )} */}
+          {readingProgress.readingCount > 0 && (
+            <Chip
+              label={`Reading: ${readingProgress.readingCount} / ${readingProgress.requiredReadingCount}`}
+              sx={{
+                backgroundColor: themeColors.accent,
                 color: themeColors.textInverse,
                 fontWeight: 700,
                 fontFamily: 'Quicksand, sans-serif',
@@ -620,6 +758,12 @@ const ScormPlayer = ({
           minHeight: '600px',
           display: 'flex',
           flexDirection: 'column',
+          overflow: 'hidden', // Hide scrollbar on dialog content
+          '&::-webkit-scrollbar': {
+            display: 'none', // Hide scrollbar for Chrome, Safari, Edge
+          },
+          scrollbarWidth: 'none', // Hide scrollbar for Firefox
+          msOverflowStyle: 'none', // Hide scrollbar for IE and Edge
         }}
       >
         {/* Loading State */}
@@ -754,6 +898,12 @@ const ScormPlayer = ({
               position: 'relative',
               backgroundColor: '#000',
               display: loading ? 'none' : 'block',
+              overflow: 'hidden', // Hide scrollbar on container
+              '&::-webkit-scrollbar': {
+                display: 'none', // Hide scrollbar for Chrome, Safari, Edge
+              },
+              scrollbarWidth: 'none', // Hide scrollbar for Firefox
+              msOverflowStyle: 'none', // Hide scrollbar for IE and Edge
             }}
           >
             <iframe
@@ -765,9 +915,11 @@ const ScormPlayer = ({
                 minHeight: '600px',
                 border: 'none',
                 display: 'block',
+                overflow: 'hidden', // Hide scrollbar on iframe
               }}
               title="SCORM Content"
               allow="fullscreen"
+              scrolling="no" // Disable scrolling on iframe (deprecated but still works)
               // Removed sandbox to allow full window access (same-origin, so it's safe)
               // The SCORM content needs to access window.parent.open without restrictions
             />
@@ -830,7 +982,7 @@ const ScormPlayer = ({
           <Button
             onClick={handleDoneClick}
             variant="contained"
-            disabled={isCompleted || isCheckingCompletion || (timeSpentSeconds < estimatedMinTime && !(currentScore !== null && maxScore !== null && currentScore === maxScore))}
+            disabled={isCompleted || isCheckingCompletion || isCompleting || (timeSpentSeconds < estimatedMinTime && !(currentScore !== null && maxScore !== null && currentScore === maxScore))}
             sx={{
               backgroundColor: isCompleted ? themeColors.success : themeColors.secondary,
               color: themeColors.textInverse,
@@ -895,6 +1047,19 @@ const ScormPlayer = ({
       onCancel={handleCancelClose}
       title={isCompleted ? 'Activity Completed!' : 'Close Activity?'}
       isCompleted={isCompleted}
+    />
+
+    {/* Completion Success Dialog */}
+    <ScormCompletionDialog
+      open={showCompletionDialog}
+      onClose={() => {
+        setShowCompletionDialog(false);
+        // Close SCORM player after dialog closes
+        setTimeout(() => {
+          handleConfirmedClose();
+        }, 300);
+      }}
+      data={completionData}
     />
     </>
   );

@@ -61,16 +61,7 @@ router.get('/:contentId/wrapper', scormController.getWrapper);
  */
 router.post('/:contentId/record-last-video-watch', protect, scormController.recordLastVideoWatch);
 
-/**
- * @route   POST /api/scorm/:contentId/check-completion
- * @desc    Check if SCORM completion requirements are met and record completion if valid
- * @access  Private
- * 
- * Body:
- * {
- *   "contentType": "book"
- * }
- */
-router.post('/:contentId/check-completion', protect, scormController.checkCompletion);
+// NOTE: check-completion endpoint has been moved to course-progress controller
+// Use POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete instead
 
 module.exports = router;

@@ -7,6 +7,7 @@ const {
   updateContentProgress,
   markCourseCompleted,
   getCourseDetailsForChild,
+  submitBookCompletion,
 } = require('../controllers/courseProgress.controller');
 const { protect } = require('../middleware/auth');
 
@@ -47,6 +48,15 @@ router.get('/:courseId/access/:childId', checkCourseAccess);
  * @access  Private (Parent/Admin)
  */
 router.patch('/:courseId/child/:childId/content', updateContentProgress);
+
+/**
+ * @route   POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete
+ * @desc    Submit book reading completion
+ * @access  Private (Parent/Admin)
+ * 
+ * NOTE: This route must come before the general /complete route to avoid route conflicts
+ */
+router.post('/:courseId/child/:childId/book/:bookId/complete', submitBookCompletion);
 
 /**
  * @route   POST /api/course-progress/:courseId/child/:childId/complete
