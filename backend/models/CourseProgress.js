@@ -107,6 +107,14 @@ const courseProgressSchema = new mongoose.Schema(
             enum: ['normal', 'time-out', 'suspend', 'logout', ''],
             default: '',
           },
+          lessonLocation: {
+            type: String,
+            default: '',
+          },
+          lastVideoReached: {
+            type: Boolean,
+            default: false,
+          },
           lastAccessed: {
             type: Date,
             default: Date.now,

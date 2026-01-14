@@ -49,4 +49,28 @@ router.get('/:contentId/progress', protect, scormController.getProgress);
  */
 router.get('/:contentId/wrapper', scormController.getWrapper);
 
+/**
+ * @route   POST /api/scorm/:contentId/record-last-video-watch
+ * @desc    Record last video watch for SCORM book (counts and awards stars)
+ * @access  Private
+ * 
+ * Body:
+ * {
+ *   "contentType": "book"
+ * }
+ */
+router.post('/:contentId/record-last-video-watch', protect, scormController.recordLastVideoWatch);
+
+/**
+ * @route   POST /api/scorm/:contentId/check-completion
+ * @desc    Check if SCORM completion requirements are met and record completion if valid
+ * @access  Private
+ * 
+ * Body:
+ * {
+ *   "contentType": "book"
+ * }
+ */
+router.post('/:contentId/check-completion', protect, scormController.checkCompletion);
+
 module.exports = router;

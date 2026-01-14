@@ -20,6 +20,7 @@ import { useAuth } from '../../../hooks/userHook';
 import { themeColors } from '../../../config/themeColors';
 import useCourseProgress from '../../../hooks/courseProgressHook';
 import { useParams } from 'react-router-dom';
+import axios from '../../../api/axios';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, isCompleted }) => (
@@ -85,9 +86,7 @@ const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, isCompleted }) =
           textTransform: 'none',
           padding: '12px 32px',
           borderRadius: '12px',
-          borderColor: themeColors.orange,
           color: themeColors.orange,
-          borderWidth: '3px',
           '&:hover': {
             borderWidth: '3px',
             backgroundColor: themeColors.bgTertiary,
@@ -156,9 +155,16 @@ const ScormPlayer = ({
   const [apiInitialized, setApiInitialized] = useState(false);
   const [currentStatus, setCurrentStatus] = useState('not attempted');
   const [currentScore, setCurrentScore] = useState(null);
+  const [maxScore, setMaxScore] = useState(null); // Track max score for completion check
   const [timeSpent, setTimeSpent] = useState('00:00:00.00');
+  const [timeSpentSeconds, setTimeSpentSeconds] = useState(0); // Track time in seconds for completion check
   const [isCompleted, setIsCompleted] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
+  const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
+  const [completionError, setCompletionError] = useState(null);
+  
+  // Estimated minimum time for completion (60 seconds)
+  const estimatedMinTime = 60;
 
   // Get courseId from URL params or context
   const { courseId } = useParams();
@@ -205,7 +211,11 @@ const ScormPlayer = ({
       setIsCompleted(false);
       setCurrentStatus('not attempted');
       setCurrentScore(null);
+      setMaxScore(null);
       setTimeSpent('00:00:00.00');
+      setTimeSpentSeconds(0);
+      setIsCompleted(false);
+      setCompletionError(null);
 
       // Map contentType to backend format
       const backendContentType = contentType === 'video' ? 'video' : 
@@ -248,34 +258,55 @@ const ScormPlayer = ({
     const handleMessage = (event) => {
       // Verify message is from our SCORM wrapper (same origin)
       if (event.data && event.data.type === 'SCORM_PROGRESS') {
-        const { status, score, timeSpent, isCompleted } = event.data.data;
+        const { 
+          status, 
+          score, 
+          scoreMax,
+          timeSpent, 
+          exit, 
+          lessonLocation,
+          suspendData,
+          isCompleted: completedFromMessage,
+          isLastSlide: isLastSlideFromMessage,
+          isLastVideoPlaying: isLastVideoPlayingFromMessage,
+          isScormEnded: isScormEndedFromMessage,
+          lastVideoFilename
+        } = event.data.data;
         
         setCurrentStatus(status || 'not attempted');
         setCurrentScore(score);
+        setMaxScore(scoreMax !== undefined ? scoreMax : null);
         setTimeSpent(timeSpent || '00:00:00.00');
         
-        if (completed && !isCompleted) {
-          setIsCompleted(true);
-          
-          // Update course progress
-          if (courseId && childId) {
-            updateProgress(courseId, contentId, contentType)
-              .then(() => {
-                console.log('Course progress updated after SCORM completion');
-              })
-              .catch((err) => {
-                console.error('Failed to update course progress:', err);
-              });
-          }
-
-          if (onComplete) {
-            onComplete({
-              status,
-              score,
-              timeSpent,
-            });
+        // Parse time to seconds for completion check
+        if (timeSpent && event.data.data.timeSpentSeconds !== undefined) {
+          setTimeSpentSeconds(event.data.data.timeSpentSeconds);
+        } else if (timeSpent && timeSpent !== '00:00:00.00') {
+          // Parse time string to seconds (HH:MM:SS.SS format)
+          const parts = timeSpent.split(':');
+          if (parts.length >= 3) {
+            const hours = parseInt(parts[0]) || 0;
+            const minutes = parseInt(parts[1]) || 0;
+            const seconds = parseFloat(parts[2]) || 0;
+            setTimeSpentSeconds(hours * 3600 + minutes * 60 + seconds);
           }
         }
+        
+        // Log for debugging (NO auto-completion)
+        if (isLastVideoPlayingFromMessage) {
+          console.log('[SCORM] Last video is playing:', lastVideoFilename);
+        }
+        
+        if (isScormEndedFromMessage) {
+          console.log('[SCORM] ✅ SCORM flow has fully ended - final image reached! (logged only)');
+        }
+        
+        // Log completion data for debugging
+        console.log('[SCORM Progress] Status:', status, 'Score:', score, 'Time:', timeSpent, 
+                   'Last video:', isLastVideoPlayingFromMessage, 'Final image:', isScormEndedFromMessage);
+        
+        // REMOVED: All auto-completion logic
+        // User must click "Done" button to trigger completion check
       }
     };
 
@@ -301,18 +332,17 @@ const ScormPlayer = ({
       progressIntervalRef.current = null;
     }
 
-    // Finish SCORM API - API is in iframe window
+    // Send message to wrapper to finish SCORM session
     try {
       const iframe = iframeRef.current;
-      if (iframe && iframe.contentWindow && iframe.contentWindow.API) {
-        const api = iframe.contentWindow.API;
-        if (api && api.initialized) {
-          api.LMSCommit('');
-          api.LMSFinish('');
-        }
+      if (iframe && iframe.contentWindow) {
+        // Send finish message to wrapper via postMessage
+        iframe.contentWindow.postMessage({
+          type: 'SCORM_FINISH'
+        }, '*');
       }
     } catch (err) {
-      console.error('Error finishing SCORM API:', err);
+      console.error('Error finishing SCORM session:', err);
     }
 
     // Reset state
@@ -324,25 +354,116 @@ const ScormPlayer = ({
   };
 
   /**
+   * Parse time string to seconds
+   */
+  const parseTimeToSeconds = (timeString) => {
+    if (!timeString || timeString === '00:00:00.00') {
+      return 0;
+    }
+    const parts = timeString.split(':');
+    if (parts.length >= 3) {
+      const hours = parseInt(parts[0]) || 0;
+      const minutes = parseInt(parts[1]) || 0;
+      const seconds = parseFloat(parts[2]) || 0;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+    return 0;
+  };
+
+  /**
+   * Handle "Done" button click - check completion requirements
+   */
+  const handleDoneClick = async () => {
+    setIsCheckingCompletion(true);
+    setCompletionError(null);
+    
+    try {
+      const response = await axios.post(`/scorm/${contentId}/check-completion`, {
+        contentType: contentType,
+      });
+      
+      const data = response.data;
+      
+      if (data.success && data.canComplete) {
+        // Completion validated - show success and close
+        setIsCompleted(true);
+        
+        // Update course progress
+        if (courseId && childId) {
+          updateProgress(courseId, contentId, contentType)
+            .then(() => {
+              console.log('Course progress updated after SCORM completion');
+            })
+            .catch((err) => {
+              console.error('Failed to update course progress:', err);
+            });
+        }
+        
+        // Call onComplete callback if provided
+        if (onComplete) {
+          onComplete({
+            status: data.data.status || 'completed',
+            score: data.data.score,
+            timeSpent: timeSpent,
+            isLastSlide: true,
+            isScormEnded: true,
+            starsAwarded: data.data.starsAwarded,
+            starsToAward: data.data.starsToAward,
+            readingCount: data.data.readingCount,
+            totalStars: data.data.totalStars,
+          });
+        }
+        
+        // Close after a short delay to show success
+        setTimeout(() => {
+          handleConfirmedClose();
+        }, 1500);
+      } else {
+        // Requirements not met - show error message
+        setCompletionError(data.message || 'Please spend more time reading the book before completing.');
+      }
+    } catch (err) {
+      console.error('Error checking completion:', err);
+      setCompletionError(err.response?.data?.message || 'Failed to check completion. Please try again.');
+    } finally {
+      setIsCheckingCompletion(false);
+    }
+  };
+
+  /**
    * Handle modal close attempt - show confirmation
    */
   const handleCloseAttempt = () => {
-    setShowConfirmClose(true);
+    if (isCompleted) {
+      // Already completed, just close
+      handleConfirmedClose();
+    } else {
+      // Not completed, show confirmation
+      setShowConfirmClose(true);
+    }
   };
 
   /**
    * Handle confirmed close
    */
   const handleConfirmedClose = () => {
-    // Save progress before closing - API is in iframe window
+    // Send message to wrapper to save and finish SCORM session
     try {
       const iframe = iframeRef.current;
-      if (iframe && iframe.contentWindow && iframe.contentWindow.API) {
-        const api = iframe.contentWindow.API;
-        if (api && api.initialized) {
-          api.LMSCommit('');
-          api.LMSFinish('');
-        }
+      if (iframe && iframe.contentWindow) {
+        // Send save message first, then finish
+        iframe.contentWindow.postMessage({
+          type: 'SCORM_SAVE'
+        }, '*');
+        
+        // Small delay before finish to ensure save completes
+        setTimeout(() => {
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              type: 'SCORM_FINISH'
+            }, '*');
+          }
+        }, 500);
       }
     } catch (err) {
       console.error('Error saving progress on close:', err);
@@ -414,7 +535,6 @@ const ScormPlayer = ({
             fontFamily: 'Quicksand, sans-serif',
             maxHeight: '90vh',
             backgroundColor: themeColors.bgCard,
-            border: `4px solid ${themeColors.secondary}`,
           },
         }}
         BackdropProps={{
@@ -479,7 +599,6 @@ const ScormPlayer = ({
           sx={{
             color: themeColors.orange,
             backgroundColor: themeColors.bgTertiary,
-            border: `3px solid ${themeColors.orange}`,
             borderRadius: '12px',
             padding: '12px',
             '&:hover': {
@@ -583,8 +702,7 @@ const ScormPlayer = ({
             </Button>
           </Box>
         )}
-
-        {/* Progress Info Bar */}
+{/* 
         {apiInitialized && !error && (
           <Box
             sx={{
@@ -626,7 +744,7 @@ const ScormPlayer = ({
               }}
             />
           </Box>
-        )}
+        )} */}
 
         {/* SCORM Content Iframe */}
         {scormUrl && !error && (
@@ -650,6 +768,8 @@ const ScormPlayer = ({
               }}
               title="SCORM Content"
               allow="fullscreen"
+              // Removed sandbox to allow full window access (same-origin, so it's safe)
+              // The SCORM content needs to access window.parent.open without restrictions
             />
           </Box>
         )}
@@ -661,43 +781,110 @@ const ScormPlayer = ({
           borderTop: `4px solid ${themeColors.secondary}`,
           backgroundColor: themeColors.bgCard,
           justifyContent: 'space-between',
+          flexDirection: 'column',
+          gap: 2,
         }}
       >
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {apiInitialized && (
-            <Typography
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontSize: '1.2rem',
-                fontWeight: 600,
-                color: themeColors.primary,
-              }}
-            >
-              Progress is saved automatically
-            </Typography>
-          )}
+        {/* Completion Error Message */}
+        {completionError && (
+          <Alert
+            severity="warning"
+            sx={{
+              width: '100%',
+              fontFamily: 'Quicksand, sans-serif',
+              fontSize: '1.2rem',
+              fontWeight: 600,
+            }}
+            onClose={() => setCompletionError(null)}
+          >
+            {completionError}
+          </Alert>
+        )}
+        
+        {/* Button Group */}
+        <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'flex-end' }}>
+          <Button
+            onClick={handleCloseAttempt}
+            variant="outlined"
+            disabled={isCheckingCompletion}
+            sx={{
+              borderColor: themeColors.secondary,
+              color: themeColors.secondary,
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 700,
+              textTransform: 'none',
+              padding: '12px 32px',
+              fontSize: '1.3rem',
+              borderRadius: '12px',
+              borderWidth: '3px',
+              '&:hover': {
+                borderWidth: '3px',
+                backgroundColor: themeColors.bgTertiary,
+                transform: 'scale(1.05)',
+              },
+            }}
+          >
+            Close
+          </Button>
+          
+          <Button
+            onClick={handleDoneClick}
+            variant="contained"
+            disabled={isCompleted || isCheckingCompletion || (timeSpentSeconds < estimatedMinTime && !(currentScore !== null && maxScore !== null && currentScore === maxScore))}
+            sx={{
+              backgroundColor: isCompleted ? themeColors.success : themeColors.secondary,
+              color: themeColors.textInverse,
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 700,
+              textTransform: 'none',
+              padding: '12px 32px',
+              fontSize: '1.3rem',
+              borderRadius: '12px',
+              border: `3px solid ${themeColors.primary}`,
+              '&:hover': {
+                backgroundColor: themeColors.primary,
+                transform: 'scale(1.05)',
+              },
+              '&:disabled': {
+                backgroundColor: themeColors.textMuted,
+                color: themeColors.text,
+              },
+            }}
+          >
+            {isCheckingCompletion ? 'Checking...' : isCompleted ? 'Completed ✓' : 'Done'}
+          </Button>
         </Box>
-        <Button
-          onClick={handleCloseAttempt}
-          variant="contained"
-          sx={{
-            backgroundColor: themeColors.secondary,
-            color: themeColors.textInverse,
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 700,
-            textTransform: 'none',
-            padding: '12px 32px',
-            fontSize: '1.3rem',
-            borderRadius: '12px',
-            border: `3px solid ${themeColors.primary}`,
-            '&:hover': {
-              backgroundColor: themeColors.primary,
-              transform: 'scale(1.05)',
-            },
-          }}
-        >
-          {isCompleted ? 'Close' : 'Close & Save Progress'}
-        </Button>
+        
+        {/* Time Requirement Indicator */}
+        {!isCompleted && timeSpentSeconds < estimatedMinTime && !(currentScore !== null && maxScore !== null && currentScore === maxScore) && (
+          <Typography
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontSize: '1.1rem',
+              color: themeColors.textSecondary,
+              textAlign: 'center',
+              width: '100%',
+            }}
+          >
+            Please read for at least {estimatedMinTime} seconds ({timeSpentSeconds}s / {estimatedMinTime}s)
+          </Typography>
+        )}
+        
+        {/* Max Score Reached Indicator */}
+        {!isCompleted && currentScore !== null && maxScore !== null && currentScore === maxScore && (
+          <Typography
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontSize: '1.1rem',
+              color: themeColors.success,
+              textAlign: 'center',
+              width: '100%',
+              fontWeight: 600,
+            }}
+          >
+            ✓ Maximum score reached! You can complete the activity now.
+          </Typography>
+        )}
       </DialogActions>
     </Dialog>
 

@@ -873,8 +873,8 @@ const updateScormProgress = async (childId, courseId, contentId, contentType, pr
   if (progressData.score !== undefined) {
     contentProgressItem.scormProgress.score = {
       raw: progressData.score.raw || progressData.score || null,
-      max: progressData.score.max || 100,
-      min: progressData.score.min || 0,
+      max: progressData.scoreMax !== undefined ? progressData.scoreMax : (progressData.score?.max || 100),
+      min: progressData.scoreMin !== undefined ? progressData.scoreMin : (progressData.score?.min || 0),
     };
   }
 
@@ -892,6 +892,14 @@ const updateScormProgress = async (childId, courseId, contentId, contentType, pr
 
   if (progressData.exit) {
     contentProgressItem.scormProgress.exit = progressData.exit;
+  }
+
+  if (progressData.lessonLocation !== undefined) {
+    contentProgressItem.scormProgress.lessonLocation = progressData.lessonLocation;
+  }
+
+  if (progressData.lastVideoReached !== undefined) {
+    contentProgressItem.scormProgress.lastVideoReached = progressData.lastVideoReached;
   }
 
   contentProgressItem.scormProgress.lastAccessed = new Date();
