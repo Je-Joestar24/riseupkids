@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
-import SCORMAPI from '../../../services/scormAPI';
+// SCORM API is now injected by wrapper HTML, no need to import
 import { launchScorm } from '../../../services/scormService';
 import { useAuth } from '../../../hooks/userHook';
 import { themeColors } from '../../../config/themeColors';
@@ -147,7 +147,7 @@ const ScormPlayer = ({
   const { updateProgress } = useCourseProgress(childId);
   
   const iframeRef = useRef(null);
-  const apiRef = useRef(null);
+  // API is now injected by wrapper HTML, no need for apiRef
   const progressIntervalRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
@@ -228,7 +228,7 @@ const ScormPlayer = ({
   };
 
   /**
-   * Inject SCORM API into iframe when it loads
+   * Monitor iframe load and listen for postMessage updates from wrapper
    */
   useEffect(() => {
     if (!scormUrl || !iframeRef.current) return;
@@ -236,107 +236,60 @@ const ScormPlayer = ({
     const iframe = iframeRef.current;
     
     const handleIframeLoad = () => {
-      try {
-        const iframeWindow = iframe.contentWindow;
-        if (!iframeWindow) {
-          throw new Error('Cannot access iframe window');
-        }
-
-        // Initialize SCORM API
-        const api = new SCORMAPI(contentId, contentType, user?._id);
-        apiRef.current = api;
-
-        // Inject API into iframe
-        iframeWindow.API = api;
-        iframeWindow.API_1484_11 = api; // SCORM 2004 compatibility
-        
-        // Also try parent window (for nested iframes)
-        try {
-          if (iframeWindow.parent && iframeWindow.parent !== window) {
-            iframeWindow.parent.API = api;
-            iframeWindow.parent.API_1484_11 = api;
-          }
-        } catch (e) {
-          // Cross-origin restriction - that's okay
-          console.warn('Cannot set parent.API (cross-origin):', e);
-        }
-
-        // Initialize SCORM API
-        const initResult = api.LMSInitialize('');
-        if (initResult === 'true') {
-          setApiInitialized(true);
-          setLoading(false);
-          
-          // Start monitoring progress
-          startProgressMonitoring();
-        } else {
-          throw new Error('SCORM API initialization failed');
-        }
-      } catch (err) {
-        console.error('Failed to inject SCORM API:', err);
-        setError('Failed to initialize SCORM content. Please try again.');
+      // Wrapper is loaded, API will be injected by wrapper
+      // Just wait a moment for initialization
+      setTimeout(() => {
+        setApiInitialized(true);
         setLoading(false);
+      }, 1000);
+    };
+
+    // Listen for postMessage from wrapper
+    const handleMessage = (event) => {
+      // Verify message is from our SCORM wrapper (same origin)
+      if (event.data && event.data.type === 'SCORM_PROGRESS') {
+        const { status, score, timeSpent, isCompleted } = event.data.data;
+        
+        setCurrentStatus(status || 'not attempted');
+        setCurrentScore(score);
+        setTimeSpent(timeSpent || '00:00:00.00');
+        
+        if (completed && !isCompleted) {
+          setIsCompleted(true);
+          
+          // Update course progress
+          if (courseId && childId) {
+            updateProgress(courseId, contentId, contentType)
+              .then(() => {
+                console.log('Course progress updated after SCORM completion');
+              })
+              .catch((err) => {
+                console.error('Failed to update course progress:', err);
+              });
+          }
+
+          if (onComplete) {
+            onComplete({
+              status,
+              score,
+              timeSpent,
+            });
+          }
+        }
       }
     };
 
     iframe.addEventListener('load', handleIframeLoad);
+    window.addEventListener('message', handleMessage);
 
     return () => {
       iframe.removeEventListener('load', handleIframeLoad);
+      window.removeEventListener('message', handleMessage);
     };
-  }, [scormUrl, contentId, contentType, user]);
+  }, [scormUrl, contentId, contentType, user, courseId, childId, onComplete]);
 
-  /**
-   * Monitor SCORM progress
-   */
-  const startProgressMonitoring = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-
-    progressIntervalRef.current = setInterval(() => {
-      const api = apiRef.current;
-      if (api && api.initialized) {
-        try {
-          const status = api.LMSGetValue('cmi.core.lesson_status');
-          const score = api.LMSGetValue('cmi.core.score.raw');
-          const time = api.LMSGetValue('cmi.core.total_time');
-
-          setCurrentStatus(status || 'not attempted');
-          setCurrentScore(score ? parseFloat(score) : null);
-          setTimeSpent(time || '00:00:00.00');
-
-          // Check if completed
-          if (status === 'completed' || status === 'passed') {
-            if (!isCompleted) {
-              setIsCompleted(true);
-              
-              // Update course progress
-              if (courseId && childId) {
-                updateProgress(courseId, contentId, contentType)
-                  .then(() => {
-                    console.log('Course progress updated after SCORM completion');
-                  })
-                  .catch((err) => {
-                    console.error('Failed to update course progress:', err);
-                  });
-              }
-
-              if (onComplete) {
-                onComplete({
-                  status,
-                  score: score ? parseFloat(score) : null,
-                  timeSpent: time,
-                });
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Error monitoring SCORM progress:', err);
-        }
-      }
-    }, 3000); // Check every 3 seconds
-  };
+  // Progress monitoring is now handled via postMessage from wrapper
+  // No need for startProgressMonitoring function anymore
 
   /**
    * Cleanup on unmount or close
@@ -348,14 +301,18 @@ const ScormPlayer = ({
       progressIntervalRef.current = null;
     }
 
-    // Finish SCORM API
-    if (apiRef.current && apiRef.current.initialized) {
-      try {
-        apiRef.current.LMSFinish('');
-      } catch (err) {
-        console.error('Error finishing SCORM API:', err);
+    // Finish SCORM API - API is in iframe window
+    try {
+      const iframe = iframeRef.current;
+      if (iframe && iframe.contentWindow && iframe.contentWindow.API) {
+        const api = iframe.contentWindow.API;
+        if (api && api.initialized) {
+          api.LMSCommit('');
+          api.LMSFinish('');
+        }
       }
-      apiRef.current = null;
+    } catch (err) {
+      console.error('Error finishing SCORM API:', err);
     }
 
     // Reset state
@@ -377,14 +334,18 @@ const ScormPlayer = ({
    * Handle confirmed close
    */
   const handleConfirmedClose = () => {
-    // Save progress before closing
-    if (apiRef.current && apiRef.current.initialized) {
-      try {
-        apiRef.current.LMSCommit('');
-        apiRef.current.LMSFinish('');
-      } catch (err) {
-        console.error('Error saving progress on close:', err);
+    // Save progress before closing - API is in iframe window
+    try {
+      const iframe = iframeRef.current;
+      if (iframe && iframe.contentWindow && iframe.contentWindow.API) {
+        const api = iframe.contentWindow.API;
+        if (api && api.initialized) {
+          api.LMSCommit('');
+          api.LMSFinish('');
+        }
       }
+    } catch (err) {
+      console.error('Error saving progress on close:', err);
     }
     
     cleanup();
@@ -687,7 +648,6 @@ const ScormPlayer = ({
                 border: 'none',
                 display: 'block',
               }}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
               title="SCORM Content"
               allow="fullscreen"
             />

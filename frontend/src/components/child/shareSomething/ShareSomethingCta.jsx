@@ -36,7 +36,7 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
   const hasPhoto = Boolean(photo);
   const hasTitle = Boolean(title && typeof title === 'string' && title.trim().length > 0);
   const hasDescription = Boolean(description && typeof description === 'string' && description.trim().length > 0);
-  
+
   const isFormComplete = hasPhoto && hasTitle && hasDescription;
   const isDisabled = !isFormComplete || loading;
 
@@ -133,7 +133,7 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
           transition: 'all 0.3s ease',
 
           backgroundColor: isDisabled
-            ? `${themeColors.secondary}80`
+            ? `lightgray`
             : themeColors.orange,
 
           color: isDisabled
@@ -147,8 +147,16 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
             opacity: isDisabled ? 1 : 0.9,
           },
 
+          /* ✅ cursor when enabled */
+          '&:not(.Mui-disabled)': {
+            cursor: 'pointer',
+          },
+
+          /* ✅ cursor when disabled */
           '&.Mui-disabled': {
-            backgroundColor: `${themeColors.secondary}80`,
+            pointerEvents: 'auto', // 🔑 allow hover/cursor
+            cursor: 'not-allowed',
+            backgroundColor: 'lightgray',
             color: 'rgba(107, 114, 128, 0.7)',
           },
         }}

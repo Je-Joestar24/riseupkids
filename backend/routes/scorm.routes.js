@@ -36,4 +36,17 @@ router.post('/:contentId/progress', protect, scormController.saveProgress);
  */
 router.get('/:contentId/progress', protect, scormController.getProgress);
 
+/**
+ * @route   GET /api/scorm/:contentId/wrapper
+ * @desc    Get SCORM wrapper HTML with API injected
+ * @access  Public (token passed in query string for security)
+ * 
+ * Query params:
+ * - contentType: 'audioAssignment' | 'chant' | 'book' | 'video'
+ * - entryPoint: Entry point HTML file (e.g., 'index.html')
+ * - path: Relative path to SCORM content
+ * - token: Auth token (passed from launch endpoint)
+ */
+router.get('/:contentId/wrapper', scormController.getWrapper);
+
 module.exports = router;

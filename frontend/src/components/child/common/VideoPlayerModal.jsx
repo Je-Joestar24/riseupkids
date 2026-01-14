@@ -392,6 +392,17 @@ const VideoPlayerModal = ({
     setShowConfirmClose(false);
     setShowCompletionDialog(false);
     setWatchResult(null);
+    
+    // Call onVideoComplete when modal is actually closed
+    // This ensures refreshes happen when modal closes, not when completion dialog closes
+    // onVideoComplete will trigger component refreshes (header, video cards, progress)
+    if (onVideoComplete) {
+      // Small delay to ensure modal is fully closed before triggering refreshes
+      setTimeout(() => {
+        onVideoComplete(video);
+      }, 100);
+    }
+    
     onClose();
   };
 
@@ -399,6 +410,15 @@ const VideoPlayerModal = ({
   const handleCompletionDialogClose = () => {
     setShowCompletionDialog(false);
     
+    // If video has SCORM, keep modal open so user can start SCORM activity
+    // Don't call onVideoComplete or close modal yet
+    if (hasScorm) {
+      // Modal stays open, user can click "Start Interactive Activity" button
+      // onVideoComplete will be called when modal is actually closed
+      return;
+    }
+    
+    // No SCORM - close modal after user has seen the message
     // Now call onVideoComplete callback AFTER user has seen the message
     // This triggers refreshes but only after the dialog is closed
     if (onVideoComplete) {
@@ -408,14 +428,10 @@ const VideoPlayerModal = ({
       }, 100);
     }
     
-    // If video has SCORM, don't close modal yet (user can start SCORM)
-    // Otherwise, close modal after a short delay to let user see the message
-    if (!hasScorm) {
-      // Small delay before closing to ensure user saw the message
-      setTimeout(() => {
-        handleConfirmedClose();
-      }, 300);
-    }
+    // Small delay before closing to ensure user saw the message
+    setTimeout(() => {
+      handleConfirmedClose();
+    }, 300);
   };
 
   // Handle cancel close

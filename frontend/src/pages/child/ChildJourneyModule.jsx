@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { themeColors } from '../../config/themeColors';
 import useCourseProgress from '../../hooks/courseProgressHook';
 import { useAuth } from '../../hooks/userHook';
+import courseProgressService from '../../services/courseProgressService';
 import ChildModuleHeader from '../../components/child/module/ChildModuleHeader';
 import ChildModuleBreadCrumbs from '../../components/child/module/ChildModuleBreadCrumbs';
 import ChildModuleProgress from '../../components/child/module/ChildModuleProgress';
@@ -40,6 +41,9 @@ const ChildJourneyModule = ({ childId }) => {
   // Refresh trigger for video watches
   const [videoWatchRefreshTrigger, setVideoWatchRefreshTrigger] = useState(0);
   const videosRef = useRef(null);
+  
+  // Ref to track if refresh is in progress to prevent duplicate refreshes
+  const refreshInProgressRef = useRef(false);
 
   useEffect(() => {
     const loadCourse = async () => {
@@ -91,6 +95,88 @@ const ChildJourneyModule = ({ childId }) => {
     return courseIndex >= 0 ? courseIndex + 1 : 1;
   };
 
+  // Extract course and progress - memoized to prevent unnecessary recalculations
+  const course = courseDetails?.course;
+  const progress = courseDetails?.progress;
+
+  // Calculate progress counts - memoized to prevent unnecessary recalculations
+  // Must be called before any conditional returns (Rules of Hooks)
+  const progressCounts = useMemo(() => {
+    if (!course || !course.contents) {
+      return {
+        totalCount: 0,
+        completedCount: 0,
+        todoCount: 0,
+        lockedCount: 0,
+      };
+    }
+
+    const courseContents = course.contents || [];
+    const totalCount = courseContents.length;
+
+    // Get completed content items (matching both contentId and contentType)
+    const completedItems = new Set();
+    if (progress?.contentProgress) {
+      progress.contentProgress
+        .filter((item) => item.status === 'completed')
+        .forEach((item) => {
+          // Use both contentId and contentType as key (same as Course model)
+          const key = `${item.contentId.toString()}-${item.contentType}`;
+          completedItems.add(key);
+        });
+    }
+
+    // Count completed items (matching both contentId and contentType)
+    const completedCount = courseContents.filter((content) => {
+      // Use _contentId or contentId from populated contents
+      const contentId = content._contentId || content._id || content.contentId;
+      const contentType = content._contentType || content.contentType;
+      const key = `${contentId.toString()}-${contentType}`;
+      return completedItems.has(key);
+    }).length;
+
+    // To Do = Total - Completed (locked is 0 for now as per requirements)
+    const todoCount = totalCount - completedCount;
+    const lockedCount = 0; // As per requirements, locked is 0 for now
+
+    return {
+      totalCount,
+      completedCount,
+      todoCount,
+      lockedCount,
+    };
+  }, [course?.contents?.length, progress?.contentProgress?.length]);
+
+  // Extract content by type - memoized to prevent unnecessary recalculations
+  // Must be called before any conditional returns (Rules of Hooks)
+  const books = useMemo(() => {
+    if (!course || !course.contents) return [];
+    return course.contents.filter(
+      (content) => (content._contentType || content.contentType) === 'book'
+    );
+  }, [course?.contents]);
+
+  const videos = useMemo(() => {
+    if (!course || !course.contents) return [];
+    return course.contents.filter(
+      (content) => (content._contentType || content.contentType) === 'video'
+    );
+  }, [course?.contents]);
+
+  const audioAssignments = useMemo(() => {
+    if (!course || !course.contents) return [];
+    return course.contents.filter(
+      (content) => (content._contentType || content.contentType) === 'audioAssignment'
+    );
+  }, [course?.contents]);
+
+  const chants = useMemo(() => {
+    if (!course || !course.contents) return [];
+    return course.contents.filter(
+      (content) => (content._contentType || content.contentType) === 'chant'
+    );
+  }, [course?.contents]);
+
   // Get cover image URL
   const coverImageUrl = courseDetails?.course?.coverImage
     ? getCoverImageUrl(courseDetails.course.coverImage)
@@ -101,6 +187,10 @@ const ChildJourneyModule = ({ childId }) => {
     navigate(`/child/${childId}/journey`);
   };
 
+  // Get step number
+  const stepNumber = getStepNumber();
+
+  // Early returns AFTER all hooks
   if (loading) {
     return (
       <Box
@@ -147,112 +237,6 @@ const ChildJourneyModule = ({ childId }) => {
   if (!courseDetails) {
     return null;
   }
-
-  const stepNumber = getStepNumber();
-  const course = courseDetails.course;
-  const progress = courseDetails.progress;
-
-  // Calculate progress counts
-  const calculateProgressCounts = () => {
-    if (!course || !course.contents) {
-      return {
-        totalCount: 0,
-        completedCount: 0,
-        todoCount: 0,
-        lockedCount: 0,
-      };
-    }
-
-    const courseContents = course.contents || [];
-    const totalCount = courseContents.length;
-
-    // Get completed content items (matching both contentId and contentType)
-    const completedItems = new Set();
-    if (progress?.contentProgress) {
-      progress.contentProgress
-        .filter((item) => item.status === 'completed')
-        .forEach((item) => {
-          // Use both contentId and contentType as key (same as Course model)
-          const key = `${item.contentId.toString()}-${item.contentType}`;
-          completedItems.add(key);
-        });
-    }
-
-    // Count completed items (matching both contentId and contentType)
-    const completedCount = courseContents.filter((content) => {
-      // Use _contentId or contentId from populated contents
-      const contentId = content._contentId || content._id || content.contentId;
-      const contentType = content._contentType || content.contentType;
-      const key = `${contentId.toString()}-${contentType}`;
-      return completedItems.has(key);
-    }).length;
-
-    // To Do = Total - Completed (locked is 0 for now as per requirements)
-    const todoCount = totalCount - completedCount;
-    const lockedCount = 0; // As per requirements, locked is 0 for now
-
-    return {
-      totalCount,
-      completedCount,
-      todoCount,
-      lockedCount,
-    };
-  };
-
-  const progressCounts = calculateProgressCounts();
-
-  // Extract books from populated course contents
-  const getBooks = () => {
-    if (!course || !course.contents) {
-      return [];
-    }
-
-    // Filter books from populated contents (contentType is _contentType in populated data)
-    return course.contents.filter(
-      (content) => (content._contentType || content.contentType) === 'book'
-    );
-  };
-
-  // Extract videos from populated course contents
-  const getVideos = () => {
-    if (!course || !course.contents) {
-      return [];
-    }
-
-    // Filter videos from populated contents (contentType is _contentType in populated data)
-    return course.contents.filter(
-      (content) => (content._contentType || content.contentType) === 'video'
-    );
-  };
-
-  // Extract audio assignments from populated course contents
-  const getAudioAssignments = () => {
-    if (!course || !course.contents) {
-      return [];
-    }
-
-    // Filter audio assignments from populated contents (contentType is _contentType in populated data)
-    return course.contents.filter(
-      (content) => (content._contentType || content.contentType) === 'audioAssignment'
-    );
-  };
-
-  // Extract chants from populated course contents
-  const getChants = () => {
-    if (!course || !course.contents) {
-      return [];
-    }
-
-    // Filter chants from populated contents (contentType is _contentType in populated data)
-    return course.contents.filter(
-      (content) => (content._contentType || content.contentType) === 'chant'
-    );
-  };
-
-  const books = getBooks();
-  const videos = getVideos();
-  const audioAssignments = getAudioAssignments();
-  const chants = getChants();
 
   // Handle book click - Open SCORM player directly
   const handleBookClick = (book) => {
@@ -428,73 +412,89 @@ const ChildJourneyModule = ({ childId }) => {
           onClose={async () => {
             setVideoModalOpen(false);
             setSelectedContent(null);
-            // Refresh course details to update video watch progress
-            if (courseId) {
-              setTimeout(() => {
-                fetchCourseDetailsForChild(courseId).then((details) => {
-                  setCourseDetails(details);
-                }).catch(console.error);
-              }, 500); // Small delay to ensure backend has updated
-            }
-            // Trigger video watches refresh
-            setTimeout(() => {
-              setVideoWatchRefreshTrigger(prev => prev + 1);
-              // Also call refresh directly via ref
-              if (videosRef.current) {
-                videosRef.current.refreshWatches();
-              }
-            }, 800); // Slightly longer delay to ensure backend has updated
-            
-            // Refresh child profile stats to update total stars in header and awards
-            setTimeout(async () => {
-              try {
-                console.log('[ChildJourneyModule] Refreshing child stats after video modal close...');
-                await fetchCurrentUser();
-                console.log('[ChildJourneyModule] Child stats refreshed successfully');
-                // Force page refresh of child data by triggering a re-render
-                window.dispatchEvent(new Event('childStatsUpdated'));
-              } catch (error) {
-                console.error('[ChildJourneyModule] Error refreshing child stats:', error);
-              }
-            }, 1500); // Wait for backend to update stats (increased delay to ensure DB update completes)
+            // Don't refresh here - let onVideoComplete handle it if video was watched
+            // This prevents duplicate refreshes when both onClose and onVideoComplete are called
           }}
           video={selectedContent}
           childId={childId}
           courseId={courseId}
           onVideoComplete={async (video) => {
             console.log('Video completed:', video);
-            // Video completion is handled in VideoPlayerModal
-            // Watch count and stars are automatically recorded
-            // Delay all refreshes to ensure user has seen the completion message
-            // Refresh course details to update progress
-            if (courseId) {
-              setTimeout(() => {
-                fetchCourseDetailsForChild(courseId).then((details) => {
-                  setCourseDetails(details);
-                }).catch(console.error);
-              }, 1000); // Delay to ensure user saw the completion message
-            }
-            // Trigger video watches refresh
-            setTimeout(() => {
-              setVideoWatchRefreshTrigger(prev => prev + 1);
-              // Also call refresh directly via ref
-              if (videosRef.current) {
-                videosRef.current.refreshWatches();
-              }
-            }, 1200); // Delay to ensure user saw the completion message
             
-            // Refresh child profile stats to update total stars in header and awards
-            setTimeout(async () => {
-              try {
-                console.log('[ChildJourneyModule] Refreshing child stats after video completion...');
-                await fetchCurrentUser();
-                console.log('[ChildJourneyModule] Child stats refreshed successfully');
-                // Force page refresh of child data by triggering a re-render
-                window.dispatchEvent(new Event('childStatsUpdated'));
-              } catch (error) {
-                console.error('[ChildJourneyModule] Error refreshing child stats:', error);
+            // Prevent duplicate refreshes if one is already in progress
+            if (refreshInProgressRef.current) {
+              console.log('[ChildJourneyModule] Refresh already in progress, skipping...');
+              return;
+            }
+            
+            refreshInProgressRef.current = true;
+            
+            try {
+              // Video completion is handled in VideoPlayerModal
+              // Watch count and stars are automatically recorded
+              // Only refresh specific components, not full page reload
+              // Use targeted updates instead of fetching entire course details
+              
+              // 1. Refresh video watches (video cards) - targeted update
+              setTimeout(() => {
+                setVideoWatchRefreshTrigger(prev => prev + 1);
+                // Also call refresh directly via ref
+                if (videosRef.current) {
+                  videosRef.current.refreshWatches();
+                }
+              }, 1000); // Delay to ensure user saw the completion message
+              
+              // 2. Update only progress data, not entire course details
+              // This prevents full page re-render
+              if (courseId && courseDetails) {
+                setTimeout(async () => {
+                  try {
+                    // Only fetch progress, not entire course details
+                    const progressData = await courseProgressService.getCourseProgress(courseId, childId);
+                    // Handle both response formats: { success, data } or direct data
+                    const progress = progressData?.success ? progressData.data : progressData;
+                    if (progress) {
+                      // Update only the progress part of courseDetails using functional update
+                      // This prevents full re-render by only updating the progress property
+                      // React will handle the diffing and only re-render components that depend on progress
+                      setCourseDetails(prev => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          progress: progress,
+                        };
+                      });
+                    }
+                  } catch (error) {
+                    console.error('[ChildJourneyModule] Error refreshing progress:', error);
+                    // Fallback: fetch full details only if progress fetch fails
+                    fetchCourseDetailsForChild(courseId).then((details) => {
+                      setCourseDetails(details);
+                    }).catch(console.error);
+                  }
+                }, 1200); // Delay to ensure user saw the completion message
               }
-            }, 2000); // Longer delay to ensure user saw the completion message and backend has updated
+              
+              // 3. Refresh child stats (header and awards) - no full reload
+              // Only refresh once, not multiple times
+              setTimeout(async () => {
+                try {
+                  console.log('[ChildJourneyModule] Refreshing child stats after video completion...');
+                  await fetchCurrentUser();
+                  console.log('[ChildJourneyModule] Child stats refreshed successfully');
+                  // Only trigger event for header and awards, not full page reload
+                  window.dispatchEvent(new Event('childStatsUpdated'));
+                } catch (error) {
+                  console.error('[ChildJourneyModule] Error refreshing child stats:', error);
+                } finally {
+                  // Reset flag after refresh completes
+                  refreshInProgressRef.current = false;
+                }
+              }, 1500); // Delay to ensure user saw the completion message and backend has updated
+            } catch (error) {
+              console.error('[ChildJourneyModule] Error in onVideoComplete:', error);
+              refreshInProgressRef.current = false;
+            }
           }}
         />
       )}
