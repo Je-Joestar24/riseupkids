@@ -125,6 +125,38 @@ const userSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
     },
+    /**
+     * Update child stats (totalStars, etc.) for a specific child
+     * @param {Object} action.payload - { childId, stats: { totalStars, currentStreak, ... } }
+     */
+    updateChildStats: (state, action) => {
+      const { childId, stats } = action.payload;
+      
+      if (!childId || !stats) return;
+      
+      // Update childProfiles array
+      if (state.childProfiles && Array.isArray(state.childProfiles)) {
+        const childIndex = state.childProfiles.findIndex(
+          (child) => child._id === childId || child._id?.toString() === childId.toString()
+        );
+        if (childIndex !== -1) {
+          // Update the child's stats
+          if (!state.childProfiles[childIndex].stats) {
+            state.childProfiles[childIndex].stats = {};
+          }
+          Object.assign(state.childProfiles[childIndex].stats, stats);
+        }
+      }
+      
+      // Update childProfile if it matches
+      if (state.childProfile && 
+          (state.childProfile._id === childId || state.childProfile._id?.toString() === childId.toString())) {
+        if (!state.childProfile.stats) {
+          state.childProfile.stats = {};
+        }
+        Object.assign(state.childProfile.stats, stats);
+      }
+    },
   },
   extraReducers: (builder) => {
     // Login
@@ -247,6 +279,6 @@ const userSlice = createSlice({
   },
 });
 
-export const { clearError, setUser, clearUser } = userSlice.actions;
+export const { clearError, setUser, clearUser, updateChildStats } = userSlice.actions;
 export default userSlice.reducer;
 

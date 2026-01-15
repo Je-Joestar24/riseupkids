@@ -16,6 +16,9 @@ import { themeColors } from '../../../config/themeColors';
 import ScormPlayer from './ScormPlayer';
 import useCourseProgress from '../../../hooks/courseProgressHook';
 import ChildDialogBox from '../../common/ChildDialogBox';
+import { useDispatch } from 'react-redux';
+import { updateChildStats } from '../../../store/slices/userSlice';
+import courseProgressService from '../../../services/courseProgressService';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
@@ -138,6 +141,7 @@ const VideoPlayerModal = ({
   courseId,
 }) => {
   const theme = useTheme();
+  const dispatch = useDispatch();
   const videoRef = useRef(null);
   const [videoEnded, setVideoEnded] = useState(false);
   const [scormOpen, setScormOpen] = useState(false);
@@ -150,7 +154,9 @@ const VideoPlayerModal = ({
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   
   // Get video watch methods from hook
-  const { markVideoWatched, updateProgress, getVideoWatchStatus } = useCourseProgress(childId);
+  // Note: Using markVideoWatched and getVideoWatchStatus from hook
+  // But using courseProgressService directly for updateProgress to avoid unnecessary refreshes
+  const { markVideoWatched, getVideoWatchStatus } = useCourseProgress(childId);
   
   // State to track if stars were already awarded before this watch
   const [starsAlreadyAwarded, setStarsAlreadyAwarded] = useState(false);
@@ -159,6 +165,95 @@ const VideoPlayerModal = ({
 
   // Check if video has SCORM file
   const hasScorm = !!(video?.scormFile || video?.scormFileUrl || video?.scormFilePath);
+
+  /**
+   * Update child stats in sessionStorage and Redux
+   * This ensures the header and other components show updated stars immediately
+   * @param {Number} totalStars - New total stars value
+   */
+  const updateChildStatsInStorage = (totalStars) => {
+    if (!childId || totalStars === undefined || totalStars === null) {
+      console.warn('[VideoPlayer] Cannot update child stats: missing childId or totalStars');
+      return;
+    }
+
+    try {
+      console.log(`[VideoPlayer] Updating child stats for ${childId} with totalStars: ${totalStars}`);
+      
+      // Update childProfiles in sessionStorage
+      const childProfilesStr = sessionStorage.getItem('childProfiles');
+      if (childProfilesStr) {
+        const childProfiles = JSON.parse(childProfilesStr);
+        const childIndex = childProfiles.findIndex(
+          (child) => child._id === childId || child._id?.toString() === childId.toString()
+        );
+        
+        if (childIndex !== -1) {
+          // Update the child's stats
+          if (!childProfiles[childIndex].stats) {
+            childProfiles[childIndex].stats = {};
+          }
+          childProfiles[childIndex].stats.totalStars = totalStars;
+          
+          // Save back to sessionStorage
+          sessionStorage.setItem('childProfiles', JSON.stringify(childProfiles));
+          console.log(`[VideoPlayer] Updated childProfiles in sessionStorage`);
+        }
+      }
+      
+      // Update selectedChild in sessionStorage
+      const selectedChildStr = sessionStorage.getItem('selectedChild');
+      if (selectedChildStr) {
+        const selectedChild = JSON.parse(selectedChildStr);
+        if (selectedChild._id === childId || selectedChild._id?.toString() === childId.toString()) {
+          if (!selectedChild.stats) {
+            selectedChild.stats = {};
+          }
+          selectedChild.stats.totalStars = totalStars;
+          sessionStorage.setItem('selectedChild', JSON.stringify(selectedChild));
+          console.log(`[VideoPlayer] Updated selectedChild in sessionStorage`);
+        }
+      }
+      
+      // Update Redux store
+      dispatch(updateChildStats({
+        childId,
+        stats: { totalStars },
+      }));
+      console.log(`[VideoPlayer] Updated Redux store with new totalStars`);
+      
+      // Dispatch event to notify components (like ChilHeader) to refresh
+      window.dispatchEvent(new Event('childStatsUpdated'));
+      console.log(`[VideoPlayer] Dispatched childStatsUpdated event`);
+    } catch (error) {
+      console.error('[VideoPlayer] Error updating child stats in storage:', error);
+    }
+  };
+
+  /**
+   * Get current totalStars from sessionStorage
+   * @returns {Number} Current totalStars or 0
+   */
+  const getCurrentTotalStars = () => {
+    try {
+      const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
+      const child = childProfiles.find(c => c._id === childId || c._id?.toString() === childId.toString());
+      
+      if (child && child.stats) {
+        return child.stats.totalStars || 0;
+      }
+      
+      // Fallback: try selectedChild
+      const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
+      if (selectedChild.stats) {
+        return selectedChild.stats.totalStars || 0;
+      }
+      
+      return 0;
+    } catch (error) {
+      return 0;
+    }
+  };
 
   // Check video watch status when video opens
   // Use checkbox logic: if watch count >= required count, stars were already awarded
@@ -342,13 +437,23 @@ const VideoPlayerModal = ({
         
         setWatchResult(updatedResult);
         
+        // Update child stats in sessionStorage and Redux if stars were JUST awarded
+        // This ensures the header updates immediately without page reload
+        if (starsJustAwarded && result.starsToAward) {
+          const currentTotalStars = getCurrentTotalStars();
+          const newTotalStars = currentTotalStars + result.starsToAward;
+          updateChildStatsInStorage(newTotalStars);
+        }
+        
         // Only update course progress if stars were JUST awarded (not already earned)
         // This ensures videos are only marked as completed in course progress when fully watched
-        if (courseId && updateProgress && starsJustAwarded) {
+        // Use service directly to avoid unnecessary refreshes (updateProgress hook calls fetchChildCourses)
+        if (courseId && starsJustAwarded) {
           try {
-            await updateProgress(courseId, videoId, 'video');
+            await courseProgressService.updateContentProgress(courseId, childId, videoId, 'video');
+            console.log('[VideoPlayer] Course progress updated silently after video completion (stars awarded)');
           } catch (progressError) {
-            console.error('Error updating course progress:', progressError);
+            console.error('[VideoPlayer] Error updating course progress:', progressError);
             // Don't fail the whole flow if course progress update fails
           }
         }

@@ -30,7 +30,6 @@ const ChildJourneyModule = ({ childId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { fetchChildCourses, fetchCourseDetailsForChild, getCoverImageUrl } = useCourseProgress(childId);
-  const { fetchCurrentUser } = useAuth();
   
   // Modal states
   const [scormOpen, setScormOpen] = useState(false);
@@ -419,7 +418,7 @@ const ChildJourneyModule = ({ childId }) => {
           childId={childId}
           courseId={courseId}
           onVideoComplete={async (video) => {
-            console.log('Video completed:', video);
+            console.log('[ChildJourneyModule] Video completed:', video);
             
             // Prevent duplicate refreshes if one is already in progress
             if (refreshInProgressRef.current) {
@@ -431,66 +430,27 @@ const ChildJourneyModule = ({ childId }) => {
             
             try {
               // Video completion is handled in VideoPlayerModal
-              // Watch count and stars are automatically recorded
-              // Only refresh specific components, not full page reload
-              // Use targeted updates instead of fetching entire course details
+              // Watch count and stars are automatically recorded and updated in:
+              // - sessionStorage (childProfiles, selectedChild)
+              // - Redux store (via updateChildStats)
+              // - childStatsUpdated event is dispatched
+              // 
+              // No need to call fetchCurrentUser() - stats are already updated!
+              // No need to fetch course progress - it will update naturally
+              // Only refresh video cards to show updated watch status
               
-              // 1. Refresh video watches (video cards) - targeted update
+              // Refresh video watches (video cards) - targeted update only
+              // Use a small delay to ensure user saw the completion message
               setTimeout(() => {
                 setVideoWatchRefreshTrigger(prev => prev + 1);
-                // Also call refresh directly via ref
-                if (videosRef.current) {
+                // Also call refresh directly via ref if available
+                if (videosRef.current && typeof videosRef.current.refreshWatches === 'function') {
                   videosRef.current.refreshWatches();
                 }
-              }, 1000); // Delay to ensure user saw the completion message
+                // Reset flag after refresh
+                refreshInProgressRef.current = false;
+              }, 500); // Small delay to ensure smooth UX
               
-              // 2. Update only progress data, not entire course details
-              // This prevents full page re-render
-              if (courseId && courseDetails) {
-                setTimeout(async () => {
-                  try {
-                    // Only fetch progress, not entire course details
-                    const progressData = await courseProgressService.getCourseProgress(courseId, childId);
-                    // Handle both response formats: { success, data } or direct data
-                    const progress = progressData?.success ? progressData.data : progressData;
-                    if (progress) {
-                      // Update only the progress part of courseDetails using functional update
-                      // This prevents full re-render by only updating the progress property
-                      // React will handle the diffing and only re-render components that depend on progress
-                      setCourseDetails(prev => {
-                        if (!prev) return prev;
-                        return {
-                          ...prev,
-                          progress: progress,
-                        };
-                      });
-                    }
-                  } catch (error) {
-                    console.error('[ChildJourneyModule] Error refreshing progress:', error);
-                    // Fallback: fetch full details only if progress fetch fails
-                    fetchCourseDetailsForChild(courseId).then((details) => {
-                      setCourseDetails(details);
-                    }).catch(console.error);
-                  }
-                }, 1200); // Delay to ensure user saw the completion message
-              }
-              
-              // 3. Refresh child stats (header and awards) - no full reload
-              // Only refresh once, not multiple times
-              setTimeout(async () => {
-                try {
-                  console.log('[ChildJourneyModule] Refreshing child stats after video completion...');
-                  await fetchCurrentUser();
-                  console.log('[ChildJourneyModule] Child stats refreshed successfully');
-                  // Only trigger event for header and awards, not full page reload
-                  window.dispatchEvent(new Event('childStatsUpdated'));
-                } catch (error) {
-                  console.error('[ChildJourneyModule] Error refreshing child stats:', error);
-                } finally {
-                  // Reset flag after refresh completes
-                  refreshInProgressRef.current = false;
-                }
-              }, 1500); // Delay to ensure user saw the completion message and backend has updated
             } catch (error) {
               console.error('[ChildJourneyModule] Error in onVideoComplete:', error);
               refreshInProgressRef.current = false;
