@@ -73,6 +73,12 @@ const exploreContentSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    // View count for replay videos
+    viewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     // Category (e.g., "Arts & Crafts", "Cooking", "Music")
     category: {
       type: String,

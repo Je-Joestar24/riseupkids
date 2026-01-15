@@ -8,6 +8,7 @@ import activityReducer from './slices/activtySlice';
 import contentReducer from './slices/contentSlice';
 import courseReducer from './slices/courseSlice';
 import kidsWallReducer from './slices/kidsWallSlice';
+import exploreReducer from './slices/exploreSlice';
 
 export const store = configureStore({
   reducer: {
@@ -20,6 +21,7 @@ export const store = configureStore({
     content: contentReducer, // Unified content management
     course: courseReducer, // Course/Content Collection management
     kidsWall: kidsWallReducer, // KidsWall posts management
+    explore: exploreReducer, // Explore content management
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
