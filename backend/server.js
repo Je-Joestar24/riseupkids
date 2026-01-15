@@ -25,6 +25,7 @@ const scormRoutes = require('./routes/scorm.routes');
 const kidsWallRoutes = require('./routes/kidsWall.routes');
 const videoWatchRoutes = require('./routes/videoWatch.routes');
 const bookReadingRoutes = require('./routes/bookReading.routes');
+const exploreRoutes = require('./routes/explore.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -70,6 +71,7 @@ app.use('/api/scorm', scormRoutes);
 app.use('/api/kids-wall', kidsWallRoutes);
 app.use('/api/video-watch', videoWatchRoutes);
 app.use('/api/book-reading', bookReadingRoutes);
+app.use('/api/explore', exploreRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -91,7 +93,9 @@ app.get('/', (req, res) => {
       chants: '/api/chants',
       scorm: '/api/scorm',
       kidsWall: '/api/kids-wall',
-      videoWatch: '/api/video-watch'
+      videoWatch: '/api/video-watch',
+      bookReading: '/api/book-reading',
+      explore: '/api/explore'
     }
   });
 });

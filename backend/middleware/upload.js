@@ -667,6 +667,113 @@ const uploadChantUpdate = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
+// Middleware for explore content uploads (video file + cover image + activity icon SVG)
+const uploadExplore = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      let uploadPath;
+      
+      if (file.fieldname === 'videoFile') {
+        uploadPath = path.join(__dirname, '../uploads/media/videos');
+      } else if (file.fieldname === 'coverImage') {
+        uploadPath = path.join(__dirname, '../uploads/media/images');
+      } else if (file.fieldname === 'activityIcon') {
+        uploadPath = path.join(__dirname, '../uploads/media/images');
+      } else {
+        uploadPath = path.join(__dirname, '../uploads/media/other');
+      }
+
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      cb(null, generateFileName(file.originalname));
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'videoFile') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Video file must be a video file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
+    } else if (file.fieldname === 'activityIcon') {
+      // Allow SVG files and other image types
+      const isSvg = file.mimetype === 'image/svg+xml' || 
+                    path.extname(file.originalname).toLowerCase() === '.svg';
+      const isImage = file.mimetype.startsWith('image/');
+      if (isSvg || isImage) {
+        cb(null, true);
+      } else {
+        cb(new Error('Activity icon must be an SVG or image file'), false);
+      }
+    } else {
+      cb(null, true);
+    }
+  },
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB max file size
+  },
+}).fields([
+  { name: 'videoFile', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1 },
+  { name: 'activityIcon', maxCount: 1 },
+]);
+
+// Middleware for explore content update (cover image + activity icon only, no video file)
+const uploadExploreUpdate = multer({
+  storage: multer.diskStorage({
+    destination: function (req, file, cb) {
+      const uploadPath = path.join(__dirname, '../uploads/media/images');
+      
+      if (!fs.existsSync(uploadPath)) {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      }
+
+      cb(null, uploadPath);
+    },
+    filename: function (req, file, cb) {
+      cb(null, generateFileName(file.originalname));
+    },
+  }),
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'coverImage') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
+    } else if (file.fieldname === 'activityIcon') {
+      // Allow SVG files and other image types
+      const isSvg = file.mimetype === 'image/svg+xml' || 
+                    path.extname(file.originalname).toLowerCase() === '.svg';
+      const isImage = file.mimetype.startsWith('image/');
+      if (isSvg || isImage) {
+        cb(null, true);
+      } else {
+        cb(new Error('Activity icon must be an SVG or image file'), false);
+      }
+    } else {
+      cb(new Error('Only cover image and activity icon are allowed for updates'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+  },
+}).fields([
+  { name: 'coverImage', maxCount: 1 },
+  { name: 'activityIcon', maxCount: 1 },
+]);
+
 // Middleware for KidsWall image uploads
 const uploadKidsWallImage = multer({
   storage: multer.diskStorage({
@@ -724,6 +831,8 @@ module.exports = {
   uploadChant,
   uploadChantUpdate,
   uploadCourse,
+  uploadExplore,
+  uploadExploreUpdate,
   uploadKidsWallImage,
 };
 

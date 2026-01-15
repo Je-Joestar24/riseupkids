@@ -41,6 +41,38 @@ const exploreContentSchema = new mongoose.Schema(
       type: String, // File path or URL
       default: null,
     },
+    // Video subtype for Explore content (only applies when type is 'video')
+    videoType: {
+      type: String,
+      enum: ['replay', 'activity'],
+      default: 'replay',
+    },
+    // SVG icon for activity-type videos (file path for uploaded SVG)
+    activityIcon: {
+      type: String, // File path or URL for SVG icon
+      default: null,
+    },
+    // Video file reference (for video type content)
+    videoFile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media',
+      default: null,
+    },
+    // Video file path (for direct access)
+    videoFilePath: {
+      type: String,
+      default: null,
+    },
+    // Video file URL (for serving)
+    videoFileUrl: {
+      type: String,
+      default: null,
+    },
+    // Video duration in seconds
+    duration: {
+      type: Number,
+      default: null,
+    },
     // Category (e.g., "Arts & Crafts", "Cooking", "Music")
     category: {
       type: String,
@@ -98,6 +130,8 @@ exploreContentSchema.index({ type: 1, category: 1, order: 1 });
 exploreContentSchema.index({ isPublished: 1, isFeatured: 1 });
 exploreContentSchema.index({ createdBy: 1 });
 exploreContentSchema.index({ category: 1 });
+exploreContentSchema.index({ videoType: 1 });
+exploreContentSchema.index({ type: 1, videoType: 1 });
 
 module.exports = mongoose.model('ExploreContent', exploreContentSchema);
 
