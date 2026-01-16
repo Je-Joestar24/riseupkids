@@ -145,6 +145,7 @@ const getAllExploreContent = async (queryParams = {}) => {
     isPublished,
     isFeatured,
     search,
+    sortBy = 'createdAt_desc', // Default: Created At (descending), then Order (ascending)
     page = 1,
     limit = 10,
   } = queryParams;
@@ -185,12 +186,22 @@ const getAllExploreContent = async (queryParams = {}) => {
   const limitNum = parseInt(limit, 10) || 10;
   const skip = (pageNum - 1) * limitNum;
 
+  // Build sort object based on sortBy parameter
+  let sortObject = { order: 1, createdAt: -1 }; // Default sort
+  if (sortBy === 'createdAt_desc') {
+    // Sort by Created At (descending), then Order (ascending) as fallback
+    sortObject = { createdAt: -1, order: 1 };
+  } else if (sortBy === 'order_asc') {
+    // Sort by Order (ascending), then Created At (descending) as fallback
+    sortObject = { order: 1, createdAt: -1 };
+  }
+
   // Get explore content
   const exploreContent = await ExploreContent.find(query)
     .populate('videoFile', 'type title url mimeType size duration thumbnail')
     .populate('contentRef')
     .populate('createdBy', 'name email')
-    .sort({ order: 1, createdAt: -1 })
+    .sort(sortObject)
     .skip(skip)
     .limit(limitNum)
     .lean();

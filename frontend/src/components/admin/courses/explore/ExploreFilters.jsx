@@ -44,6 +44,9 @@ const ExploreFilters = () => {
     if (newFilters.isFeatured !== undefined) {
       params.set('isFeatured', String(newFilters.isFeatured));
     }
+    if (newFilters.sortBy) {
+      params.set('sortBy', newFilters.sortBy);
+    }
     if (newFilters.page && newFilters.page > 1) {
       params.set('page', String(newFilters.page));
     }
@@ -79,6 +82,7 @@ const ExploreFilters = () => {
       search: undefined,
       isPublished: undefined,
       isFeatured: undefined,
+      sortBy: 'createdAt_desc', // Default sort: Created At (descending)
       page: 1,
       limit: 10,
     };
@@ -256,6 +260,32 @@ const ExploreFilters = () => {
             <MenuItem value="">All</MenuItem>
             <MenuItem value="true">Featured</MenuItem>
             <MenuItem value="false">Not Featured</MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Sort By Filter */}
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            Sort By
+          </InputLabel>
+          <Select
+            value={filters.sortBy || 'createdAt_desc'}
+            label="Sort By"
+            onChange={(e) =>
+              handleFilterChange('sortBy', e.target.value)
+            }
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              borderRadius: '8px',
+              backgroundColor: theme.palette.custom.bgSecondary,
+            }}
+          >
+            <MenuItem value="createdAt_desc">Created At (Newest First)</MenuItem>
+            <MenuItem value="order_asc">Order (Ascending)</MenuItem>
           </Select>
         </FormControl>
 

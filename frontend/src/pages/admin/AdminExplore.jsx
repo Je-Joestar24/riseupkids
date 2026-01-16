@@ -28,6 +28,7 @@ const AdminExplore = () => {
       search: searchParams.get('search') || undefined,
       isPublished: searchParams.get('isPublished') ? searchParams.get('isPublished') === 'true' : undefined,
       isFeatured: searchParams.get('isFeatured') ? searchParams.get('isFeatured') === 'true' : undefined,
+      sortBy: searchParams.get('sortBy') || 'createdAt_desc', // Default: Created At (descending)
       page: parseInt(searchParams.get('page') || '1', 10),
       limit: parseInt(searchParams.get('limit') || '10', 10),
     };
@@ -38,6 +39,7 @@ const AdminExplore = () => {
       filters.search !== urlFilters.search ||
       filters.isPublished !== urlFilters.isPublished ||
       filters.isFeatured !== urlFilters.isFeatured ||
+      filters.sortBy !== urlFilters.sortBy ||
       filters.page !== urlFilters.page ||
       filters.limit !== urlFilters.limit;
     
@@ -58,6 +60,7 @@ const AdminExplore = () => {
     filters.videoType,
     filters.isPublished,
     filters.isFeatured,
+    filters.sortBy,
     filters.page,
     filters.limit,
   ]);

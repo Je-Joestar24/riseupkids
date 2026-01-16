@@ -145,6 +145,7 @@ const initialState = {
     isPublished: undefined,
     isFeatured: undefined,
     search: '',
+    sortBy: 'createdAt_desc', // Default: Created At (descending), then Order (ascending)
     page: 1,
     limit: 10,
   },
