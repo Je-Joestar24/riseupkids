@@ -4,45 +4,83 @@ import api from '../api/axios';
  * KidsWall Service
  * 
  * Service for managing KidsWall posts:
- * - Get all posts for a child
- * - Get single post by ID
- * - Create new post with image
- * - Update existing post
- * - Delete post
+ * - Admin operations: Get posts with pagination/filters, approve, reject
+ * - Child operations: Get feed, create post, delete post, toggle like/star
  */
 
 const kidsWallService = {
+  // ========== Admin Operations ==========
+  
   /**
-   * Get all posts (feed - all children)
-   * @param {Object} params - Optional query parameters (isApproved, isActive)
-   * @returns {Promise} API response with posts data
+   * Get all posts for admin with pagination and filters
+   * @param {Object} params - Query parameters
+   * @param {Number} params.page - Page number (default: 1)
+   * @param {Number} params.limit - Items per page (default: 10)
+   * @param {String} params.isApproved - Filter by approval status (true/false/pending)
+   * @param {String} params.childName - Search by child's displayName
+   * @param {String} params.search - Search in post title/content
+   * @returns {Promise} API response with posts data and pagination
    */
-  getAllPosts: async (params = {}) => {
+  getAllPostsForAdmin: async (params = {}) => {
     try {
-      // Default to showing only approved and active posts
-      const queryParams = {
-        isApproved: params.isApproved !== undefined ? params.isApproved : true,
-        isActive: params.isActive !== undefined ? params.isActive : true,
-        ...params,
-      };
-      
-      const response = await api.get('/kids-wall/all', { params: queryParams });
+      const response = await api.get('/kids-wall/admin/posts', { params });
       return response.data;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch posts';
-      throw new Error(errorMessage);
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Approve a pending post
+   * @param {String} postId - Post ID
+   * @returns {Promise} API response with approved post data
+   */
+  approvePost: async (postId) => {
+    try {
+      const response = await api.post(`/kids-wall/admin/${postId}/approve`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Reject a post (soft delete)
+   * @param {String} postId - Post ID
+   * @returns {Promise} API response
+   */
+  rejectPost: async (postId) => {
+    try {
+      const response = await api.post(`/kids-wall/admin/${postId}/reject`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  // ========== Child Operations ==========
+
+  /**
+   * Get all posts (feed) - shows approved posts from all children
+   * @returns {Promise} API response with posts array
+   */
+  getAllPosts: async () => {
+    try {
+      const response = await api.get('/kids-wall/all');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
     }
   },
 
   /**
    * Get all posts for a specific child
-   * @param {String} childId - Child's ID
-   * @param {Object} params - Optional query parameters (isApproved, isActive)
-   * @returns {Promise} API response with posts data
+   * @param {String} childId - Child ID
+   * @returns {Promise} API response with posts array
    */
-  getChildPosts: async (childId, params = {}) => {
+  getChildPosts: async (childId) => {
     try {
-      const response = await api.get(`/kids-wall/child/${childId}`, { params });
+      const response = await api.get(`/kids-wall/child/${childId}`);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || error.message;
@@ -50,25 +88,10 @@ const kidsWallService = {
   },
 
   /**
-   * Get single post by ID
-   * @param {String} postId - Post's ID
-   * @param {String} childId - Child's ID
-   * @returns {Promise} API response with post data
-   */
-  getPostById: async (postId, childId) => {
-    try {
-      const response = await api.get(`/kids-wall/${postId}/child/${childId}`);
-      return response.data;
-    } catch (error) {
-      throw error.response?.data?.message || error.message;
-    }
-  },
-
-  /**
-   * Create new post with image
-   * @param {String} childId - Child's ID
+   * Create a new post
+   * @param {String} childId - Child ID
    * @param {Object} postData - Post data (title, content)
-   * @param {File} imageFile - Image file to upload
+   * @param {File} imageFile - Image file
    * @returns {Promise} API response with created post
    */
   createPost: async (childId, postData, imageFile) => {
@@ -76,7 +99,9 @@ const kidsWallService = {
       const formData = new FormData();
       formData.append('title', postData.title);
       formData.append('content', postData.content);
-      formData.append('image', imageFile);
+      if (imageFile) {
+        formData.append('image', imageFile);
+      }
 
       const response = await api.post(`/kids-wall/child/${childId}`, formData, {
         headers: {
@@ -90,35 +115,9 @@ const kidsWallService = {
   },
 
   /**
-   * Update existing post
-   * @param {String} postId - Post's ID
-   * @param {String} childId - Child's ID
-   * @param {Object} postData - Updated post data (title, content)
-   * @param {File} imageFile - Optional new image file
-   * @returns {Promise} API response with updated post
-   */
-  updatePost: async (postId, childId, postData, imageFile = null) => {
-    try {
-      const formData = new FormData();
-      if (postData.title) formData.append('title', postData.title);
-      if (postData.content) formData.append('content', postData.content);
-      if (imageFile) formData.append('image', imageFile);
-
-      const response = await api.patch(`/kids-wall/${postId}/child/${childId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data?.message || error.message;
-    }
-  },
-
-  /**
-   * Delete post (soft delete)
-   * @param {String} postId - Post's ID
-   * @param {String} childId - Child's ID
+   * Delete a post
+   * @param {String} postId - Post ID
+   * @param {String} childId - Child ID
    * @returns {Promise} API response
    */
   deletePost: async (postId, childId) => {
@@ -132,8 +131,8 @@ const kidsWallService = {
 
   /**
    * Toggle like on a post
-   * @param {String} postId - Post's ID
-   * @param {String} childId - Child's ID
+   * @param {String} postId - Post ID
+   * @param {String} childId - Child ID
    * @returns {Promise} API response with updated post
    */
   toggleLike: async (postId, childId) => {
@@ -141,15 +140,14 @@ const kidsWallService = {
       const response = await api.post(`/kids-wall/${postId}/like/child/${childId}`);
       return response.data;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to toggle like';
-      throw new Error(errorMessage);
+      throw error.response?.data?.message || error.message;
     }
   },
 
   /**
    * Toggle star on a post
-   * @param {String} postId - Post's ID
-   * @param {String} childId - Child's ID
+   * @param {String} postId - Post ID
+   * @param {String} childId - Child ID
    * @returns {Promise} API response with updated post
    */
   toggleStar: async (postId, childId) => {
@@ -157,8 +155,7 @@ const kidsWallService = {
       const response = await api.post(`/kids-wall/${postId}/star/child/${childId}`);
       return response.data;
     } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to toggle star';
-      throw new Error(errorMessage);
+      throw error.response?.data?.message || error.message;
     }
   },
 };

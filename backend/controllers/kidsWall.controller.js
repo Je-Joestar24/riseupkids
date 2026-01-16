@@ -388,6 +388,108 @@ const toggleStar = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get all posts for admin with pagination and filters
+ * @route   GET /api/kids-wall/admin/posts
+ * @access  Private (Admin only)
+ * 
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 10)
+ * - isApproved: Filter by approval status (true/false/pending)
+ * - childName: Search by child's displayName
+ * - search: Search in post title/content
+ */
+const getAllPostsForAdmin = async (req, res) => {
+  try {
+    // Only admin can access
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.',
+      });
+    }
+
+    const result = await kidsWallService.getAllPostsForAdmin(req.query);
+
+    res.status(200).json({
+      success: true,
+      message: 'Posts retrieved successfully',
+      data: result.posts,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve posts',
+    });
+  }
+};
+
+/**
+ * @desc    Approve a pending post
+ * @route   POST /api/kids-wall/admin/:postId/approve
+ * @access  Private (Admin only)
+ */
+const approvePost = async (req, res) => {
+  try {
+    // Only admin can approve
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.',
+      });
+    }
+
+    const { postId } = req.params;
+    const post = await kidsWallService.approvePost(postId, req.user._id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Post approved successfully',
+      data: post,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 :
+                      error.message.includes('already approved') ? 400 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to approve post',
+    });
+  }
+};
+
+/**
+ * @desc    Reject a post (soft delete)
+ * @route   POST /api/kids-wall/admin/:postId/reject
+ * @access  Private (Admin only)
+ */
+const rejectPost = async (req, res) => {
+  try {
+    // Only admin can reject
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin only.',
+      });
+    }
+
+    const { postId } = req.params;
+    await kidsWallService.rejectPost(postId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Post rejected successfully',
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 500;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to reject post',
+    });
+  }
+};
+
 module.exports = {
   getAllPosts,
   getChildPosts,
@@ -397,4 +499,7 @@ module.exports = {
   deletePost,
   toggleLike,
   toggleStar,
+  getAllPostsForAdmin,
+  approvePost,
+  rejectPost,
 };

@@ -200,17 +200,16 @@ const createPostWithImage = async (childId, postData, imageFile, uploadedBy) => 
     // Create Media record for image
     const media = await createMediaFromFile(imageFile, uploadedBy);
 
-    // Create post - instantly approved (no pending status)
+    // Create post - starts as pending (requires admin approval)
     const post = await KidsWallPost.create({
       child: childId,
       type: 'image',
       title: postData.title.trim(),
       content: postData.content.trim(),
       images: [media._id],
-      isApproved: true, // Instantly approved - no pending status
+      isApproved: false, // Pending approval
       isActive: true,
-      approvedBy: uploadedBy, // Set the approver (parent/admin who created it)
-      approvedAt: new Date(), // Set approval timestamp
+      // approvedBy and approvedAt will be set when admin approves
     });
 
     // Populate and return
@@ -476,6 +475,181 @@ const toggleStar = async (postId, childId) => {
   }
 };
 
+/**
+ * Get all posts for admin with pagination and filters
+ * @param {Object} queryParams - Query parameters
+ * @param {Number} [queryParams.page] - Page number (default: 1)
+ * @param {Number} [queryParams.limit] - Items per page (default: 10)
+ * @param {Boolean|String} [queryParams.isApproved] - Filter by approval status
+ * @param {String} [queryParams.childName] - Search by child's displayName
+ * @param {String} [queryParams.search] - Search in title/content
+ * @returns {Promise<Object>} Posts with pagination info
+ */
+const getAllPostsForAdmin = async (queryParams = {}) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      isApproved,
+      childName,
+      search,
+    } = queryParams;
+
+    // Build query
+    const query = {
+      isActive: true, // Only active posts
+    };
+
+    // Filter by approval status
+    if (isApproved !== undefined) {
+      if (isApproved === 'pending' || isApproved === 'false') {
+        query.isApproved = false;
+      } else if (isApproved === 'true') {
+        query.isApproved = true;
+      }
+    }
+
+    // Search by child name (populate child first, then filter)
+    let childIds = null;
+    if (childName) {
+      const children = await ChildProfile.find({
+        displayName: { $regex: childName, $options: 'i' },
+      }).select('_id').lean();
+      childIds = children.map(c => c._id);
+      if (childIds.length === 0) {
+        // No children found, return empty result
+        return {
+          posts: [],
+          pagination: {
+            page: parseInt(page, 10) || 1,
+            limit: parseInt(limit, 10) || 10,
+            total: 0,
+            pages: 0,
+          },
+        };
+      }
+      query.child = { $in: childIds };
+    }
+
+    // Search in post title/content
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    // Pagination
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get posts with populated data
+    const posts = await KidsWallPost.find(query)
+      .populate({
+        path: 'child',
+        select: 'displayName avatar age',
+      })
+      .populate({
+        path: 'images',
+        select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'approvedBy',
+        select: 'name email',
+      })
+      .sort({ createdAt: -1 }) // Newest first
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    // Get total count
+    const total = await KidsWallPost.countDocuments(query);
+
+    return {
+      posts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
+    };
+  } catch (error) {
+    throw new Error(`Failed to get posts for admin: ${error.message}`);
+  }
+};
+
+/**
+ * Approve a pending post
+ * @param {String} postId - Post ID
+ * @param {String} approvedBy - Admin user ID
+ * @returns {Promise<Object>} Updated post
+ */
+const approvePost = async (postId, approvedBy) => {
+  try {
+    const post = await KidsWallPost.findById(postId);
+
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    if (post.isApproved) {
+      throw new Error('Post is already approved');
+    }
+
+    // Update post
+    post.isApproved = true;
+    post.approvedBy = approvedBy;
+    post.approvedAt = new Date();
+
+    await post.save();
+
+    // Return populated post
+    const updatedPost = await KidsWallPost.findById(postId)
+      .populate({
+        path: 'child',
+        select: 'displayName avatar age',
+      })
+      .populate({
+        path: 'images',
+        select: 'url filePath mimeType size',
+      })
+      .populate({
+        path: 'approvedBy',
+        select: 'name email',
+      })
+      .lean();
+
+    return updatedPost;
+  } catch (error) {
+    throw new Error(`Failed to approve post: ${error.message}`);
+  }
+};
+
+/**
+ * Reject a post (soft delete)
+ * @param {String} postId - Post ID
+ * @returns {Promise<Object>} Success result
+ */
+const rejectPost = async (postId) => {
+  try {
+    const post = await KidsWallPost.findById(postId);
+
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    // Soft delete by setting isActive to false
+    post.isActive = false;
+    await post.save();
+
+    return { success: true };
+  } catch (error) {
+    throw new Error(`Failed to reject post: ${error.message}`);
+  }
+};
+
 module.exports = {
   getChildPosts,
   getPostById,
@@ -485,4 +659,7 @@ module.exports = {
   validatePostData,
   toggleLike,
   toggleStar,
+  getAllPostsForAdmin,
+  approvePost,
+  rejectPost,
 };

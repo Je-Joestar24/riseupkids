@@ -1,335 +1,295 @@
 import { useState, useCallback } from 'react';
-import kidsWallService from '../services/kidsWallService';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  fetchAllPostsForAdmin,
+  approvePost,
+  rejectPost,
+  clearError,
+  setFilters,
+  clearFilters,
+} from '../store/slices/kidsWallSlice';
 import { showNotification } from '../store/slices/uiSlice';
-import { useDispatch } from 'react-redux';
+import kidsWallService from '../services/kidsWallService';
 
 /**
  * Custom hook for KidsWall management
  * 
- * Provides easy access to KidsWall posts and management methods
+ * Supports both admin and child operations:
+ * - Admin: fetchPosts (with filters), approvePostById, rejectPostById
+ * - Child: fetchPosts (feed), createPost, deletePost, toggleLike, toggleStar
+ * 
+ * @param {String} childId - Optional child ID. If provided, enables child operations
  */
-const useKidsWall = (childId) => {
+const useKidsWall = (childId = null) => {
   const dispatch = useDispatch();
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const reduxState = useSelector((state) => state.kidsWall);
+  
+  // Local state for child operations
+  const [childPosts, setChildPosts] = useState([]);
+  const [childLoading, setChildLoading] = useState(false);
+  const [childError, setChildError] = useState(null);
+
+  // Determine if this is admin or child mode
+  const isAdminMode = !childId;
 
   /**
-   * Fetch all posts (feed - all children)
-   * @param {Object} filters - Optional filters (isApproved, isActive)
+   * Fetch posts
+   * - Admin mode: Fetch with filters and pagination
+   * - Child mode: Fetch feed (all approved posts)
+   * @param {Object} params - Query parameters (admin only)
    * @returns {Promise} Fetch result
    */
-  const fetchPosts = useCallback(async (filters = {}) => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Fetch all posts (feed view) - no childId needed
-      const response = await kidsWallService.getAllPosts(filters);
-      
-      if (response && response.success && response.data) {
-        setPosts(response.data);
-        return response.data;
-      } else {
-        const errorMsg = response?.message || 'Failed to fetch posts';
-        setError(errorMsg);
+  const fetchPosts = useCallback(async (params = null) => {
+    if (isAdminMode) {
+      // Admin mode: Use Redux
+      try {
+        const queryParams = params || reduxState.filters;
+        const result = await dispatch(fetchAllPostsForAdmin(queryParams)).unwrap();
+        return result;
+      } catch (error) {
         dispatch(showNotification({
-          message: errorMsg,
+          message: error?.message || error || 'Failed to fetch posts',
           type: 'error',
         }));
-        return [];
+        throw error;
       }
-    } catch (err) {
-      console.error('Error fetching posts:', err);
-      
-      let errorMessage = 'Failed to fetch posts';
-      
-      if (err instanceof Error) {
-        errorMessage = err.message;
-      } else if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
+    } else {
+      // Child mode: Use local state
+      setChildLoading(true);
+      setChildError(null);
+      try {
+        const response = await kidsWallService.getAllPosts();
+        setChildPosts(response.data || []);
+        return response;
+      } catch (error) {
+        const errorMessage = error?.message || error || 'Failed to fetch posts';
+        setChildError(errorMessage);
+        throw error;
+      } finally {
+        setChildLoading(false);
       }
+    }
+  }, [isAdminMode, childId, dispatch, reduxState.filters]);
+
+  /**
+   * Approve a pending post
+   * @param {String} postId - Post ID
+   * @returns {Promise} Approve result
+   */
+  const approvePostById = useCallback(async (postId) => {
+    try {
+      const result = await dispatch(approvePost(postId)).unwrap();
       
-      setError(errorMessage);
+      dispatch(showNotification({
+        message: 'Post approved successfully!',
+        type: 'success',
+      }));
       
-      // Only show notification for non-network errors
-      if (errorMessage !== 'Network Error' && errorMessage !== 'Failed to fetch posts') {
-        try {
-          dispatch(showNotification({
-            message: errorMessage,
-            type: 'error',
-          }));
-        } catch (dispatchError) {
-          console.error('Error dispatching notification:', dispatchError);
-        }
-      }
-      
-      return [];
-    } finally {
-      setLoading(false);
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to approve post',
+        type: 'error',
+      }));
+      throw error;
     }
   }, [dispatch]);
 
   /**
-   * Create new post with image
+   * Reject a post (soft delete)
+   * @param {String} postId - Post ID
+   * @returns {Promise} Reject result
+   */
+  const rejectPostById = useCallback(async (postId) => {
+    try {
+      const result = await dispatch(rejectPost(postId)).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Post rejected successfully!',
+        type: 'success',
+      }));
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to reject post',
+        type: 'error',
+      }));
+      throw error;
+    }
+  }, [dispatch]);
+
+  /**
+   * Update filters
+   * @param {Object} newFilters - Filter values to update
+   */
+  const updateFilters = useCallback((newFilters) => {
+    dispatch(setFilters(newFilters));
+  }, [dispatch]);
+
+  /**
+   * Clear all filters
+   */
+  const resetFilters = useCallback(() => {
+    dispatch(clearFilters());
+  }, [dispatch]);
+
+  /**
+   * Clear error state
+   */
+  const clearKidsWallError = () => {
+    if (isAdminMode) {
+      dispatch(clearError());
+    } else {
+      setChildError(null);
+    }
+  };
+
+  // ========== Child Operations ==========
+
+  /**
+   * Create a new post (child mode only)
    * @param {Object} postData - Post data (title, content)
    * @param {File} imageFile - Image file
-   * @returns {Promise} Created post
+   * @returns {Promise} Create result
    */
   const createPost = useCallback(async (postData, imageFile) => {
     if (!childId) {
-      throw new Error('Child ID is required');
+      throw new Error('createPost is only available in child mode');
     }
-
-    setLoading(true);
-    setError(null);
-
+    
+    setChildLoading(true);
+    setChildError(null);
     try {
       const response = await kidsWallService.createPost(childId, postData, imageFile);
-      if (response.success && response.data) {
-        // Refresh posts list (feed)
-        await fetchPosts();
-        dispatch(showNotification({
-          message: '🎉 Awesome! Your work is now on the wall! 🎉',
-          type: 'success',
-          duration: 5000, // Show for 5 seconds for celebration
-        }));
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to create post');
-      }
-    } catch (err) {
-      let errorMessage = 'Failed to create post';
-      
-      if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
-      } else if (err && typeof err === 'object') {
-        errorMessage = String(err);
-      }
-      
-      setError(errorMessage);
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      
-      // Re-throw as Error object for proper error handling
-      throw new Error(errorMessage);
+      // Refresh posts after creation
+      await fetchPosts();
+      return response;
+    } catch (error) {
+      const errorMessage = error?.message || error || 'Failed to create post';
+      setChildError(errorMessage);
+      throw error;
     } finally {
-      setLoading(false);
+      setChildLoading(false);
     }
-  }, [childId, dispatch, fetchPosts]);
+  }, [childId, fetchPosts]);
 
   /**
-   * Update existing post
+   * Delete a post (child mode only)
    * @param {String} postId - Post ID
-   * @param {Object} postData - Updated post data
-   * @param {File} imageFile - Optional new image file
-   * @returns {Promise} Updated post
-   */
-  const updatePost = useCallback(async (postId, postData, imageFile = null) => {
-    if (!childId) {
-      throw new Error('Child ID is required');
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await kidsWallService.updatePost(postId, childId, postData, imageFile);
-      if (response.success && response.data) {
-        // Refresh posts list
-        await fetchPosts();
-        dispatch(showNotification({
-          message: 'Post updated successfully!',
-          type: 'success',
-        }));
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to update post');
-      }
-    } catch (err) {
-      let errorMessage = 'Failed to update post';
-      
-      if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
-      } else if (err && typeof err === 'object') {
-        errorMessage = String(err);
-      }
-      
-      setError(errorMessage);
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      
-      // Re-throw as Error object for proper error handling
-      throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [childId, dispatch, fetchPosts]);
-
-  /**
-   * Delete post
-   * @param {String} postId - Post ID
-   * @returns {Promise} Deletion result
+   * @returns {Promise} Delete result
    */
   const deletePost = useCallback(async (postId) => {
     if (!childId) {
-      throw new Error('Child ID is required');
+      throw new Error('deletePost is only available in child mode');
     }
-
-    setLoading(true);
-    setError(null);
-
+    
+    setChildLoading(true);
+    setChildError(null);
     try {
       const response = await kidsWallService.deletePost(postId, childId);
-      if (response.success) {
-        // Refresh posts list
-        await fetchPosts();
-        dispatch(showNotification({
-          message: 'Post deleted successfully!',
-          type: 'success',
-        }));
-        return response;
-      } else {
-        throw new Error(response.message || 'Failed to delete post');
-      }
-    } catch (err) {
-      let errorMessage = 'Failed to delete post';
-      
-      if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
-      } else if (err && typeof err === 'object') {
-        errorMessage = String(err);
-      }
-      
-      setError(errorMessage);
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      
-      // Re-throw as Error object for proper error handling
-      throw new Error(errorMessage);
+      // Refresh posts after deletion
+      await fetchPosts();
+      return response;
+    } catch (error) {
+      const errorMessage = error?.message || error || 'Failed to delete post';
+      setChildError(errorMessage);
+      throw error;
     } finally {
-      setLoading(false);
+      setChildLoading(false);
     }
-  }, [childId, dispatch, fetchPosts]);
+  }, [childId, fetchPosts]);
 
   /**
-   * Toggle like on a post
+   * Toggle like on a post (child mode only)
    * @param {String} postId - Post ID
-   * @returns {Promise} Updated post
+   * @returns {Promise} Toggle result
    */
   const toggleLike = useCallback(async (postId) => {
     if (!childId) {
-      throw new Error('Child ID is required');
+      throw new Error('toggleLike is only available in child mode');
     }
-
+    
     try {
       const response = await kidsWallService.toggleLike(postId, childId);
-      if (response.success && response.data) {
-        // Update the post in the local state
-        setPosts((prevPosts) =>
-          prevPosts.map((post) =>
-            post._id === postId ? response.data : post
-          )
-        );
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to toggle like');
-      }
-    } catch (err) {
-      let errorMessage = 'Failed to toggle like';
-      
-      if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
-      }
-      
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      
-      throw new Error(errorMessage);
+      // Update local posts state
+      setChildPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId ? response.data : post
+        )
+      );
+      return response;
+    } catch (error) {
+      const errorMessage = error?.message || error || 'Failed to toggle like';
+      setChildError(errorMessage);
+      throw error;
     }
-  }, [childId, dispatch]);
+  }, [childId]);
 
   /**
-   * Toggle star on a post
+   * Toggle star on a post (child mode only)
    * @param {String} postId - Post ID
-   * @returns {Promise} Updated post
+   * @returns {Promise} Toggle result
    */
   const toggleStar = useCallback(async (postId) => {
     if (!childId) {
-      throw new Error('Child ID is required');
+      throw new Error('toggleStar is only available in child mode');
     }
-
+    
     try {
       const response = await kidsWallService.toggleStar(postId, childId);
-      if (response.success && response.data) {
-        // Update the post in the local state
-        setPosts((prevPosts) =>
-          prevPosts.map((post) =>
-            post._id === postId ? response.data : post
-          )
-        );
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to toggle star');
-      }
-    } catch (err) {
-      let errorMessage = 'Failed to toggle star';
-      
-      if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err && typeof err === 'object' && err.message) {
-        errorMessage = err.message;
-      }
-      
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      
-      throw new Error(errorMessage);
+      // Update local posts state
+      setChildPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post._id === postId ? response.data : post
+        )
+      );
+      return response;
+    } catch (error) {
+      const errorMessage = error?.message || error || 'Failed to toggle star';
+      setChildError(errorMessage);
+      throw error;
     }
-  }, [childId, dispatch]);
+  }, [childId]);
 
-  /**
-   * Refresh posts list
-   * @param {Object} filters - Optional filters
-   */
-  const refreshPosts = useCallback(async (filters = {}) => {
-    await fetchPosts(filters);
-  }, [fetchPosts]);
-
-  return {
-    // State
-    posts,
-    loading,
-    error,
-    // Methods
-    fetchPosts,
-    createPost,
-    updatePost,
-    deletePost,
-    toggleLike,
-    toggleStar,
-    refreshPosts,
-  };
+  // Return appropriate state and methods based on mode
+  if (isAdminMode) {
+    // Admin mode: Return Redux state and admin methods
+    return {
+      // State
+      posts: reduxState.posts,
+      pagination: reduxState.pagination,
+      filters: reduxState.filters,
+      loading: reduxState.loading,
+      error: reduxState.error,
+      
+      // Actions
+      fetchPosts,
+      approvePostById,
+      rejectPostById,
+      updateFilters,
+      resetFilters,
+      clearKidsWallError,
+    };
+  } else {
+    // Child mode: Return local state and child methods
+    return {
+      // State
+      posts: childPosts,
+      loading: childLoading,
+      error: childError,
+      
+      // Actions
+      fetchPosts,
+      createPost,
+      deletePost,
+      toggleLike,
+      toggleStar,
+      clearKidsWallError,
+    };
+  }
 };
 
+// Export both named and default for backward compatibility
+export { useKidsWall };
 export default useKidsWall;

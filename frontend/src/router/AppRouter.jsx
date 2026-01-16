@@ -7,6 +7,7 @@ import AdminUsers from '../pages/admin/AdminUsers';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
+import AdminKidsWall from '../pages/admin/AdminKidsWall';
 import AdminLayout from '../layouts/AdminLayout';
 import ChildLayout from '../layouts/ChildLayout';
 import ChildHome from '../pages/child/ChildHome';
@@ -168,6 +169,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminExplore />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/kids-wall"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminKidsWall />
               </AdminLayout>
             </AuthedAccess>
           }

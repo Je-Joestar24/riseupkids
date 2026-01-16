@@ -9,6 +9,9 @@ const {
   deletePost,
   toggleLike,
   toggleStar,
+  getAllPostsForAdmin,
+  approvePost,
+  rejectPost,
 } = require('../controllers/kidsWall.controller');
 const { protect } = require('../middleware/auth');
 const { uploadKidsWallImage } = require('../middleware/upload');
@@ -86,5 +89,31 @@ router.post('/:postId/like/child/:childId', toggleLike);
  * @access  Private (Parent/Admin)
  */
 router.post('/:postId/star/child/:childId', toggleStar);
+
+/**
+ * Admin Routes
+ * All admin routes require admin role (enforced in controller)
+ */
+
+/**
+ * @route   GET /api/kids-wall/admin/posts
+ * @desc    Get all posts for admin with pagination and filters
+ * @access  Private (Admin only)
+ */
+router.get('/admin/posts', getAllPostsForAdmin);
+
+/**
+ * @route   POST /api/kids-wall/admin/:postId/approve
+ * @desc    Approve a pending post
+ * @access  Private (Admin only)
+ */
+router.post('/admin/:postId/approve', approvePost);
+
+/**
+ * @route   POST /api/kids-wall/admin/:postId/reject
+ * @desc    Reject a post (soft delete)
+ * @access  Private (Admin only)
+ */
+router.post('/admin/:postId/reject', rejectPost);
 
 module.exports = router;
