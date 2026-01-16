@@ -106,6 +106,21 @@ export const fetchFeaturedExploreContent = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk for reordering explore content within a specific video type
+ */
+export const reorderExploreContent = createAsyncThunk(
+  'explore/reorderExploreContent',
+  async ({ contentIds, videoType }, { rejectWithValue }) => {
+    try {
+      const response = await exploreService.reorderExploreContent(contentIds, videoType);
+      return { contentIds, videoType, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to reorder explore content');
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // List of explore content
@@ -316,6 +331,23 @@ const exploreSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchFeaturedExploreContent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Reorder Explore Content
+    builder
+      .addCase(reorderExploreContent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(reorderExploreContent.fulfilled, (state, action) => {
+        state.loading = false;
+        // Note: The content list will be refreshed by calling fetchAllExploreContent
+        // after successful reorder, so we don't need to update state here
+        state.error = null;
+      })
+      .addCase(reorderExploreContent.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

@@ -138,6 +138,24 @@ const exploreService = {
       throw error.response?.data?.message || error.message;
     }
   },
+
+  /**
+   * Reorder explore content within a specific video type
+   * @param {Array} contentIds - Array of content IDs in desired order (all must be same videoType)
+   * @param {String} videoType - The video type being reordered (REQUIRED) - e.g., 'replay', 'arts_crafts', 'cooking', etc.
+   * @returns {Promise} API response with updated count
+   */
+  reorderExploreContent: async (contentIds, videoType) => {
+    try {
+      const response = await api.post('/explore/reorder', {
+        contentIds,
+        videoType,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
 };
 
 export default exploreService;

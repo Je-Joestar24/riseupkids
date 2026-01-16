@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import ExploreSomething from "../../components/child/explore/ExploreSomething";
+import ExploreReplays from "../../components/child/explore/ExploreReplays";
 
 const ChildExplore = ({ childId }) => {
 
@@ -31,9 +32,9 @@ const ChildExplore = ({ childId }) => {
                     maxWidth: '848px',
                     width: '100%',
                     margin: '0 auto',
-                    padding: { xs: '16px', sm: '32px' },
                 }}
             >
+                <ExploreReplays />
                 <ExploreSomething />
             </Box>
         </Box>

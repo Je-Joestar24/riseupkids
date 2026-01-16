@@ -1,4 +1,5 @@
 import { useDispatch, useSelector } from 'react-redux';
+import { useCallback } from 'react';
 import {
   fetchAllExploreContent,
   createExploreContent,
@@ -7,6 +8,7 @@ import {
   deleteExploreContent,
   fetchExploreContentByType,
   fetchFeaturedExploreContent,
+  reorderExploreContent,
   clearError,
   setFilters,
   clearFilters,
@@ -172,7 +174,7 @@ export const useExplore = () => {
    * @param {Object} params - Query parameters
    * @returns {Promise} Fetch result
    */
-  const fetchContentByType = async (type, params = {}) => {
+  const fetchContentByType = useCallback(async (type, params = {}) => {
     try {
       const result = await dispatch(fetchExploreContentByType({ type, params })).unwrap();
       return result;
@@ -183,7 +185,7 @@ export const useExplore = () => {
       }));
       throw error;
     }
-  };
+  }, [dispatch]);
 
   /**
    * Fetch featured explore content
@@ -324,6 +326,34 @@ export const useExplore = () => {
     return getVideoTypeLabelFromConstants(videoType);
   };
 
+  /**
+   * Reorder explore content within a specific video type
+   * @param {Array} contentIds - Array of content IDs in desired order (all must be same videoType)
+   * @param {String} videoType - The video type being reordered (REQUIRED)
+   * @returns {Promise} Reorder result
+   */
+  const reorderExploreContentData = useCallback(async (contentIds, videoType) => {
+    try {
+      const result = await dispatch(reorderExploreContent({ contentIds, videoType })).unwrap();
+      
+      dispatch(showNotification({
+        message: 'Explore content reordered successfully!',
+        type: 'success',
+      }));
+      
+      // Refresh content list after successful reorder
+      await fetchExploreContent();
+      
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to reorder explore content',
+        type: 'error',
+      }));
+      throw error;
+    }
+  }, [dispatch]);
+
   return {
     // State
     exploreContent,
@@ -342,6 +372,7 @@ export const useExplore = () => {
     deleteExploreContentData,
     fetchContentByType,
     fetchFeaturedContent,
+    reorderExploreContentData,
     updateFilters,
     resetFilters,
     clearExploreError,

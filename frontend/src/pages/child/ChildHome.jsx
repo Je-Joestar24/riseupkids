@@ -40,7 +40,6 @@ const ChildHome = ({ childId }) => {
           maxWidth: '848px',
           width: '100%',
           margin: '0 auto',
-          padding: { xs: '16px', sm: '32px' },
         }}
       >
         {/* Start Learning Welcome Card */}

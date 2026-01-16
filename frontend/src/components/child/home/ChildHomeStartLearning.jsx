@@ -3,6 +3,7 @@ import { Box, Button, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import sampleImage from '../../../assets/images/sample.png';
 import { themeColors } from '../../../config/themeColors';
+import { useNavigate, useParams } from 'react-router-dom';
 
 /**
  * ChildHomeStartLearning Component
@@ -11,9 +12,12 @@ import { themeColors } from '../../../config/themeColors';
  * Displays personalized greeting with avatar and start learning button
  */
 const ChildHomeStartLearning = ({ child }) => {
+  const navigate = useNavigate();
+  const { id: childId } = useParams();
+
   const handleStartLearning = () => {
     // TODO: Implement start learning functionality
-    console.log('Start Learning clicked');
+    navigate(`/child/${childId}/explore`);
   };
 
   return (

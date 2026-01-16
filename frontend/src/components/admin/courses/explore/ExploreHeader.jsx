@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Box, Typography, Paper, Button, Stack } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, Reorder as ReorderIcon } from '@mui/icons-material';
 import { useExplore } from '../../../../hooks/exploreHook';
 import ExploreAddModal from './ExploreAddModal';
+import ExploreReorderModal from './ExploreReorderModal';
 
 /**
  * ExploreHeader Component
@@ -12,8 +13,9 @@ import ExploreAddModal from './ExploreAddModal';
  */
 const ExploreHeader = () => {
   const theme = useTheme();
-  const { pagination, fetchExploreContent } = useExplore();
+  const { pagination, fetchExploreContent, exploreContent, filters } = useExplore();
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
 
   const handleAddClick = () => {
     setAddModalOpen(true);
@@ -28,6 +30,26 @@ const ExploreHeader = () => {
     // Refresh explore content list
     fetchExploreContent();
   };
+
+  const handleReorderClick = () => {
+    setReorderModalOpen(true);
+  };
+
+  const handleReorderModalClose = () => {
+    setReorderModalOpen(false);
+    // Refresh content list after modal closes (in case reorder was successful)
+    // Note: reorderExploreContentData hook already refreshes, but this ensures UI is updated
+    fetchExploreContent();
+  };
+
+  // CRITICAL: Only allow reordering when a specific videoType is selected
+  // Filter content by current videoType (REQUIRED - cannot reorder without videoType)
+  const contentToReorder = filters.videoType 
+    ? exploreContent.filter(item => item.videoType === filters.videoType)
+    : [];
+
+  // Disable reorder button if no videoType is selected or no content available
+  const canReorder = Boolean(filters.videoType && contentToReorder.length > 0);
 
   return (
     <Paper
@@ -66,28 +88,56 @@ const ExploreHeader = () => {
               Manage explore content (Videos, Lessons, Activities) available in the Explore page
             </Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddClick}
-            sx={{
-              backgroundColor: theme.palette.orange.main,
-              color: theme.palette.textCustom.inverse,
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 600,
-              paddingX: 3,
-              paddingY: 1.5,
-              borderRadius: '12px',
-              textTransform: 'none',
-              boxShadow: `0 4px 12px ${theme.palette.orange.main}40`,
-              '&:hover': {
-                backgroundColor: theme.palette.orange.dark,
-                boxShadow: `0 6px 16px ${theme.palette.orange.main}60`,
-              },
-            }}
-          >
-            Add Content
-          </Button>
+          <Stack direction="row" spacing={2}>
+            <Button
+              variant="outlined"
+              startIcon={<ReorderIcon />}
+              onClick={handleReorderClick}
+              disabled={!canReorder}
+              sx={{
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.primary.main,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                paddingX: 3,
+                paddingY: 1.5,
+                borderRadius: '12px',
+                textTransform: 'none',
+                '&:hover': {
+                  borderColor: theme.palette.primary.dark,
+                  backgroundColor: `${theme.palette.primary.main}10`,
+                },
+                '&:disabled': {
+                  borderColor: theme.palette.action.disabled,
+                  color: theme.palette.action.disabled,
+                },
+              }}
+            >
+              Reorder
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddClick}
+              sx={{
+                backgroundColor: theme.palette.orange.main,
+                color: theme.palette.textCustom.inverse,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                paddingX: 3,
+                paddingY: 1.5,
+                borderRadius: '12px',
+                textTransform: 'none',
+                boxShadow: `0 4px 12px ${theme.palette.orange.main}40`,
+                '&:hover': {
+                  backgroundColor: theme.palette.orange.dark,
+                  boxShadow: `0 6px 16px ${theme.palette.orange.main}60`,
+                },
+              }}
+            >
+              Add Content
+            </Button>
+          </Stack>
         </Box>
         {pagination && (
           <Typography
@@ -108,6 +158,14 @@ const ExploreHeader = () => {
         open={addModalOpen}
         onClose={handleAddModalClose}
         onSuccess={handleAddSuccess}
+      />
+      
+      {/* Reorder Modal */}
+      <ExploreReorderModal
+        open={reorderModalOpen}
+        onClose={handleReorderModalClose}
+        content={contentToReorder}
+        videoType={filters.videoType}
       />
     </Paper>
   );
