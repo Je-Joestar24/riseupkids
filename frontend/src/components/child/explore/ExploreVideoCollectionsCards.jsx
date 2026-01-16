@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Box, Typography, Button, Paper, LinearProgress, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Star as StarIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
-import { useExplore } from '../../../../hooks/exploreHook';
-import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../../constants/exploreVideoTypes';
+import { useExplore } from '../../../hooks/exploreHook';
+import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 
 /**
  * SVG Icons for each video type
@@ -182,14 +182,13 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
       <Button
         onClick={() => onContinueClick(videoType)}
         variant="contained"
-        startIcon={<PlayArrowIcon />}
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontSize: '20px',
           fontWeight: 600,
           paddingY: '14px',
           paddingX: 2,
-          borderRadius: '8px',
+          borderRadius: '0px',
           backgroundColor: theme.palette.accent.main,
           color: theme.palette.textCustom.inverse,
           textTransform: 'none',
@@ -320,6 +319,7 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick }) => {
           md: 'repeat(3, 1fr)',
         },
         gap: 3,
+        marginTop: '30px'
       }}
     >
       {videoTypes.map((videoType) => {

@@ -2,6 +2,8 @@ import { Box } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import ExploreSomething from "../../components/child/explore/ExploreSomething";
 import ExploreReplays from "../../components/child/explore/ExploreReplays";
+import ExploreVideoCollectionsCards from "../../components/child/explore/ExploreVideoCollectionsCards";
+import ExploreFooter from "../../components/child/explore/ExploreFooter";
 
 const ChildExplore = ({ childId }) => {
 
@@ -36,6 +38,8 @@ const ChildExplore = ({ childId }) => {
             >
                 <ExploreReplays />
                 <ExploreSomething />
+                <ExploreVideoCollectionsCards />
+                <ExploreFooter />
             </Box>
         </Box>
     )
