@@ -22,6 +22,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
 
 /**
  * ExploreAddModal Component
@@ -37,11 +38,11 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
   const [searchParams] = useSearchParams();
   const { createNewExploreContent, loading, prepareExploreFormData, filters } = useExplore();
 
-  // Get videoType from URL params or filters, default to 'activity' (purely video)
+  // Get videoType from URL params or filters, default to 'replay'
   const getInitialVideoType = () => {
     const urlVideoType = searchParams.get('videoType');
     const filterVideoType = filters?.videoType;
-    return urlVideoType || filterVideoType || 'activity';
+    return urlVideoType || filterVideoType || 'replay';
   };
 
   const [formData, setFormData] = useState({
@@ -58,11 +59,9 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
   const [selectedFiles, setSelectedFiles] = useState({
     videoFile: null,
     coverImage: null,
-    activityIcon: null,
   });
 
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [activityIconPreviewUrl, setActivityIconPreviewUrl] = useState(null);
 
   // Reset state when modal closes and update videoType when filters/URL change
   useEffect(() => {
@@ -81,7 +80,7 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
       title: '',
       description: '',
       type: 'video', // Always video
-      videoType: 'activity', // Default to 'activity' (purely video)
+      videoType: 'replay', // Default to 'replay'
       starsAwarded: 10,
       duration: '',
       isFeatured: false,
@@ -90,10 +89,8 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
     setSelectedFiles({
       videoFile: null,
       coverImage: null,
-      activityIcon: null,
     });
     setImagePreviewUrl(null);
-    setActivityIconPreviewUrl(null);
   };
 
   const handleInputChange = (field, value) => {
@@ -105,20 +102,11 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
     setSelectedFiles((prev) => ({ ...prev, [field]: file }));
     
     // Create preview URLs
-    if (file) {
-      if (field === 'coverImage') {
-        const url = URL.createObjectURL(file);
-        setImagePreviewUrl(url);
-      } else if (field === 'activityIcon') {
-        const url = URL.createObjectURL(file);
-        setActivityIconPreviewUrl(url);
-      }
-    } else {
-      if (field === 'coverImage') {
-        setImagePreviewUrl(null);
-      } else if (field === 'activityIcon') {
-        setActivityIconPreviewUrl(null);
-      }
+    if (file && field === 'coverImage') {
+      const url = URL.createObjectURL(file);
+      setImagePreviewUrl(url);
+    } else if (field === 'coverImage') {
+      setImagePreviewUrl(null);
     }
   };
 
@@ -128,11 +116,8 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
-      if (activityIconPreviewUrl) {
-        URL.revokeObjectURL(activityIconPreviewUrl);
-      }
     };
-  }, [imagePreviewUrl, activityIconPreviewUrl]);
+  }, [imagePreviewUrl]);
 
 
   const handleSubmit = async () => {
@@ -153,8 +138,7 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
       const formDataToSend = prepareExploreFormData(
         formData,
         selectedFiles.videoFile,
-        selectedFiles.coverImage,
-        selectedFiles.activityIcon
+        selectedFiles.coverImage
       );
 
       await createNewExploreContent(formDataToSend);
@@ -173,84 +157,6 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
     onClose();
   };
 
-  const renderTypeSpecificFields = () => {
-    return (
-      <>
-          <TextField
-            label="Duration (seconds)"
-            type="number"
-            value={formData.duration}
-            onChange={(e) => handleInputChange('duration', e.target.value)}
-            inputProps={{ min: 0 }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
-          {formData.videoType === 'activity' && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Activity Icon (SVG) <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
-              </Typography>
-              <input
-                accept=".svg,image/svg+xml"
-                style={{ display: 'none' }}
-                id="activity-icon-upload"
-                type="file"
-                onChange={(e) => handleFileChange('activityIcon', e.target.files)}
-              />
-              <label htmlFor="activity-icon-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Activity Icon (SVG)
-                </Button>
-              </label>
-              {selectedFiles.activityIcon && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.activityIcon.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, activityIcon: null }))}
-                  />
-                </Box>
-              )}
-              {activityIconPreviewUrl && (
-                <Box sx={{ marginTop: 1 }}>
-                  <img
-                    src={activityIconPreviewUrl}
-                    alt="Activity Icon Preview"
-                    style={{
-                      maxWidth: '100px',
-                      maxHeight: '100px',
-                      borderRadius: '8px',
-                    }}
-                  />
-                </Box>
-              )}
-            </Box>
-          )}
-      </>
-    );
-  };
 
   return (
     <Dialog
@@ -343,13 +249,29 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
                 fontFamily: 'Quicksand, sans-serif',
               }}
             >
-              <MenuItem value="replay">Replay</MenuItem>
-              <MenuItem value="activity">Purely Video Lesson</MenuItem>
+              {getVideoTypeOptions().map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
-          {/* Video-specific fields */}
-          {renderTypeSpecificFields()}
+          {/* Duration */}
+          <TextField
+            label="Duration (seconds)"
+            type="number"
+            value={formData.duration}
+            onChange={(e) => handleInputChange('duration', e.target.value)}
+            inputProps={{ min: 0 }}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
 
           {/* Stars Awarded */}
           <TextField
@@ -412,19 +334,18 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
               )}
           </Box>
 
-          {/* Cover Image (only for replay type, not for purely video) */}
-          {formData.videoType === 'replay' && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Cover Image <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
-              </Typography>
+          {/* Cover Photo (for all video types) */}
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                marginBottom: 1,
+              }}
+            >
+              Cover Photo <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
+            </Typography>
               <input
                 accept="image/*"
                 style={{ display: 'none' }}
@@ -443,7 +364,7 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
                     fontFamily: 'Quicksand, sans-serif',
                   }}
                 >
-                  Upload Cover Image
+                  Upload Cover Photo
                 </Button>
               </label>
               {selectedFiles.coverImage && (
@@ -470,8 +391,7 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
                   />
                 </Box>
               )}
-            </Box>
-          )}
+          </Box>
 
           {/* Checkboxes */}
           <Stack direction="row" spacing={2}>

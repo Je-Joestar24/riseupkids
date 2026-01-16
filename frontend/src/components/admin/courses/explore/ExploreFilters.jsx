@@ -13,6 +13,7 @@ import { useTheme } from '@mui/material/styles';
 import { Clear as ClearIcon } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
 
 /**
  * ExploreFilters Component
@@ -31,17 +32,11 @@ const ExploreFilters = () => {
     const params = new URLSearchParams();
     
     // Only track videoType in URL (not type, which is always 'video')
-    // Default to 'activity' (purely video) when empty
-    const videoType = newFilters.videoType || 'activity';
-    if (videoType !== 'activity') {
-      // Only set in URL if it's not the default (activity)
-      params.set('videoType', videoType);
-    }
+    // Default to 'replay' if not specified
+    const videoType = newFilters.videoType || 'replay';
+    params.set('videoType', videoType);
     if (newFilters.search) {
       params.set('search', newFilters.search);
-    }
-    if (newFilters.category) {
-      params.set('category', newFilters.category);
     }
     if (newFilters.isPublished !== undefined) {
       params.set('isPublished', String(newFilters.isPublished));
@@ -80,9 +75,8 @@ const ExploreFilters = () => {
   const handleClearFilters = () => {
     const defaultFilters = {
       type: 'video',
-      videoType: 'activity', // Default to 'activity' (purely video)
+      videoType: 'replay', // Default to replay
       search: undefined,
-      category: undefined,
       isPublished: undefined,
       isFeatured: undefined,
       page: 1,
@@ -90,14 +84,12 @@ const ExploreFilters = () => {
     };
     resetFilters();
     updateUrlParams(defaultFilters);
-    fetchExploreContent();
+    fetchExploreContent(defaultFilters);
   };
 
   const hasActiveFilters =
     filters.search ||
-    filters.type !== undefined ||
-    filters.videoType !== undefined ||
-    filters.category ||
+    (filters.videoType && filters.videoType !== 'replay') || // Only show clear if not default
     filters.isPublished !== undefined ||
     filters.isFeatured !== undefined;
 
@@ -179,7 +171,7 @@ const ExploreFilters = () => {
         </FormControl> */}
 
         {/* Video Type Filter */}
-        <FormControl size="small" sx={{ minWidth: 140 }}>
+        <FormControl size="small" sx={{ minWidth: 180 }}>
           <InputLabel
             sx={{
               fontFamily: 'Quicksand, sans-serif',
@@ -188,10 +180,10 @@ const ExploreFilters = () => {
             Video Type
           </InputLabel>
           <Select
-            value={filters.videoType || 'activity'}
+            value={filters.videoType || 'replay'}
             label="Video Type"
             onChange={(e) =>
-              handleFilterChange('videoType', e.target.value || 'activity')
+              handleFilterChange('videoType', e.target.value)
             }
             sx={{
               fontFamily: 'Quicksand, sans-serif',
@@ -199,41 +191,14 @@ const ExploreFilters = () => {
               backgroundColor: theme.palette.custom.bgSecondary,
             }}
           >
-            <MenuItem value="activity">Purely Video</MenuItem>
-            <MenuItem value="replay">Replay</MenuItem>
+            {getVideoTypeOptions().map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
 
-        {/* Category Filter */}
-{/*         <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            Category
-          </InputLabel>
-          <Select
-            value={filters.category || ''}
-            label="Category"
-            onChange={(e) =>
-              handleFilterChange('category', e.target.value === '' ? undefined : e.target.value)
-            }
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-            }}
-          >
-            <MenuItem value="">All Categories</MenuItem>
-            <MenuItem value="Arts & Crafts">Arts & Crafts</MenuItem>
-            <MenuItem value="Cooking">Cooking</MenuItem>
-            <MenuItem value="Music">Music</MenuItem>
-            <MenuItem value="Science">Science</MenuItem>
-            <MenuItem value="Sports">Sports</MenuItem>
-          </Select>
-        </FormControl>
- */}
         {/* Published Status Filter */}
         <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel

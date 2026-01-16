@@ -59,13 +59,13 @@ const AdminSidebar = () => {
         { text: 'Contents', icon: <AssignmentOutlined />, path: '/admin/courses/contents' },
         { text: 'Explore', icon: <PlayCircleOutlined />, path: '/admin/courses/explore' },
       ],
-    },
-    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' },
+    },/* 
+    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
-    { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
+/*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
     { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
     { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
-    { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'}
+    { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'} */
   ];
 
   const handleNavigation = (path) => {

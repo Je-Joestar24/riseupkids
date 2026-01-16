@@ -19,14 +19,13 @@ const AdminExplore = () => {
 
   // Initialize filters from URL params on mount and when URL changes
   useEffect(() => {
-    // Default to 'activity' (purely video) when videoType is empty
-    const videoType = searchParams.get('videoType') || 'activity';
+    // Default to 'replay' when videoType is empty
+    const videoType = searchParams.get('videoType') || 'replay';
     
     const urlFilters = {
       type: 'video', // Always video, not tracked in URL
-      videoType: videoType, // Default to 'activity' (purely video) when empty
+      videoType: videoType, // Default to 'replay' when empty
       search: searchParams.get('search') || undefined,
-      category: searchParams.get('category') || undefined,
       isPublished: searchParams.get('isPublished') ? searchParams.get('isPublished') === 'true' : undefined,
       isFeatured: searchParams.get('isFeatured') ? searchParams.get('isFeatured') === 'true' : undefined,
       page: parseInt(searchParams.get('page') || '1', 10),
@@ -37,7 +36,6 @@ const AdminExplore = () => {
     const filtersChanged = 
       filters.videoType !== urlFilters.videoType ||
       filters.search !== urlFilters.search ||
-      filters.category !== urlFilters.category ||
       filters.isPublished !== urlFilters.isPublished ||
       filters.isFeatured !== urlFilters.isFeatured ||
       filters.page !== urlFilters.page ||
@@ -58,7 +56,6 @@ const AdminExplore = () => {
     filters.search,
     filters.type,
     filters.videoType,
-    filters.category,
     filters.isPublished,
     filters.isFeatured,
     filters.page,

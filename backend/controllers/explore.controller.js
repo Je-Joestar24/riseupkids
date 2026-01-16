@@ -9,8 +9,8 @@ const exploreService = require('../services/explore.services');
  * - title: String (required)
  * - description: String (optional)
  * - type: String (optional, default: 'video') - Content type
- * - videoType: String (optional, default: 'replay') - 'replay' or 'activity'
- * - category: String (optional) - Category for grouping
+ * - videoType: String (optional, default: 'replay') - One of: 'replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'
+ * - category: String (optional) - Category for grouping (deprecated, kept for backward compatibility)
  * - starsAwarded: Number (optional, default: 10)
  * - totalItems: Number (optional, default: 0)
  * - order: Number (optional, default: 0)
@@ -19,8 +19,7 @@ const exploreService = require('../services/explore.services');
  * - tags: JSON String (optional) - Array of tag strings
  * - duration: Number (optional) - Video duration in seconds
  * - videoFile: File (required for video type) - Video file
- * - coverImage: File (optional) - Cover image/thumbnail
- * - activityIcon: File (optional) - SVG icon for activity video type
+ * - coverImage: File (optional) - Cover photo/thumbnail (for all video types)
  */
 const createExploreContent = async (req, res) => {
   try {
@@ -57,8 +56,8 @@ const createExploreContent = async (req, res) => {
  * 
  * Query parameters:
  * - type: Filter by content type (video, lesson, activity, etc.)
- * - videoType: Filter by video subtype (replay, activity)
- * - category: Filter by category
+ * - videoType: Filter by video subtype (replay, arts_crafts, cooking, music, movement_fitness, story_time, manners_etiquette)
+ * - category: Filter by category (deprecated, kept for backward compatibility)
  * - isPublished: Filter by published status (true/false)
  * - isFeatured: Filter by featured status (true/false)
  * - search: Search in title/description/category
@@ -129,8 +128,8 @@ const getExploreContentById = async (req, res) => {
  * Request (multipart/form-data):
  * - title: String (optional)
  * - description: String (optional)
- * - videoType: String (optional) - 'replay' or 'activity'
- * - category: String (optional)
+ * - videoType: String (optional) - One of: 'replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'
+ * - category: String (optional) - Category for grouping (deprecated)
  * - starsAwarded: Number (optional)
  * - totalItems: Number (optional)
  * - order: Number (optional)
@@ -138,8 +137,7 @@ const getExploreContentById = async (req, res) => {
  * - isPublished: Boolean (optional)
  * - tags: JSON String (optional)
  * - duration: Number (optional)
- * - coverImage: File (optional) - New cover image
- * - activityIcon: File (optional) - New activity icon (SVG)
+ * - coverImage: File (optional) - New cover photo (for all video types)
  */
 const updateExploreContent = async (req, res) => {
   try {
@@ -212,8 +210,8 @@ const deleteExploreContent = async (req, res) => {
  * - type: Content type (video, lesson, activity, etc.)
  * 
  * Query parameters:
- * - videoType: Filter by video subtype (replay, activity) - only for video type
- * - category: Filter by category
+ * - videoType: Filter by video subtype (replay, arts_crafts, cooking, music, movement_fitness, story_time, manners_etiquette) - only for video type
+ * - category: Filter by category (deprecated)
  * - isFeatured: Filter by featured status
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 10)

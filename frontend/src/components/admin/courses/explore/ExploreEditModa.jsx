@@ -21,6 +21,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
 
 /**
  * ExploreEditModal Component
@@ -39,7 +40,6 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
     currentExploreContent,
     clearContent,
     getCoverImageUrl,
-    getActivityIconUrl,
     prepareExploreFormData,
   } = useExplore();
 
@@ -54,13 +54,10 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
   });
   const [selectedFiles, setSelectedFiles] = useState({
     coverImage: null,
-    activityIcon: null,
   });
 
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [activityIconPreviewUrl, setActivityIconPreviewUrl] = useState(null);
   const [currentCoverImageUrl, setCurrentCoverImageUrl] = useState(null);
-  const [currentActivityIconUrl, setCurrentActivityIconUrl] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
@@ -104,24 +101,18 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
         isPublished: currentExploreContent.isPublished || false,
       });
       
-      // Set existing image URLs (only for replay type)
-      if (currentExploreContent.videoType === 'replay' && currentExploreContent.coverImage) {
+      // Set existing cover image URL (for all video types)
+      if (currentExploreContent.coverImage) {
         const coverUrl = getCoverImageUrl(currentExploreContent.coverImage);
         setCurrentCoverImageUrl(coverUrl);
       } else {
         setCurrentCoverImageUrl(null);
       }
-      if (currentExploreContent.activityIcon) {
-        const iconUrl = getActivityIconUrl(currentExploreContent.activityIcon);
-        setCurrentActivityIconUrl(iconUrl);
-      }
       
       setSelectedFiles({
         coverImage: null,
-        activityIcon: null,
       });
       setImagePreviewUrl(null);
-      setActivityIconPreviewUrl(null);
       setIsInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,13 +120,6 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    
-    // Clear cover image when switching to activity (purely video)
-    if (field === 'videoType' && value === 'activity') {
-      setSelectedFiles((prev) => ({ ...prev, coverImage: null }));
-      setImagePreviewUrl(null);
-      setCurrentCoverImageUrl(null);
-    }
   };
 
   const handleFileChange = (field, fileList) => {
@@ -143,20 +127,11 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
     setSelectedFiles((prev) => ({ ...prev, [field]: file }));
     
     // Create preview URLs
-    if (file) {
-      if (field === 'coverImage') {
-        const url = URL.createObjectURL(file);
-        setImagePreviewUrl(url);
-      } else if (field === 'activityIcon') {
-        const url = URL.createObjectURL(file);
-        setActivityIconPreviewUrl(url);
-      }
-    } else {
-      if (field === 'coverImage') {
-        setImagePreviewUrl(null);
-      } else if (field === 'activityIcon') {
-        setActivityIconPreviewUrl(null);
-      }
+    if (file && field === 'coverImage') {
+      const url = URL.createObjectURL(file);
+      setImagePreviewUrl(url);
+    } else if (field === 'coverImage') {
+      setImagePreviewUrl(null);
     }
   };
 
@@ -166,11 +141,8 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
-      if (activityIconPreviewUrl) {
-        URL.revokeObjectURL(activityIconPreviewUrl);
-      }
     };
-  }, [imagePreviewUrl, activityIconPreviewUrl]);
+  }, [imagePreviewUrl]);
 
 
   const handleSubmit = async () => {
@@ -185,8 +157,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
       const formDataToSend = prepareExploreFormData(
         formData,
         null, // videoFile cannot be changed
-        selectedFiles.coverImage,
-        selectedFiles.activityIcon
+        selectedFiles.coverImage
       );
 
       await updateExploreContentData(contentId, formDataToSend);
@@ -203,9 +174,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
   const handleClose = () => {
     setIsInitialized(false);
     setImagePreviewUrl(null);
-    setActivityIconPreviewUrl(null);
     setCurrentCoverImageUrl(null);
-    setCurrentActivityIconUrl(null);
     onClose();
   };
 
@@ -329,8 +298,11 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                 fontFamily: 'Quicksand, sans-serif',
               }}
             >
-              <MenuItem value="replay">Replay</MenuItem>
-              <MenuItem value="activity">Purely Video Lesson</MenuItem>
+              {getVideoTypeOptions().map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
             </Select>
           </FormControl>
 
@@ -350,90 +322,6 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
             }}
           />
 
-          {/* Activity Icon (for activity videoType) */}
-          {formData.videoType === 'activity' && (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Activity Icon (SVG) <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
-              </Typography>
-              {currentActivityIconUrl && !selectedFiles.activityIcon && (
-                <Box sx={{ marginBottom: 1 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      color: theme.palette.text.secondary,
-                      display: 'block',
-                      marginBottom: 1,
-                    }}
-                  >
-                    Current Icon:
-                  </Typography>
-                  <img
-                    src={currentActivityIconUrl}
-                    alt="Current Activity Icon"
-                    style={{
-                      maxWidth: '100px',
-                      maxHeight: '100px',
-                      borderRadius: '8px',
-                    }}
-                  />
-                </Box>
-              )}
-              <input
-                accept=".svg,image/svg+xml"
-                style={{ display: 'none' }}
-                id="activity-icon-upload-edit"
-                type="file"
-                onChange={(e) => handleFileChange('activityIcon', e.target.files)}
-              />
-              <label htmlFor="activity-icon-upload-edit">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  {currentActivityIconUrl ? 'Change Activity Icon (SVG)' : 'Upload Activity Icon (SVG)'}
-                </Button>
-              </label>
-              {selectedFiles.activityIcon && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.activityIcon.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, activityIcon: null }))}
-                  />
-                </Box>
-              )}
-              {activityIconPreviewUrl && (
-                <Box sx={{ marginTop: 1 }}>
-                  <img
-                    src={activityIconPreviewUrl}
-                    alt="Activity Icon Preview"
-                    style={{
-                      maxWidth: '100px',
-                      maxHeight: '100px',
-                      borderRadius: '8px',
-                    }}
-                  />
-                </Box>
-              )}
-            </Box>
-          )}
-
           {/* Stars Awarded */}
           <TextField
             label="Stars Awarded"
@@ -450,9 +338,8 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
             }}
           />
 
-          {/* Cover Image (only for replay type, not for purely video) */}
-          {formData.videoType === 'replay' && (
-            <Box>
+          {/* Cover Photo (for all video types) */}
+          <Box>
             <Typography
               variant="subtitle2"
               sx={{
@@ -461,7 +348,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                 marginBottom: 1,
               }}
             >
-              Cover Image <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
+              Cover Photo <span style={{ color: theme.palette.text.secondary }}>(Optional)</span>
             </Typography>
             {currentCoverImageUrl && !selectedFiles.coverImage && (
               <Box sx={{ marginBottom: 1 }}>
@@ -506,7 +393,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                   fontFamily: 'Quicksand, sans-serif',
                 }}
               >
-                {currentCoverImageUrl ? 'Change Cover Image' : 'Upload Cover Image'}
+                {currentCoverImageUrl ? 'Change Cover Photo' : 'Upload Cover Photo'}
               </Button>
             </label>
             {selectedFiles.coverImage && (
@@ -530,7 +417,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                     marginBottom: 1,
                   }}
                 >
-                  New Cover Image Preview:
+                  New Cover Photo Preview:
                 </Typography>
                 <img
                   src={imagePreviewUrl}
@@ -544,8 +431,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                 />
               </Box>
             )}
-            </Box>
-          )}
+          </Box>
 
           {/* Checkboxes */}
           <Stack direction="row" spacing={2}>

@@ -667,7 +667,7 @@ const uploadChantUpdate = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for explore content uploads (video file + cover image + activity icon SVG)
+// Middleware for explore content uploads (video file + cover photo for all video types)
 const uploadExplore = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
@@ -676,8 +676,6 @@ const uploadExplore = multer({
       if (file.fieldname === 'videoFile') {
         uploadPath = path.join(__dirname, '../uploads/media/videos');
       } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else if (file.fieldname === 'activityIcon') {
         uploadPath = path.join(__dirname, '../uploads/media/images');
       } else {
         uploadPath = path.join(__dirname, '../uploads/media/other');
@@ -706,18 +704,8 @@ const uploadExplore = multer({
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
-    } else if (file.fieldname === 'activityIcon') {
-      // Allow SVG files and other image types
-      const isSvg = file.mimetype === 'image/svg+xml' || 
-                    path.extname(file.originalname).toLowerCase() === '.svg';
-      const isImage = file.mimetype.startsWith('image/');
-      if (isSvg || isImage) {
-        cb(null, true);
-      } else {
-        cb(new Error('Activity icon must be an SVG or image file'), false);
-      }
     } else {
-      cb(null, true);
+      cb(new Error(`Unknown field: ${file.fieldname}`), false);
     }
   },
   limits: {
@@ -726,10 +714,10 @@ const uploadExplore = multer({
 }).fields([
   { name: 'videoFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
-  { name: 'activityIcon', maxCount: 1 },
 ]);
 
-// Middleware for explore content update (cover image + activity icon only, no video file)
+// Middleware for explore content update (cover photo only, no video file)
+// Cover photo allowed for all video types
 const uploadExploreUpdate = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
@@ -752,18 +740,8 @@ const uploadExploreUpdate = multer({
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
-    } else if (file.fieldname === 'activityIcon') {
-      // Allow SVG files and other image types
-      const isSvg = file.mimetype === 'image/svg+xml' || 
-                    path.extname(file.originalname).toLowerCase() === '.svg';
-      const isImage = file.mimetype.startsWith('image/');
-      if (isSvg || isImage) {
-        cb(null, true);
-      } else {
-        cb(new Error('Activity icon must be an SVG or image file'), false);
-      }
     } else {
-      cb(new Error('Only cover image and activity icon are allowed for updates'), false);
+      cb(new Error('Only cover image is allowed for updates'), false);
     }
   },
   limits: {
@@ -771,7 +749,6 @@ const uploadExploreUpdate = multer({
   },
 }).fields([
   { name: 'coverImage', maxCount: 1 },
-  { name: 'activityIcon', maxCount: 1 },
 ]);
 
 // Middleware for KidsWall image uploads

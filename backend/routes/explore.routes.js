@@ -17,6 +17,8 @@ const { uploadExplore, uploadExploreUpdate } = require('../middleware/upload');
  * 
  * Base path: /api/explore
  * 
+ * Video Types: replay, arts_crafts, cooking, music, movement_fitness, story_time, manners_etiquette
+ * 
  * Routes:
  * - POST / - Create new explore content (admin only, with file uploads)
  * - GET / - Get all explore content (with filtering and pagination)

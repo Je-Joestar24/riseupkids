@@ -13,6 +13,7 @@ import {
   clearCurrentExploreContent,
 } from '../store/slices/exploreSlice';
 import { showNotification } from '../store/slices/uiSlice';
+import { getVideoTypeLabel as getVideoTypeLabelFromConstants } from '../constants/exploreVideoTypes';
 
 /**
  * Custom hook for explore content management
@@ -44,10 +45,9 @@ export const useExplore = () => {
       // Create a new object to avoid mutating Redux state
       const queryParams = {
         ...sourceParams,
-        // Default videoType to 'activity' (purely video) if not specified
-        videoType: sourceParams.videoType || 'activity',
         // Always set type to 'video'
         type: 'video',
+        // videoType is optional - if not specified, shows all video types
       };
       const result = await dispatch(fetchAllExploreContent(queryParams)).unwrap();
       return result;
@@ -221,15 +221,13 @@ export const useExplore = () => {
    * Prepare FormData for explore content creation/update
    * @param {Object} contentData - Explore content data object
    * @param {File} videoFile - Optional video file
-   * @param {File} coverImageFile - Optional cover image file
-   * @param {File} activityIconFile - Optional activity icon file (SVG)
+   * @param {File} coverImageFile - Optional cover photo file
    * @returns {FormData} FormData object ready for API call
    */
   const prepareExploreFormData = (
     contentData,
     videoFile = null,
-    coverImageFile = null,
-    activityIconFile = null
+    coverImageFile = null
   ) => {
     const formData = new FormData();
     
@@ -239,7 +237,6 @@ export const useExplore = () => {
     // Always set type to 'video'
     formData.append('type', 'video');
     if (contentData.videoType) formData.append('videoType', contentData.videoType);
-    if (contentData.category) formData.append('category', contentData.category);
     if (contentData.starsAwarded !== undefined) {
       formData.append('starsAwarded', contentData.starsAwarded);
     }
@@ -259,9 +256,6 @@ export const useExplore = () => {
     }
     if (coverImageFile) {
       formData.append('coverImage', coverImageFile);
-    }
-    if (activityIconFile) {
-      formData.append('activityIcon', activityIconFile);
     }
     
     return formData;
@@ -303,23 +297,6 @@ export const useExplore = () => {
     return `${baseUrl}${videoFileUrl.startsWith('/') ? videoFileUrl : `/${videoFileUrl}`}`;
   };
 
-  /**
-   * Get full URL for activity icon
-   * @param {String} activityIconPath - Relative activity icon path
-   * @returns {String} Full URL for the activity icon
-   */
-  const getActivityIconUrl = (activityIconPath) => {
-    if (!activityIconPath) return null;
-    
-    // If already a full URL, return as-is
-    if (activityIconPath.startsWith('http://') || activityIconPath.startsWith('https://')) {
-      return activityIconPath;
-    }
-    
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${activityIconPath.startsWith('/') ? activityIconPath : `/${activityIconPath}`}`;
-  };
 
   /**
    * Get content type label for display
@@ -340,15 +317,11 @@ export const useExplore = () => {
 
   /**
    * Get video type label for display
-   * @param {String} videoType - Video type (replay, activity)
+   * @param {String} videoType - Video type (replay, arts_crafts, cooking, music, movement_fitness, story_time, manners_etiquette)
    * @returns {String} Human-readable label
    */
   const getVideoTypeLabel = (videoType) => {
-    const labels = {
-      'replay': 'Replay',
-      'activity': 'Activity',
-    };
-    return labels[videoType] || videoType;
+    return getVideoTypeLabelFromConstants(videoType);
   };
 
   return {
@@ -377,7 +350,6 @@ export const useExplore = () => {
     prepareExploreFormData,
     getCoverImageUrl,
     getVideoFileUrl,
-    getActivityIconUrl,
     getContentTypeLabel,
     getVideoTypeLabel,
   };

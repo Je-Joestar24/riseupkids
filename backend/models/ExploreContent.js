@@ -44,13 +44,8 @@ const exploreContentSchema = new mongoose.Schema(
     // Video subtype for Explore content (only applies when type is 'video')
     videoType: {
       type: String,
-      enum: ['replay', 'activity'],
+      enum: ['replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'],
       default: 'replay',
-    },
-    // SVG icon for activity-type videos (file path for uploaded SVG)
-    activityIcon: {
-      type: String, // File path or URL for SVG icon
-      default: null,
     },
     // Video file reference (for video type content)
     videoFile: {

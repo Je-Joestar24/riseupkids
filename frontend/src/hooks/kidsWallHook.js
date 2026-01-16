@@ -162,17 +162,32 @@ const useKidsWall = (childId = null) => {
     setChildError(null);
     try {
       const response = await kidsWallService.createPost(childId, postData, imageFile);
+      
+      // Show child-friendly success message
+      dispatch(showNotification({
+        message: '🎉 Awesome! Your post is waiting for a grown-up to check it. We\'ll let you know when it\'s approved!',
+        type: 'success',
+        duration: 5000, // 5 seconds so child can read it
+      }));
+      
       // Refresh posts after creation
       await fetchPosts();
       return response;
     } catch (error) {
       const errorMessage = error?.message || error || 'Failed to create post';
       setChildError(errorMessage);
+      
+      // Show child-friendly error message
+      dispatch(showNotification({
+        message: 'Oops! Something went wrong. Please ask a grown-up for help!',
+        type: 'error',
+      }));
+      
       throw error;
     } finally {
       setChildLoading(false);
     }
-  }, [childId, fetchPosts]);
+  }, [childId, fetchPosts, dispatch]);
 
   /**
    * Delete a post (child mode only)

@@ -125,9 +125,8 @@ const initialState = {
   },
   // Filters
   filters: {
-    type: undefined,
-    videoType: undefined,
-    category: undefined,
+    type: 'video',
+    videoType: 'replay', // Default to 'replay'
     isPublished: undefined,
     isFeatured: undefined,
     search: '',

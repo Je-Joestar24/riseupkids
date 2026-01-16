@@ -5,7 +5,7 @@ const path = require('path');
 /**
  * Create Explore Content Service
  * 
- * Creates new explore content with video file, cover image, and optional activity icon (SVG)
+ * Creates new explore content with video file and optional cover photo (for all video types)
  * 
  * @param {String} userId - Admin user's MongoDB ID
  * @param {Object} contentData - Content data
@@ -28,6 +28,12 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     tags,
     duration,
   } = contentData;
+
+  // Validate videoType for new enum values
+  const validVideoTypes = ['replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'];
+  if (type === 'video' && videoType && !validVideoTypes.includes(videoType)) {
+    throw new Error(`Invalid videoType. Must be one of: ${validVideoTypes.join(', ')}`);
+  }
 
   // Validate required fields
   if (!title || !title.trim()) {
@@ -76,13 +82,6 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
   }
 
-  // Process activity icon (SVG) if provided
-  let activityIconPath = null;
-  if (files.activityIcon && Array.isArray(files.activityIcon) && files.activityIcon.length > 0) {
-    const activityIcon = files.activityIcon[0];
-    const iconRelativePath = activityIcon.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    activityIconPath = `/uploads${iconRelativePath.startsWith('/') ? iconRelativePath : `/${iconRelativePath}`}`;
-  }
 
   // Parse tags
   let parsedTags = [];
@@ -104,9 +103,8 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     type: type,
     contentRef: videoMedia ? videoMedia._id : null,
     contentRefModel: 'Media',
-    coverImage: coverImagePath,
+    coverImage: coverImagePath, // Cover photo for all video types
     videoType: type === 'video' ? videoType : null,
-    activityIcon: activityIconPath,
     videoFile: videoMedia ? videoMedia._id : null,
     videoFilePath: videoFilePath,
     videoFileUrl: videoFileUrl,
@@ -237,13 +235,13 @@ const getExploreContentById = async (contentId) => {
 /**
  * Update Explore Content Service
  * 
- * Updates explore content fields: title, description, cover image, activity icon, etc.
+ * Updates explore content fields: title, description, cover photo, etc.
  * Video file cannot be changed after creation
  * 
  * @param {String} contentId - Explore content's MongoDB ID
  * @param {String} userId - Admin user's MongoDB ID (for verification)
  * @param {Object} updateData - Data to update
- * @param {Object} files - Uploaded files (coverImage, activityIcon only)
+ * @param {Object} files - Uploaded files (coverImage only)
  * @returns {Object} Updated explore content with populated data
  * @throws {Error} If content not found or validation fails
  */
@@ -284,8 +282,9 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
 
   // Update video type (only for video content)
   if (videoType !== undefined && content.type === 'video') {
-    if (!['replay', 'activity'].includes(videoType)) {
-      throw new Error('Video type must be either "replay" or "activity"');
+    const validVideoTypes = ['replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'];
+    if (!validVideoTypes.includes(videoType)) {
+      throw new Error(`Invalid videoType. Must be one of: ${validVideoTypes.join(', ')}`);
     }
     content.videoType = videoType;
   }
@@ -343,18 +342,22 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
     content.tags = parsedTags.filter(t => t && t.trim()).map(t => t.trim());
   }
 
-  // Process cover image if provided
+  // Process cover image if provided (for all video types)
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
+    // Delete old cover image if exists
+    if (content.coverImage) {
+      const oldCoverPath = path.join(__dirname, '../', content.coverImage.replace('/uploads', 'uploads'));
+      if (fs.existsSync(oldCoverPath)) {
+        try {
+          fs.unlinkSync(oldCoverPath);
+        } catch (error) {
+          console.error('Error deleting old cover image:', error);
+        }
+      }
+    }
     const coverImage = files.coverImage[0];
     const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
     content.coverImage = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-  }
-
-  // Process activity icon (SVG) if provided
-  if (files.activityIcon && Array.isArray(files.activityIcon) && files.activityIcon.length > 0) {
-    const activityIcon = files.activityIcon[0];
-    const iconRelativePath = activityIcon.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    content.activityIcon = `/uploads${iconRelativePath.startsWith('/') ? iconRelativePath : `/${iconRelativePath}`}`;
   }
 
   await content.save();
@@ -420,17 +423,6 @@ const deleteExploreContent = async (contentId) => {
     }
   }
 
-  // Delete activity icon if exists
-  if (content.activityIcon) {
-    const iconPath = path.join(__dirname, '../', content.activityIcon.replace('/uploads', 'uploads'));
-    if (fs.existsSync(iconPath)) {
-      try {
-        fs.unlinkSync(iconPath);
-      } catch (error) {
-        console.error('Error deleting activity icon:', error);
-      }
-    }
-  }
 
   await ExploreContent.findByIdAndDelete(contentId);
 

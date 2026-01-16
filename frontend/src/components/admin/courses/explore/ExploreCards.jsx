@@ -4,9 +4,6 @@ import {
   Paper,
   Typography,
   IconButton,
-  Menu,
-  MenuItem,
-  Chip,
   CircularProgress,
   Dialog,
   DialogTitle,
@@ -18,7 +15,6 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
-  MoreVert as MoreVertIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   PlayArrow as PlayArrowIcon,
@@ -26,6 +22,7 @@ import {
   Star as StarIcon,
 } from '@mui/icons-material';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
 import ExploreEditModal from './ExploreEditModa';
 
 /**
@@ -46,45 +43,17 @@ const ExploreCards = () => {
     deleteExploreContentData,
     fetchExploreContent,
     getCoverImageUrl,
-    getActivityIconUrl,
   } = useExplore();
 
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [selectedContent, setSelectedContent] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [contentToDelete, setContentToDelete] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [contentToEdit, setContentToEdit] = useState(null);
 
-  const handleMenuOpen = (event, content) => {
-    event.stopPropagation();
-    setAnchorEl(event.currentTarget);
-    setSelectedContent(content);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-    setSelectedContent(null);
-  };
-
-  const handleEdit = () => {
-    if (selectedContent) {
-      setContentToEdit(selectedContent);
-      setEditModalOpen(true);
-    }
-    handleMenuClose();
-  };
-
   const handleEditModalClose = () => {
     setEditModalOpen(false);
     setContentToEdit(null);
     fetchExploreContent();
-  };
-
-  const handleDeleteClick = () => {
-    setContentToDelete(selectedContent);
-    setDeleteDialogOpen(true);
-    handleMenuClose();
   };
 
   const handleDeleteConfirm = async () => {
@@ -119,8 +88,8 @@ const ExploreCards = () => {
     return count.toString();
   };
 
-  // Render Replay Card (smaller format)
-  const renderReplayCard = (content) => {
+  // Render unified card for all video types
+  const renderCard = (content) => {
     const coverImageUrl = content.coverImage ? getCoverImageUrl(content.coverImage) : null;
     
     return (
@@ -140,14 +109,15 @@ const ExploreCards = () => {
             transform: 'translateY(-4px)',
           },
           position: 'relative',
+          backgroundColor: 'white',
         }}
       >
-        {/* Cover Image with Play Button Overlay */}
+        {/* Cover Image - Rectangular */}
         <Box
           sx={{
             position: 'relative',
             width: '100%',
-            paddingTop: '56.25%', // 16:9 aspect ratio
+            paddingTop: '56.25%', // 16:9 aspect ratio (rectangular)
             backgroundColor: theme.palette.custom.bgSecondary,
             overflow: 'hidden',
           }}
@@ -188,39 +158,8 @@ const ExploreCards = () => {
               />
             </Box>
           )}
-          
-          {/* Play Button Overlay */}
-          <Box
-            sx={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 1)',
-                transform: 'translate(-50%, -50%) scale(1.1)',
-              },
-            }}
-          >
-            <PlayArrowIcon
-              sx={{
-                fontSize: 28,
-                color: theme.palette.orange.main,
-                marginLeft: 0.5,
-              }}
-            />
-          </Box>
 
-          {/* Duration Badge */}
+          {/* Duration Badge (if available) */}
           {content.duration && (
             <Box
               sx={{
@@ -240,22 +179,67 @@ const ExploreCards = () => {
             </Box>
           )}
 
-          {/* Actions Menu */}
-          <IconButton
-            onClick={(e) => handleMenuOpen(e, content)}
-            sx={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 1)',
-              },
-            }}
-            size="small"
-          >
-            <MoreVertIcon />
-          </IconButton>
+          {/* Star Badge (for non-replay types) */}
+          {content.videoType !== 'replay' && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                backgroundColor: '#f2af10',
+                borderRadius: '9999px',
+                paddingY: 0.75,
+                paddingX: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                boxShadow: theme.shadows[2],
+              }}
+            >
+              <StarIcon
+                sx={{
+                  width: 20,
+                  height: 20,
+                  color: 'white',
+                  fill: 'white',
+                }}
+              />
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontSize: '1.125rem',
+                  fontWeight: 600,
+                  color: 'white',
+                }}
+              >
+                {content.starsAwarded || 10}
+              </Typography>
+            </Box>
+          )}
+
+          {/* View Count (for replay type) */}
+          {content.videoType === 'replay' && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 8,
+                left: 8,
+                backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                color: 'white',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+              }}
+            >
+              <VisibilityIcon sx={{ fontSize: 14 }} />
+              {formatViewCount(content.viewCount || 0)}
+            </Box>
+          )}
         </Box>
 
         {/* Content Details */}
@@ -286,192 +270,7 @@ const ExploreCards = () => {
             {content.title}
           </Typography>
 
-          {/* Creator (if available) */}
-          {content.createdBy?.name && (
-            <Typography
-              variant="body2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                color: theme.palette.text.secondary,
-                fontSize: '0.8125rem',
-                marginBottom: 1,
-              }}
-            >
-              by {content.createdBy.name}
-            </Typography>
-          )}
-
-          {/* View Count */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 0.5,
-              marginTop: 'auto',
-            }}
-          >
-            <VisibilityIcon
-              sx={{
-                fontSize: 16,
-                color: theme.palette.text.secondary,
-              }}
-            />
-            <Typography
-              variant="body2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                color: theme.palette.text.secondary,
-                fontSize: '0.8125rem',
-              }}
-            >
-              {formatViewCount(content.viewCount || 0)} views
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  // Render Activity Card (purely video lesson - different layout)
-  const renderActivityCard = (content) => {
-    const activityIconUrl = content.activityIcon ? getActivityIconUrl(content.activityIcon) : null;
-    const coverImageUrl = content.coverImage ? getCoverImageUrl(content.coverImage) : null;
-    
-    return (
-      <Card
-        key={content._id}
-        sx={{
-          height: '100%',
-          width: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 0, // 0px solid radius for purely video cards
-          overflow: 'hidden',
-          border: `1px solid ${theme.palette.border.main}`,
-          boxShadow: theme.shadows[2],
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            boxShadow: theme.shadows[6],
-            transform: 'translateY(-4px)',
-          },
-          position: 'relative',
-          backgroundColor: 'white',
-        }}
-      >
-        <CardContent
-          sx={{
-            padding: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1.5,
-            flexGrow: 1,
-          }}
-        >
-          {/* Row 1: SVG Icon on Left, Star Badge on Upper Right */}
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              position: 'relative',
-            }}
-          >
-            {/* SVG Icon on Left (64px) */}
-            <Box
-              sx={{
-                width: 64,
-                height: 64,
-                minWidth: 64,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: 'transparent',
-                flexShrink: 0,
-              }}
-            >
-              {activityIconUrl ? (
-                <Box
-                  component="img"
-                  src={activityIconUrl}
-                  alt={content.title}
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    backgroundColor: 'transparent',
-                  }}
-                />
-              ) : coverImageUrl ? (
-                <Box
-                  component="img"
-                  src={coverImageUrl}
-                  alt={content.title}
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    backgroundColor: 'transparent',
-                  }}
-                />
-              ) : (
-                <PlayArrowIcon
-                  sx={{
-                    fontSize: 40,
-                    color: theme.palette.orange.main,
-                  }}
-                />
-              )}
-            </Box>
-
-            {/* Star Badge on Upper Right */}
-            <Box
-              sx={{
-                backgroundColor: '#f2af10',
-                borderRadius: '9999px', // rounded-full
-                paddingY: 0.75, // 6px (py-1.5 = 0.375rem * 2 = 0.75rem)
-                paddingX: 1.5, // 12px (px-3 = 0.75rem * 2 = 1.5rem)
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5, // gap-1
-                boxShadow: theme.shadows[2],
-              }}
-            >
-              <StarIcon
-                sx={{
-                  width: 20,
-                  height: 20,
-                  color: 'white',
-                  fill: 'white',
-                }}
-              />
-              <Typography
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontSize: '1.125rem', // text-lg
-                  fontWeight: 600,
-                  color: 'white',
-                }}
-              >
-                {content.starsAwarded || 10}
-              </Typography>
-            </Box>
-          </Box>
-
-          {/* Row 2: Title (reduced font size) */}
-          <Typography
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 700,
-              fontSize: '18px', // Reduced from 24px
-              color: theme.palette.secondary?.main || theme.palette.text.primary, // Secondary color
-              marginTop: 0.5,
-              marginBottom: 0.5,
-            }}
-          >
-            {content.title}
-          </Typography>
-
-          {/* Description below title */}
+          {/* Description */}
           {content.description && (
             <Typography
               variant="body2"
@@ -491,7 +290,7 @@ const ExploreCards = () => {
             </Typography>
           )}
 
-          {/* Row 3: Edit and Delete Buttons (Bottom Right) */}
+          {/* Action Buttons at Bottom */}
           <Box
             sx={{
               display: 'flex',
@@ -620,10 +419,6 @@ const ExploreCards = () => {
     );
   }
 
-  // Separate content by videoType
-  const replayContent = exploreContent.filter((content) => content.videoType === 'replay');
-  const activityContent = exploreContent.filter((content) => content.videoType === 'activity');
-
   return (
     <>
       <Box sx={{ position: 'relative' }}>
@@ -647,117 +442,22 @@ const ExploreCards = () => {
           </Box>
         )}
 
-        {/* Replay Cards Section */}
-        {replayContent.length > 0 && (
-          <Box sx={{ marginBottom: 4 }}>
-            <Typography
-              variant="h5"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 700,
-                fontSize: '1.5rem',
-                color: theme.palette.text.primary,
-                marginBottom: 2,
-              }}
-            >
-              Replay Videos
-            </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(3, 1fr)',
-                  lg: 'repeat(5, 1fr)',
-                },
-                gap: 2,
-              }}
-            >
-              {replayContent.map((content) => (
-                <Box key={content._id}>
-                  {renderReplayCard(content)}
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        )}
-
-        {/* Activity Cards Section (Purely Video Lesson - Different layout) - Perfect Square */}
-        {activityContent.length > 0 && (
-          <Box>
-            <Typography
-              variant="h5"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 700,
-                fontSize: '1.5rem',
-                color: theme.palette.text.primary,
-                marginBottom: 2,
-              }}
-            >
-              Purely Video Lessons
-            </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: {
-                  xs: '1fr',
-                  sm: 'repeat(2, 1fr)',
-                  md: 'repeat(3, 1fr)',
-                  lg: 'repeat(5, 1fr)',
-                },
-                gap: 2,
-              }}
-            >
-              {activityContent.map((content) => (
-                <Box 
-                  key={content._id}
-                  sx={{
-                    aspectRatio: '1 / 1', // Perfect square
-                  }}
-                >
-                  {renderActivityCard(content)}
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        )}
+        {/* Unified Cards Grid - All video types together */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+              lg: 'repeat(5, 1fr)', // 5 cards per row on large screens
+            },
+            gap: 2,
+          }}
+        >
+          {exploreContent.map((content) => renderCard(content))}
+        </Box>
       </Box>
-
-      {/* Action Menu */}
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleMenuClose}
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-            fontFamily: 'Quicksand, sans-serif',
-            minWidth: 150,
-          },
-        }}
-      >
-        <MenuItem
-          onClick={handleEdit}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-          }}
-        >
-          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Edit
-        </MenuItem>
-        <MenuItem
-          onClick={handleDeleteClick}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            color: theme.palette.error.main,
-          }}
-        >
-          <DeleteIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Delete
-        </MenuItem>
-      </Menu>
 
       {/* Delete Confirmation Dialog */}
       <Dialog
