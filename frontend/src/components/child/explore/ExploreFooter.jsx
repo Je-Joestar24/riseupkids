@@ -81,8 +81,8 @@ const ComingSoonCard = ({ emoji, label, theme }) => {
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontSize: '18px',
-          fontWeight: 400,
-          color: theme.palette.text.secondary,
+          fontWeight: 600,
+          color: 'oklch(0.707 0.022 261.325)',
           textAlign: 'center',
         }}
       >

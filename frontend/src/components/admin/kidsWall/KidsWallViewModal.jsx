@@ -149,7 +149,7 @@ const KidsWallViewModal = ({ open, onClose, post, onApprove, onReject }) => {
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ padding: 3 }}>
+      <DialogContent sx={{ padding: 3, marginTop: '20px' }}>
         <Stack spacing={3}>
           {/* Child Information Card */}
           <Paper

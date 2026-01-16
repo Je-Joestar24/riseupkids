@@ -147,7 +147,8 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontSize: '14px',
-              color: theme.palette.text.secondary,
+              color: 'oklch(0.551 0.027 264.364)',
+              fontWeight: 700
             }}
           >
             Progress
@@ -157,7 +158,7 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
               fontFamily: 'Quicksand, sans-serif',
               fontSize: '14px',
               fontWeight: 600,
-              color: theme.palette.text.primary,
+              color: 'oklch(0.446 0.03 256.802)',
             }}
           >
             {viewedVideos}/{totalVideos}
@@ -187,7 +188,6 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
           fontSize: '20px',
           fontWeight: 600,
           paddingY: '14px',
-          paddingX: 2,
           borderRadius: '0px',
           backgroundColor: theme.palette.accent.main,
           color: theme.palette.textCustom.inverse,
