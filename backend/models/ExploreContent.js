@@ -133,6 +133,8 @@ exploreContentSchema.index({ createdBy: 1 });
 exploreContentSchema.index({ category: 1 });
 exploreContentSchema.index({ videoType: 1 });
 exploreContentSchema.index({ type: 1, videoType: 1 });
+// Compound index for efficient querying and sorting by videoType and order
+exploreContentSchema.index({ videoType: 1, order: 1 });
 
 module.exports = mongoose.model('ExploreContent', exploreContentSchema);
 

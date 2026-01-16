@@ -518,6 +518,73 @@ const getFeaturedExploreContent = async (limit = 10) => {
   return content;
 };
 
+/**
+ * Reorder Explore Content Service
+ * 
+ * Reorders Explore content items by updating their order values within a specific video type
+ * Order values are scoped per videoType - each video type has independent ordering (0, 1, 2, ...)
+ * 
+ * @param {Array} contentIds - Array of Explore content IDs in the desired order (all must be same videoType)
+ * @param {String} videoType - The video type to reorder (REQUIRED) - e.g., 'replay', 'arts_crafts', 'cooking', etc.
+ * @returns {Object} Result with updated count
+ * @throws {Error} If validation fails, IDs not found, or mixed video types
+ */
+const reorderExploreContent = async (contentIds, videoType) => {
+  // Validate input
+  if (!Array.isArray(contentIds) || contentIds.length === 0) {
+    throw new Error('contentIds must be a non-empty array');
+  }
+
+  // Check for duplicates
+  const uniqueIds = [...new Set(contentIds)];
+  if (uniqueIds.length !== contentIds.length) {
+    throw new Error('contentIds array contains duplicate IDs');
+  }
+
+  // Validate videoType
+  const validVideoTypes = ['replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'];
+  if (!videoType || typeof videoType !== 'string') {
+    throw new Error('videoType is required and must be a string');
+  }
+  if (!validVideoTypes.includes(videoType)) {
+    throw new Error(`Invalid videoType. Must be one of: ${validVideoTypes.join(', ')}`);
+  }
+
+  // Fetch all ExploreContent documents by IDs
+  const contents = await ExploreContent.find({
+    _id: { $in: contentIds },
+  });
+
+  // Verify all IDs exist
+  if (contents.length !== contentIds.length) {
+    const foundIds = contents.map(c => c._id.toString());
+    const missingIds = contentIds.filter(id => !foundIds.includes(id.toString()));
+    throw new Error(`One or more content IDs not found: ${missingIds.join(', ')}`);
+  }
+
+  // CRITICAL: Validate that ALL content items belong to the same videoType
+  const mixedTypes = contents.filter(c => c.videoType !== videoType);
+  if (mixedTypes.length > 0) {
+    const mixedTypeIds = mixedTypes.map(c => c._id.toString());
+    throw new Error(`All content items must belong to the same videoType. Items with different videoType: ${mixedTypeIds.join(', ')}`);
+  }
+
+  // Prepare bulk write operations
+  const bulkOps = contentIds.map((contentId, index) => ({
+    updateOne: {
+      filter: { _id: contentId },
+      update: { $set: { order: index } },
+    },
+  }));
+
+  // Execute bulk write
+  const result = await ExploreContent.bulkWrite(bulkOps);
+
+  return {
+    updatedCount: result.modifiedCount,
+  };
+};
+
 module.exports = {
   createExploreContent,
   getAllExploreContent,
@@ -526,5 +593,6 @@ module.exports = {
   deleteExploreContent,
   getExploreContentByType,
   getFeaturedExploreContent,
+  reorderExploreContent,
 };
 

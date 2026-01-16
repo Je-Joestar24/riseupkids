@@ -264,6 +264,62 @@ const getFeaturedExploreContent = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Reorder explore content
+ * @route   POST /api/explore/reorder
+ * @access  Private (Admin only)
+ * 
+ * Request body:
+ * - contentIds: Array (required) - Array of Explore content IDs in desired order (all must be same videoType)
+ * - videoType: String (required) - The video type being reordered (e.g., 'replay', 'arts_crafts', 'cooking', etc.)
+ * 
+ * Note: Reordering is video type-specific. Each videoType has independent ordering.
+ * All contentIds must belong to the same videoType.
+ */
+const reorderExploreContent = async (req, res) => {
+  try {
+    const { contentIds, videoType } = req.body;
+
+    // Verify user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins can reorder explore content',
+      });
+    }
+
+    const result = await exploreService.reorderExploreContent(contentIds, videoType);
+
+    res.status(200).json({
+      success: true,
+      message: 'Explore content reordered successfully',
+      data: {
+        updatedCount: result.updatedCount,
+      },
+    });
+  } catch (error) {
+    // Determine status code based on error message
+    let statusCode = 500;
+    if (
+      error.message.includes('required') ||
+      error.message.includes('must be') ||
+      error.message.includes('Invalid') ||
+      error.message.includes('duplicate') ||
+      error.message.includes('empty array') ||
+      error.message.includes('must belong to the same videoType')
+    ) {
+      statusCode = 400;
+    } else if (error.message.includes('not found')) {
+      statusCode = 404;
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to reorder explore content',
+    });
+  }
+};
+
 module.exports = {
   createExploreContent,
   getAllExploreContent,
@@ -272,5 +328,6 @@ module.exports = {
   deleteExploreContent,
   getExploreContentByType,
   getFeaturedExploreContent,
+  reorderExploreContent,
 };
 
