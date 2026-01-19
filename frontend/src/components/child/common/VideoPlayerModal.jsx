@@ -15,6 +15,7 @@ import { Close as CloseIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-mater
 import { themeColors } from '../../../config/themeColors';
 import ScormPlayer from './ScormPlayer';
 import useCourseProgress from '../../../hooks/courseProgressHook';
+import useExploreVideoWatch from '../../../hooks/exploreVideoWatchHook';
 import ChildDialogBox from '../../common/ChildDialogBox';
 import { useDispatch } from 'react-redux';
 import { updateChildStats } from '../../../store/slices/userSlice';
@@ -131,6 +132,9 @@ const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
  * @param {Function} onVideoComplete - Callback when video finishes
  * @param {String} childId - Child's ID (required for watch tracking)
  * @param {String} courseId - Course's ID (optional, for course progress)
+ * @param {Boolean} isExploreVideo - Whether this is an explore video (default: false)
+ * @param {String} exploreContentId - ExploreContent ID (required if isExploreVideo is true)
+ * @param {String} videoType - Video type for explore videos (e.g., 'replay', 'cooking', etc.)
  */
 const VideoPlayerModal = ({
   open,
@@ -139,6 +143,9 @@ const VideoPlayerModal = ({
   onVideoComplete,
   childId,
   courseId,
+  isExploreVideo = false,
+  exploreContentId = null,
+  videoType = null,
 }) => {
   const theme = useTheme();
   const dispatch = useDispatch();
@@ -152,11 +159,13 @@ const VideoPlayerModal = ({
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [watchResult, setWatchResult] = useState(null);
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
+  const [hasRecordedWatch, setHasRecordedWatch] = useState(false); // Prevent duplicate watch recording
   
-  // Get video watch methods from hook
+  // Get video watch methods from hooks
   // Note: Using markVideoWatched and getVideoWatchStatus from hook
   // But using courseProgressService directly for updateProgress to avoid unnecessary refreshes
   const { markVideoWatched, getVideoWatchStatus } = useCourseProgress(childId);
+  const { markExploreVideoWatched, getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
   
   // State to track if stars were already awarded before this watch
   const [starsAlreadyAwarded, setStarsAlreadyAwarded] = useState(false);
@@ -260,13 +269,15 @@ const VideoPlayerModal = ({
   // Store the status to compare after watching
   useEffect(() => {
     const checkVideoStatus = async () => {
-      if (open && childId && video) {
-        const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
-        if (videoId) {
-          try {
-            const status = await getVideoWatchStatus(videoId);
+      if (open && childId) {
+        try {
+          let status;
+          
+          if (isExploreVideo && exploreContentId) {
+            // Use explore video watch status
+            status = await getExploreVideoWatchStatus(exploreContentId);
             const currentWatchCount = status?.currentWatchCount || 0;
-            const requiredWatchCount = status?.requiredWatchCount || 5;
+            const requiredWatchCount = status?.requiredWatchCount || 1; // Explore videos: 1 watch
             
             // Store status before watching for comparison
             setWatchStatusBefore({
@@ -275,18 +286,37 @@ const VideoPlayerModal = ({
               starsAwarded: status?.starsAwarded || false,
             });
             
-            // Use checkbox logic: if all checkboxes are filled, stars were already awarded
-            const allCheckboxesFilled = currentWatchCount >= requiredWatchCount;
-            
-            // Also check the starsAwarded flag as fallback
-            const starsAwardedFlag = status?.starsAwarded || false;
-            
-            setStarsAlreadyAwarded(allCheckboxesFilled || starsAwardedFlag);
-          } catch (error) {
-            console.error('Error checking video status:', error);
-            setStarsAlreadyAwarded(false);
-            setWatchStatusBefore(null);
+            // For explore videos, stars are awarded on first watch
+            // If starsAwarded is true, stars were already earned
+            setStarsAlreadyAwarded(status?.starsAwarded || false);
+          } else if (video) {
+            // Use regular video watch status
+            const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
+            if (videoId) {
+              status = await getVideoWatchStatus(videoId);
+              const currentWatchCount = status?.currentWatchCount || 0;
+              const requiredWatchCount = status?.requiredWatchCount || 5;
+              
+              // Store status before watching for comparison
+              setWatchStatusBefore({
+                currentWatchCount,
+                requiredWatchCount,
+                starsAwarded: status?.starsAwarded || false,
+              });
+              
+              // Use checkbox logic: if all checkboxes are filled, stars were already awarded
+              const allCheckboxesFilled = currentWatchCount >= requiredWatchCount;
+              
+              // Also check the starsAwarded flag as fallback
+              const starsAwardedFlag = status?.starsAwarded || false;
+              
+              setStarsAlreadyAwarded(allCheckboxesFilled || starsAwardedFlag);
+            }
           }
+        } catch (error) {
+          console.error('Error checking video status:', error);
+          setStarsAlreadyAwarded(false);
+          setWatchStatusBefore(null);
         }
       } else {
         setStarsAlreadyAwarded(false);
@@ -295,7 +325,7 @@ const VideoPlayerModal = ({
     };
     
     checkVideoStatus();
-  }, [open, childId, video, getVideoWatchStatus]);
+  }, [open, childId, video, isExploreVideo, exploreContentId, getVideoWatchStatus, getExploreVideoWatchStatus]);
 
   // Get video URL
   useEffect(() => {
@@ -323,6 +353,7 @@ const VideoPlayerModal = ({
       setShowCompletionDialog(false);
       setWatchResult(null);
       setIsRecordingWatch(false);
+      setHasRecordedWatch(false); // Reset watch recording flag when video changes
       setStarsAlreadyAwarded(false);
       setWatchStatusBefore(null);
     }
@@ -400,61 +431,90 @@ const VideoPlayerModal = ({
 
   // Handle video end
   const handleVideoEnd = async () => {
+    // Prevent duplicate watch recording - if we've already recorded this watch, don't record again
+    if (hasRecordedWatch) {
+      console.log('[VideoPlayer] Watch already recorded for this video session, skipping duplicate recording');
+      return;
+    }
+    
     setVideoEnded(true);
     setVideoPlaying(false);
     
-    // Get video ID
-    const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
-    
     // Record video watch if childId is provided
-    if (childId && videoId) {
+    if (childId) {
       setIsRecordingWatch(true);
+      setHasRecordedWatch(true); // Mark that we're recording this watch
       try {
-        // Check if stars were already awarded BEFORE this watch
-        const starsWereAlreadyAwarded = watchStatusBefore?.starsAwarded || false;
-        const watchCountBefore = watchStatusBefore?.currentWatchCount || 0;
-        const requiredWatchCount = watchStatusBefore?.requiredWatchCount || 5;
+        let result;
         
-        // Mark video as watched (100% completion)
-        const result = await markVideoWatched(videoId, 100);
-        
-        // Determine if stars were JUST awarded in this watch
-        // Stars were just awarded if:
-        // 1. They weren't awarded before this watch
-        // 2. The watch count after is >= required count
-        // 3. The result says stars were awarded
-        const watchCountAfter = result?.videoWatch?.watchCount || 0;
-        const starsJustAwarded = result?.starsAwarded && result?.starsAwardedAt && 
-          !starsWereAlreadyAwarded && 
-          watchCountAfter >= requiredWatchCount;
-        
-        // Update result to reflect if stars were just awarded or already earned
-        const updatedResult = {
-          ...result,
-          starsJustAwarded, // New flag to indicate stars were just awarded
-          starsWereAlreadyAwarded, // Flag to indicate stars were already earned
-        };
-        
-        setWatchResult(updatedResult);
-        
-        // Update child stats in sessionStorage and Redux if stars were JUST awarded
-        // This ensures the header updates immediately without page reload
-        if (starsJustAwarded && result.starsToAward) {
-          const currentTotalStars = getCurrentTotalStars();
-          const newTotalStars = currentTotalStars + result.starsToAward;
-          updateChildStatsInStorage(newTotalStars);
-        }
-        
-        // Only update course progress if stars were JUST awarded (not already earned)
-        // This ensures videos are only marked as completed in course progress when fully watched
-        // Use service directly to avoid unnecessary refreshes (updateProgress hook calls fetchChildCourses)
-        if (courseId && starsJustAwarded) {
-          try {
-            await courseProgressService.updateContentProgress(courseId, childId, videoId, 'video');
-            console.log('[VideoPlayer] Course progress updated silently after video completion (stars awarded)');
-          } catch (progressError) {
-            console.error('[VideoPlayer] Error updating course progress:', progressError);
-            // Don't fail the whole flow if course progress update fails
+        if (isExploreVideo && exploreContentId) {
+          // Use explore video watch service
+          // Check if stars were already awarded BEFORE this watch
+          const starsWereAlreadyAwarded = watchStatusBefore?.starsAwarded || false;
+          
+          // Mark explore video as watched (100% completion)
+          result = await markExploreVideoWatched(exploreContentId, 100);
+          
+          // The result already includes starsJustAwarded and starsWereAlreadyAwarded flags
+          // For explore videos, stars are awarded on first watch (requiredWatchCount = 1)
+          setWatchResult(result);
+          
+          // Update child stats is handled in the hook
+          // No course progress update for explore videos
+        } else {
+          // Use regular video watch service (for journey/course videos)
+          const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
+          
+          if (!videoId) {
+            throw new Error('Video ID not found');
+          }
+          
+          // Check if stars were already awarded BEFORE this watch
+          const starsWereAlreadyAwarded = watchStatusBefore?.starsAwarded || false;
+          const watchCountBefore = watchStatusBefore?.currentWatchCount || 0;
+          const requiredWatchCount = watchStatusBefore?.requiredWatchCount || 5;
+          
+          // Mark video as watched (100% completion)
+          result = await markVideoWatched(videoId, 100);
+          
+          // Determine if stars were JUST awarded in this watch
+          // Stars were just awarded if:
+          // 1. They weren't awarded before this watch
+          // 2. The watch count after is >= required count
+          // 3. The result says stars were awarded
+          const watchCountAfter = result?.videoWatch?.watchCount || 0;
+          const starsJustAwarded = result?.starsAwarded && result?.starsAwardedAt && 
+            !starsWereAlreadyAwarded && 
+            watchCountAfter >= requiredWatchCount;
+          
+          // Update result to reflect if stars were just awarded or already earned
+          const updatedResult = {
+            ...result,
+            starsJustAwarded, // New flag to indicate stars were just awarded
+            starsWereAlreadyAwarded, // Flag to indicate stars were already earned
+          };
+          
+          setWatchResult(updatedResult);
+          
+          // Update child stats in sessionStorage and Redux if stars were JUST awarded
+          // This ensures the header updates immediately without page reload
+          if (starsJustAwarded && result.starsToAward) {
+            const currentTotalStars = getCurrentTotalStars();
+            const newTotalStars = currentTotalStars + result.starsToAward;
+            updateChildStatsInStorage(newTotalStars);
+          }
+          
+          // Only update course progress if stars were JUST awarded (not already earned)
+          // This ensures videos are only marked as completed in course progress when fully watched
+          // Use service directly to avoid unnecessary refreshes (updateProgress hook calls fetchChildCourses)
+          if (courseId && starsJustAwarded) {
+            try {
+              await courseProgressService.updateContentProgress(courseId, childId, videoId, 'video');
+              console.log('[VideoPlayer] Course progress updated silently after video completion (stars awarded)');
+            } catch (progressError) {
+              console.error('[VideoPlayer] Error updating course progress:', progressError);
+              // Don't fail the whole flow if course progress update fails
+            }
           }
         }
         
@@ -645,7 +705,12 @@ const VideoPlayerModal = ({
                   pointerEvents: 'none', // Disable all touch/interaction
                   userSelect: 'none',
                 }}
-                onEnded={handleVideoEnd}
+                onEnded={(e) => {
+                  // Prevent multiple calls
+                  if (!hasRecordedWatch) {
+                    handleVideoEnd();
+                  }
+                }}
                 onContextMenu={(e) => e.preventDefault()} // Disable right-click menu
                 onDragStart={(e) => e.preventDefault()} // Disable drag
               />
@@ -868,8 +933,8 @@ const VideoPlayerModal = ({
           </Typography>
           {watchResult && (
             <Box sx={{ marginTop: 2 }}>
-              {watchResult.starsJustAwarded ? (
-                // Stars were JUST awarded in this watch
+              {watchResult.starsJustAwarded && !watchResult.isReplay ? (
+                // Stars were JUST awarded in this watch (explore videos)
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
@@ -893,8 +958,20 @@ const VideoPlayerModal = ({
                 >
                   ⭐ Stars already earned for this video! ⭐
                 </Typography>
+              ) : watchResult.isReplay ? (
+                // Replay video - no stars
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: '1.3rem',
+                    color: themeColors.textSecondary,
+                    fontWeight: 600,
+                  }}
+                >
+                  Great job watching the replay! 🎬
+                </Typography>
               ) : (
-                // Still need to watch more times
+                // Still need to watch more times (journey videos)
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',

@@ -32,6 +32,7 @@ const starEarningSchema = new mongoose.Schema(
           'book',
           'audio_assignment',
           'explore_content',
+          'explore_video',
           'kids_wall_post',
           'kids_wall_like',
           'badge',

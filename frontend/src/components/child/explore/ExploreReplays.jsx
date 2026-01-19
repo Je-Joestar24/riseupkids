@@ -3,7 +3,9 @@ import { Box, Typography, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useExplore } from '../../../hooks/exploreHook';
+import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import ExploreReplaysCard from './ExploreReplaysCard';
+import VideoPlayerModal from '../common/VideoPlayerModal';
 
 /**
  * ExploreReplays Component
@@ -11,13 +13,18 @@ import ExploreReplaysCard from './ExploreReplaysCard';
  * Displays "Watch Replays" section with header and horizontally scrollable cards
  * Fetches replay videos (videoType: 'replay') with limit of 4
  */
-const ExploreReplays = () => {
+const ExploreReplays = ({ childId }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { fetchContentByType } = useExplore();
+  const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
   const [replayContent, setReplayContent] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [videoModalOpen, setVideoModalOpen] = useState(false);
+  const [selectedExploreContentId, setSelectedExploreContentId] = useState(null);
+  const [videoViewCounts, setVideoViewCounts] = useState({}); // Map of exploreContentId -> viewCount
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -32,14 +39,40 @@ const ExploreReplays = () => {
           limit: 4,
           page: 1,
         });
-        
+
         // The result structure is { type, response } where response contains { success, data, pagination }
         console.log('ExploreReplays - API Result:', result);
-        
+
         const contentData = result?.response?.data || result?.data;
         if (contentData && Array.isArray(contentData)) {
           console.log('ExploreReplays - Setting content:', contentData);
           setReplayContent(contentData);
+          
+          // Fetch per-child view counts for each replay video
+          if (childId && getExploreVideoWatchStatus) {
+            const viewCountPromises = contentData.map(async (content) => {
+              try {
+                const status = await getExploreVideoWatchStatus(content._id);
+                return {
+                  exploreContentId: content._id.toString(),
+                  viewCount: status?.currentWatchCount || 0,
+                };
+              } catch (error) {
+                console.error(`Error fetching view count for ${content._id}:`, error);
+                return {
+                  exploreContentId: content._id.toString(),
+                  viewCount: 0,
+                };
+              }
+            });
+            
+            const viewCounts = await Promise.all(viewCountPromises);
+            const viewCountMap = {};
+            viewCounts.forEach((item) => {
+              viewCountMap[item.exploreContentId] = item.viewCount;
+            });
+            setVideoViewCounts(viewCountMap);
+          }
         } else {
           console.warn('ExploreReplays - No valid data found in result:', result);
         }
@@ -52,18 +85,83 @@ const ExploreReplays = () => {
     };
 
     loadReplays();
-  }, [fetchContentByType]);
+  }, [fetchContentByType, childId, getExploreVideoWatchStatus]);
 
   const handleSeeAll = () => {
-    // Navigate to full explore page with replay filter
-    navigate('/child/explore?videoType=replay');
+    // Navigate to full replays page
+    if (childId) {
+      navigate(`/child/${childId}/explore/replays`);
+    }
+  };
+
+  // Get video object for VideoPlayerModal
+  const getVideoObjectForPlayer = (exploreVideo) => {
+    // Get video URL from videoFile
+    const videoFile = exploreVideo?.videoFile;
+    let videoUrl = null;
+    
+    if (videoFile?.url) {
+      // If already a full URL, use it
+      if (videoFile.url.startsWith('http://') || videoFile.url.startsWith('https://')) {
+        videoUrl = videoFile.url;
+      } else {
+        // Build full URL from relative path
+        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        videoUrl = `${baseUrl}${videoFile.url.startsWith('/') ? videoFile.url : `/${videoFile.url}`}`;
+      }
+    } else if (exploreVideo?.videoFileUrl) {
+      // Use videoFileUrl from ExploreContent
+      if (exploreVideo.videoFileUrl.startsWith('http://') || exploreVideo.videoFileUrl.startsWith('https://')) {
+        videoUrl = exploreVideo.videoFileUrl;
+      } else {
+        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        videoUrl = `${baseUrl}${exploreVideo.videoFileUrl.startsWith('/') ? exploreVideo.videoFileUrl : `/${exploreVideo.videoFileUrl}`}`;
+      }
+    }
+
+    return {
+      _id: videoFile?._id || exploreVideo._id,
+      title: exploreVideo.title,
+      url: videoUrl,
+      description: exploreVideo.description,
+      duration: exploreVideo.duration,
+      // SCORM file if exists
+      scormFile: videoFile?.scormFile,
+      scormFileUrl: videoFile?.scormFileUrl,
+      scormFilePath: videoFile?.scormFilePath,
+    };
   };
 
   const handleWatchClick = (content) => {
-    // Handle video playback - can navigate to video player or open modal
-    if (content.videoFileUrl || content.videoFile?.url) {
-      // TODO: Implement video player navigation
-      console.log('Watch video:', content);
+    // Open video in VideoPlayerModal
+    setSelectedVideo(content);
+    setSelectedExploreContentId(content._id);
+    setVideoModalOpen(true);
+  };
+
+  // Handle video modal close
+  const handleVideoModalClose = () => {
+    setVideoModalOpen(false);
+    setSelectedVideo(null);
+    setSelectedExploreContentId(null);
+  };
+
+  // Handle video complete - refresh view count for the watched video
+  const handleVideoComplete = async () => {
+    // Replay videos don't award stars, but we need to refresh the view count
+    if (selectedExploreContentId && childId && getExploreVideoWatchStatus) {
+      try {
+        const status = await getExploreVideoWatchStatus(selectedExploreContentId);
+        const newViewCount = status?.currentWatchCount || 0;
+        
+        // Update the view count for this video
+        setVideoViewCounts((prev) => ({
+          ...prev,
+          [selectedExploreContentId.toString()]: newViewCount,
+        }));
+      } catch (error) {
+        console.error('Error refreshing view count after video completion:', error);
+      }
     }
   };
 
@@ -142,7 +240,8 @@ const ExploreReplays = () => {
             minWidth: 'auto',
             '&:hover': {
               backgroundColor: 'transparent',
-              textDecoration: 'underline',
+              boxShadow: 'none',
+              transform: 'scale(1.05)',
             },
           }}
         >
@@ -165,14 +264,39 @@ const ExploreReplays = () => {
           paddingBottom: 1,
         }}
       >
-        {replayContent.map((content) => (
-          <ExploreReplaysCard
-            key={content._id}
-            content={content}
-            onWatchClick={handleWatchClick}
-          />
-        ))}
+        {replayContent.map((content) => {
+          // Get per-child view count for this video
+          const perChildViewCount = videoViewCounts[content._id?.toString()] ?? 0;
+          
+          // Create content object with per-child view count
+          const contentWithViewCount = {
+            ...content,
+            viewCount: perChildViewCount, // Override global viewCount with per-child count
+          };
+          
+          return (
+            <ExploreReplaysCard
+              key={content._id}
+              content={contentWithViewCount}
+              onWatchClick={handleWatchClick}
+            />
+          );
+        })}
       </Box>
+
+      {/* Video Player Modal */}
+      {selectedVideo && (
+        <VideoPlayerModal
+          open={videoModalOpen}
+          onClose={handleVideoModalClose}
+          video={getVideoObjectForPlayer(selectedVideo)}
+          childId={childId}
+          isExploreVideo={true}
+          exploreContentId={selectedVideo._id}
+          videoType="replay"
+          onVideoComplete={handleVideoComplete}
+        />
+      )}
     </Box>
   );
 };

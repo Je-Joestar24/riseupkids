@@ -42,20 +42,44 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
     });
   }
 
-  // Increment watch count
-  videoWatch.watchCount += 1;
+  // Prevent duplicate watch recording within a short time window (5 seconds)
+  // This prevents multiple API calls from incrementing the count multiple times
+  const now = new Date();
+  const recentWatchThreshold = 5000; // 5 seconds in milliseconds
+  const lastWatchTime = videoWatch.watchHistory.length > 0 
+    ? new Date(videoWatch.watchHistory[videoWatch.watchHistory.length - 1].watchedAt)
+    : null;
+  
+  const timeSinceLastWatch = lastWatchTime 
+    ? (now.getTime() - lastWatchTime.getTime())
+    : Infinity;
 
-  // Add to watch history
-  videoWatch.watchHistory.push({
-    watchedAt: new Date(),
-    completionPercentage: Math.max(0, Math.min(100, completionPercentage)),
-  });
+  let isDuplicateWatch = false;
+  
+  // Only increment if enough time has passed since last watch (or no previous watch)
+  if (timeSinceLastWatch >= recentWatchThreshold) {
+    // Increment watch count
+    videoWatch.watchCount += 1;
+
+    // Add to watch history
+    videoWatch.watchHistory.push({
+      watchedAt: now,
+      completionPercentage: Math.max(0, Math.min(100, completionPercentage)),
+    });
+  } else {
+    // Duplicate watch detected - log but don't increment
+    console.log(`[VideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`);
+    isDuplicateWatch = true;
+    // Continue with existing watch count (don't increment)
+    // Still need to check for star awards with current watch count
+  }
 
   // Get required watch count (default to 5 if not specified)
   const requiredWatchCount = video.requiredWatchCount || 5;
 
   // Check if we've reached the required watch count and stars haven't been awarded yet
-  if (videoWatch.watchCount >= requiredWatchCount && !videoWatch.starsAwarded) {
+  // Only award stars if this is NOT a duplicate watch (to prevent duplicate star awards)
+  if (!isDuplicateWatch && videoWatch.watchCount >= requiredWatchCount && !videoWatch.starsAwarded) {
     // Award stars
     const starsToAward = video.starsAwarded || 10;
 

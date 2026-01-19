@@ -18,6 +18,8 @@ import ChildShareSomething from '../pages/child/ChildShareSomething';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
 import ChildExplore from '../pages/child/ChildExplore';
+import ChildExploreVideos from '../pages/child/ChildExploreVideos';
+import ChildExploreReplays from '../pages/child/ChildExploreReplays';
 
 /**
  * ChildRouteWrapper Component
@@ -97,6 +99,26 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
                 <ChildExplore />
+              </ChildRouteWrapper>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/child/:id/explore/videos/:videoType"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ChildRouteWrapper>
+                <ChildExploreVideos />
+              </ChildRouteWrapper>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/child/:id/explore/replays"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ChildRouteWrapper>
+                <ChildExploreReplays />
               </ChildRouteWrapper>
             </AuthedAccess>
           }

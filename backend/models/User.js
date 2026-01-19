@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+/**
+ * User Model
+ * 
+ * Represents authenticated users (admin and parent roles only).
+ * 
+ * IMPORTANT: Children are NOT User records. They are created as ChildProfile records only.
+ * Children don't have passwords, emails, or tokens. The parent logs in, then selects
+ * a child from their ChildProfile list. Children are accessed through the parent's
+ * authenticated session.
+ * 
+ * The 'child' role in this schema is kept for backward compatibility but should not
+ * be used for new accounts. All child accounts should be ChildProfile records.
+ */
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -18,7 +31,16 @@ const userSchema = new mongoose.Schema(
       sparse: true, // Allow multiple null values (for children)
       lowercase: true,
       trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
+      validate: {
+        validator: function (v) {
+          // Only validate if email is provided (not null/undefined/empty)
+          if (!v || (typeof v === 'string' && v.trim() === '')) {
+            return this.role === 'child'; // Allow empty for children
+          }
+          return /^\S+@\S+\.\S+$/.test(v);
+        },
+        message: 'Please provide a valid email',
+      },
     },
     password: {
       type: String,
@@ -67,13 +89,14 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for performance
-userSchema.index({ email: 1 });
+userSchema.index({ email: 1 }, { sparse: true }); // Sparse index to allow multiple null emails
 userSchema.index({ role: 1 });
 userSchema.index({ linkedParent: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+  // Skip password hashing if password is not modified or if it's a child without password
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
   const salt = await bcrypt.genSalt(10);

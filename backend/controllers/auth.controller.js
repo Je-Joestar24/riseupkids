@@ -1,20 +1,22 @@
 const authService = require('../services/auth.services');
 
 /**
- * @desc    Register a new user
+ * @desc    Register a new user (admin or parent only)
  * @route   POST /api/auth/register
  * @access  Public
  * 
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * 
+ * Note: Children are NOT User accounts. They are created as ChildProfile records only.
+ * Children don't have passwords or tokens - parent logs in and selects a child.
+ * 
  * Request body:
  * {
  *   "name": "John Doe",
  *   "email": "john@example.com",
  *   "password": "password123",
- *   "role": "parent", // or "admin" or "child"
- *   "linkedParent": "parent_id" // required if role is "child"
+ *   "role": "parent" // or "admin" only (children cannot be registered here)
  * }
  */
 const register = async (req, res) => {

@@ -19,33 +19,28 @@ const generateToken = (userId) => {
 /**
  * Register/Signup Service
  * 
- * Creates a new user account
+ * Creates a new user account (admin or parent only)
+ * Note: Children are NOT User records - they are created as ChildProfile records only
  * 
  * @param {Object} userData - User registration data
  * @param {String} userData.name - User's full name
  * @param {String} userData.email - User's email address
  * @param {String} userData.password - User's password
- * @param {String} userData.role - User's role (admin, parent, child)
- * @param {String} [userData.linkedParent] - Parent ID (required if role is 'child')
+ * @param {String} userData.role - User's role (admin or parent only)
  * @returns {Object} User object with token
  * @throws {Error} If validation fails or user already exists
  */
 const register = async (userData) => {
-  const { name, email, password, role, linkedParent } = userData;
+  const { name, email, password, role } = userData;
 
   // Validate required fields
   if (!name || !email || !password) {
     throw new Error('Please provide name, email, and password');
   }
 
-  // Validate role
-  if (!['admin', 'parent', 'child'].includes(role)) {
-    throw new Error('Invalid role. Must be admin, parent, or child');
-  }
-
-  // If child, validate linkedParent
-  if (role === 'child' && !linkedParent) {
-    throw new Error('Child accounts must have a linked parent');
+  // Validate role - only admin and parent can be User records
+  if (!['admin', 'parent'].includes(role)) {
+    throw new Error('Invalid role. Must be admin or parent. Children are created as ChildProfile records, not User accounts.');
   }
 
   // Check if user already exists
@@ -54,24 +49,12 @@ const register = async (userData) => {
     throw new Error('User already exists with this email');
   }
 
-  // If child, verify parent exists
-  if (role === 'child') {
-    const parent = await User.findById(linkedParent);
-    if (!parent) {
-      throw new Error('Parent not found');
-    }
-    if (parent.role !== 'parent') {
-      throw new Error('Linked user must be a parent');
-    }
-  }
-
-  // Create user
+  // Create user (only admin or parent)
   const user = await User.create({
     name,
     email: email.toLowerCase(),
     password,
     role,
-    linkedParent: role === 'child' ? linkedParent : undefined,
   });
 
   // Generate token
@@ -124,6 +107,11 @@ const login = async (email, password) => {
   user.lastLogin = new Date();
   await user.save();
 
+  // Only admin and parent can login (children don't have User accounts)
+  if (user.role === 'child') {
+    throw new Error('Children do not have login accounts. Please login as a parent and select a child profile.');
+  }
+
   // Get user data (exclude password)
   const userData = await User.findById(user._id).select('-password');
 
@@ -156,20 +144,6 @@ const login = async (email, password) => {
     additionalData.childProfiles = childProfilesWithStats;
   }
 
-  // If child, get parent info and child profile
-  // Note: ChildProfile.parent references the parent User, not the child User
-  // We need to find ChildProfile where parent matches the child's linkedParent
-  if (user.role === 'child') {
-    const parent = await User.findById(user.linkedParent).select('name email');
-    // Find child profile by matching parent field with linkedParent
-    // This assumes one child profile per parent-child relationship
-    const childProfile = await ChildProfile.findOne({ parent: user.linkedParent })
-      .populate('currentJourney', 'title description coverImage')
-      .populate('currentLesson', 'title description coverImage');
-    additionalData.parent = parent;
-    additionalData.childProfile = childProfile;
-  }
-
   // Generate token
   const token = generateToken(user._id);
 
@@ -198,6 +172,11 @@ const getCurrentUser = async (userId) => {
 
   if (!user.isActive) {
     throw new Error('Account is inactive');
+  }
+
+  // Only admin and parent can be authenticated users (children don't have User accounts)
+  if (user.role === 'child') {
+    throw new Error('Children do not have User accounts. They are accessed through ChildProfile records.');
   }
 
   // Get additional data based on role
@@ -230,16 +209,6 @@ const getCurrentUser = async (userId) => {
     );
     
     additionalData.childProfiles = childProfilesWithStats;
-  }
-
-  // If child, get parent info and child profile
-  if (user.role === 'child') {
-    const parent = await User.findById(user.linkedParent).select('name email');
-    const childProfile = await ChildProfile.findOne({ parent: user.linkedParent })
-      .populate('currentJourney', 'title description coverImage')
-      .populate('currentLesson', 'title description coverImage');
-    additionalData.parent = parent;
-    additionalData.childProfile = childProfile;
   }
 
   return {

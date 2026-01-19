@@ -3,6 +3,7 @@ import { Box, Typography, Button, Paper, LinearProgress, CircularProgress } from
 import { useTheme } from '@mui/material/styles';
 import { Star as StarIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { useExplore } from '../../../hooks/exploreHook';
+import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 
 /**
@@ -208,10 +209,14 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
  * 
  * Displays cards for each video type (excluding replay) in a 3-column grid
  * Shows total stars, progress, and continue/start button for each collection
+ * 
+ * @param {Function} onVideoTypeClick - Callback when a video type card is clicked
+ * @param {String} childId - Child's ID for fetching progress
  */
-const ExploreVideoCollectionsCards = ({ onVideoTypeClick }) => {
+const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
   const theme = useTheme();
   const { fetchExploreContent } = useExplore();
+  const { getVideoTypeProgress, getTotalStarsForVideoType } = useExploreVideoWatch(childId);
   const [collectionsData, setCollectionsData] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -227,10 +232,16 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick }) => {
 
   useEffect(() => {
     const loadCollectionsData = async () => {
+      if (!childId) {
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         const dataPromises = videoTypes.map(async (videoType) => {
           try {
+            // Fetch explore content for this video type
             const result = await fetchExploreContent({
               type: 'video',
               videoType,
@@ -241,17 +252,36 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick }) => {
             
             // Calculate totals
             const totalVideos = content.length;
-            const totalStars = content.reduce((sum, item) => sum + (item.starsAwarded || 10), 0);
             
-            // TODO: Calculate viewed videos based on user progress
-            // For now, we'll use a placeholder - this should be fetched from user progress API
-            const viewedVideos = 0; // Placeholder - needs to be calculated from user progress
+            // Fetch progress (total videos and viewed videos) for this video type
+            let progress = { totalVideos: 0, viewedVideos: 0 };
+            try {
+              progress = await getVideoTypeProgress(videoType);
+              // Use progress.totalVideos if available, otherwise use content length
+              progress.totalVideos = progress.totalVideos || totalVideos;
+            } catch (error) {
+              console.error(`Error fetching progress for ${videoType}:`, error);
+              // Fallback to content length
+              progress.totalVideos = totalVideos;
+            }
+            
+            // Fetch total stars for this video type
+            let totalStars = 0;
+            try {
+              totalStars = await getTotalStarsForVideoType(videoType);
+            } catch (error) {
+              console.error(`Error fetching total stars for ${videoType}:`, error);
+              // Fallback: calculate from content
+              totalStars = content.reduce((sum, item) => sum + (item.starsAwarded || 10), 0);
+            }
+            
+            const viewedVideos = progress.viewedVideos || 0;
             const hasStarted = viewedVideos > 0;
             
             return {
               videoType,
               totalStars,
-              totalVideos,
+              totalVideos: progress.totalVideos,
               viewedVideos,
               hasStarted,
             };
@@ -282,8 +312,19 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick }) => {
     };
 
     loadCollectionsData();
+
+    // Listen for childStatsUpdated event to refresh progress when videos are watched
+    const handleStatsUpdate = () => {
+      loadCollectionsData();
+    };
+
+    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+
+    return () => {
+      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [childId]);
 
   const handleContinueClick = (videoType) => {
     if (onVideoTypeClick) {

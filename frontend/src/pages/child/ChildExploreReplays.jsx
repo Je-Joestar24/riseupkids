@@ -1,12 +1,11 @@
 import { Box } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
-import ExploreSomething from "../../components/child/explore/ExploreSomething";
-import ExploreReplays from "../../components/child/explore/ExploreReplays";
-import ExploreVideoCollectionsCards from "../../components/child/explore/ExploreVideoCollectionsCards";
-import ExploreFooter from "../../components/child/explore/ExploreFooter";
+import ExploreReplaysHeader from '../../components/child/explorereplays/ExploreReplaysHeader';
+import ExploreReplaysCards from '../../components/child/explorereplays/ExploreReplaysCards';
+import ExploreReplaysFooter from "../../components/child/explorereplays/ExploreReplaysFooter";
 
-const ChildExplore = ({ childId }) => {
+const ChildExploreReplays = ({ childId }) => {
     const theme = useTheme();
     const navigate = useNavigate();
 
@@ -42,15 +41,21 @@ const ChildExplore = ({ childId }) => {
                     maxWidth: '848px',
                     width: '100%',
                     margin: '0 auto',
+                    gap: '20px',
+                    display: 'flex',
+                    flexDirection: 'column'
                 }}
             >
-                <ExploreReplays childId={childId} />
-                <ExploreSomething />
-                <ExploreVideoCollectionsCards onVideoTypeClick={handleVideoTypeClick} childId={childId} />
-                <ExploreFooter />
+                <ExploreReplaysHeader
+                    childId={childId} />
+
+                <ExploreReplaysCards
+                    childId={childId} />
+
+                <ExploreReplaysFooter />
             </Box>
         </Box>
     )
 }
 
-export default ChildExplore;
+export default ChildExploreReplays;
