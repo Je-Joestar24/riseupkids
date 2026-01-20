@@ -33,12 +33,12 @@ const SHARE_SUBTITLES = {
 
 const SHARE_BUTTONS = {
     [EXPLORE_VIDEO_TYPES.REPLAY]: "Share My Favorite!",
-    [EXPLORE_VIDEO_TYPES.ARTS_CRAFTS]: "📸 Share My Art!",
-    [EXPLORE_VIDEO_TYPES.COOKING]: "📸 Share My Food!",
-    [EXPLORE_VIDEO_TYPES.MUSIC]: "🎤 Share My Music!",
-    [EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS]: "📸 Share My Activity!",
-    [EXPLORE_VIDEO_TYPES.STORY_TIME]: "🎤 Share My Story!",
-    [EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE]: "📸 Share My Kindness!",
+    [EXPLORE_VIDEO_TYPES.ARTS_CRAFTS]: "Share My Art!",
+    [EXPLORE_VIDEO_TYPES.COOKING]: "Share My Food!",
+    [EXPLORE_VIDEO_TYPES.MUSIC]: "Share My Music!",
+    [EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS]: "Share My Activity!",
+    [EXPLORE_VIDEO_TYPES.STORY_TIME]: "Share My Story!",
+    [EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE]: "Share My Kindness!",
 };
 /**
  * ExploreVideosShare Component

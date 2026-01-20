@@ -51,7 +51,7 @@ const ExploreSomething = () => {
           lineHeight: 1.3,
         }}
       >
-        Pick Something fun!🎉
+        Pick Something fun!
       </Typography>
     </Box>
   );

@@ -157,7 +157,7 @@ const ExploreReplaysHeader = ({ childId }) => {
                         textAlign: 'center',
                     }}
                 >
-                    ▶️ Watch Replays
+                    ▶ Watch Replays
                 </Typography>
             </Box>
 

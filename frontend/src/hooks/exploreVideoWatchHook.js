@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import exploreVideoWatchService from '../services/exploreVideoWatchService';
-import { showNotification } from '../store/slices/uiSlice';
 import { useDispatch } from 'react-redux';
 import { updateChildStats } from '../store/slices/userSlice';
 
@@ -140,34 +139,14 @@ export const useExploreVideoWatch = (childId) => {
           isReplay,
         } = response.data;
         
-        // Show success notification
+        // Update child stats in sessionStorage and Redux
+        // This ensures the header updates immediately without page reload
+        // Note: Notifications are handled by VideoPlayerModal, not here
         if (starsJustAwarded && !isReplay) {
-          // Stars were just awarded - show celebratory message
-          dispatch(showNotification({
-            message: `🎉 Awesome! You earned ${starsToAward} stars for watching this video! 🎉`,
-            type: 'success',
-            duration: 5000,
-          }));
-          
-          // Update child stats in sessionStorage and Redux
-          // This ensures the header updates immediately without page reload
+          // Stars were just awarded - update stats
           const currentTotalStars = getCurrentTotalStars();
           const newTotalStars = currentTotalStars + starsToAward;
           updateChildStatsInStorage(newTotalStars);
-        } else if (isReplay) {
-          // Replay video - no stars, just track watch
-          dispatch(showNotification({
-            message: 'Great job watching the video!',
-            type: 'success',
-            duration: 3000,
-          }));
-        } else if (starsWereAlreadyAwarded) {
-          // Stars were already earned before this watch
-          dispatch(showNotification({
-            message: 'You already earned stars for this video! ⭐',
-            type: 'info',
-            duration: 3000,
-          }));
         }
         
         return response.data;
@@ -177,10 +156,7 @@ export const useExploreVideoWatch = (childId) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : (err || 'Failed to record explore video watch');
       setError(errorMessage);
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
+      // Don't show notification here - let VideoPlayerModal handle errors
       throw new Error(errorMessage);
     } finally {
       setLoading(false);

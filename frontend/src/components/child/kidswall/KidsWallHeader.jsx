@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import starsImage from '../../../assets/images/stars.png';
 
 /**
  * KidsWallHeader Component
@@ -20,19 +21,38 @@ const KidsWallHeader = () => {
         borderRadius: '0px',
       }}
     >
-      <Typography
-        component="h2"
+      <Box
         sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontWeight: 700,
-          fontSize: '30px',
-          color: themeColors.secondary,
-          textAlign: 'center',
-          marginBottom: '0px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          marginBottom: '8px',
         }}
       >
-        Show & Tell! 🎉
-      </Typography>
+        <Typography
+          component="h2"
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 700,
+            fontSize: '30px',
+            color: themeColors.secondary,
+            textAlign: 'center',
+            marginBottom: '0px',
+          }}
+        >
+          Show & Tell!
+        </Typography>
+        <img
+          src={starsImage}
+          alt="Stars"
+          style={{
+            width: '48px',
+            height: '48px',
+            objectFit: 'contain',
+          }}
+        />
+      </Box>
       <Typography
         component="p"
         sx={{

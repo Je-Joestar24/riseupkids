@@ -82,18 +82,45 @@ const ShareSomethingHeader = ({ childId }) => {
       </Box>
 
       {/* Second Row: Title */}
-      <Typography
+      <Box
         sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontSize: '30px',
-          fontWeight: 700,
-          color: themeColors.secondary,
-          lineHeight: 1.2,
-          textAlign: 'center'
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
         }}
       >
-        Share Your Amazing Work! ✨
-      </Typography>
+        <Typography
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontSize: '30px',
+            fontWeight: 700,
+            color: themeColors.secondary,
+            lineHeight: 1.2,
+            textAlign: 'center'
+          }}
+        >
+          Share Your Amazing Work!
+        </Typography>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          style={{ color: 'rgb(242, 175, 16)' }}
+        >
+          <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"></path>
+          <path d="M20 2v4"></path>
+          <path d="M22 4h-4"></path>
+          <circle cx="4" cy="20" r="2"></circle>
+        </svg>
+      </Box>
 
       {/* Third Row: Subtitle */}
       <Typography

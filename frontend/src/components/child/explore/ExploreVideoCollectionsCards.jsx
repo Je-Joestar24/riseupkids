@@ -198,7 +198,7 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
           },
         }}
       >
-        {hasStarted ? '▶️ Continue!' : '▶️ Start now!'}
+        {hasStarted ? 'Continue!' : 'Start now!'}
       </Button>
     </Paper>
   );

@@ -196,6 +196,17 @@ const authService = {
   isAuthenticated: () => {
     return !!sessionStorage.getItem('token');
   },
+
+  /**
+   * Soft logout - clears child context but keeps token
+   * Used when switching from child view to parent dashboard
+   */
+  softLogout: () => {
+    // Clear child context
+    sessionStorage.removeItem('selectedChildId');
+    sessionStorage.removeItem('selectedChild');
+    // Keep token and user data for parent dashboard access
+  },
 };
 
 export default authService;

@@ -2,6 +2,9 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
 import ParentsChild from '../pages/parents/ParentsChild';
+import ParentsLogin from '../pages/parents/ParentsLogin';
+import ParentDashboard from '../pages/parents/ParentDashboard';
+import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminActivities from '../pages/admin/AdminActivities';
@@ -29,7 +32,7 @@ import ChildExploreReplays from '../pages/child/ChildExploreReplays';
  */
 const ChildRouteWrapper = ({ children }) => {
   const { id } = useParams();
-  
+
   return (
     <ChildLayout childId={id}>
       {React.cloneElement(children, { childId: id })}
@@ -50,6 +53,14 @@ const AppRouter = () => {
             </UnAuthed>
           }
         />
+        <Route
+          path="/parents/login"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ParentsLogin />
+            </AuthedAccess>
+          }
+        />
 
         {/* Protected Routes */}
         {/* Parent Routes */}
@@ -58,6 +69,16 @@ const AppRouter = () => {
           element={
             <AuthedAccess allowedRoles={['parent']}>
               <ParentsChild />
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/parent/dashboard"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ParentsLayout>
+                <ParentDashboard />
+              </ParentsLayout>
             </AuthedAccess>
           }
         />

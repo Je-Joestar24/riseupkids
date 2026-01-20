@@ -67,8 +67,8 @@ const ParentsChild = () => {
   };
 
   const handleParentLogin = () => {
-    // Navigate to parent/teacher login (same login page)
-    navigate('/login');
+    // Navigate to parent/teacher login page
+    navigate('/parents/login');
   };
 
   const handleSettings = () => {
@@ -173,7 +173,7 @@ const ParentsChild = () => {
               </Link>
 
               <Link
-                onClick={handleSettings}
+                onClick={() => navigate('/parent/dashboard')}
                 className="parents-child-link"
                 sx={{
                   display: 'flex',
@@ -192,7 +192,7 @@ const ParentsChild = () => {
                     color: themeColors.textSecondary,
                   }}
                 >
-                  Settings
+                  Dashboard
                 </Typography>
               </Link>
             </Box>

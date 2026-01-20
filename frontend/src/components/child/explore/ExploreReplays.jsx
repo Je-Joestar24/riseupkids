@@ -6,6 +6,7 @@ import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import ExploreReplaysCard from './ExploreReplaysCard';
 import VideoPlayerModal from '../common/VideoPlayerModal';
+import themeColors from '../../../config/themeColors';
 
 /**
  * ExploreReplays Component
@@ -208,12 +209,15 @@ const ExploreReplays = ({ childId }) => {
             component="span"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '24px',
+              fontSize: '20px',
               fontWeight: 700,
-              color: theme.palette.secondary.main,
+              color: 'white',
+              backgroundColor: themeColors.primary,
+              paddingX: '16px',
+              borderRadius: '4px'
             }}
           >
-            ▶️
+            ▶
           </Typography>
           <Typography
             sx={{

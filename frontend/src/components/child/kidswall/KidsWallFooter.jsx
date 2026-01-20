@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import starsImage from '../../../assets/images/stars.png';
 
 /**
  * KidsWallFooter Component
@@ -23,14 +24,23 @@ const KidsWallFooter = () => {
         gap: '16px',
       }}
     >
-      {/* Row 1: Star Icon */}
+      {/* Row 1: Stars Image */}
       <Box
         sx={{
-          fontSize: '60px',
-          lineHeight: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
       >
-        🌟
+        <img
+          src={starsImage}
+          alt="Stars"
+          style={{
+            width: '80px',
+            height: '80px',
+            objectFit: 'contain',
+          }}
+        />
       </Box>
 
       {/* Row 2: Main Title */}
@@ -58,7 +68,7 @@ const KidsWallFooter = () => {
           lineHeight: 1.3,
         }}
       >
-        Keep learning and sharing!🎉
+        Keep learning and sharing!
       </Typography>
     </Box>
   );

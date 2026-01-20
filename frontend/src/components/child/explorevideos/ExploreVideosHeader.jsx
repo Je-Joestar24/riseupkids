@@ -9,13 +9,13 @@ import { themeColors } from '../../../config/themeColors';
  * Video Type Descriptions
  */
 const VIDEO_TYPE_DESCRIPTIONS = {
-    [EXPLORE_VIDEO_TYPES.REPLAY]: "Let's watch your favorite videos again! 🎬",
-    [EXPLORE_VIDEO_TYPES.ARTS_CRAFTS]: "Let's get creative and make something amazing! 🎨",
-    [EXPLORE_VIDEO_TYPES.COOKING]: "Let's cook something delicious! 👨‍🍳",
-    [EXPLORE_VIDEO_TYPES.MUSIC]: "Make beautiful music together! 🎵",
-    [EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS]: "Get moving and stay healthy! 💪",
-    [EXPLORE_VIDEO_TYPES.STORY_TIME]: "Let's read wonderful stories! 📚",
-    [EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE]: "Learn to be kind and polite! 😊",
+    [EXPLORE_VIDEO_TYPES.REPLAY]: "Let's watch your favorite videos again!",
+    [EXPLORE_VIDEO_TYPES.ARTS_CRAFTS]: "Let's get creative and make something amazing!",
+    [EXPLORE_VIDEO_TYPES.COOKING]: "Let's cook something delicious!",
+    [EXPLORE_VIDEO_TYPES.MUSIC]: "Make beautiful music together!",
+    [EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS]: "Get moving and stay healthy!",
+    [EXPLORE_VIDEO_TYPES.STORY_TIME]: "Let's read wonderful stories!",
+    [EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE]: "Learn to be kind and polite!",
 };
 
 /**

@@ -442,7 +442,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
                   },
                 }}
               >
-                {watched ? '🔄 Review Lesson' : '▶️ Start Lesson'}
+                {watched ? 'Review Lesson' : 'Start Lesson'}
               </Button>
             </Box>
           </Paper>

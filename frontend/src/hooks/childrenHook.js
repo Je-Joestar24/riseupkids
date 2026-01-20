@@ -1,4 +1,5 @@
 import { useDispatch, useSelector } from 'react-redux';
+import { useCallback } from 'react';
 import {
   fetchAllChildren,
   fetchChildById,
@@ -33,7 +34,7 @@ export const useChildren = () => {
    * @param {Object} params - Query parameters (optional, uses current filters if not provided)
    * @returns {Promise} Fetch result
    */
-  const fetchChildren = async (params = null) => {
+  const fetchChildren = useCallback(async (params = null) => {
     try {
       const queryParams = params || filters;
       const result = await dispatch(fetchAllChildren(queryParams)).unwrap();
@@ -45,7 +46,7 @@ export const useChildren = () => {
       }));
       throw error;
     }
-  };
+  }, [dispatch, filters]);
 
   /**
    * Fetch single child by ID

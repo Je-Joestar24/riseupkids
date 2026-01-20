@@ -361,7 +361,6 @@ const KidsWallTableList = () => {
                     },
                     '&:hover': {
                       backgroundColor: theme.palette.custom.bgTertiary,
-                      backgroundColor: theme.palette.custom.bgTertiary,
                     },
                   }}
                 >
