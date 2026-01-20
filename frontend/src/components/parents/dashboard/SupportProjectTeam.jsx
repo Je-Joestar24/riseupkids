@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Card, CardContent, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { themeColors } from '../../../config/themeColors';
+import ContactSupportModal from '../contactsupport/ContactSupportModal';
 
 /**
  * SupportProjectTeam Component
@@ -12,6 +13,18 @@ import { themeColors } from '../../../config/themeColors';
  */
 const SupportProjectTeam = ({ onSupportClick }) => {
   const theme = useTheme();
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleSupportClick = () => {
+    setModalOpen(true);
+    if (onSupportClick) {
+      onSupportClick();
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+  };
 
   return (
     <Card
@@ -43,7 +56,7 @@ const SupportProjectTeam = ({ onSupportClick }) => {
               color: themeColors.text,
             }}
           >
-            Support
+            Contact
           </Typography>
         </Box>
         <Typography
@@ -59,7 +72,7 @@ const SupportProjectTeam = ({ onSupportClick }) => {
         <Button
           variant="contained"
           fullWidth
-          onClick={onSupportClick}
+          onClick={handleSupportClick}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,
@@ -74,9 +87,12 @@ const SupportProjectTeam = ({ onSupportClick }) => {
             },
           }}
         >
-          Support
+          Contact
         </Button>
       </CardContent>
+
+      {/* Contact Support Modal */}
+      <ContactSupportModal open={modalOpen} onClose={handleCloseModal} />
     </Card>
   );
 };

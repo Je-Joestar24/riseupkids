@@ -27,6 +27,8 @@ const videoWatchRoutes = require('./routes/videoWatch.routes');
 const bookReadingRoutes = require('./routes/bookReading.routes');
 const exploreRoutes = require('./routes/explore.routes');
 const exploreVideoWatchRoutes = require('./routes/exploreVideoWatch.routes');
+const parentDashboardRoutes = require('./routes/parentDashboard.routes');
+const contactSupportRoutes = require('./routes/contactSupport.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -74,6 +76,8 @@ app.use('/api/video-watch', videoWatchRoutes);
 app.use('/api/book-reading', bookReadingRoutes);
 app.use('/api/explore', exploreRoutes);
 app.use('/api/explore/videos', exploreVideoWatchRoutes);
+app.use('/api/parent-dashboard', parentDashboardRoutes);
+app.use('/api/contact-support', contactSupportRoutes);
 
 // Root route
 app.get('/', (req, res) => {

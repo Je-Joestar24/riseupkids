@@ -3,6 +3,7 @@ import { Box } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ParentsNav from '../components/parents/comon/ParentsNav';
 import { themeColors } from '../config/themeColors';
+import ContactSupportCustomDialog from '../components/parents/contactsupport/ContactSupportCustomDialog';
 
 /**
  * ParentsLayout Component
@@ -36,6 +37,9 @@ const ParentsLayout = ({ children }) => {
       >
         {children}
       </Box>
+
+      {/* Custom Dialog Box for Parents (Notifications & Confirmations) */}
+      <ContactSupportCustomDialog />
     </Box>
   );
 };

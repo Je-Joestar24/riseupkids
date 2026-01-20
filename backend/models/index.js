@@ -22,6 +22,7 @@ const ActivityGroup = require('./ActivityGroup');
 const Course = require('./Course');
 const CourseProgress = require('./CourseProgress');
 const VideoWatch = require('./VideoWatch');
+const ContactSupport = require('./ContactSupport');
 
 module.exports = {
   User,
@@ -47,5 +48,6 @@ module.exports = {
   StarEarning,
   ExploreContent,
   VideoWatch,
+  ContactSupport,
 };
 

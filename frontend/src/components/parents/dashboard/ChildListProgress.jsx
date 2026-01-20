@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Card, CardContent, Grid, Button, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { themeColors } from '../../../config/themeColors';
+import ChildProgressModal from './ChildProgressModal';
 
 /**
  * ChildListProgress Component
@@ -14,6 +15,25 @@ import { themeColors } from '../../../config/themeColors';
  */
 const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress }) => {
   const theme = useTheme();
+  const [selectedChildId, setSelectedChildId] = useState(null);
+  const [selectedChildName, setSelectedChildName] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const handleViewProgress = (childId) => {
+    const child = children.find((c) => c._id === childId);
+    setSelectedChildId(childId);
+    setSelectedChildName(child?.displayName || child?.name || null);
+    setModalOpen(true);
+    if (onViewProgress) {
+      onViewProgress(childId);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedChildId(null);
+    setSelectedChildName(null);
+  };
 
   if (loading && children.length === 0) {
     return (
@@ -132,9 +152,7 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
                     startIcon={<TrendingUpIcon />}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (onViewProgress) {
-                        onViewProgress(child._id);
-                      }
+                      handleViewProgress(child._id);
                     }}
                     sx={{
                       fontFamily: 'Quicksand, sans-serif',
@@ -158,6 +176,14 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
           ))}
         </Grid>
       </CardContent>
+
+      {/* Child Progress Modal */}
+      <ChildProgressModal
+        open={modalOpen}
+        onClose={handleCloseModal}
+        childId={selectedChildId}
+        childName={selectedChildName}
+      />
     </Card>
   );
 };
