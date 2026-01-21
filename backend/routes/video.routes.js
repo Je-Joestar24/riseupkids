@@ -15,7 +15,7 @@ const { uploadVideo, uploadVideoUpdate } = require('../middleware/upload');
  * 
  * Base path: /api/videos
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new video (with video file, SCORM file, and cover image upload)
@@ -28,8 +28,8 @@ const { uploadVideo, uploadVideoUpdate } = require('../middleware/upload');
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new video (with video file, SCORM file, and cover image upload)
 router.post('/', uploadVideo, createVideo);

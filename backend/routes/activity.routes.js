@@ -16,7 +16,7 @@ const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload')
  * 
  * Base path: /api/activities
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new activity (with SCORM file and cover image upload)
@@ -30,8 +30,8 @@ const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload')
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new activity (with SCORM file and cover image upload)
 router.post('/', uploadActivity, createActivity);

@@ -3,7 +3,7 @@ const courseService = require('../services/contentCollection.services');
 /**
  * @desc    Create new course/collection
  * @route   POST /api/courses
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -23,11 +23,11 @@ const createCourse = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create courses',
+        message: 'Only admins and teachers can create courses',
       });
     }
 
@@ -63,7 +63,7 @@ const createCourse = async (req, res) => {
 /**
  * @desc    Get all courses/collections
  * @route   GET /api/courses
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
@@ -76,11 +76,11 @@ const createCourse = async (req, res) => {
  */
 const getAllCourses = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access courses',
+        message: 'Only admins and teachers can access courses',
       });
     }
 
@@ -103,17 +103,17 @@ const getAllCourses = async (req, res) => {
 /**
  * @desc    Get single course by ID with populated contents
  * @route   GET /api/courses/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getCourseById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access courses',
+        message: 'Only admins and teachers can access courses',
       });
     }
 
@@ -136,7 +136,7 @@ const getCourseById = async (req, res) => {
 /**
  * @desc    Update course
  * @route   PUT /api/courses/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -151,11 +151,11 @@ const updateCourse = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update courses',
+        message: 'Only admins and teachers can update courses',
       });
     }
 
@@ -191,17 +191,17 @@ const updateCourse = async (req, res) => {
 /**
  * @desc    Archive course (soft delete)
  * @route   PATCH /api/courses/:id/archive
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const archiveCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can archive courses',
+        message: 'Only admins and teachers can archive courses',
       });
     }
 
@@ -224,17 +224,17 @@ const archiveCourse = async (req, res) => {
 /**
  * @desc    Unarchive course (restore)
  * @route   PATCH /api/courses/:id/unarchive
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const unarchiveCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can unarchive courses',
+        message: 'Only admins and teachers can unarchive courses',
       });
     }
 
@@ -257,7 +257,7 @@ const unarchiveCourse = async (req, res) => {
 /**
  * @desc    Delete course (permanent hard delete)
  * @route   DELETE /api/courses/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * WARNING: This permanently deletes the course and cannot be undone.
  * Consider using archive instead for soft delete.
@@ -266,11 +266,11 @@ const deleteCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete courses',
+        message: 'Only admins and teachers can delete courses',
       });
     }
 
@@ -293,14 +293,14 @@ const deleteCourse = async (req, res) => {
 /**
  * @desc    Get all default courses
  * @route   GET /api/courses/default
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getDefaultCourses = async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can view default courses',
+        message: 'Only admins and teachers can view default courses',
       });
     }
 
@@ -322,7 +322,7 @@ const getDefaultCourses = async (req, res) => {
 /**
  * @desc    Toggle default status of a course
  * @route   PATCH /api/courses/:id/default
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request body:
  * {
@@ -331,10 +331,10 @@ const getDefaultCourses = async (req, res) => {
  */
 const toggleDefaultStatus = async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can modify default course status',
+        message: 'Only admins and teachers can modify default course status',
       });
     }
 
@@ -367,7 +367,7 @@ const toggleDefaultStatus = async (req, res) => {
 /**
  * @desc    Reorder courses
  * @route   PATCH /api/courses/reorder
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request body:
  * {
@@ -377,11 +377,11 @@ const toggleDefaultStatus = async (req, res) => {
  */
 const reorderCourses = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can reorder courses',
+        message: 'Only admins and teachers can reorder courses',
       });
     }
 
@@ -428,7 +428,7 @@ const reorderCourses = async (req, res) => {
 /**
  * @desc    Reorder course contents
  * @route   PATCH /api/courses/:id/contents/reorder
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request body:
  * {
@@ -438,11 +438,11 @@ const reorderCourses = async (req, res) => {
  */
 const reorderCourseContents = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can reorder course contents',
+        message: 'Only admins and teachers can reorder course contents',
       });
     }
 

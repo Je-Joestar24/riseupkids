@@ -15,13 +15,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import {
   DashboardOutlined,
-  PeopleOutline,
   MenuBookOutlined,
-  SchoolOutlined,
-  ForumOutlined,
-  NotificationsNone,
-  SettingsOutlined,
-  HelpOutline,
   ExpandLess,
   ExpandMore,
   BookOutlined,
@@ -34,35 +28,33 @@ import { APP_VERSION } from '../../../config/constants';
 export const DRAWER_WIDTH = 280;
 
 /**
- * AdminSidebar Component
+ * TeacherSidebar Component
  * 
- * Premium vertical navigation sidebar for admin panel
+ * Premium vertical navigation sidebar for teacher panel
  * Enhanced with rounded corners, padding, header, and footer
  */
-const AdminSidebar = () => {
+const TeacherSidebar = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [coursesOpen, setCoursesOpen] = useState(
-    location.pathname.startsWith('/admin/courses')
+    location.pathname.startsWith('/teacher/courses')
   );
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardOutlined />, path: '/admin/dashboard' },
-    { text: 'Users', icon: <PeopleOutline />, path: '/admin/users' },
-    { text: 'Teachers', icon: <SchoolOutlined />, path: '/admin/teachers' },
+    { text: 'Dashboard', icon: <DashboardOutlined />, path: '/teacher/dashboard' },
     {
       text: 'Courses',
       icon: <MenuBookOutlined />,
-      path: '/admin/courses',
+      path: '/teacher/courses',
       subItems: [
-        { text: 'Module', icon: <BookOutlined />, path: '/admin/courses' },
-        { text: 'Contents', icon: <AssignmentOutlined />, path: '/admin/courses/contents' },
-        { text: 'Explore', icon: <PlayCircleOutlined />, path: '/admin/courses/explore' },
+        { text: 'Module', icon: <BookOutlined />, path: '/teacher/courses' },
+        { text: 'Contents', icon: <AssignmentOutlined />, path: '/teacher/courses/contents' },
+        { text: 'Explore', icon: <PlayCircleOutlined />, path: '/teacher/courses/explore' },
       ],
     },/* 
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
-    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
+    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/teacher/kids-wall' },
 /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
     { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
     { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
@@ -128,7 +120,7 @@ const AdminSidebar = () => {
             display: 'block',
           }}
         >
-          Manage your platform
+          Manage learning content
         </Typography>
       </Box>
 
@@ -312,5 +304,5 @@ const AdminSidebar = () => {
   );
 };
 
-export default AdminSidebar;
+export default TeacherSidebar;
 

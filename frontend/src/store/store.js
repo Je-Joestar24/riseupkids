@@ -9,6 +9,7 @@ import contentReducer from './slices/contentSlice';
 import courseReducer from './slices/courseSlice';
 import kidsWallReducer from './slices/kidsWallSlice';
 import exploreReducer from './slices/exploreSlice';
+import teacherReducer from './slices/teacherSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     user: userReducer,
     ui: uiReducer,
     parents: parentsReducer,
+    teachers: teacherReducer,
     children: childrenReducer,
     activity: activityReducer, // Keep for backward compatibility
     content: contentReducer, // Unified content management

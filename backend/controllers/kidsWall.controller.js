@@ -391,7 +391,7 @@ const toggleStar = async (req, res) => {
 /**
  * @desc    Get all posts for admin with pagination and filters
  * @route   GET /api/kids-wall/admin/posts
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - page: Page number (default: 1)
@@ -402,11 +402,11 @@ const toggleStar = async (req, res) => {
  */
 const getAllPostsForAdmin = async (req, res) => {
   try {
-    // Only admin can access
-    if (req.user.role !== 'admin') {
+    // Only admin/teacher can access
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Admin only.',
+        message: 'Access denied. Admin/Teacher only.',
       });
     }
 
@@ -429,15 +429,15 @@ const getAllPostsForAdmin = async (req, res) => {
 /**
  * @desc    Approve a pending post
  * @route   POST /api/kids-wall/admin/:postId/approve
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const approvePost = async (req, res) => {
   try {
-    // Only admin can approve
-    if (req.user.role !== 'admin') {
+    // Only admin/teacher can approve
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Admin only.',
+        message: 'Access denied. Admin/Teacher only.',
       });
     }
 
@@ -462,15 +462,15 @@ const approvePost = async (req, res) => {
 /**
  * @desc    Reject a post (soft delete)
  * @route   POST /api/kids-wall/admin/:postId/reject
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const rejectPost = async (req, res) => {
   try {
-    // Only admin can reject
-    if (req.user.role !== 'admin') {
+    // Only admin/teacher can reject
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Admin only.',
+        message: 'Access denied. Admin/Teacher only.',
       });
     }
 

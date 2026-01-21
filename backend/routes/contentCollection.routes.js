@@ -21,7 +21,7 @@ const { uploadCourse } = require('../middleware/upload');
  * 
  * Base path: /api/courses
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new course (with cover image upload and contents)
@@ -40,8 +40,8 @@ const { uploadCourse } = require('../middleware/upload');
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new course (with cover image upload)
 router.post('/', uploadCourse, createCourse);

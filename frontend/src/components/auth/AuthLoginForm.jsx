@@ -39,6 +39,8 @@ const AuthLoginForm = () => {
         navigate('/parents/child');
       } else if (user.role === 'admin') {
         navigate('/admin/dashboard');
+      } else if (user.role === 'teacher') {
+        navigate('/teacher/dashboard');
       } else if (user.role === 'child') {
         // TODO: Navigate to child dashboard when ready
         console.log('Child logged in - dashboard coming soon');

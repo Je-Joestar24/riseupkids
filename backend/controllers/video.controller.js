@@ -3,7 +3,7 @@ const videoService = require('../services/video.services');
 /**
  * @desc    Create new video
  * @route   POST /api/videos
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -21,11 +21,11 @@ const createVideo = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create videos',
+        message: 'Only admins and teachers can create videos',
       });
     }
 
@@ -48,7 +48,7 @@ const createVideo = async (req, res) => {
 /**
  * @desc    Get all videos
  * @route   GET /api/videos
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isActive: Filter by active status (true/false, default: true)
@@ -59,11 +59,11 @@ const createVideo = async (req, res) => {
  */
 const getAllVideos = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access videos',
+        message: 'Only admins and teachers can access videos',
       });
     }
 
@@ -86,17 +86,17 @@ const getAllVideos = async (req, res) => {
 /**
  * @desc    Get single video by ID
  * @route   GET /api/videos/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getVideoById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access videos',
+        message: 'Only admins and teachers can access videos',
       });
     }
 
@@ -119,7 +119,7 @@ const getVideoById = async (req, res) => {
 /**
  * @desc    Update video
  * @route   PUT /api/videos/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -134,11 +134,11 @@ const updateVideo = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update videos',
+        message: 'Only admins and teachers can update videos',
       });
     }
 
@@ -161,17 +161,17 @@ const updateVideo = async (req, res) => {
 /**
  * @desc    Delete video
  * @route   DELETE /api/videos/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const deleteVideo = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete videos',
+        message: 'Only admins and teachers can delete videos',
       });
     }
 

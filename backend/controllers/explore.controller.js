@@ -3,7 +3,7 @@ const exploreService = require('../services/explore.services');
 /**
  * @desc    Create new explore content
  * @route   POST /api/explore
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -25,11 +25,11 @@ const createExploreContent = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create explore content',
+        message: 'Only admins and teachers can create explore content',
       });
     }
 
@@ -52,7 +52,7 @@ const createExploreContent = async (req, res) => {
 /**
  * @desc    Get all explore content
  * @route   GET /api/explore
- * @access  Private (Admin only for full access, authenticated users for published)
+ * @access  Private (Admin/Teacher for full access, authenticated users for published)
  * 
  * Query parameters:
  * - type: Filter by content type (video, lesson, activity, etc.)
@@ -66,8 +66,8 @@ const createExploreContent = async (req, res) => {
  */
 const getAllExploreContent = async (req, res) => {
   try {
-    // Admin can see all content, others only see published
-    if (req.user.role !== 'admin') {
+    // Admin/Teacher can see all content, others only see published
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       req.query.isPublished = true;
     }
 
@@ -98,8 +98,8 @@ const getExploreContentById = async (req, res) => {
 
     const content = await exploreService.getExploreContentById(id);
 
-    // Non-admin users can only see published content
-    if (req.user.role !== 'admin' && !content.isPublished) {
+    // Non-admin/teacher users can only see published content
+    if (!['admin', 'teacher'].includes(req.user.role) && !content.isPublished) {
       return res.status(404).json({
         success: false,
         message: 'Explore content not found',
@@ -123,7 +123,7 @@ const getExploreContentById = async (req, res) => {
 /**
  * @desc    Update explore content
  * @route   PUT /api/explore/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -144,11 +144,11 @@ const updateExploreContent = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update explore content',
+        message: 'Only admins and teachers can update explore content',
       });
     }
 
@@ -171,17 +171,17 @@ const updateExploreContent = async (req, res) => {
 /**
  * @desc    Delete explore content
  * @route   DELETE /api/explore/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const deleteExploreContent = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete explore content',
+        message: 'Only admins and teachers can delete explore content',
       });
     }
 
@@ -267,7 +267,7 @@ const getFeaturedExploreContent = async (req, res) => {
 /**
  * @desc    Reorder explore content
  * @route   POST /api/explore/reorder
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request body:
  * - contentIds: Array (required) - Array of Explore content IDs in desired order (all must be same videoType)
@@ -280,11 +280,11 @@ const reorderExploreContent = async (req, res) => {
   try {
     const { contentIds, videoType } = req.body;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can reorder explore content',
+        message: 'Only admins and teachers can reorder explore content',
       });
     }
 

@@ -22,6 +22,8 @@ const UnAuthed = ({ children, redirectTo = '/' }) => {
       return <Navigate to="/parents/child" replace />;
     } else if (user.role === 'admin') {
       return <Navigate to="/admin/dashboard" replace />;
+    } else if (user.role === 'teacher') {
+      return <Navigate to="/teacher/dashboard" replace />;
     } else if (user.role === 'child') {
       return <Navigate to="/child/dashboard" replace />;
     }

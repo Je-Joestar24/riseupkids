@@ -3,7 +3,7 @@ const courseService = require('../services/course.services');
 /**
  * @desc    Create new activity group
  * @route   POST /api/courses/activity-groups
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request body:
  * {
@@ -24,11 +24,11 @@ const createActivityGroup = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create activity groups',
+        message: 'Only admins and teachers can create activity groups',
       });
     }
 
@@ -51,7 +51,7 @@ const createActivityGroup = async (req, res) => {
 /**
  * @desc    Get activity group with activities
  * @route   GET /api/courses/activity-groups/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - includeUnpublished: Include unpublished activities (admin only, default: false)
@@ -61,16 +61,16 @@ const getActivityGroupById = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access activity groups',
+        message: 'Only admins and teachers can access activity groups',
       });
     }
 
-    // Check if admin wants to include unpublished activities
-    const includeUnpublished = req.query.includeUnpublished === 'true' && req.user.role === 'admin';
+    // Check if admin/teacher wants to include unpublished activities
+    const includeUnpublished = req.query.includeUnpublished === 'true' && ['admin', 'teacher'].includes(req.user.role);
 
     const activityGroup = await courseService.getActivityGroupById(id, {
       includeUnpublished,

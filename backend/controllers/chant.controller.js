@@ -3,7 +3,7 @@ const chantService = require('../services/chant.services');
 /**
  * @desc    Create new chant
  * @route   POST /api/chants
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -22,11 +22,11 @@ const createChant = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create chants',
+        message: 'Only admins and teachers can create chants',
       });
     }
 
@@ -49,7 +49,7 @@ const createChant = async (req, res) => {
 /**
  * @desc    Get all chants
  * @route   GET /api/chants
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
@@ -59,11 +59,11 @@ const createChant = async (req, res) => {
  */
 const getAllChants = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access chants',
+        message: 'Only admins and teachers can access chants',
       });
     }
 
@@ -86,17 +86,17 @@ const getAllChants = async (req, res) => {
 /**
  * @desc    Get single chant by ID
  * @route   GET /api/chants/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getChantById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access chants',
+        message: 'Only admins and teachers can access chants',
       });
     }
 
@@ -119,7 +119,7 @@ const getChantById = async (req, res) => {
 /**
  * @desc    Update chant
  * @route   PUT /api/chants/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -134,11 +134,11 @@ const updateChant = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update chants',
+        message: 'Only admins and teachers can update chants',
       });
     }
 
@@ -161,17 +161,17 @@ const updateChant = async (req, res) => {
 /**
  * @desc    Delete chant
  * @route   DELETE /api/chants/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const deleteChant = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete chants',
+        message: 'Only admins and teachers can delete chants',
       });
     }
 

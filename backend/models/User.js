@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 /**
  * User Model
  * 
- * Represents authenticated users (admin and parent roles only).
+ * Represents authenticated users (admin, teacher, and parent roles).
  * 
  * IMPORTANT: Children are NOT User records. They are created as ChildProfile records only.
  * Children don't have passwords, emails, or tokens. The parent logs in, then selects
@@ -52,7 +52,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'parent', 'child'],
+      enum: ['admin', 'teacher', 'parent', 'child'],
       required: [true, 'Please provide a role'],
       default: 'parent',
     },

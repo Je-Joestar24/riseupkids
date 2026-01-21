@@ -15,7 +15,7 @@ const { uploadAudioAssignment, uploadAudioAssignmentUpdate } = require('../middl
  * 
  * Base path: /api/audio-assignments
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new audio assignment (with reference audio and cover image upload)
@@ -28,8 +28,8 @@ const { uploadAudioAssignment, uploadAudioAssignmentUpdate } = require('../middl
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new audio assignment (with reference audio and cover image upload)
 router.post('/', uploadAudioAssignment, createAudioAssignment);

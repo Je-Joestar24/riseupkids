@@ -3,7 +3,7 @@ const activityService = require('../services/activity.services');
 /**
  * @desc    Create new activity
  * @route   POST /api/activities
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -20,11 +20,11 @@ const createActivity = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create activities',
+        message: 'Only admins and teachers can create activities',
       });
     }
 
@@ -47,7 +47,7 @@ const createActivity = async (req, res) => {
 /**
  * @desc    Get all activities
  * @route   GET /api/activities
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
@@ -58,11 +58,11 @@ const createActivity = async (req, res) => {
  */
 const getAllActivities = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access activities',
+        message: 'Only admins and teachers can access activities',
       });
     }
 
@@ -85,17 +85,17 @@ const getAllActivities = async (req, res) => {
 /**
  * @desc    Get single activity by ID
  * @route   GET /api/activities/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getActivityById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access activities',
+        message: 'Only admins and teachers can access activities',
       });
     }
 
@@ -118,7 +118,7 @@ const getActivityById = async (req, res) => {
 /**
  * @desc    Update activity
  * @route   PUT /api/activities/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -132,11 +132,11 @@ const updateActivity = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update activities',
+        message: 'Only admins and teachers can update activities',
       });
     }
 
@@ -159,17 +159,17 @@ const updateActivity = async (req, res) => {
 /**
  * @desc    Archive activity
  * @route   DELETE /api/activities/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const archiveActivity = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can archive activities',
+        message: 'Only admins and teachers can archive activities',
       });
     }
 
@@ -192,17 +192,17 @@ const archiveActivity = async (req, res) => {
 /**
  * @desc    Restore archived activity
  * @route   PATCH /api/activities/:id/restore
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const restoreActivity = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can restore activities',
+        message: 'Only admins and teachers can restore activities',
       });
     }
 

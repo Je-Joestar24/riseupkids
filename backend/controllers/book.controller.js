@@ -3,7 +3,7 @@ const bookService = require('../services/book.services');
 /**
  * @desc    Create new book
  * @route   POST /api/books
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -24,11 +24,11 @@ const createBook = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create books',
+        message: 'Only admins and teachers can create books',
       });
     }
 
@@ -51,7 +51,7 @@ const createBook = async (req, res) => {
 /**
  * @desc    Get all books
  * @route   GET /api/books
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
@@ -63,11 +63,11 @@ const createBook = async (req, res) => {
  */
 const getAllBooks = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access books',
+        message: 'Only admins and teachers can access books',
       });
     }
 
@@ -90,17 +90,17 @@ const getAllBooks = async (req, res) => {
 /**
  * @desc    Get single book by ID
  * @route   GET /api/books/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getBookById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access books',
+        message: 'Only admins and teachers can access books',
       });
     }
 
@@ -123,7 +123,7 @@ const getBookById = async (req, res) => {
 /**
  * @desc    Update book
  * @route   PUT /api/books/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -142,11 +142,11 @@ const updateBook = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update books',
+        message: 'Only admins and teachers can update books',
       });
     }
 
@@ -169,17 +169,17 @@ const updateBook = async (req, res) => {
 /**
  * @desc    Delete book
  * @route   DELETE /api/books/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const deleteBook = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete books',
+        message: 'Only admins and teachers can delete books',
       });
     }
 

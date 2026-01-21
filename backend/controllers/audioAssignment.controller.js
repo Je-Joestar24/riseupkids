@@ -3,7 +3,7 @@ const audioAssignmentService = require('../services/audioAssignment.services');
 /**
  * @desc    Create new audio assignment
  * @route   POST /api/audio-assignments
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (required)
@@ -22,11 +22,11 @@ const createAudioAssignment = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can create audio assignments',
+        message: 'Only admins and teachers can create audio assignments',
       });
     }
 
@@ -49,7 +49,7 @@ const createAudioAssignment = async (req, res) => {
 /**
  * @desc    Get all audio assignments
  * @route   GET /api/audio-assignments
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Query parameters:
  * - isPublished: Filter by published status (true/false)
@@ -60,11 +60,11 @@ const createAudioAssignment = async (req, res) => {
  */
 const getAllAudioAssignments = async (req, res) => {
   try {
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access audio assignments',
+        message: 'Only admins and teachers can access audio assignments',
       });
     }
 
@@ -87,17 +87,17 @@ const getAllAudioAssignments = async (req, res) => {
 /**
  * @desc    Get single audio assignment by ID
  * @route   GET /api/audio-assignments/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const getAudioAssignmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can access audio assignments',
+        message: 'Only admins and teachers can access audio assignments',
       });
     }
 
@@ -120,7 +120,7 @@ const getAudioAssignmentById = async (req, res) => {
 /**
  * @desc    Update audio assignment
  * @route   PUT /api/audio-assignments/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  * 
  * Request (multipart/form-data):
  * - title: String (optional)
@@ -137,11 +137,11 @@ const updateAudioAssignment = async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can update audio assignments',
+        message: 'Only admins and teachers can update audio assignments',
       });
     }
 
@@ -164,17 +164,17 @@ const updateAudioAssignment = async (req, res) => {
 /**
  * @desc    Delete audio assignment
  * @route   DELETE /api/audio-assignments/:id
- * @access  Private (Admin only)
+ * @access  Private (Admin/Teacher only)
  */
 const deleteAudioAssignment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin
-    if (req.user.role !== 'admin') {
+    // Verify user is admin/teacher
+    if (!['admin', 'teacher'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins can delete audio assignments',
+        message: 'Only admins and teachers can delete audio assignments',
       });
     }
 

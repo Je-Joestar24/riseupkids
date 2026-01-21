@@ -16,7 +16,7 @@ const authService = require('../services/auth.services');
  *   "name": "John Doe",
  *   "email": "john@example.com",
  *   "password": "password123",
- *   "role": "parent" // or "admin" only (children cannot be registered here)
+ *   "role": "parent" // or "admin" only. Teachers must be created by an admin. (children cannot be registered here)
  * }
  */
 const register = async (req, res) => {

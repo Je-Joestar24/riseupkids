@@ -11,7 +11,7 @@ const { protect, authorize } = require('../middleware/auth');
  * 
  * Base path: /api/courses
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST /activity-groups - Create new activity group
@@ -21,8 +21,8 @@ const { protect, authorize } = require('../middleware/auth');
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new activity group
 router.post('/activity-groups', createActivityGroup);

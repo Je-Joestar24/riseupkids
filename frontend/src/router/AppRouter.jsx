@@ -7,11 +7,14 @@ import ParentDashboard from '../pages/parents/ParentDashboard';
 import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
+import AdminTeachers from '../pages/admin/AdminTeachers';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
 import AdminKidsWall from '../pages/admin/AdminKidsWall';
 import AdminLayout from '../layouts/AdminLayout';
+import TeacherLayout from '../layouts/TeacherLayout';
+import TeacherDashboard from '../pages/teacher/TeacherDashboard';
 import ChildLayout from '../layouts/ChildLayout';
 import ChildHome from '../pages/child/ChildHome';
 import ChildJourney from '../pages/child/ChildJourney';
@@ -187,6 +190,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/admin/teachers"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminTeachers />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/admin/courses/contents"
           element={
             <AuthedAccess allowedRoles={['admin']}>
@@ -233,6 +246,68 @@ const AppRouter = () => {
               <AdminLayout>
                 <AdminDashboard />
               </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+
+        {/* Teacher Routes */}
+        <Route
+          path="/teacher/dashboard"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <TeacherDashboard />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/courses/contents"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminActivities />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/courses"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminCourses />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/courses/explore"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminExplore />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/kids-wall"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminKidsWall />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/*"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <TeacherDashboard />
+              </TeacherLayout>
             </AuthedAccess>
           }
         />

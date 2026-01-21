@@ -104,6 +104,11 @@ const ChildProgressModal = ({ open, onClose, childId, childName }) => {
         sx={{
           padding: '24px',
           overflowY: 'auto',
+          '&::-webkit-scrollbar': {
+            display: 'none',
+          },
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
         }}
       >
         {loading ? (

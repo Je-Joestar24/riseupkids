@@ -12,6 +12,7 @@ dotenv.config();
 const apiRoutes = require('./routes/api');
 const authRoutes = require('./routes/auth.routes');
 const parentsRoutes = require('./routes/parents.routes');
+const teachersRoutes = require('./routes/teachers.routes');
 const childrenRoutes = require('./routes/children.routes');
 const courseRoutes = require('./routes/course.routes');
 const contentCollectionRoutes = require('./routes/contentCollection.routes');
@@ -58,6 +59,7 @@ app.use('/scorm', express.static(path.join(__dirname, 'uploads/scorm')));
 app.use('/api', apiRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/parents', parentsRoutes);
+app.use('/api/teachers', teachersRoutes);
 app.use('/api/children', childrenRoutes);
 // Course routes: /api/courses/activity-groups (existing activity groups)
 app.use('/api/courses', courseRoutes);

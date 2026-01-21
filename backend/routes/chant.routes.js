@@ -15,7 +15,7 @@ const { uploadChant, uploadChantUpdate } = require('../middleware/upload');
  * 
  * Base path: /api/chants
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new chant (with optional audio, optional SCORM file, and optional cover image upload)
@@ -28,8 +28,8 @@ const { uploadChant, uploadChantUpdate } = require('../middleware/upload');
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new chant (with optional audio, optional SCORM file, and optional cover image upload)
 router.post('/', uploadChant, createChant);

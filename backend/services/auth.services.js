@@ -19,7 +19,7 @@ const generateToken = (userId) => {
 /**
  * Register/Signup Service
  * 
- * Creates a new user account (admin or parent only)
+ * Creates a new user account via public registration (admin or parent only)
  * Note: Children are NOT User records - they are created as ChildProfile records only
  * 
  * @param {Object} userData - User registration data
@@ -38,9 +38,9 @@ const register = async (userData) => {
     throw new Error('Please provide name, email, and password');
   }
 
-  // Validate role - only admin and parent can be User records
+  // Validate role - only admin and parent can be created via public registration
   if (!['admin', 'parent'].includes(role)) {
-    throw new Error('Invalid role. Must be admin or parent. Children are created as ChildProfile records, not User accounts.');
+    throw new Error('Invalid role. Must be admin or parent. Teachers must be created by an admin. Children are created as ChildProfile records, not User accounts.');
   }
 
   // Check if user already exists
@@ -107,7 +107,7 @@ const login = async (email, password) => {
   user.lastLogin = new Date();
   await user.save();
 
-  // Only admin and parent can login (children don't have User accounts)
+  // Children don't have User accounts
   if (user.role === 'child') {
     throw new Error('Children do not have login accounts. Please login as a parent and select a child profile.');
   }
@@ -174,7 +174,7 @@ const getCurrentUser = async (userId) => {
     throw new Error('Account is inactive');
   }
 
-  // Only admin and parent can be authenticated users (children don't have User accounts)
+  // Children don't have User accounts
   if (user.role === 'child') {
     throw new Error('Children do not have User accounts. They are accessed through ChildProfile records.');
   }

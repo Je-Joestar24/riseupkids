@@ -15,7 +15,7 @@ const { uploadBook, uploadBookUpdate } = require('../middleware/upload');
  * 
  * Base path: /api/books
  * 
- * All routes require authentication and admin role
+ * All routes require authentication and admin/teacher role
  * 
  * Routes:
  * - POST / - Create new book (with SCORM file and cover image upload)
@@ -28,8 +28,8 @@ const { uploadBook, uploadBookUpdate } = require('../middleware/upload');
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin role
-router.use(authorize('admin'));
+// All routes require admin/teacher role
+router.use(authorize('admin', 'teacher'));
 
 // Create new book (with SCORM file and cover image upload)
 router.post('/', uploadBook, createBook);
