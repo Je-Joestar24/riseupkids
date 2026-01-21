@@ -12,16 +12,23 @@ import {
   Alert,
   Chip,
 } from '@mui/material';
-import { Close as CloseIcon, Mic as MicIcon, Stop as StopIcon, CheckCircle as CheckIcon } from '@mui/icons-material';
+import { Close as CloseIcon, Mic as MicIcon, Stop as StopIcon, CheckCircle as CheckIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import chantProgressService from '../../../services/chantProgressService';
 import courseProgressService from '../../../services/courseProgressService';
 
 const buildPublicUrl = (maybeUrl) => {
   if (!maybeUrl) return null;
-  if (maybeUrl.startsWith('http://') || maybeUrl.startsWith('https://')) return maybeUrl;
+  // Handle both string URLs and Media objects with .url property
+  const urlStr = typeof maybeUrl === 'string' ? maybeUrl : maybeUrl?.url || '';
+  if (!urlStr) return null;
+  
+  // If already absolute, return as-is
+  if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) return urlStr;
+  
+  // Otherwise, prepend base URL
   const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-  return `${baseUrl}${maybeUrl.startsWith('/') ? maybeUrl : `/${maybeUrl}`}`;
+  return `${baseUrl}${urlStr.startsWith('/') ? urlStr : `/${urlStr}`}`;
 };
 
 const pickBestAudioMimeType = () => {
@@ -47,12 +54,6 @@ const pickBestAudioMimeType = () => {
 const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterComplete }) => {
   const chantId = chant?._id || chant?._contentId || chant?.contentId || chant?.id;
 
-  const instructionVideoUrl = useMemo(() => {
-    const media = chant?.instructionVideo;
-    const url = typeof media === 'string' ? media : media?.url;
-    return buildPublicUrl(url);
-  }, [chant]);
-
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -62,11 +63,18 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const fileInputRef = useRef(null);
 
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
+
+  const instructionVideoUrl = useMemo(() => {
+    const media = progress?.chant?.instructionVideo || chant?.instructionVideo;
+    const url = typeof media === 'string' ? media : media?.url;
+    return buildPublicUrl(url);
+  }, [progress?.chant?.instructionVideo, chant?.instructionVideo]);
 
   const cleanupRecording = () => {
     if (timerRef.current) {
@@ -194,6 +202,28 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
     }
   };
 
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileSelected = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith('audio/')) {
+      setError('Please select an audio file');
+      return;
+    }
+    cleanupRecordedMedia();
+    const url = URL.createObjectURL(file);
+    setRecordedBlob(file);
+    setRecordedUrl(url);
+    setRecordSeconds(0);
+    setError(null);
+  };
+
   const handleComplete = async () => {
     if (!recordedBlob || !chantId || !childId) return;
     setSubmitting(true);
@@ -239,7 +269,12 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={(event, reason) => {
+        // Persistent modal: do not allow closing via backdrop click or Escape
+        if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
+        onClose();
+      }}
+      disableEscapeKeyDown
       maxWidth="md"
       fullWidth
       PaperProps={{
@@ -314,15 +349,32 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
                   boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
                 }}
               >
+                {/* Rectangular (16:9) video container */}
                 <Box
-                  component="video"
-                  src={instructionVideoUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  aria-label="Chant instruction video"
-                  sx={{ width: '100%', maxHeight: 320, display: 'block', backgroundColor: '#000' }}
-                />
+                  sx={{
+                    width: '100%',
+                    aspectRatio: '16 / 9',
+                    backgroundColor: '#000',
+                  }}
+                >
+                  <Box
+                    component="video"
+                    src={instructionVideoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    autoPlay
+                    muted
+                    aria-label="Chant instruction video"
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'block',
+                      backgroundColor: '#000',
+                      objectFit: 'cover',
+                    }}
+                  />
+                </Box>
               </Box>
             )}
 
@@ -433,6 +485,32 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
                 >
                   Re-record
                 </Button>
+
+                <Button
+                  onClick={handleUploadClick}
+                  variant="outlined"
+                  disabled={isRecording || submitting || status === 'completed'}
+                  startIcon={<CloudUploadIcon />}
+                  role="button"
+                  aria-label="Upload audio file"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    borderRadius: '14px',
+                    borderWidth: '2px',
+                  }}
+                >
+                  Upload audio
+                </Button>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  ref={fileInputRef}
+                  style={{ display: 'none' }}
+                  onChange={handleFileSelected}
+                  aria-label="Select audio file"
+                />
               </Box>
 
               {recordedUrl && (

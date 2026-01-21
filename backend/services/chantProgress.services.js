@@ -47,7 +47,14 @@ const startChant = async ({ childId, chantId }) => {
 
   return await ChantProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('chant', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo')
+    .populate({
+      path: 'chant',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
+      populate: {
+        path: 'instructionVideo',
+        select: 'type title url mimeType size duration',
+      },
+    })
     .lean();
 };
 
@@ -63,7 +70,14 @@ const getChantProgress = async ({ childId, chantId }) => {
 
   return await ChantProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('chant', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo')
+    .populate({
+      path: 'chant',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
+      populate: {
+        path: 'instructionVideo',
+        select: 'type title url mimeType size duration',
+      },
+    })
     .lean();
 };
 
@@ -152,7 +166,14 @@ const completeChant = async ({
 
   return await ChantProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('chant', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo')
+    .populate({
+      path: 'chant',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
+      populate: {
+        path: 'instructionVideo',
+        select: 'type title url mimeType size duration',
+      },
+    })
     .lean();
 };
 

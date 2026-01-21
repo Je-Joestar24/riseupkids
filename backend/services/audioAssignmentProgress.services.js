@@ -55,7 +55,14 @@ const startAudioAssignment = async ({ childId, audioAssignmentId }) => {
 
   return await AudioAssignmentProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('audioAssignment', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio')
+    .populate({
+      path: 'audioAssignment',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
+      populate: [
+        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'referenceAudio', select: 'type title url mimeType size duration' },
+      ],
+    })
     .lean();
 };
 
@@ -72,7 +79,14 @@ const getAudioAssignmentProgress = async ({ childId, audioAssignmentId }) => {
 
   return await AudioAssignmentProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('audioAssignment', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio')
+    .populate({
+      path: 'audioAssignment',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
+      populate: [
+        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'referenceAudio', select: 'type title url mimeType size duration' },
+      ],
+    })
     .lean();
 };
 
@@ -121,7 +135,14 @@ const submitAudioAssignmentRecording = async ({
 
   return await AudioAssignmentProgress.findById(progress._id)
     .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate('audioAssignment', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio')
+    .populate({
+      path: 'audioAssignment',
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
+      populate: [
+        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'referenceAudio', select: 'type title url mimeType size duration' },
+      ],
+    })
     .lean();
 };
 
