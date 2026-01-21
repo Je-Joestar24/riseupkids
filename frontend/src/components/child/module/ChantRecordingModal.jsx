@@ -1,0 +1,505 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Box,
+  Typography,
+  Button,
+  IconButton,
+  CircularProgress,
+  Alert,
+  Chip,
+} from '@mui/material';
+import { Close as CloseIcon, Mic as MicIcon, Stop as StopIcon, CheckCircle as CheckIcon } from '@mui/icons-material';
+import { themeColors } from '../../../config/themeColors';
+import chantProgressService from '../../../services/chantProgressService';
+import courseProgressService from '../../../services/courseProgressService';
+
+const buildPublicUrl = (maybeUrl) => {
+  if (!maybeUrl) return null;
+  if (maybeUrl.startsWith('http://') || maybeUrl.startsWith('https://')) return maybeUrl;
+  const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+  return `${baseUrl}${maybeUrl.startsWith('/') ? maybeUrl : `/${maybeUrl}`}`;
+};
+
+const pickBestAudioMimeType = () => {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/ogg;codecs=opus',
+    'audio/ogg',
+    'audio/mp4',
+  ];
+  if (typeof MediaRecorder === 'undefined') return null;
+  for (const type of candidates) {
+    if (MediaRecorder.isTypeSupported(type)) return type;
+  }
+  return '';
+};
+
+/**
+ * ChantRecordingModal (Child-facing)
+ *
+ * Similar to audio assignment modal, but completion is immediate (no review).
+ */
+const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterComplete }) => {
+  const chantId = chant?._id || chant?._contentId || chant?.contentId || chant?.id;
+
+  const instructionVideoUrl = useMemo(() => {
+    const media = chant?.instructionVideo;
+    const url = typeof media === 'string' ? media : media?.url;
+    return buildPublicUrl(url);
+  }, [chant]);
+
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [progress, setProgress] = useState(null);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordedUrl, setRecordedUrl] = useState(null);
+  const [recordedBlob, setRecordedBlob] = useState(null);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+
+  const recorderRef = useRef(null);
+  const streamRef = useRef(null);
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  const cleanupRecording = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    if (recorderRef.current) {
+      try {
+        if (recorderRef.current.state !== 'inactive') recorderRef.current.stop();
+      } catch (e) {
+        // ignore
+      }
+      recorderRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  };
+
+  const cleanupRecordedMedia = () => {
+    if (recordedUrl) {
+      URL.revokeObjectURL(recordedUrl);
+    }
+    setRecordedUrl(null);
+    setRecordedBlob(null);
+    setRecordSeconds(0);
+    chunksRef.current = [];
+  };
+
+  const fetchProgress = async () => {
+    if (!chantId || !childId) return;
+    const res = await chantProgressService.getProgress(chantId, childId);
+    setProgress(res?.data || null);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    if (!chantId || !childId) return;
+
+    setError(null);
+    setLoading(true);
+
+    Promise.resolve()
+      .then(() => chantProgressService.start(chantId, childId))
+      .then(() => fetchProgress())
+      .catch((e) => {
+        setError(typeof e === 'string' ? e : e?.message || 'Failed to load chant');
+      })
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, chantId, childId]);
+
+  // Cleanup on close/unmount
+  useEffect(() => {
+    if (!open) {
+      cleanupRecording();
+      cleanupRecordedMedia();
+      setProgress(null);
+      setError(null);
+    }
+    return () => {
+      cleanupRecording();
+      cleanupRecordedMedia();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const handleStartRecording = async () => {
+    setError(null);
+    if (isRecording) return;
+    try {
+      cleanupRecordedMedia();
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Microphone is not supported in this browser.');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      streamRef.current = stream;
+
+      const mimeType = pickBestAudioMimeType();
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setRecordedBlob(blob);
+        setRecordedUrl(url);
+      };
+
+      recorder.start(250);
+      setIsRecording(true);
+      setRecordSeconds(0);
+      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch (e) {
+      setError(e?.message || 'Failed to start recording');
+      cleanupRecording();
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (!isRecording) return;
+    try {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      const rec = recorderRef.current;
+      if (rec && rec.state !== 'inactive') rec.stop();
+    } catch (e) {
+      // ignore
+    } finally {
+      setIsRecording(false);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!recordedBlob || !chantId || !childId) return;
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const fd = new FormData();
+      const ext = recordedBlob.type.includes('ogg') ? 'ogg' : recordedBlob.type.includes('mp4') ? 'mp4' : 'webm';
+      const fileName = `chant-${chantId}-${childId}-${Date.now()}.${ext}`;
+      fd.append('recordedAudio', new File([recordedBlob], fileName, { type: recordedBlob.type || 'audio/webm' }));
+      fd.append('timeSpent', recordSeconds);
+      fd.append(
+        'metadata',
+        JSON.stringify({
+          mimeType: recordedBlob.type || 'audio/webm',
+          recordedSeconds: recordSeconds,
+        })
+      );
+
+      await chantProgressService.complete(chantId, childId, fd);
+      await fetchProgress();
+
+      // Mark course content as completed
+      if (courseId) {
+        await courseProgressService.updateContentProgress(courseId, childId, chantId, 'chant');
+      }
+
+      if (onAfterComplete) onAfterComplete();
+    } catch (e) {
+      setError(typeof e === 'string' ? e : e?.message || 'Failed to complete chant');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const status = progress?.status || 'not_started';
+  const statusChip = (() => {
+    if (status === 'completed') return { label: 'Completed', color: themeColors.success };
+    if (status === 'in_progress') return { label: 'In progress', color: themeColors.secondary };
+    return { label: 'Not started', color: themeColors.textMuted };
+  })();
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: '18px',
+          overflow: 'hidden',
+          backgroundColor: themeColors.bgCard,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: 2.5,
+          backgroundColor: themeColors.bgCard,
+          borderBottom: `3px solid ${themeColors.secondary}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 800,
+              fontSize: '1.35rem',
+              color: themeColors.primary,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '70vw',
+            }}
+          >
+            {chant?.title || 'Chant'}
+          </Typography>
+          <Chip
+            label={statusChip.label}
+            size="small"
+            sx={{
+              backgroundColor: statusChip.color,
+              color: themeColors.textInverse,
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 700,
+            }}
+          />
+        </Box>
+        <IconButton aria-label="Close chant modal" onClick={onClose}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+
+      <DialogContent sx={{ padding: 0, backgroundColor: themeColors.bgSecondary }}>
+        {loading ? (
+          <Box sx={{ padding: 4, display: 'flex', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box sx={{ padding: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {error && (
+              <Alert severity="error" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                {error}
+              </Alert>
+            )}
+
+            {instructionVideoUrl && (
+              <Box
+                sx={{
+                  width: '100%',
+                  borderRadius: '14px',
+                  overflow: 'hidden',
+                  backgroundColor: '#000',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
+                }}
+              >
+                <Box
+                  component="video"
+                  src={instructionVideoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  aria-label="Chant instruction video"
+                  sx={{ width: '100%', maxHeight: 320, display: 'block', backgroundColor: '#000' }}
+                />
+              </Box>
+            )}
+
+            {(chant?.instructions || '').trim() && (
+              <Box
+                sx={{
+                  backgroundColor: themeColors.textInverse,
+                  borderRadius: '14px',
+                  padding: 2,
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    color: themeColors.text,
+                    marginBottom: 0.75,
+                  }}
+                >
+                  Instructions
+                </Typography>
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: themeColors.textSecondary, lineHeight: 1.6 }}>
+                  {chant.instructions}
+                </Typography>
+              </Box>
+            )}
+
+            <Box
+              sx={{
+                backgroundColor: themeColors.textInverse,
+                borderRadius: '14px',
+                padding: 2,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.5,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 800, color: themeColors.text }}>
+                  Record your chant
+                </Typography>
+                <Chip
+                  label={`${recordSeconds}s`}
+                  size="small"
+                  sx={{
+                    backgroundColor: isRecording ? themeColors.error : themeColors.bgTertiary,
+                    color: isRecording ? themeColors.textInverse : themeColors.text,
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                  }}
+                />
+              </Box>
+
+              <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                <Button
+                  onClick={handleStartRecording}
+                  variant="contained"
+                  disabled={isRecording || submitting || status === 'completed'}
+                  startIcon={<MicIcon />}
+                  role="button"
+                  aria-label="Start recording chant"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    borderRadius: '14px',
+                    backgroundColor: themeColors.secondary,
+                    '&:hover': { backgroundColor: themeColors.primary },
+                  }}
+                >
+                  Record
+                </Button>
+                <Button
+                  onClick={handleStopRecording}
+                  variant="outlined"
+                  disabled={!isRecording}
+                  startIcon={<StopIcon />}
+                  role="button"
+                  aria-label="Stop recording chant"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    borderRadius: '14px',
+                    borderWidth: '2px',
+                  }}
+                >
+                  Stop
+                </Button>
+                <Button
+                  onClick={() => {
+                    cleanupRecording();
+                    cleanupRecordedMedia();
+                  }}
+                  variant="text"
+                  disabled={isRecording || submitting || (!recordedBlob && !recordedUrl)}
+                  role="button"
+                  aria-label="Discard chant recording"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    textTransform: 'none',
+                    borderRadius: '14px',
+                    color: themeColors.orange,
+                  }}
+                >
+                  Re-record
+                </Button>
+              </Box>
+
+              {recordedUrl && (
+                <Box>
+                  <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 800, color: themeColors.text, marginBottom: 0.75 }}>
+                    Your recording
+                  </Typography>
+                  <Box component="audio" src={recordedUrl} controls aria-label="Your chant recording" sx={{ width: '100%' }} />
+                </Box>
+              )}
+
+              {status === 'completed' && (
+                <Alert icon={<CheckIcon />} severity="success" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                  Completed! You earned {progress?.starsEarned || 0} stars.
+                </Alert>
+              )}
+            </Box>
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions
+        sx={{
+          padding: 2,
+          backgroundColor: themeColors.bgCard,
+          borderTop: `2px solid ${themeColors.bgTertiary}`,
+          justifyContent: 'space-between',
+        }}
+      >
+        <Button
+          onClick={onClose}
+          variant="outlined"
+          role="button"
+          aria-label="Close"
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 800,
+            textTransform: 'none',
+            borderRadius: '14px',
+            borderWidth: '2px',
+          }}
+        >
+          Close
+        </Button>
+        <Button
+          onClick={handleComplete}
+          variant="contained"
+          role="button"
+          aria-label="Complete chant"
+          startIcon={<CheckIcon />}
+          disabled={!recordedBlob || isRecording || submitting || status === 'completed'}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 900,
+            textTransform: 'none',
+            borderRadius: '14px',
+            backgroundColor: themeColors.success,
+            color: themeColors.textInverse,
+            '&:hover': { backgroundColor: themeColors.secondary },
+          }}
+        >
+          {submitting ? 'Saving…' : 'Complete'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default ChantRecordingModal;
+

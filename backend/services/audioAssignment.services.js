@@ -64,6 +64,26 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
     referenceAudioId = audioMedia._id;
   }
 
+  // Process instruction video if provided
+  let instructionVideoId = null;
+  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
+    const instructionVideo = files.instructionVideo[0];
+    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
+    
+    const videoMedia = await Media.create({
+      type: 'video',
+      title: instructionVideo.originalname,
+      filePath: instructionVideo.path,
+      url: videoFileUrl,
+      mimeType: instructionVideo.mimetype,
+      size: instructionVideo.size,
+      uploadedBy: userId,
+    });
+
+    instructionVideoId = videoMedia._id;
+  }
+
   // Process cover image if provided
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
@@ -91,6 +111,7 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
     description: description?.trim() || null,
     instructions: instructions.trim(),
     referenceAudio: referenceAudioId,
+    instructionVideo: instructionVideoId,
     coverImage: coverImagePath,
     estimatedDuration: estimatedDuration ? parseInt(estimatedDuration, 10) : null,
     starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
@@ -104,6 +125,7 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
   // Get created audio assignment with populated data
   const createdAssignment = await AudioAssignment.findById(audioAssignment._id)
     .populate('referenceAudio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -160,6 +182,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
   // Get audio assignments
   const audioAssignments = await AudioAssignment.find(query)
     .populate('referenceAudio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 })
@@ -193,6 +216,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
 const getAudioAssignmentById = async (assignmentId) => {
   const audioAssignment = await AudioAssignment.findById(assignmentId)
     .populate('referenceAudio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -289,11 +313,31 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
     audioAssignment.coverImage = coverImagePath;
   }
 
+  // Process instruction video if provided (allows adding/updating video)
+  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
+    const instructionVideo = files.instructionVideo[0];
+    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
+    
+    const videoMedia = await Media.create({
+      type: 'video',
+      title: instructionVideo.originalname,
+      filePath: instructionVideo.path,
+      url: videoFileUrl,
+      mimeType: instructionVideo.mimetype,
+      size: instructionVideo.size,
+      uploadedBy: userId,
+    });
+
+    audioAssignment.instructionVideo = videoMedia._id;
+  }
+
   await audioAssignment.save();
 
   // Get updated audio assignment with populated data
   const updatedAssignment = await AudioAssignment.findById(assignmentId)
     .populate('referenceAudio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -327,6 +371,19 @@ const deleteAudioAssignment = async (assignmentId) => {
       await Media.findByIdAndDelete(audioAssignment.referenceAudio);
     } catch (error) {
       console.error('Error deleting reference audio:', error);
+    }
+  }
+
+  // Delete instruction video if exists
+  if (audioAssignment.instructionVideo) {
+    try {
+      const videoMedia = await Media.findById(audioAssignment.instructionVideo);
+      if (videoMedia && videoMedia.filePath && fs.existsSync(videoMedia.filePath)) {
+        fs.unlinkSync(videoMedia.filePath);
+      }
+      await Media.findByIdAndDelete(audioAssignment.instructionVideo);
+    } catch (error) {
+      console.error('Error deleting instruction video:', error);
     }
   }
 

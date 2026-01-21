@@ -38,6 +38,16 @@ const audioAssignmentProgressSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Whether stars have been awarded to the child for this audio assignment
+    // (prevents duplicate star awards on re-review)
+    starsAwarded: {
+      type: Boolean,
+      default: false,
+    },
+    starsAwardedAt: {
+      type: Date,
+      default: null,
+    },
     // Time spent (in seconds)
     timeSpent: {
       type: Number,

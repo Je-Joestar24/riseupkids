@@ -77,10 +77,25 @@ const awardBadgeForAudioAssignment = async (childId, audioAssignment) => {
   return await awardBadge(childId, audioAssignment.badgeAwarded);
 };
 
+/**
+ * Award badge when chant is completed
+ * @param {String} childId - Child profile ID
+ * @param {Object} chant - Chant document with badgeAwarded field
+ * @returns {Promise<Object|null>} Updated child stats or null
+ */
+const awardBadgeForChant = async (childId, chant) => {
+  if (!chant || !chant.badgeAwarded) {
+    return null;
+  }
+
+  return await awardBadge(childId, chant.badgeAwarded);
+};
+
 module.exports = {
   awardBadge,
   awardBadgeForActivity,
   awardBadgeForBook,
   awardBadgeForAudioAssignment,
+  awardBadgeForChant,
 };
 

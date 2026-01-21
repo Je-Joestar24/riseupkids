@@ -29,6 +29,12 @@ const chantSchema = new mongoose.Schema(
       ref: 'Media',
       default: null,
     },
+    // Instruction video (optional - video played while child records)
+    instructionVideo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media',
+      default: null,
+    },
     // SCORM file reference (optional - for SCORM-powered chants)
     scormFile: {
       type: mongoose.Schema.Types.ObjectId,
@@ -124,5 +130,6 @@ chantSchema.index({ createdBy: 1 });
 chantSchema.index({ isPublished: 1 });
 chantSchema.index({ lesson: 1, order: 1 });
 chantSchema.index({ journey: 1, order: 1 });
+chantSchema.index({ instructionVideo: 1 });
 
 module.exports = mongoose.model('Chant', chantSchema);

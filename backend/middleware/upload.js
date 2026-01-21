@@ -463,6 +463,8 @@ const uploadAudioAssignment = multer({
       
       if (file.fieldname === 'referenceAudio') {
         uploadPath = path.join(__dirname, '../uploads/media/audio');
+      } else if (file.fieldname === 'instructionVideo') {
+        uploadPath = path.join(__dirname, '../uploads/media/videos');
       } else if (file.fieldname === 'coverImage') {
         uploadPath = path.join(__dirname, '../uploads/media/images');
       } else {
@@ -486,6 +488,12 @@ const uploadAudioAssignment = multer({
       } else {
         cb(new Error('Reference audio must be an audio file'), false);
       }
+    } else if (file.fieldname === 'instructionVideo') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Instruction video must be a video file'), false);
+      }
     } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
@@ -501,14 +509,21 @@ const uploadAudioAssignment = multer({
   },
 }).fields([
   { name: 'referenceAudio', maxCount: 1 },
+  { name: 'instructionVideo', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for audio assignment update (cover image only, no reference audio)
+// Middleware for audio assignment update (cover image + instruction video, no reference audio)
 const uploadAudioAssignmentUpdate = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
+      let uploadPath = path.join(__dirname, '../uploads/media/other');
+      
+      if (file.fieldname === 'coverImage') {
+        uploadPath = path.join(__dirname, '../uploads/media/images');
+      } else if (file.fieldname === 'instructionVideo') {
+        uploadPath = path.join(__dirname, '../uploads/media/videos');
+      }
       
       if (!fs.existsSync(uploadPath)) {
         fs.mkdirSync(uploadPath, { recursive: true });
@@ -527,15 +542,22 @@ const uploadAudioAssignmentUpdate = multer({
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
+    } else if (file.fieldname === 'instructionVideo') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Instruction video must be a video file'), false);
+      }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only coverImage and instructionVideo are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: 500 * 1024 * 1024, // 500MB max file size (supports instruction videos)
   },
 }).fields([
   { name: 'coverImage', maxCount: 1 },
+  { name: 'instructionVideo', maxCount: 1 },
 ]);
 
 // Middleware for course cover image upload
@@ -580,6 +602,8 @@ const uploadChant = multer({
       
       if (file.fieldname === 'audio') {
         uploadPath = path.join(__dirname, '../uploads/media/audio');
+      } else if (file.fieldname === 'instructionVideo') {
+        uploadPath = path.join(__dirname, '../uploads/media/videos');
       } else if (file.fieldname === 'scormFile') {
         uploadPath = path.join(__dirname, '../uploads/activities/scorm');
       } else if (file.fieldname === 'coverImage') {
@@ -605,6 +629,12 @@ const uploadChant = multer({
       } else {
         cb(new Error('Audio must be an audio file'), false);
       }
+    } else if (file.fieldname === 'instructionVideo') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Instruction video must be a video file'), false);
+      }
     } else if (file.fieldname === 'scormFile') {
       const isZip = file.mimetype === 'application/zip' || 
                     file.mimetype === 'application/x-zip-compressed' ||
@@ -629,15 +659,22 @@ const uploadChant = multer({
   },
 }).fields([
   { name: 'audio', maxCount: 1 },
+  { name: 'instructionVideo', maxCount: 1 },
   { name: 'scormFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for chant update (cover image only, no audio/scormFile)
+// Middleware for chant update (cover image + instruction video only, no audio/scormFile)
 const uploadChantUpdate = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
+      let uploadPath = path.join(__dirname, '../uploads/media/other');
+      
+      if (file.fieldname === 'coverImage') {
+        uploadPath = path.join(__dirname, '../uploads/media/images');
+      } else if (file.fieldname === 'instructionVideo') {
+        uploadPath = path.join(__dirname, '../uploads/media/videos');
+      }
       
       if (!fs.existsSync(uploadPath)) {
         fs.mkdirSync(uploadPath, { recursive: true });
@@ -656,16 +693,27 @@ const uploadChantUpdate = multer({
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
+    } else if (file.fieldname === 'instructionVideo') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Instruction video must be a video file'), false);
+      }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only coverImage and instructionVideo are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: 500 * 1024 * 1024, // 500MB max file size (supports instruction videos)
   },
 }).fields([
   { name: 'coverImage', maxCount: 1 },
+  { name: 'instructionVideo', maxCount: 1 },
 ]);
+
+// Middleware for child recorded audio submissions (single audio file)
+// Field name: recordedAudio
+const uploadRecordedAudio = upload.single('recordedAudio');
 
 // Middleware for explore content uploads (video file + cover photo for all video types)
 const uploadExplore = multer({
@@ -807,6 +855,7 @@ module.exports = {
   uploadAudioAssignmentUpdate,
   uploadChant,
   uploadChantUpdate,
+  uploadRecordedAudio,
   uploadCourse,
   uploadExplore,
   uploadExploreUpdate,

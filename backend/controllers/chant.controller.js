@@ -15,6 +15,7 @@ const chantService = require('../services/chant.services');
  * - tags: JSON String (optional) - Array of tag strings
  * - isPublished: Boolean (optional, default: false)
  * - audio: File (optional) - Audio file
+ * - instructionVideo: File (optional) - Instruction video played while child records
  * - scormFile: File (optional) - SCORM ZIP file
  * - coverImage: File (optional) - Cover image for the chant
  */
@@ -128,6 +129,7 @@ const getChantById = async (req, res) => {
  * - estimatedDuration: Number (optional) - in minutes
  * - starsAwarded: Number (optional)
  * - coverImage: File (optional) - New cover image/thumbnail
+ * - instructionVideo: File (optional) - New instruction video
  */
 const updateChant = async (req, res) => {
   try {

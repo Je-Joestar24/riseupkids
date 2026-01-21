@@ -51,6 +51,9 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [selectedInstructionVideo, setSelectedInstructionVideo] = useState(null);
+  const [currentInstructionVideo, setCurrentInstructionVideo] = useState(null);
+  const [instructionVideoPreviewUrl, setInstructionVideoPreviewUrl] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
@@ -94,6 +97,8 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
       });
       setCurrentCoverImage(currentContent.coverImage);
       setSelectedCoverImage(null);
+      setCurrentInstructionVideo(currentContent.instructionVideo || null);
+      setSelectedInstructionVideo(null);
       setIsInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,8 +123,11 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
+      if (instructionVideoPreviewUrl) {
+        URL.revokeObjectURL(instructionVideoPreviewUrl);
+      }
     };
-  }, [imagePreviewUrl]);
+  }, [imagePreviewUrl, instructionVideoPreviewUrl]);
 
   const handleSubmit = async () => {
     try {
@@ -137,6 +145,9 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
 
       if (selectedCoverImage) {
         formDataToSend.append('coverImage', selectedCoverImage);
+      }
+      if (selectedInstructionVideo) {
+        formDataToSend.append('instructionVideo', selectedInstructionVideo);
       }
 
       await updateContentData(CONTENT_TYPES.CHANT, chantId, formDataToSend);
@@ -161,13 +172,28 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
+    setSelectedInstructionVideo(null);
+    setCurrentInstructionVideo(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
     if (imagePreviewUrl) {
       URL.revokeObjectURL(imagePreviewUrl);
       setImagePreviewUrl(null);
     }
+    if (instructionVideoPreviewUrl) {
+      URL.revokeObjectURL(instructionVideoPreviewUrl);
+      setInstructionVideoPreviewUrl(null);
+    }
     onClose();
+  };
+
+  const getMediaUrl = (media) => {
+    if (!media) return null;
+    const url = typeof media === 'string' ? media : media.url;
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
   const displayCoverImage = selectedCoverImage && imagePreviewUrl
@@ -175,6 +201,10 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
     : currentCoverImage
     ? `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${currentCoverImage}`
     : null;
+
+  const displayInstructionVideo = selectedInstructionVideo && instructionVideoPreviewUrl
+    ? instructionVideoPreviewUrl
+    : getMediaUrl(currentInstructionVideo);
 
   return (
     <Dialog
@@ -349,6 +379,83 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
                   size="small"
                   sx={{ margin: 0.5 }}
                   onDelete={() => setSelectedCoverImage(null)}
+                />
+              </Box>
+            )}
+          </Box>
+
+          {/* Instruction Video Upload */}
+          <Box>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 600,
+                marginBottom: 1,
+              }}
+            >
+              Instruction Video (Optional)
+            </Typography>
+
+            {displayInstructionVideo && (
+              <Box
+                component="video"
+                src={displayInstructionVideo}
+                controls
+                preload="metadata"
+                aria-label="Instruction video preview"
+                sx={{
+                  width: '100%',
+                  maxHeight: 260,
+                  objectFit: 'cover',
+                  borderRadius: '8px',
+                  marginBottom: 2,
+                  backgroundColor: '#000',
+                }}
+              />
+            )}
+
+            <input
+              accept="video/*"
+              style={{ display: 'none' }}
+              id="chant-instruction-video-upload-edit"
+              type="file"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  const file = e.target.files[0];
+                  setSelectedInstructionVideo(file);
+                  const url = URL.createObjectURL(file);
+                  setInstructionVideoPreviewUrl(url);
+                }
+              }}
+            />
+            <label htmlFor="chant-instruction-video-upload-edit">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<CloudUploadIcon />}
+                fullWidth
+                sx={{
+                  borderRadius: '10px',
+                  fontFamily: 'Quicksand, sans-serif',
+                }}
+              >
+                {selectedInstructionVideo ? 'Change Instruction Video' : 'Upload Instruction Video'}
+              </Button>
+            </label>
+            {selectedInstructionVideo && (
+              <Box sx={{ marginTop: 1 }}>
+                <Chip
+                  label={selectedInstructionVideo.name}
+                  size="small"
+                  sx={{ margin: 0.5 }}
+                  onDelete={() => {
+                    setSelectedInstructionVideo(null);
+                    if (instructionVideoPreviewUrl) {
+                      URL.revokeObjectURL(instructionVideoPreviewUrl);
+                      setInstructionVideoPreviewUrl(null);
+                    }
+                  }}
                 />
               </Box>
             )}

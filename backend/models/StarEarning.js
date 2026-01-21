@@ -31,6 +31,7 @@ const starEarningSchema = new mongoose.Schema(
           'video',
           'book',
           'audio_assignment',
+          'chant',
           'explore_content',
           'explore_video',
           'kids_wall_post',
@@ -50,7 +51,7 @@ const starEarningSchema = new mongoose.Schema(
       // Content type for dynamic reference
       contentType: {
         type: String,
-        enum: ['Lesson', 'LessonItem', 'Activity', 'Media', 'Book', 'AudioAssignment', 'ExploreContent', 'KidsWallPost', 'Badge'],
+        enum: ['Lesson', 'LessonItem', 'Activity', 'Media', 'Book', 'AudioAssignment', 'Chant', 'ExploreContent', 'KidsWallPost', 'Badge'],
         default: null,
       },
       // Additional source metadata

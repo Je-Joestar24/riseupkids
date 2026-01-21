@@ -11,6 +11,7 @@ const ExploreContent = require('../models/ExploreContent');
 const Activity = require('../models/Activity');
 const Lesson = require('../models/Lesson');
 const AudioAssignment = require('../models/AudioAssignment');
+const Chant = require('../models/Chant');
 
 /**
  * Get child progress summary for parent dashboard
@@ -148,6 +149,10 @@ const getChildProgress = async (childId) => {
               content = await AudioAssignment.findById(contentId).select('title').lean();
               if (content?.title) return content.title;
               break;
+            case 'Chant':
+              content = await Chant.findById(contentId).select('title').lean();
+              if (content?.title) return content.title;
+              break;
           }
         } catch (err) {
           console.error(`[ParentDashboard] Error fetching content title for ${contentType}:${contentId}`, err);
@@ -174,6 +179,7 @@ const getChildProgress = async (childId) => {
           'lesson_item': 'Lesson Item',
           'activity': 'Activity',
           'audio_assignment': 'Audio Assignment',
+          'chant': 'Chant',
           'explore_content': 'Explore Content',
           'kids_wall_post': 'Kids Wall Post',
           'kids_wall_like': 'Kids Wall Like',
@@ -198,6 +204,7 @@ const getChildProgress = async (childId) => {
         'lesson_item': 'Lesson Item',
         'activity': 'Activity',
         'audio_assignment': 'Audio Assignment',
+        'chant': 'Chant',
         'explore_content': 'Explore Content',
         'kids_wall_post': 'Kids Wall Post',
         'kids_wall_like': 'Kids Wall Like',

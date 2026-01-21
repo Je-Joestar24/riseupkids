@@ -58,6 +58,26 @@ const createChant = async (userId, chantData, files = {}) => {
     audioId = audioMedia._id;
   }
 
+  // Process instruction video if provided (optional)
+  let instructionVideoId = null;
+  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
+    const instructionVideo = files.instructionVideo[0];
+    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
+    
+    const videoMedia = await Media.create({
+      type: 'video',
+      title: instructionVideo.originalname,
+      filePath: instructionVideo.path,
+      url: videoFileUrl,
+      mimeType: instructionVideo.mimetype,
+      size: instructionVideo.size,
+      uploadedBy: userId,
+    });
+
+    instructionVideoId = videoMedia._id;
+  }
+
   // Process SCORM file if provided (optional)
   let scormFileId = null;
   let scormFilePath = null;
@@ -113,6 +133,7 @@ const createChant = async (userId, chantData, files = {}) => {
     description: description?.trim() || null,
     instructions: instructions?.trim() || null,
     audio: audioId,
+    instructionVideo: instructionVideoId,
     scormFile: scormFileId,
     scormFilePath: scormFilePath,
     scormFileUrl: scormFileUrl,
@@ -130,6 +151,7 @@ const createChant = async (userId, chantData, files = {}) => {
   // Get created chant with populated data
   const createdChant = await Chant.findById(chant._id)
     .populate('audio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -181,6 +203,7 @@ const getAllChants = async (queryParams = {}) => {
   // Get chants
   const chants = await Chant.find(query)
     .populate('audio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
@@ -215,6 +238,7 @@ const getAllChants = async (queryParams = {}) => {
 const getChantById = async (chantId) => {
   const chant = await Chant.findById(chantId)
     .populate('audio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -303,11 +327,31 @@ const updateChant = async (chantId, userId, updateData, files = {}) => {
     chant.coverImage = coverImagePath;
   }
 
+  // Process instruction video if provided (allows adding/updating video)
+  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
+    const instructionVideo = files.instructionVideo[0];
+    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
+    
+    const videoMedia = await Media.create({
+      type: 'video',
+      title: instructionVideo.originalname,
+      filePath: instructionVideo.path,
+      url: videoFileUrl,
+      mimeType: instructionVideo.mimetype,
+      size: instructionVideo.size,
+      uploadedBy: userId,
+    });
+
+    chant.instructionVideo = videoMedia._id;
+  }
+
   await chant.save();
 
   // Get updated chant with populated data
   const updatedChant = await Chant.findById(chantId)
     .populate('audio', 'type title url mimeType size duration')
+    .populate('instructionVideo', 'type title url mimeType size duration')
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -342,6 +386,19 @@ const deleteChant = async (chantId) => {
       await Media.findByIdAndDelete(chant.audio);
     } catch (error) {
       console.error('Error deleting audio:', error);
+    }
+  }
+
+  // Delete instruction video if exists
+  if (chant.instructionVideo) {
+    try {
+      const videoMedia = await Media.findById(chant.instructionVideo);
+      if (videoMedia && videoMedia.filePath && fs.existsSync(videoMedia.filePath)) {
+        fs.unlinkSync(videoMedia.filePath);
+      }
+      await Media.findByIdAndDelete(chant.instructionVideo);
+    } catch (error) {
+      console.error('Error deleting instruction video:', error);
     }
   }
 

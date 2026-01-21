@@ -7,8 +7,15 @@ const {
   updateAudioAssignment,
   deleteAudioAssignment,
 } = require('../controllers/audioAssignment.controller');
+const {
+  startAudioAssignmentForChild,
+  getAudioAssignmentProgressForChild,
+  submitAudioAssignmentForChild,
+  listAudioAssignmentSubmissions,
+  reviewAudioAssignmentSubmission,
+} = require('../controllers/audioAssignmentProgress.controller');
 const { protect, authorize } = require('../middleware/auth');
-const { uploadAudioAssignment, uploadAudioAssignmentUpdate } = require('../middleware/upload');
+const { uploadAudioAssignment, uploadAudioAssignmentUpdate, uploadRecordedAudio } = require('../middleware/upload');
 
 /**
  * Audio Assignment Routes
@@ -23,12 +30,46 @@ const { uploadAudioAssignment, uploadAudioAssignmentUpdate } = require('../middl
  * - GET /:id - Get single audio assignment by ID
  * - PUT /:id - Update audio assignment (title, description, instructions, coverImage, settings, isPublished)
  * - DELETE /:id - Delete audio assignment (hard delete)
+ * - POST /:id/child/:childId/start - Start assignment for child (Parent/Admin)
+ * - GET /:id/child/:childId/progress - Get child's progress (Parent/Admin/Teacher)
+ * - POST /:id/child/:childId/submit - Submit recorded audio (Parent/Admin)
+ * - GET /submissions - List submissions for review (Admin/Teacher)
+ * - POST /:id/child/:childId/review - Approve/reject submission (Admin/Teacher)
  */
 
 // All routes require authentication
 router.use(protect);
 
-// All routes require admin/teacher role
+// ------------------------------------------------------------
+// Child progress/submission routes
+// ------------------------------------------------------------
+
+// List submissions for review (Admin/Teacher)
+// IMPORTANT: define before "/:id" to avoid route conflicts
+router.get('/submissions', authorize('admin', 'teacher'), listAudioAssignmentSubmissions);
+
+// Start assignment for a child
+router.post('/:id/child/:childId/start', authorize('parent', 'admin'), startAudioAssignmentForChild);
+
+// Get child's progress
+router.get('/:id/child/:childId/progress', authorize('parent', 'admin', 'teacher'), getAudioAssignmentProgressForChild);
+
+// Submit child's recorded audio
+router.post(
+  '/:id/child/:childId/submit',
+  authorize('parent', 'admin'),
+  uploadRecordedAudio,
+  submitAudioAssignmentForChild
+);
+
+// Review submission (approve/reject)
+router.post('/:id/child/:childId/review', authorize('admin', 'teacher'), reviewAudioAssignmentSubmission);
+
+// ------------------------------------------------------------
+// Admin/Teacher content management routes
+// ------------------------------------------------------------
+
+// All routes below require admin/teacher role
 router.use(authorize('admin', 'teacher'));
 
 // Create new audio assignment (with reference audio and cover image upload)

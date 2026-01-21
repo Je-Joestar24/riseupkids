@@ -30,6 +30,12 @@ const audioAssignmentSchema = new mongoose.Schema(
       ref: 'Media',
       default: null,
     },
+    // Instruction video (optional - video played while child records)
+    instructionVideo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Media',
+      default: null,
+    },
     // SCORM file reference (optional - for SCORM-powered audio assignments)
     scormFile: {
       type: mongoose.Schema.Types.ObjectId,
@@ -131,6 +137,7 @@ audioAssignmentSchema.index({ isPublished: 1 });
 audioAssignmentSchema.index({ lesson: 1, order: 1 });
 audioAssignmentSchema.index({ journey: 1, order: 1 });
 audioAssignmentSchema.index({ isStarAssignment: 1 });
+audioAssignmentSchema.index({ instructionVideo: 1 });
 
 module.exports = mongoose.model('AudioAssignment', audioAssignmentSchema);
 

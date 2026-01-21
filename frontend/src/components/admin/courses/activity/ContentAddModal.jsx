@@ -82,6 +82,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     videoFile: null,
     referenceAudio: null,
     audio: null, // For chants
+    instructionVideo: null, // For audio assignments & chants
   });
 
   const handleInputChange = (field, value) => {
@@ -120,6 +121,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       videoFile: null,
       referenceAudio: null,
       audio: null,
+      instructionVideo: null,
     });
   };
 
@@ -200,6 +202,9 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         if (selectedFiles.referenceAudio) {
           fd.append('referenceAudio', selectedFiles.referenceAudio);
         }
+        if (selectedFiles.instructionVideo) {
+          fd.append('instructionVideo', selectedFiles.instructionVideo);
+        }
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -217,6 +222,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         // Optional audio file
         if (selectedFiles.audio) {
           fd.append('audio', selectedFiles.audio);
+        }
+        // Optional instruction video
+        if (selectedFiles.instructionVideo) {
+          fd.append('instructionVideo', selectedFiles.instructionVideo);
         }
         // Optional SCORM file
         if (selectedFiles.scormFile) {
@@ -743,6 +752,51 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                 </Box>
               )}
             </Box>
+
+            {/* Instruction video (optional) */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Instruction Video (Optional)
+              </Typography>
+              <input
+                accept="video/*"
+                style={{ display: 'none' }}
+                id="audio-instruction-video-upload"
+                type="file"
+                onChange={(e) => handleFileChange('instructionVideo', e.target.files)}
+              />
+              <label htmlFor="audio-instruction-video-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<CloudUploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  }}
+                >
+                  Upload Instruction Video
+                </Button>
+              </label>
+              {selectedFiles.instructionVideo && (
+                <Box sx={{ marginTop: 1 }}>
+                  <Chip
+                    label={selectedFiles.instructionVideo.name}
+                    size="small"
+                    sx={{ margin: 0.5 }}
+                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, instructionVideo: null }))}
+                  />
+                </Box>
+              )}
+            </Box>
           </>
         )}
 
@@ -833,6 +887,51 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     size="small"
                     sx={{ margin: 0.5 }}
                     onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
+                  />
+                </Box>
+              )}
+            </Box>
+
+            {/* Instruction video (optional) */}
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Instruction Video (Optional)
+              </Typography>
+              <input
+                accept="video/*"
+                style={{ display: 'none' }}
+                id="chant-instruction-video-upload"
+                type="file"
+                onChange={(e) => handleFileChange('instructionVideo', e.target.files)}
+              />
+              <label htmlFor="chant-instruction-video-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  startIcon={<CloudUploadIcon />}
+                  fullWidth
+                  sx={{
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  }}
+                >
+                  Upload Instruction Video
+                </Button>
+              </label>
+              {selectedFiles.instructionVideo && (
+                <Box sx={{ marginTop: 1 }}>
+                  <Chip
+                    label={selectedFiles.instructionVideo.name}
+                    size="small"
+                    sx={{ margin: 0.5 }}
+                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, instructionVideo: null }))}
                   />
                 </Box>
               )}

@@ -16,6 +16,7 @@ const audioAssignmentService = require('../services/audioAssignment.services');
  * - tags: JSON String (optional) - Array of tag strings
  * - isPublished: Boolean (optional, default: false)
  * - referenceAudio: File (optional) - Reference/example audio file
+ * - instructionVideo: File (optional) - Instruction video played while child records
  * - coverImage: File (optional) - Cover image for the assignment
  */
 const createAudioAssignment = async (req, res) => {
@@ -131,6 +132,7 @@ const getAudioAssignmentById = async (req, res) => {
  * - isStarAssignment: Boolean (optional)
  * - isPublished: Boolean (optional)
  * - coverImage: File (optional) - New cover image
+ * - instructionVideo: File (optional) - New instruction video
  */
 const updateAudioAssignment = async (req, res) => {
   try {

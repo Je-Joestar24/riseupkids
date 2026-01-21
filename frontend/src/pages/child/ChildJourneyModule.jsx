@@ -15,6 +15,8 @@ import ChildModuleChants from '../../components/child/module/ChildModuleChants';
 import ChildModuleFooter from '../../components/child/module/ChildModuleFooter';
 import ScormPlayer from '../../components/child/common/ScormPlayer';
 import VideoPlayerModal from '../../components/child/common/VideoPlayerModal';
+import AudioAssignmentRecordingModal from '../../components/child/module/AudioAssignmentRecordingModal';
+import ChantRecordingModal from '../../components/child/module/ChantRecordingModal';
 
 /**
  * ChildJourneyModule Page
@@ -36,6 +38,10 @@ const ChildJourneyModule = ({ childId }) => {
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [selectedContentType, setSelectedContentType] = useState(null);
+  const [audioRecordingOpen, setAudioRecordingOpen] = useState(false);
+  const [selectedAudioAssignment, setSelectedAudioAssignment] = useState(null);
+  const [chantRecordingOpen, setChantRecordingOpen] = useState(false);
+  const [selectedChant, setSelectedChant] = useState(null);
   
   // Refresh trigger for video watches
   const [videoWatchRefreshTrigger, setVideoWatchRefreshTrigger] = useState(0);
@@ -261,6 +267,16 @@ const ChildJourneyModule = ({ childId }) => {
   // Handle chant click - Open SCORM player directly
   const handleChantClick = (chant) => {
     const chantId = chant._id || chant._contentId || chant.contentId || chant.id;
+    const hasInstructionVideo = !!(chant?.instructionVideo && (typeof chant.instructionVideo === 'string' || chant.instructionVideo?.url));
+
+    // Prefer the new recording modal when instruction video exists (or when no SCORM exists)
+    if (chantId && (hasInstructionVideo || !(chant.scormFile || chant.scormFileUrl || chant.scormFilePath))) {
+      setSelectedChant(chant);
+      setChantRecordingOpen(true);
+      return;
+    }
+
+    // Fallback to SCORM if available
     if (chantId && (chant.scormFile || chant.scormFileUrl || chant.scormFilePath)) {
       setSelectedContent(chant);
       setSelectedContentType('chant');
@@ -273,6 +289,18 @@ const ChildJourneyModule = ({ childId }) => {
   // Handle audio click - Open SCORM player directly (if SCORM exists)
   const handleAudioClick = (audio) => {
     const audioId = audio._id || audio._contentId || audio.contentId || audio.id;
+    const hasInstructionVideo = !!(
+      audio?.instructionVideo && (typeof audio.instructionVideo === 'string' || audio.instructionVideo?.url)
+    );
+
+    // Prefer the new recording modal when instruction video exists (or when no SCORM exists)
+    if (audioId && (hasInstructionVideo || !(audio.scormFile || audio.scormFileUrl || audio.scormFilePath))) {
+      setSelectedAudioAssignment(audio);
+      setAudioRecordingOpen(true);
+      return;
+    }
+
+    // Fallback to SCORM if available
     if (audioId && (audio.scormFile || audio.scormFileUrl || audio.scormFilePath)) {
       setSelectedContent(audio);
       setSelectedContentType('audioAssignment');
@@ -401,6 +429,50 @@ const ChildJourneyModule = ({ childId }) => {
           contentType={selectedContentType}
           contentTitle={selectedContent.title || 'Interactive Content'}
           onComplete={handleScormComplete}
+        />
+      )}
+
+      {/* Audio Assignment Recording Modal */}
+      {selectedAudioAssignment && (
+        <AudioAssignmentRecordingModal
+          open={audioRecordingOpen}
+          onClose={() => {
+            setAudioRecordingOpen(false);
+            setSelectedAudioAssignment(null);
+          }}
+          audioAssignment={selectedAudioAssignment}
+          childId={childId}
+          courseId={courseId}
+          onAfterApproved={async () => {
+            try {
+              const details = await fetchCourseDetailsForChild(courseId);
+              setCourseDetails(details);
+            } catch (e) {
+              // non-blocking
+            }
+          }}
+        />
+      )}
+
+      {/* Chant Recording Modal */}
+      {selectedChant && (
+        <ChantRecordingModal
+          open={chantRecordingOpen}
+          onClose={() => {
+            setChantRecordingOpen(false);
+            setSelectedChant(null);
+          }}
+          chant={selectedChant}
+          childId={childId}
+          courseId={courseId}
+          onAfterComplete={async () => {
+            try {
+              const details = await fetchCourseDetailsForChild(courseId);
+              setCourseDetails(details);
+            } catch (e) {
+              // non-blocking
+            }
+          }}
         />
       )}
 
