@@ -28,6 +28,7 @@ import {
   AssignmentOutlined,
   PlayCircleOutlined,
   WallpaperOutlined,
+  AudiotrackOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -61,8 +62,7 @@ const AdminSidebar = () => {
         { text: 'Explore', icon: <PlayCircleOutlined />, path: '/admin/courses/explore' },
       ],
     },/* 
-    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
-    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
+    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */    { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
 /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
     { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
     { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
