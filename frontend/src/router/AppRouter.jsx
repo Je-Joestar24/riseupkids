@@ -313,6 +313,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/teacher/checking-audio"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <TeacherLayout>
+                <AdminCheckingAudio />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/teacher/*"
           element={
             <AuthedAccess allowedRoles={['teacher']}>

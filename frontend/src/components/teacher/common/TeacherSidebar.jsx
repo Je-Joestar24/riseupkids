@@ -22,6 +22,7 @@ import {
   AssignmentOutlined,
   PlayCircleOutlined,
   WallpaperOutlined,
+  AudiotrackOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -55,6 +56,7 @@ const TeacherSidebar = () => {
     },/* 
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/teacher/kids-wall' },
+     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/teacher/checking-audio' }
 /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
     { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
     { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
