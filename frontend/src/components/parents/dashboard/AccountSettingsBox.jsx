@@ -21,11 +21,13 @@ const AccountSettingsBox = ({ onOpenSettings }) => {
         border: `1px solid ${themeColors.border}`,
         height: '100%',
         transition: 'all 0.3s ease',
+        cursor: 'pointer',
         '&:hover': {
           transform: 'translateY(-4px)',
           boxShadow: theme.shadows[4],
         },
       }}
+      onClick={onOpenSettings}
     >
       <CardContent sx={{ padding: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, sm: 2 }, marginBottom: 2 }}>
@@ -59,7 +61,6 @@ const AccountSettingsBox = ({ onOpenSettings }) => {
         <Button
           variant="outlined"
           fullWidth
-          onClick={onOpenSettings}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,

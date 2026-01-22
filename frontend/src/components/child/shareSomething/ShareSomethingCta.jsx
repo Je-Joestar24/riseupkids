@@ -131,6 +131,10 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
           padding: '16px 24px',
           borderRadius: '0px',
           transition: 'all 0.3s ease',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
 
           backgroundColor: isDisabled
             ? `lightgray`
@@ -162,7 +166,20 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
         }}
         aria-label={isDisabled ? 'Fill everything out first' : 'Share my work'}
       >
-        {isDisabled ? '⬆️ Fill Everything Out First!' : '🎉 Share My Work!'}
+        {!isDisabled && (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+            style={{ marginRight: '4px' }}
+          >
+            <polygon points="12 2 15.09 10.26 24 10.35 17.77 16.01 20.16 24.02 12 18.35 3.84 24.02 6.23 16.01 0 10.35 8.91 10.26 12 2" />
+          </svg>
+        )}
+        {isDisabled ? 'Fill Everything Out First!' : 'Share My Work!'}
       </Button>
 
     </Box>

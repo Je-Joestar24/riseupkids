@@ -131,14 +131,12 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
                 left: 0,
               }}
             />
-            {/* Change Photo Button */}
+            {/* Change Photo Button - Using div instead of button to avoid nesting */}
             <Box
-              component="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClick();
               }}
-              type="button"
               sx={{
                 position: 'absolute',
                 top: '16px',
@@ -158,7 +156,15 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
                   transform: 'scale(1.05)',
                 },
               }}
+              role="button"
+              tabIndex={0}
               aria-label="Change photo"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  handleClick();
+                }
+              }}
             >
               ✕ Change Photo
             </Box>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Grid } from '@mui/material';
 import { themeColors } from '../../config/themeColors';
@@ -9,6 +9,7 @@ import TotalChildStars from '../../components/parents/dashboard/TotalChildStars'
 import ChildListProgress from '../../components/parents/dashboard/ChildListProgress';
 import AccountSettingsBox from '../../components/parents/dashboard/AccountSettingsBox';
 import SupportProjectTeam from '../../components/parents/dashboard/SupportProjectTeam';
+import AccountSettingsModal from '../../components/parents/settings/AccountSettingsModal';
 import PeopleIcon from '@mui/icons-material/People';
 import { Card, CardContent, Typography } from '@mui/material';
 
@@ -24,6 +25,7 @@ const ParentDashboard = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { children, fetchChildren, loading } = useChildren();
+  const [openSettings, setOpenSettings] = useState(false);
 
   React.useEffect(() => {
     if (isAuthenticated && user?.role === 'parent') {
@@ -51,9 +53,7 @@ const ParentDashboard = () => {
   };
 
   const handleOpenSettings = () => {
-    // Placeholder for Account Settings functionality
-    console.log('Open account settings');
-    // TODO: Navigate to settings page when implemented
+    setOpenSettings(true);
   };
 
   const handleSupportClick = () => {
@@ -171,6 +171,9 @@ const ParentDashboard = () => {
           onViewProgress={handleViewProgress}
         />
       </Container>
+
+      {/* Account Settings Modal */}
+      <AccountSettingsModal open={openSettings} onClose={() => setOpenSettings(false)} />
     </Box>
   );
 };

@@ -165,7 +165,7 @@ const useKidsWall = (childId = null) => {
       
       // Show child-friendly success message
       dispatch(showNotification({
-        message: '🎉 Awesome! Your post is waiting for a grown-up to check it. We\'ll let you know when it\'s approved!',
+        message: 'Awesome! A grown-up will check it soon!',
         type: 'success',
         duration: 5000, // 5 seconds so child can read it
       }));
