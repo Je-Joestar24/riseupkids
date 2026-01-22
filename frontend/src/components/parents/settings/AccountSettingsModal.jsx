@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import AccountSettingsHeader from './AccountSettingsHeader';
 import AccountSettingsNavigation from './AccountSettingsNavigation';
-import ProfileSettingsInformation from './ProfileSettingsInformation';
+import ProfileSettings from './ProfileSettings';
+import LanguageSettings from './LanguageSettings';
+import SubscriptionSettings from './SubscriptionSettings';
 
 /**
  * AccountSettingsModal Component
  * 
  * Modal for account settings with tabs for Profile, Language, Subscription
- * Currently implements Profile tab with account information form
+ * Currently implements Profile tab with account information and security settings
  * 
  * Features:
  * - Gradient header matching theme
@@ -77,17 +79,9 @@ const AccountSettingsModal = ({ open, onClose }) => {
             <AccountSettingsNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
             {/* Tab Content */}
-            {activeTab === 'Profile' && <ProfileSettingsInformation />}
-            {activeTab === 'Language' && (
-              <Box sx={{ textAlign: 'center', padding: '40px 20px' }}>
-                Language settings coming soon...
-              </Box>
-            )}
-            {activeTab === 'Subscription' && (
-              <Box sx={{ textAlign: 'center', padding: '40px 20px' }}>
-                Subscription settings coming soon...
-              </Box>
-            )}
+            {activeTab === 'Profile' && <ProfileSettings />}
+            {activeTab === 'Language' && <LanguageSettings />}
+            {activeTab === 'Subscription' && <SubscriptionSettings />}
           </Box>
         </Box>
       </Box>

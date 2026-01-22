@@ -230,7 +230,7 @@ const ParentsNav = () => {
                   Switch to Child View
                 </Typography>
               </MenuItem>
-              <MenuItem
+{/*               <MenuItem
                 onClick={handleSettings}
                 sx={{
                   padding: 1.5,
@@ -266,7 +266,7 @@ const ParentsNav = () => {
                 >
                   Account Settings
                 </Typography>
-              </MenuItem>
+              </MenuItem> */}
               <MenuItem
                 onClick={handleLogout}
                 sx={{
