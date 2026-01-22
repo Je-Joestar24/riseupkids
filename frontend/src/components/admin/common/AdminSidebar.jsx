@@ -92,6 +92,7 @@ const AdminSidebar = () => {
           boxShadow: 'none',
           display: 'flex',
           flexDirection: 'column',
+          zIndex: 1000,
         },
       }}
     >

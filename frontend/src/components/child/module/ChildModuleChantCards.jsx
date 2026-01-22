@@ -6,12 +6,11 @@ import { themeColors } from '../../../config/themeColors';
  * ChildModuleChantCards Component
  * 
  * Individual chant card component for Chants section
- * Displays cover image, completion status, star badge, time, and progress circles (static 5 circles)
+ * Similar to audio cards - displays cover image, title, description, and metadata
  */
 const ChildModuleChantCards = ({
   chant,
   isCompleted = false,
-  progressCircles = 0, // Number of circles filled (0-5) - static for now
   onCardClick,
 }) => {
   // Get cover image URL
@@ -30,11 +29,11 @@ const ChildModuleChantCards = ({
 
   const coverImageUrl = chant?.coverImage ? getCoverImageUrl(chant.coverImage) : null;
 
-  // Get estimated time (chants have estimatedDuration, format as "X min")
-  const estimatedTimeMinutes = chant?.estimatedDuration || chant?.estimatedTime || chant?.duration || 0;
+  // Get estimated time
+  const estimatedTimeMinutes = chant?.estimatedDuration || 0;
   const estimatedTime = estimatedTimeMinutes > 0 ? `${estimatedTimeMinutes} min` : '0 min';
 
-  // Get star points (chants have starsAwarded)
+  // Get star points
   const starPoints = chant?.starsAwarded || 0;
 
   return (
@@ -46,19 +45,19 @@ const ChildModuleChantCards = ({
         '&:hover': {
           transform: 'scale(1.05)',
         },
-        backgroundColor: 'white'
+        backgroundColor: themeColors.textInverse,
+        borderRadius: '0px',
+        overflow: 'hidden',
       }}
     >
-      {/* Cover Image Container - Perfect Square */}
+      {/* Cover Image Container - Fixed height like audio cards */}
       <Box
         sx={{
           position: 'relative',
           width: '100%',
-          paddingTop: '100%', // This creates a perfect square (aspect ratio 1:1)
-          borderRadius: '0px',
+          height: '160px',
           overflow: 'hidden',
           backgroundColor: '#f0f0f0',
-          marginBottom: '0px',
         }}
       >
         {/* Cover Image */}
@@ -68,9 +67,6 @@ const ChildModuleChantCards = ({
             src={coverImageUrl}
             alt={chant?.title || 'Chant cover'}
             sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
               width: '100%',
               height: '100%',
               objectFit: 'cover',
@@ -86,7 +82,7 @@ const ChildModuleChantCards = ({
               top: '12px',
               left: '12px',
               padding: '8px',
-              backgroundColor: themeColors.textInverse, // White background
+              backgroundColor: themeColors.textInverse,
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
@@ -94,7 +90,6 @@ const ChildModuleChantCards = ({
               boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
             }}
           >
-            {/* Circle-check icon - 20px size */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="20"
@@ -120,16 +115,15 @@ const ChildModuleChantCards = ({
               position: 'absolute',
               top: '12px',
               right: '12px',
-              backgroundColor: themeColors.accent, // #f2af10
-              borderRadius: '9999px', // rounded-full
-              padding: '6px 12px', // y 6px, x 12px
+              backgroundColor: themeColors.accent,
+              borderRadius: '9999px',
+              padding: '6px 12px',
               display: 'flex',
               alignItems: 'center',
               gap: '4px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}
           >
-            {/* Star icon - filled white */}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="16"
@@ -149,7 +143,7 @@ const ChildModuleChantCards = ({
               sx={{
                 fontSize: '16px',
                 fontWeight: 600,
-                color: themeColors.textInverse, // white
+                color: themeColors.textInverse,
               }}
             >
               {starPoints}
@@ -181,52 +175,102 @@ const ChildModuleChantCards = ({
         </Box>
       </Box>
 
-      {/* Progress Circles - 5 circles */}
+      {/* Content Section - Title and Description */}
       <Box
         sx={{
-          display: 'flex',
-          gap: '8px',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '16px'
+          padding: '20px',
         }}
       >
-        {[0, 1, 2, 3, 4].map((index) => {
-          const isFilled = index < progressCircles;
-          return (
+        {/* Title */}
+        <Typography
+          sx={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: themeColors.text,
+            marginBottom: '8px',
+            lineHeight: 1.4,
+          }}
+        >
+          {chant?.title || 'Chant'}
+        </Typography>
+
+        {/* Description - Show first 60 chars or truncated */}
+        {chant?.description && (
+          <Typography
+            sx={{
+              fontSize: '13px',
+              fontWeight: 400,
+              color: themeColors.textSecondary,
+              marginBottom: '12px',
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {chant.description}
+          </Typography>
+        )}
+
+        {/* Footer - Chant label and Star points */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          {/* Chant Label */}
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            {/* Musical note icon */}
             <Box
-              key={index}
               sx={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                border: `2px solid ${themeColors.secondary}`,
-                backgroundColor: isFilled ? themeColors.secondary : 'transparent',
+                width: '36px',
+                height: '36px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'all 0.2s ease',
+                borderRadius: '50%',
+                backgroundColor: themeColors.secondary,
               }}
             >
-              {isFilled && (
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={themeColors.textInverse}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="m9 12 2 2 4-4"></path>
-                </svg>
-              )}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
             </Box>
-          );
-        })}
+            <Typography
+              sx={{
+                fontSize: '14px',
+                fontWeight: 500,
+                opacity: '0.8',
+                color: themeColors.textSecondary,
+              }}
+            >
+              Chant
+            </Typography>
+          </Box>
+
+        </Box>
       </Box>
     </Box>
   );

@@ -84,6 +84,7 @@ const TeacherSidebar = () => {
           boxShadow: 'none',
           display: 'flex',
           flexDirection: 'column',
+          zIndex: 1000,
         },
       }}
     >

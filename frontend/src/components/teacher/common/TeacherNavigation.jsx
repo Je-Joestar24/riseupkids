@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -15,7 +15,7 @@ import {
   Notifications as NotificationsIcon,
   AccountCircle,
   Logout,
-  Settings,
+  Person,
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import useAuth from '../../../hooks/userHook';
@@ -27,7 +27,7 @@ import smallLogo from '../../../assets/images/small-logo.png';
  * Top navigation bar for teacher panel
  * Includes logo, notifications, and teacher profile menu
  */
-const TeacherNavigation = () => {
+const TeacherNavigation = ({ profileDrawerOpen, setProfileDrawerOpen }) => {
   const theme = useTheme();
   const { user, logout } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -54,10 +54,10 @@ const TeacherNavigation = () => {
     await logout();
   };
 
-  const handleSettings = () => {
+  const handleProfile = useCallback(() => {
     handleProfileMenuClose();
-    // TODO: Navigate to settings
-  };
+    setProfileDrawerOpen(true);
+  }, [setProfileDrawerOpen]);
 
   return (
     <AppBar
@@ -67,7 +67,7 @@ const TeacherNavigation = () => {
         color: theme.palette.text.primary,
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
         borderBottom: `1px solid ${theme.palette.border.main}`,
-        zIndex: theme.zIndex.drawer + 1,
+        zIndex: 1100,
         borderRadius: '0px',
       }}
     >
@@ -297,7 +297,7 @@ const TeacherNavigation = () => {
             </Box>
             <Box sx={{ padding: 0.5 }}>
               <MenuItem
-                onClick={handleSettings}
+                onClick={handleProfile}
                 sx={{
                   padding: 1.5,
                   borderRadius: '8px',
@@ -309,7 +309,7 @@ const TeacherNavigation = () => {
                   },
                 }}
               >
-                <Settings
+                <Person
                   sx={{
                     marginRight: 1.5,
                     fontSize: '1.25rem',
@@ -324,7 +324,7 @@ const TeacherNavigation = () => {
                     color: theme.palette.text.primary,
                   }}
                 >
-                  Settings
+                  Profile
                 </Typography>
               </MenuItem>
               <MenuItem

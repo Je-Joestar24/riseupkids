@@ -13,6 +13,8 @@ import {
   Chip,
 } from '@mui/material';
 import { Close as CloseIcon, Mic as MicIcon, Stop as StopIcon, CheckCircle as CheckIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { useDispatch } from 'react-redux';
+import { updateChildStats } from '../../../store/slices/userSlice';
 import { themeColors } from '../../../config/themeColors';
 import chantProgressService from '../../../services/chantProgressService';
 import courseProgressService from '../../../services/courseProgressService';
@@ -46,12 +48,106 @@ const pickBestAudioMimeType = () => {
   return '';
 };
 
+// Confirmation Dialog Component
+const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
+  <Dialog
+    open={open}
+    onClose={onCancel}
+    maxWidth="sm"
+    fullWidth
+    PaperProps={{
+      sx: {
+        borderRadius: '20px',
+        fontFamily: 'Quicksand, sans-serif',
+        backgroundColor: themeColors.bgCard,
+        padding: '8px',
+      },
+    }}
+  >
+    <DialogTitle
+      sx={{
+        fontFamily: 'Quicksand, sans-serif',
+        fontWeight: 700,
+        fontSize: '2rem',
+        color: themeColors.primary,
+        textAlign: 'center',
+        padding: '24px',
+      }}
+    >
+      {title || 'Are you sure?'}
+    </DialogTitle>
+    <DialogContent
+      sx={{
+        padding: '0 24px',
+      }}
+    >
+      <Typography
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontSize: '1.5rem',
+          color: themeColors.text,
+          textAlign: 'center',
+          lineHeight: 1.6,
+        }}
+      >
+        Do you want to close this activity? Your recording will be lost!
+      </Typography>
+    </DialogContent>
+    <DialogActions
+      sx={{
+        padding: '24px',
+        justifyContent: 'center',
+        gap: 2,
+      }}
+    >
+      <Button
+        onClick={onCancel}
+        variant="outlined"
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 600,
+          fontSize: '1.3rem',
+          textTransform: 'none',
+          padding: '12px 32px',
+          borderRadius: '12px',
+          color: themeColors.orange,
+          '&:hover': {
+            backgroundColor: themeColors.bgTertiary,
+          },
+        }}
+      >
+        Keep Recording
+      </Button>
+      <Button
+        onClick={onConfirm}
+        variant="contained"
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 600,
+          fontSize: '1.3rem',
+          textTransform: 'none',
+          padding: '12px 32px',
+          borderRadius: '12px',
+          backgroundColor: themeColors.secondary,
+          color: themeColors.textInverse,
+          '&:hover': {
+            backgroundColor: themeColors.primary,
+          },
+        }}
+      >
+        Yes, Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
+
 /**
  * ChantRecordingModal (Child-facing)
  *
  * Similar to audio assignment modal, but completion is immediate (no review).
  */
 const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterComplete }) => {
+  const dispatch = useDispatch();
   const chantId = chant?._id || chant?._contentId || chant?.contentId || chant?.id;
 
   const [loading, setLoading] = useState(false);
@@ -63,6 +159,7 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
   const fileInputRef = useRef(null);
 
   const recorderRef = useRef(null);
@@ -73,6 +170,8 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
   const instructionVideoUrl = useMemo(() => {
     const media = progress?.chant?.instructionVideo || chant?.instructionVideo;
     const url = typeof media === 'string' ? media : media?.url;
+    // Only use buildPublicUrl if it's a valid path or URL, not just an ID
+    if (!url || /^[a-f0-9]{24}$/i.test(url)) return null;
     return buildPublicUrl(url);
   }, [progress?.chant?.instructionVideo, chant?.instructionVideo]);
 
@@ -143,6 +242,21 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Add beforeunload warning when modal is open with unsaved recording
+  useEffect(() => {
+    const status = progress?.status || 'not_started';
+    const handleBeforeUnload = (e) => {
+      // Only warn if there's a recording and the activity hasn't been submitted/completed
+      if (open && (recordedBlob || isRecording) && status !== 'completed') {
+        e.preventDefault();
+        e.returnValue = 'Your recording will be lost if you leave this page.';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [open, recordedBlob, isRecording, progress?.status]);
 
   const handleStartRecording = async () => {
     setError(null);
@@ -224,6 +338,29 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
     setError(null);
   };
 
+  // Handle close attempt - show confirmation if there's unsaved work
+  const handleCloseAttempt = () => {
+    const currentStatus = progress?.status || 'not_started';
+    if ((recordedBlob || isRecording) && currentStatus !== 'completed') {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Handle confirmed close
+  const handleConfirmedClose = () => {
+    setShowConfirmClose(false);
+    cleanupRecordedMedia();
+    cleanupRecording();
+    onClose();
+  };
+
+  // Handle cancel close
+  const handleCancelClose = () => {
+    setShowConfirmClose(false);
+  };
+
   const handleComplete = async () => {
     if (!recordedBlob || !chantId || !childId) return;
     setSubmitting(true);
@@ -243,12 +380,58 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
         })
       );
 
-      await chantProgressService.complete(chantId, childId, fd);
+      const completeResult = await chantProgressService.complete(chantId, childId, fd);
       await fetchProgress();
 
       // Mark course content as completed
       if (courseId) {
         await courseProgressService.updateContentProgress(courseId, childId, chantId, 'chant');
+      }
+
+      // Update Redux state with new stars - this is the source of truth
+      if (completeResult?.data?.starsEarned) {
+        const starsEarned = completeResult.data.starsEarned;
+        console.log('[ChantRecordingModal] Chant completed, stars earned:', starsEarned);
+        
+        // Dispatch Redux action to update child stats
+        dispatch(updateChildStats({
+          childId,
+          stats: { totalStars: (progress?.starsEarned || 0) + starsEarned },
+        }));
+        
+        // Also update sessionStorage for persistence across refreshes
+        try {
+          const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
+          const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
+          
+          const currentTotalStars = (selectedChild.stats?.totalStars || 0) + starsEarned;
+          
+          // Update selectedChild in sessionStorage
+          const updatedChild = {
+            ...selectedChild,
+            stats: {
+              ...selectedChild.stats,
+              totalStars: currentTotalStars,
+            },
+          };
+          sessionStorage.setItem('selectedChild', JSON.stringify(updatedChild));
+          
+          // Update childProfiles in sessionStorage
+          const updatedProfiles = childProfiles.map(c => 
+            c._id === childId 
+              ? { ...c, stats: { ...c.stats, totalStars: currentTotalStars } }
+              : c
+          );
+          sessionStorage.setItem('childProfiles', JSON.stringify(updatedProfiles));
+          
+          console.log('[ChantRecordingModal] Updated sessionStorage with new totalStars');
+        } catch (storageError) {
+          console.error('[ChantRecordingModal] Error updating sessionStorage:', storageError);
+        }
+        
+        // Trigger event for components listening to updates
+        window.dispatchEvent(new Event('childStatsUpdated'));
+        console.log('[ChantRecordingModal] Dispatched childStatsUpdated event');
       }
 
       if (onAfterComplete) onAfterComplete();
@@ -270,9 +453,11 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
     <Dialog
       open={open}
       onClose={(event, reason) => {
-        // Persistent modal: do not allow closing via backdrop click or Escape
-        if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
-        onClose();
+        if (reason === 'backdropClick') {
+          handleCloseAttempt();
+          return;
+        }
+        handleCloseAttempt();
       }}
       disableEscapeKeyDown
       maxWidth="md"
@@ -321,7 +506,7 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
             }}
           />
         </Box>
-        <IconButton aria-label="Close chant modal" onClick={onClose}>
+        <IconButton aria-label="Close chant modal" onClick={handleCloseAttempt}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -541,7 +726,7 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
         }}
       >
         <Button
-          onClick={onClose}
+          onClick={handleCloseAttempt}
           variant="outlined"
           role="button"
           aria-label="Close"
@@ -575,6 +760,13 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
           {submitting ? 'Saving…' : 'Complete'}
         </Button>
       </DialogActions>
+
+      <ConfirmCloseDialog
+        open={showConfirmClose}
+        onConfirm={handleConfirmedClose}
+        onCancel={handleCancelClose}
+        title="Save your recording?"
+      />
     </Dialog>
   );
 };

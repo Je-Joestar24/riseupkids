@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -15,7 +15,7 @@ import {
   Notifications as NotificationsIcon,
   AccountCircle,
   Logout,
-  Settings,
+  Person,
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
@@ -29,7 +29,7 @@ import smallLogo from '../../../assets/images/small-logo.png';
  * Top navigation bar for admin panel
  * Includes logo, notifications, and admin profile menu
  */
-const AdminNavigation = () => {
+const AdminNavigation = ({ profileDrawerOpen, setProfileDrawerOpen }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -58,12 +58,13 @@ const AdminNavigation = () => {
     await logout();
   };
 
-  const handleSettings = () => {
+  const handleProfile = useCallback(() => {
     handleProfileMenuClose();
-    // TODO: Navigate to settings
-  };
+    setProfileDrawerOpen(true);
+  }, [setProfileDrawerOpen]);
 
   return (
+<>
     <AppBar
       position="fixed"
       sx={{
@@ -71,7 +72,7 @@ const AdminNavigation = () => {
         color: theme.palette.text.primary,
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
         borderBottom: `1px solid ${theme.palette.border.main}`,
-        zIndex: theme.zIndex.drawer + 1,
+        zIndex: 1100,
         borderRadius: '0px',
       }}
     >
@@ -301,7 +302,7 @@ const AdminNavigation = () => {
             </Box>
             <Box sx={{ padding: 0.5 }}>
               <MenuItem
-                onClick={handleSettings}
+                onClick={handleProfile}
                 sx={{
                   padding: 1.5,
                   borderRadius: '8px',
@@ -313,7 +314,7 @@ const AdminNavigation = () => {
                   },
                 }}
               >
-                <Settings
+                <Person
                   sx={{
                     marginRight: 1.5,
                     fontSize: '1.25rem',
@@ -328,7 +329,7 @@ const AdminNavigation = () => {
                     color: theme.palette.text.primary,
                   }}
                 >
-                  Settings
+                  Profile
                 </Typography>
               </MenuItem>
               <MenuItem
@@ -373,6 +374,7 @@ const AdminNavigation = () => {
         </Box>
       </Toolbar>
     </AppBar>
+    </>
   );
 };
 

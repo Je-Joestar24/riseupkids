@@ -46,6 +46,99 @@ const pickBestAudioMimeType = () => {
   return '';
 };
 
+// Confirmation Dialog Component
+const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
+  <Dialog
+    open={open}
+    onClose={onCancel}
+    maxWidth="sm"
+    fullWidth
+    PaperProps={{
+      sx: {
+        borderRadius: '20px',
+        fontFamily: 'Quicksand, sans-serif',
+        backgroundColor: themeColors.bgCard,
+        padding: '8px',
+      },
+    }}
+  >
+    <DialogTitle
+      sx={{
+        fontFamily: 'Quicksand, sans-serif',
+        fontWeight: 700,
+        fontSize: '2rem',
+        color: themeColors.primary,
+        textAlign: 'center',
+        padding: '24px',
+      }}
+    >
+      {title || 'Are you sure?'}
+    </DialogTitle>
+    <DialogContent
+      sx={{
+        padding: '0 24px',
+      }}
+    >
+      <Typography
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontSize: '1.5rem',
+          color: themeColors.text,
+          textAlign: 'center',
+          lineHeight: 1.6,
+        }}
+      >
+        Do you want to close this activity? Your recording will be lost!
+      </Typography>
+    </DialogContent>
+    <DialogActions
+      sx={{
+        padding: '24px',
+        justifyContent: 'center',
+        gap: 2,
+      }}
+    >
+      <Button
+        onClick={onCancel}
+        variant="outlined"
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 600,
+          fontSize: '1.3rem',
+          textTransform: 'none',
+          padding: '12px 32px',
+          borderRadius: '12px',
+          color: themeColors.orange,
+          '&:hover': {
+            backgroundColor: themeColors.bgTertiary,
+          },
+        }}
+      >
+        Keep Recording
+      </Button>
+      <Button
+        onClick={onConfirm}
+        variant="contained"
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 600,
+          fontSize: '1.3rem',
+          textTransform: 'none',
+          padding: '12px 32px',
+          borderRadius: '12px',
+          backgroundColor: themeColors.secondary,
+          color: themeColors.textInverse,
+          '&:hover': {
+            backgroundColor: themeColors.primary,
+          },
+        }}
+      >
+        Yes, Close
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
+
 /**
  * AudioAssignmentRecordingModal (Child-facing)
  *
@@ -72,6 +165,7 @@ const AudioAssignmentRecordingModal = ({
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordSeconds, setRecordSeconds] = useState(0);
+  const [showConfirmClose, setShowConfirmClose] = useState(false);
   const fileInputRef = useRef(null);
 
   const recorderRef = useRef(null);
@@ -82,6 +176,8 @@ const AudioAssignmentRecordingModal = ({
   const instructionVideoUrl = useMemo(() => {
     const media = progress?.audioAssignment?.instructionVideo || audioAssignment?.instructionVideo;
     const url = typeof media === 'string' ? media : media?.url;
+    // Only use buildPublicUrl if it's a valid path or URL, not just an ID
+    if (!url || /^[a-f0-9]{24}$/i.test(url)) return null;
     return buildPublicUrl(url);
   }, [progress?.audioAssignment?.instructionVideo, audioAssignment?.instructionVideo]);
 
@@ -179,6 +275,44 @@ const AudioAssignmentRecordingModal = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // Add beforeunload warning when modal is open with unsaved recording
+  useEffect(() => {
+    const status = progress?.status || 'not_started';
+    const handleBeforeUnload = (e) => {
+      // Only warn if there's a recording and the activity hasn't been submitted/approved
+      if (open && (recordedBlob || isRecording) && status !== 'approved' && status !== 'rejected') {
+        e.preventDefault();
+        e.returnValue = 'Your recording will be lost if you leave this page.';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [open, recordedBlob, isRecording, progress?.status]);
+
+  // Handle close attempt - show confirmation if there's unsaved work
+  const handleCloseAttempt = () => {
+    const status = progress?.status || 'not_started';
+    if ((recordedBlob || isRecording) && status !== 'approved' && status !== 'rejected') {
+      setShowConfirmClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  // Handle confirmed close
+  const handleConfirmedClose = () => {
+    setShowConfirmClose(false);
+    cleanupRecordedMedia();
+    cleanupRecording();
+    onClose();
+  };
+
+  // Handle cancel close
+  const handleCancelClose = () => {
+    setShowConfirmClose(false);
+  };
 
   const handleStartRecording = async () => {
     setError(null);
@@ -289,6 +423,40 @@ const AudioAssignmentRecordingModal = ({
 
       await audioAssignmentProgressService.submit(audioAssignmentId, childId, fd);
       await fetchProgress();
+
+      // Update child stats in storage and notify header
+      try {
+        const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
+        const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
+        
+        // Update stats with new totalStars from submitted progress (if approved or auto-approved)
+        if (progress?.starsEarned) {
+          const currentTotalStars = (selectedChild.stats?.totalStars || 0) + progress.starsEarned;
+          
+          // Update selectedChild in sessionStorage
+          const updatedChild = {
+            ...selectedChild,
+            stats: {
+              ...selectedChild.stats,
+              totalStars: currentTotalStars,
+            },
+          };
+          sessionStorage.setItem('selectedChild', JSON.stringify(updatedChild));
+          
+          // Update childProfiles in sessionStorage
+          const updatedProfiles = childProfiles.map(c => 
+            c._id === childId 
+              ? { ...c, stats: { ...c.stats, totalStars: currentTotalStars } }
+              : c
+          );
+          sessionStorage.setItem('childProfiles', JSON.stringify(updatedProfiles));
+        }
+        
+        // Trigger event for header to refresh
+        window.dispatchEvent(new Event('childStatsUpdated'));
+      } catch (storageError) {
+        console.error('Error updating child stats in storage:', storageError);
+      }
     } catch (e) {
       setError(typeof e === 'string' ? e : e?.message || 'Failed to submit recording');
     } finally {
@@ -309,9 +477,11 @@ const AudioAssignmentRecordingModal = ({
     <Dialog
       open={open}
       onClose={(event, reason) => {
-        // Persistent modal: do not allow closing via backdrop click or Escape
-        if (reason === 'backdropClick' || reason === 'escapeKeyDown') return;
-        onClose();
+        if (reason === 'backdropClick') {
+          handleCloseAttempt();
+          return;
+        }
+        handleCloseAttempt();
       }}
       disableEscapeKeyDown
       maxWidth="md"
@@ -360,7 +530,7 @@ const AudioAssignmentRecordingModal = ({
             }}
           />
         </Box>
-        <IconButton aria-label="Close audio assignment modal" onClick={onClose}>
+        <IconButton aria-label="Close audio assignment modal" onClick={handleCloseAttempt}>
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -680,6 +850,13 @@ const AudioAssignmentRecordingModal = ({
           {submitting ? 'Submitting…' : 'Submit'}
         </Button>
       </DialogActions>
+
+      <ConfirmCloseDialog
+        open={showConfirmClose}
+        onConfirm={handleConfirmedClose}
+        onCancel={handleCancelClose}
+        title="Save your recording?"
+      />
     </Dialog>
   );
 };

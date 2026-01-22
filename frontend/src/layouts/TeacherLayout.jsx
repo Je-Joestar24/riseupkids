@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import TeacherNavigation from '../components/teacher/common/TeacherNavigation';
 import TeacherSidebar, { DRAWER_WIDTH } from '../components/teacher/common/TeacherSidebar';
+import AdminProfileDrawer from '../components/admin/common/AdminProfileDrawer';
+import { useAuth } from '../hooks/userHook';
 
 /**
  * TeacherLayout Component
@@ -10,10 +12,12 @@ import TeacherSidebar, { DRAWER_WIDTH } from '../components/teacher/common/Teach
  * Includes navigation header and sidebar
  */
 const TeacherLayout = ({ children }) => {
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const { logout } = useAuth();
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {/* Navigation Header */}
-      <TeacherNavigation />
+      <TeacherNavigation profileDrawerOpen={profileDrawerOpen} setProfileDrawerOpen={setProfileDrawerOpen} />
 
       {/* Sidebar */}
       <TeacherSidebar />
@@ -32,6 +36,13 @@ const TeacherLayout = ({ children }) => {
       >
         {children}
       </Box>
+
+      {/* Profile Drawer */}
+      <AdminProfileDrawer
+        open={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+        onLogout={logout}
+      />
     </Box>
   );
 };

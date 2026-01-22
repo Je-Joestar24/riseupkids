@@ -171,30 +171,6 @@ const ParentsChild = () => {
                   Parent Login
                 </Typography>
               </Link>
-
-              <Link
-                onClick={() => navigate('/parent/dashboard')}
-                className="parents-child-link"
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  cursor: 'pointer',
-                  margin: 'auto'
-                }}
-              >
-                <SettingsIcon sx={{ fontSize: '1.25rem', color: themeColors.textSecondary }} />
-                <Typography
-                  sx={{
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    color: themeColors.textSecondary,
-                  }}
-                >
-                  Dashboard
-                </Typography>
-              </Link>
             </Box>
           </CardContent>
         </Card>

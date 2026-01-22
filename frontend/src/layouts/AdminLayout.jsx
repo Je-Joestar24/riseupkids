@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box } from '@mui/material';
 import AdminNavigation from '../components/admin/common/AdminNavigation';
 import AdminSidebar, { DRAWER_WIDTH } from '../components/admin/common/AdminSidebar';
+import AdminProfileDrawer from '../components/admin/common/AdminProfileDrawer';
+import { useAuth } from '../hooks/userHook';
 
 /**
  * AdminLayout Component
@@ -10,10 +12,12 @@ import AdminSidebar, { DRAWER_WIDTH } from '../components/admin/common/AdminSide
  * Includes navigation header and sidebar
  */
 const AdminLayout = ({ children }) => {
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const { logout } = useAuth();
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {/* Navigation Header */}
-      <AdminNavigation />
+      <AdminNavigation profileDrawerOpen={profileDrawerOpen} setProfileDrawerOpen={setProfileDrawerOpen} />
 
       {/* Sidebar */}
       <AdminSidebar />
@@ -32,6 +36,13 @@ const AdminLayout = ({ children }) => {
       >
         {children}
       </Box>
+
+      {/* Profile Drawer */}
+      <AdminProfileDrawer
+        open={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+        onLogout={logout}
+      />
     </Box>
   );
 };
