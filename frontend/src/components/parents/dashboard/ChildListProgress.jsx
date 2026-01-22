@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { Box, Typography, Card, CardContent, Grid, Button, CircularProgress } from '@mui/material';
+import { Box, Typography, Card, CardContent, Grid, Button, CircularProgress, IconButton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { themeColors } from '../../../config/themeColors';
 import ChildProgressModal from './ChildProgressModal';
+import ChildEditModal from '../childmodal/ChildEditModal';
+import { useChildren } from '../../../hooks/childrenHook';
 
 /**
  * ChildListProgress Component
@@ -13,11 +17,21 @@ import ChildProgressModal from './ChildProgressModal';
  * Each child has a "View Child Progress" button
  * Fully mobile responsive
  */
-const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress }) => {
+const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSelectChild, onViewProgress }) => {
   const theme = useTheme();
+  const { updateChildData, deleteChildData, loading: childrenLoading, fetchChildren, children: reduxChildren } = useChildren();
+  
+  // Use Redux children state for real-time updates, fallback to prop children
+  const children = reduxChildren && reduxChildren.length > 0 ? reduxChildren : childrenProp;
+  const loading = childrenLoading || loadingProp;
+  
   const [selectedChildId, setSelectedChildId] = useState(null);
   const [selectedChildName, setSelectedChildName] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  
+  const [editChildId, setEditChildId] = useState(null);
+  const [editChild, setEditChild] = useState(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const handleViewProgress = (childId) => {
     const child = children.find((c) => c._id === childId);
@@ -33,6 +47,44 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
     setModalOpen(false);
     setSelectedChildId(null);
     setSelectedChildName(null);
+  };
+
+  const handleEditChild = (child) => {
+    setEditChild(child);
+    setEditChildId(child._id);
+    setEditModalOpen(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditModalOpen(false);
+    setEditChild(null);
+    setEditChildId(null);
+  };
+
+  const handleSaveChild = async (childId, updateData) => {
+    try {
+      await updateChildData(childId, updateData);
+      handleCloseEditModal();
+      // Refresh children list with active filter
+      setTimeout(() => {
+        fetchChildren({ isActive: true });
+      }, 300);
+    } catch (error) {
+      console.error('Error updating child:', error);
+    }
+  };
+
+  const handleDeleteChild = async (childId) => {
+    try {
+      await deleteChildData(childId);
+      handleCloseEditModal();
+      // Refresh children list with active filter
+      setTimeout(() => {
+        fetchChildren({ isActive: true });
+      }, 500);
+    } catch (error) {
+      console.error('Error deleting child:', error);
+    }
   };
 
   if (loading && children.length === 0) {
@@ -121,9 +173,59 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
                     transform: 'translateY(-4px)',
                     boxShadow: theme.shadows[4],
                   },
+                  position: 'relative',
                 }}
                 onClick={() => onSelectChild && onSelectChild(child._id)}
               >
+                {/* Edit & Delete Icons */}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: { xs: '8px', sm: '12px' },
+                    right: { xs: '8px', sm: '12px' },
+                    display: 'flex',
+                    gap: '4px',
+                    zIndex: 10,
+                  }}
+                >
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditChild(child);
+                    }}
+                    sx={{
+                      backgroundColor: 'rgba(98, 202, 202, 0.1)',
+                      color: themeColors.primary,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: themeColors.secondary,
+                        color: 'white',
+                      },
+                    }}
+                  >
+                    <EditIcon sx={{ fontSize: '18px' }} />
+                  </IconButton>
+{/*                   <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditChild(child);
+                    }}
+                    sx={{
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      color: themeColors.error,
+                      transition: 'all 0.2s ease',
+                      '&:hover': {
+                        backgroundColor: themeColors.error,
+                        color: 'white',
+                      },
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: '18px' }} />
+                  </IconButton> */}
+                </Box>
+
                 <CardContent sx={{ padding: { xs: 2, sm: 3 } }}>
                   <Typography
                     sx={{
@@ -132,6 +234,7 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
                       fontWeight: 700,
                       color: themeColors.text,
                       marginBottom: 1,
+                      paddingRight: '60px',
                     }}
                   >
                     {child.displayName || child.name}
@@ -183,6 +286,16 @@ const ChildListProgress = ({ children, loading, onSelectChild, onViewProgress })
         onClose={handleCloseModal}
         childId={selectedChildId}
         childName={selectedChildName}
+      />
+
+      {/* Child Edit Modal */}
+      <ChildEditModal
+        open={editModalOpen}
+        onClose={handleCloseEditModal}
+        child={editChild}
+        loading={childrenLoading}
+        onSave={handleSaveChild}
+        onDelete={handleDeleteChild}
       />
     </Card>
   );
