@@ -5,13 +5,35 @@ import { themeColors } from '../../../config/themeColors';
 /**
  * SubscriptionDetails Component
  * 
- * Shows plan details like cost, billing date, and payment method
+ * Shows plan details like cost, billing date, and cancellation availability
  */
-const SubscriptionDetails = () => {
+const SubscriptionDetails = ({ subscriptionData, canCancel, user }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const getCancellationStatus = () => {
+    if (!subscriptionData.currentPeriodEnd) {
+      return 'N/A';
+    }
+    if (canCancel) {
+      return 'Available';
+    }
+    // Calculate when cancellation will be available (1 year from subscription start)
+    // Note: This uses createdAt as proxy until subscriptionStartDate is available
+    return 'After one-year commitment';
+  };
+
   const details = [
     { label: 'Monthly Cost', value: '$9.99/mo', highlight: true },
-    { label: 'Next Billing Date', value: 'Jan 15, 2026', highlight: false },
-    { label: 'Payment Method', value: '•••• 4242', highlight: false },
+    { label: 'Next Billing Date', value: formatDate(subscriptionData.currentPeriodEnd), highlight: false },
+    { label: 'Cancellation Available', value: getCancellationStatus(), highlight: false },
   ];
 
   return (

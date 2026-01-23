@@ -164,6 +164,7 @@ const login = async (email, password) => {
  * @throws {Error} If user not found
  */
 const getCurrentUser = async (userId) => {
+  // Get user without password
   const user = await User.findById(userId).select('-password');
 
   if (!user) {

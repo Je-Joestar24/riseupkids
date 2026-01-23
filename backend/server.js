@@ -30,6 +30,8 @@ const exploreRoutes = require('./routes/explore.routes');
 const exploreVideoWatchRoutes = require('./routes/exploreVideoWatch.routes');
 const parentDashboardRoutes = require('./routes/parentDashboard.routes');
 const contactSupportRoutes = require('./routes/contactSupport.routes');
+const stripeRoutes = require('./routes/stripe.routes');
+const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -40,9 +42,26 @@ const app = express();
 
 // Middleware
 app.use(cors());
+app.use(morgan('dev'));
+
+// Stripe webhook route needs raw body BEFORE express.json()
+// This must be before other routes that use express.json()
+// The raw body will be used by stripeWebhook middleware for signature verification
+app.post(
+  '/api/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  (req, res, next) => {
+    // Ensure body is a Buffer for webhook verification
+    if (!Buffer.isBuffer(req.body)) {
+      req.body = Buffer.from(JSON.stringify(req.body));
+    }
+    next();
+  }
+);
+
+// Regular JSON parsing for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev'));
 
 // Ignore favicon requests (browsers automatically request this)
 app.get('/favicon.ico', (req, res) => {
@@ -80,6 +99,8 @@ app.use('/api/explore', exploreRoutes);
 app.use('/api/explore/videos', exploreVideoWatchRoutes);
 app.use('/api/parent-dashboard', parentDashboardRoutes);
 app.use('/api/contact-support', contactSupportRoutes);
+app.use('/api/stripe', stripeRoutes);
+app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Root route
 app.get('/', (req, res) => {

@@ -70,8 +70,12 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
-    // Future: Stripe subscription fields
+    // Stripe subscription fields (Phase 1)
     stripeCustomerId: {
+      type: String,
+      select: false,
+    },
+    stripeSubscriptionId: {
       type: String,
       select: false,
     },
@@ -79,6 +83,16 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'inactive', 'canceled', 'past_due'],
       default: 'inactive',
+    },
+    subscriptionStartDate: {
+      type: Date,
+      // When subscription was first created (for 1-year commitment check)
+      index: true,
+    },
+    subscriptionCurrentPeriodEnd: {
+      type: Date,
+      // When current billing period ends (for next billing date display)
+      index: true,
     },
   },
   {

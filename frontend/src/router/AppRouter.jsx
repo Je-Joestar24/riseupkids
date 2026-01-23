@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
+import ParentSignup from '../pages/auth/ParentSignup';
+import ParentSignupSuccess from '../pages/auth/ParentSignupSuccess';
+import ParentSignupCancel from '../pages/auth/ParentSignupCancel';
 import ParentsChild from '../pages/parents/ParentsChild';
 import ParentsLogin from '../pages/parents/ParentsLogin';
 import ParentDashboard from '../pages/parents/ParentDashboard';
@@ -54,6 +57,30 @@ const AppRouter = () => {
           element={
             <UnAuthed>
               <AuthLogin />
+            </UnAuthed>
+          }
+        />
+        <Route
+          path="/parent/signup"
+          element={
+            <UnAuthed>
+              <ParentSignup />
+            </UnAuthed>
+          }
+        />
+        <Route
+          path="/parent/signup/success"
+          element={
+            <UnAuthed>
+              <ParentSignupSuccess />
+            </UnAuthed>
+          }
+        />
+        <Route
+          path="/parent/signup/cancel"
+          element={
+            <UnAuthed>
+              <ParentSignupCancel />
             </UnAuthed>
           }
         />

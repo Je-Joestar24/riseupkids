@@ -6,7 +6,24 @@ import { Box, Typography } from '@mui/material';
  * 
  * Header showing current subscription plan and status
  */
-const SubscriptionHeader = () => {
+const SubscriptionHeader = ({ subscriptionData }) => {
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const getStatusText = () => {
+    if (!subscriptionData.currentPeriodEnd) {
+      return 'No active subscription';
+    }
+    return `Active until ${formatDate(subscriptionData.currentPeriodEnd)}`;
+  };
+
   return (
     <Box
       sx={{
@@ -36,7 +53,7 @@ const SubscriptionHeader = () => {
           opacity: 0.9,
         }}
       >
-        Active until March 15, 2026
+        {getStatusText()}
       </Typography>
     </Box>
   );

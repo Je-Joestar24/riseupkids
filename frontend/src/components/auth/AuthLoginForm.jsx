@@ -204,7 +204,7 @@ const AuthLoginForm = () => {
       {/* Create Account Link */}
       <Box className="auth-create-account-container" 
         sx={{marginTop: '5px'}}>
-        <Link href="#" className="auth-create-account-link"
+        <Link onClick={() => navigate('/parent/signup')} className="auth-create-account-link"
         sx={{borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none'}}>
           New here? Create Account
         </Link>
