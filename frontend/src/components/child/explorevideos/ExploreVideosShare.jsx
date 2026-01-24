@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { EXPLORE_VIDEO_TYPES } from '../../../constants/exploreVideoTypes';
 import { themeColors } from '../../../config/themeColors';
 
@@ -45,17 +46,27 @@ const SHARE_BUTTONS = {
  * 
  * Share component for the Explore Videos page
  * Allows children to share their work for each video type
+ * Navigates to share page with state to maintain Explore as active nav
  * 
  * @param {String} childId - Child's ID
  * @param {String} videoType - Video type (e.g., 'cooking', 'music', etc.)
  */
 const ExploreVideosShare = ({ childId, videoType }) => {
     const theme = useTheme();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const handleShareClick = () => {
-        // TODO: Implement share functionality
-        // This will allow child to upload something related to the video type
-        console.log('Share clicked for video type:', videoType);
+        // Navigate to share page with state to track origin
+        // This allows ChildNavigation to keep "Explore" as active
+        // and the back button to return to the correct explore page
+        navigate(`/child/${childId}/wall/share`, {
+            state: {
+                from: 'explore',
+                backPath: location.pathname,
+                videoType: videoType,
+            },
+        });
     };
 
     const shareTitle = SHARE_TITLES[videoType] || "Share My Work!";

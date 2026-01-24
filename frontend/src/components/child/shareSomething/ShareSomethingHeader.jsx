@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
 
 /**
@@ -28,13 +28,31 @@ const ArrowLeftIcon = ({ color = 'currentColor', size = 24 }) => (
  * ShareSomethingHeader Component
  * 
  * Header for the Share Something page
+ * Handles back navigation based on where user came from:
+ * - If from Explore, goes back to the explore page
+ * - Otherwise, goes to Kids' Wall
  */
 const ShareSomethingHeader = ({ childId }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Determine back destination based on origin
+  const fromState = location.state?.from;
+  const backPath = location.state?.backPath;
+  const isFromExplore = fromState === 'explore';
 
   const handleBack = () => {
-    navigate(`/child/${childId}/wall`);
+    if (isFromExplore && backPath) {
+      // Go back to the explore page they came from
+      navigate(backPath);
+    } else {
+      // Default: go to Kids' Wall
+      navigate(`/child/${childId}/wall`);
+    }
   };
+
+  // Dynamic back button text
+  const backButtonText = isFromExplore ? 'Back to Explore' : 'Back to Show & Tell';
 
   return (
     <Box
@@ -74,10 +92,10 @@ const ShareSomethingHeader = ({ childId }) => {
               transform: 'scale(1.05)',
             },
           }}
-          aria-label="Back to Show & Tell"
+          aria-label={backButtonText}
         >
           <ArrowLeftIcon color={themeColors.secondary} size={24} />
-          Back to Show & Tell
+          {backButtonText}
         </Button>
       </Box>
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { themeColors } from '../../config/themeColors';
 import useKidsWall from '../../hooks/kidsWallHook';
 import ShareSomethingHeader from '../../components/child/shareSomething/ShareSomethingHeader';
@@ -14,13 +14,20 @@ import ShareSomethingFooter from '../../components/child/shareSomething/ShareSom
  * ChildShareSomething Page
  * 
  * Page for children to share their work on KidsWall
+ * Supports navigation from different origins (Explore or Wall)
+ * After successful post, navigates back to origin or to Wall
  */
 const ChildShareSomething = ({ childId }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { createPost, loading } = useKidsWall(childId);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+
+  // Get navigation origin from location state
+  const fromState = location.state?.from;
+  const backPath = location.state?.backPath;
 
   const handlePhotoSelect = (file) => {
     setSelectedPhoto(file);
@@ -45,9 +52,14 @@ const ChildShareSomething = ({ childId }) => {
         formData.photo
       );
 
-      // Navigate back to wall after successful post
+      // Navigate after successful post
+      // If came from explore, go back to explore; otherwise go to wall
       setTimeout(() => {
-        navigate(`/child/${childId}/wall`);
+        if (fromState === 'explore' && backPath) {
+          navigate(backPath);
+        } else {
+          navigate(`/child/${childId}/wall`);
+        }
       }, 1500); // Small delay to show success message
     } catch (error) {
       // Error is already handled by the hook (shows notification)

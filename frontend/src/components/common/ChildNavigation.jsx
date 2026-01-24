@@ -44,6 +44,10 @@ const SparklesIcon = ({ color = 'currentColor', size = 36 }) => (
  * - Padding: x = 8px, y = 16px
  * - Icons: outlined, 36px size
  * - Content centered
+ * 
+ * Supports location.state.from to override active nav:
+ * - When navigating from Explore to /wall/share, Explore stays active
+ * - This allows the share page to be accessed from multiple entry points
  */
 const ChildNavigation = ({ childId }) => {
   const navigate = useNavigate();
@@ -51,8 +55,16 @@ const ChildNavigation = ({ childId }) => {
   const theme = useTheme();
 
   // Determine current route value
+  // Checks location.state.from to override active nav when needed
   const getCurrentValue = () => {
     const path = location.pathname;
+    const fromState = location.state?.from;
+
+    // If on /wall/share and came from explore, keep explore active
+    if (path.includes('/wall/share') && fromState === 'explore') {
+      return 'explore';
+    }
+
     if (path.includes('/home')) return 'home';
     if (path.includes('/journey')) return 'journey';
     if (path.includes('/explore')) return 'explore'; // Includes /explore and /explore/videos
@@ -62,14 +74,15 @@ const ChildNavigation = ({ childId }) => {
 
   const [value, setValue] = React.useState(getCurrentValue());
 
-  // Update value when route changes
+  // Update value when route or state changes
   React.useEffect(() => {
     setValue(getCurrentValue());
-  }, [location.pathname]);
+  }, [location.pathname, location.state]);
 
   const handleNavigation = (route) => {
     setValue(route);
-    navigate(`/child/${childId}/${route}`);
+    // Clear state when navigating via bottom nav to reset active state
+    navigate(`/child/${childId}/${route}`, { state: null });
   };
 
   // Active state background colors
