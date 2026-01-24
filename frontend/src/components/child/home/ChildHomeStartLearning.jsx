@@ -1,22 +1,52 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import sampleImage from '../../../assets/images/sample.png';
 import { themeColors } from '../../../config/themeColors';
 import { useNavigate, useParams } from 'react-router-dom';
+import childrenService from '../../../services/childrenService';
 
 /**
  * ChildHomeStartLearning Component
  * 
  * Welcome card component for child home page
  * Displays personalized greeting with avatar and start learning button
+ * 
+ * Uses API to fetch child data if not provided via props
  */
-const ChildHomeStartLearning = ({ child }) => {
+const ChildHomeStartLearning = ({ child: childProp }) => {
   const navigate = useNavigate();
   const { id: childId } = useParams();
+  const [child, setChild] = useState(childProp);
+
+  // Fetch child data from API if not provided via props
+  useEffect(() => {
+    // If we have a valid child prop, use it
+    if (childProp && childProp._id) {
+      setChild(childProp);
+      return;
+    }
+
+    // Otherwise, fetch from API
+    if (childId) {
+      childrenService.getChildById(childId)
+        .then((response) => {
+          setChild(response.data || response);
+        })
+        .catch((err) => {
+          console.error('[ChildHomeStartLearning] Error fetching child:', err);
+        });
+    }
+  }, [childId, childProp]);
+
+  // Update child when prop changes
+  useEffect(() => {
+    if (childProp && childProp._id) {
+      setChild(childProp);
+    }
+  }, [childProp]);
 
   const handleStartLearning = () => {
-    // TODO: Implement start learning functionality
     navigate(`/child/${childId}/explore`);
   };
 

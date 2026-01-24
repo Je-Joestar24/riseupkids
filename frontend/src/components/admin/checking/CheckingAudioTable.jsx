@@ -19,7 +19,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import {
   CheckCircleOutlined,
-  CancelOutlined,
+  ReplayOutlined,
   PlayArrowOutlined,
   MoreVertOutlined,
   RefreshOutlined,
@@ -52,13 +52,14 @@ const CheckingAudioTable = ({
       case 'approved':
         return 'success';
       case 'rejected':
-        return 'error';
+        return 'warning'; // Use warning (orange) instead of error (red) for friendlier appearance
       default:
         return 'default';
     }
   };
 
   const getStatusLabel = (status) => {
+    if (status === 'rejected') return 'Resubmission Requested';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
@@ -243,20 +244,20 @@ const CheckingAudioTable = ({
                     </IconButton>
                   )}
 
-                  {/* Reject Button */}
+                  {/* Request Resubmission Button */}
                   {item.status === 'submitted' && (
                     <IconButton
                       size="small"
-                      title="Reject"
+                      title="Request Resubmission"
                       sx={{
-                        color: theme.palette.error.main,
+                        color: theme.palette.orange.main,
                         '&:hover': {
-                          backgroundColor: theme.palette.error.light + '20',
+                          backgroundColor: theme.palette.orange.light + '20',
                         },
                       }}
                       onClick={() => handleReject(item)}
                     >
-                      <CancelOutlined fontSize="small" />
+                      <ReplayOutlined fontSize="small" />
                     </IconButton>
                   )}
                 </Box>
@@ -286,14 +287,16 @@ const CheckingAudioTable = ({
             color: theme.palette.text.primary,
           }}
         >
-          {reviewDecision === 'approved' ? 'Approve Submission' : 'Reject Submission'}
+          {reviewDecision === 'approved' ? 'Approve Submission' : 'Request Resubmission'}
         </DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <TextField
             fullWidth
             multiline
             rows={4}
-            placeholder="Add feedback (optional)"
+            placeholder={reviewDecision === 'approved' 
+              ? "Add a congratulatory message (optional)" 
+              : "Add an encouraging tip to help the child improve (optional)"}
             value={reviewFeedback}
             onChange={(e) => setReviewFeedback(e.target.value)}
             sx={{
@@ -324,15 +327,15 @@ const CheckingAudioTable = ({
               fontSize: '0.9375rem',
               background: reviewDecision === 'approved'
                 ? theme.palette.success.main
-                : theme.palette.error.main,
+                : theme.palette.orange.main,
               '&:hover': {
                 background: reviewDecision === 'approved'
                   ? theme.palette.success.dark
-                  : theme.palette.error.dark,
+                  : theme.palette.orange.dark,
               },
             }}
           >
-            {reviewDecision === 'approved' ? 'Approve' : 'Reject'}
+            {reviewDecision === 'approved' ? 'Approve' : 'Request Resubmission'}
           </Button>
         </DialogActions>
       </Dialog>

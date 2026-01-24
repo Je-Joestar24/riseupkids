@@ -8,11 +8,15 @@ import audioPlaceholder from '../../../assets/images/audio.png';
  * 
  * Individual audio assignment card component for Audio section
  * Displays cover image, headphones badge, time, title, and star points
+ * Shows child-friendly "Let's Try Again!" message when status is rejected
  */
 const ChildModuleAudioCards = ({
   audio,
+  status,
   onCardClick,
 }) => {
+  // Check if status is rejected (child-friendly handling)
+  const isRejected = status === 'rejected';
   // Get cover image URL
   const getCoverImageUrl = (coverImagePath) => {
     if (!coverImagePath) return null;
@@ -151,6 +155,57 @@ const ChildModuleAudioCards = ({
         >
           {audio?.title || 'Audio Assignment'}
         </Typography>
+
+        {/* Child-friendly "Let's Try Again!" badge when rejected */}
+        {isRejected && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              backgroundColor: 'rgba(255, 183, 77, 0.15)',
+              borderRadius: '12px',
+              marginBottom: '12px',
+              border: '2px dashed rgba(255, 152, 0, 0.4)',
+            }}
+          >
+            {/* Friendly star/sparkle icon */}
+            <Box
+              sx={{
+                width: '28px',
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: themeColors.orange,
+                borderRadius: '50%',
+                flexShrink: 0,
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="white"
+                aria-hidden="true"
+              >
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+              </svg>
+            </Box>
+            <Typography
+              sx={{
+                fontSize: '14px',
+                fontWeight: 700,
+                color: themeColors.orange,
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              Let's Try Again!
+            </Typography>
+          </Box>
+        )}
 
         {/* Footer - Audio label and Star points */}
         <Box

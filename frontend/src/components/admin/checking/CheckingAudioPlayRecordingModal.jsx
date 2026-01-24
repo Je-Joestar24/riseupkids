@@ -22,7 +22,7 @@ import {
   VolumeUpOutlined,
   CloseOutlined,
   CheckCircleOutlined,
-  CancelOutlined,
+  ReplayOutlined,
 } from '@mui/icons-material';
 
 /**
@@ -447,13 +447,13 @@ const CheckingAudioPlayRecordingModal = ({
               letterSpacing: '0.5px',
             }}
           >
-            Feedback (Optional)
+            Helpful Tip (Optional)
           </Typography>
           <TextField
             fullWidth
             multiline
             rows={3}
-            placeholder="Add feedback for the child..."
+            placeholder="Add an encouraging tip to help the child improve..."
             value={reviewFeedback}
             onChange={(e) => setReviewFeedback(e.target.value)}
             size="small"
@@ -497,20 +497,20 @@ const CheckingAudioPlayRecordingModal = ({
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button
               onClick={handleReject}
-              startIcon={<CancelOutlined />}
+              startIcon={<ReplayOutlined />}
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 textTransform: 'none',
                 fontSize: '0.9375rem',
                 fontWeight: 600,
                 color: '#fff',
-                backgroundColor: theme.palette.error.main,
+                backgroundColor: theme.palette.orange.main,
                 '&:hover': {
-                  backgroundColor: theme.palette.error.dark,
+                  backgroundColor: theme.palette.orange.dark,
                 },
               }}
             >
-              Reject
+              Request Resubmission
             </Button>
             <Button
               onClick={handleApprove}

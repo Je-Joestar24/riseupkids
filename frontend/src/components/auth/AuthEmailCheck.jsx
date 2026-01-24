@@ -35,7 +35,7 @@ const AuthEmailCheck = ({ initialEmail = '', onNext, loading, error }) => {
       component="form"
       onSubmit={handleSubmit}
       noValidate
-      sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
+      sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       role="form"
       aria-label="Parent signup email step"
     >

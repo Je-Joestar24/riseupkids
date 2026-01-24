@@ -467,7 +467,7 @@ const AudioAssignmentRecordingModal = ({
   const status = progress?.status || 'not_started';
   const statusChip = (() => {
     if (status === 'approved') return { label: 'Approved', color: themeColors.success };
-    if (status === 'rejected') return { label: 'Needs redo', color: themeColors.error };
+    if (status === 'rejected') return { label: "Let's Try Again!", color: themeColors.orange };
     if (status === 'submitted') return { label: 'Submitted', color: themeColors.accent };
     if (status === 'in_progress') return { label: 'In progress', color: themeColors.secondary };
     return { label: 'Not started', color: themeColors.textMuted };
@@ -784,10 +784,77 @@ const AudioAssignmentRecordingModal = ({
                 </Box>
               )}
 
-              {status === 'rejected' && progress?.adminFeedback && (
-                <Alert severity="warning" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                  Teacher feedback: {progress.adminFeedback}
-                </Alert>
+              {status === 'rejected' && (
+                <Box
+                  sx={{
+                    backgroundColor: 'rgba(255, 183, 77, 0.15)',
+                    borderRadius: '14px',
+                    padding: 2,
+                    border: '2px dashed rgba(255, 152, 0, 0.4)',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, marginBottom: 1 }}>
+                    {/* Friendly star icon */}
+                    <Box
+                      sx={{
+                        width: '36px',
+                        height: '36px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: themeColors.orange,
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="white"
+                        aria-hidden="true"
+                      >
+                        <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                      </svg>
+                    </Box>
+                    <Typography
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 800,
+                        fontSize: '1.1rem',
+                        color: themeColors.orange,
+                      }}
+                    >
+                      Let's Try Again!
+                    </Typography>
+                  </Box>
+                  <Typography
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      fontSize: '1rem',
+                      color: themeColors.text,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    You're doing great! Just record it one more time and you'll get it!
+                  </Typography>
+                  {progress?.adminFeedback && (
+                    <Typography
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 500,
+                        fontSize: '0.9rem',
+                        color: themeColors.textSecondary,
+                        marginTop: 1,
+                        fontStyle: 'italic',
+                      }}
+                    >
+                      Teacher's tip: {progress.adminFeedback}
+                    </Typography>
+                  )}
+                </Box>
               )}
 
               {status === 'approved' && (

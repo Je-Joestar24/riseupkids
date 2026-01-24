@@ -1,24 +1,74 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
 import fireIcon from '../../../assets/images/fire.png';
 import starIcon from '../../../assets/images/star.png';
 import { themeColors } from '../../../config/themeColors';
+import childrenService from '../../../services/childrenService';
 
 /**
  * ChildHomeAccumlatedAwards Component
  * 
  * Displays accumulated awards: Day Streak, Total Stars, and Badges
  * Shows achievement metrics in a grid layout
+ * 
+ * Uses API to fetch child data for real-time accuracy,
+ * especially for newly created children
  */
-const ChildHomeAccumlatedAwards = ({ child }) => {
-  const [achievements, setAchievements] = React.useState({
-    dayStreak: 0,
-    totalStars: 0,
-    badges: 0,
-  });
+const ChildHomeAccumlatedAwards = ({ child: childProp }) => {
+  const { id: childId } = useParams();
+  const [child, setChild] = useState(childProp);
 
-  // Get achievement data from child profile stats
-  const getAchievements = React.useCallback(() => {
+  // Fetch child data from API if not provided via props or on stats update
+  useEffect(() => {
+    // If we have a valid child prop, use it
+    if (childProp && childProp._id) {
+      setChild(childProp);
+      return;
+    }
+
+    // Otherwise, fetch from API
+    if (childId) {
+      childrenService.getChildById(childId)
+        .then((response) => {
+          setChild(response.data || response);
+        })
+        .catch((err) => {
+          console.error('[ChildHomeAccumlatedAwards] Error fetching child:', err);
+        });
+    }
+  }, [childId, childProp]);
+
+  // Update child when prop changes
+  useEffect(() => {
+    if (childProp && childProp._id) {
+      setChild(childProp);
+    }
+  }, [childProp]);
+
+  // Listen for child stats updates and refresh data from API
+  useEffect(() => {
+    const handleStatsUpdate = () => {
+      const targetId = child?._id || childId;
+      if (targetId) {
+        childrenService.getChildById(targetId)
+          .then((response) => {
+            setChild(response.data || response);
+          })
+          .catch((err) => {
+            console.error('[ChildHomeAccumlatedAwards] Error refreshing child:', err);
+          });
+      }
+    };
+
+    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+    return () => {
+      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+    };
+  }, [child?._id, childId]);
+
+  // Calculate achievements from child stats
+  const achievements = useMemo(() => {
     if (child && child.stats) {
       return {
         dayStreak: child.stats.currentStreak || 0,
@@ -34,36 +84,6 @@ const ChildHomeAccumlatedAwards = ({ child }) => {
       badges: 0,
     };
   }, [child]);
-
-  // Update achievements when child changes
-  React.useEffect(() => {
-    setAchievements(getAchievements());
-  }, [getAchievements]);
-
-  // Listen for child stats updates
-  React.useEffect(() => {
-    const handleStatsUpdate = () => {
-      // Re-fetch child data from sessionStorage
-      try {
-        const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
-        const updatedChild = childProfiles.find(c => c._id === child?._id);
-        if (updatedChild) {
-          setAchievements({
-            dayStreak: updatedChild.stats?.currentStreak || 0,
-            totalStars: updatedChild.stats?.totalStars || 0,
-            badges: updatedChild.stats?.totalBadges || (updatedChild.stats?.badges ? updatedChild.stats.badges.length : 0),
-          });
-        }
-      } catch (error) {
-        console.error('Error updating achievements:', error);
-      }
-    };
-    
-    window.addEventListener('childStatsUpdated', handleStatsUpdate);
-    return () => {
-      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
-    };
-  }, [child?._id]);
 
   return (
     <Box

@@ -9,7 +9,7 @@ import { Box, Typography, Button, Stack, Divider } from '@mui/material';
 const AuthPriceBilling = ({ email, name, onBack, onContinue, loading, error }) => {
   return (
     <Box
-      sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}
+      sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
       role="region"
       aria-label="Parent subscription billing summary"
     >

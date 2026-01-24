@@ -165,28 +165,28 @@ const ParentSignup = () => {
         <AuthLogo />
 
         <Card
-          className="auth-signup-card"
+          className="auth-login-card"
           sx={{
             mt: 3,
             overflow: 'hidden',
             transition: 'transform 0.2s ease, box-shadow 0.2s ease',
             '&:hover': {
               transform: 'translateY(-2px)',
-              boxShadow: 4,
-            },
+              boxShadow: 4
+            }
           }}
         >
-          <CardContent
-            className="auth-signup-card-content"
-            sx={{ m: 0, p: 0 }}
-            role="form"
-            aria-label="Parent signup steps"
-          >
-            {renderStep()}
-          </CardContent>
-        </Card>
-      </Container>
-    </Box>
+        <CardContent
+          className="auth-login-card-content"
+          sx={{ m: 0 }}
+          role="form"
+          aria-label="Parent signup steps"
+        >
+          {renderStep()}
+        </CardContent>
+      </Card>
+    </Container>
+    </Box >
   );
 };
 

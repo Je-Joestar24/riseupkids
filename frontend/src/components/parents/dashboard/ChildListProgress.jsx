@@ -5,9 +5,11 @@ import PeopleIcon from '@mui/icons-material/People';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { themeColors } from '../../../config/themeColors';
 import ChildProgressModal from './ChildProgressModal';
 import ChildEditModal from '../childmodal/ChildEditModal';
+import ChildAddModal from '../childmodal/ChildAddModal';
 import { useChildren } from '../../../hooks/childrenHook';
 
 /**
@@ -19,7 +21,7 @@ import { useChildren } from '../../../hooks/childrenHook';
  */
 const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSelectChild, onViewProgress }) => {
   const theme = useTheme();
-  const { updateChildData, deleteChildData, loading: childrenLoading, fetchChildren, children: reduxChildren } = useChildren();
+  const { updateChildData, deleteChildData, createNewChild, loading: childrenLoading, fetchChildren, children: reduxChildren } = useChildren();
   
   // Use Redux children state for real-time updates, fallback to prop children
   const children = reduxChildren && reduxChildren.length > 0 ? reduxChildren : childrenProp;
@@ -32,6 +34,9 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
   const [editChildId, setEditChildId] = useState(null);
   const [editChild, setEditChild] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  
+  // Add child modal state
+  const [addModalOpen, setAddModalOpen] = useState(false);
 
   const handleViewProgress = (childId) => {
     const child = children.find((c) => c._id === childId);
@@ -87,6 +92,28 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
     }
   };
 
+  // Add child handlers
+  const handleOpenAddModal = () => {
+    setAddModalOpen(true);
+  };
+
+  const handleCloseAddModal = () => {
+    setAddModalOpen(false);
+  };
+
+  const handleAddChild = async (childData) => {
+    try {
+      await createNewChild(childData);
+      handleCloseAddModal();
+      // Refresh children list with active filter
+      setTimeout(() => {
+        fetchChildren({ isActive: true });
+      }, 300);
+    } catch (error) {
+      console.error('Error adding child:', error);
+    }
+  };
+
   if (loading && children.length === 0) {
     return (
       <Card
@@ -107,27 +134,90 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
 
   if (children.length === 0) {
     return (
-      <Card
-        sx={{
-          borderRadius: { xs: '16px', sm: '20px' },
-          backgroundColor: themeColors.bgCard,
-          border: `1px solid ${themeColors.border}`,
-        }}
-      >
-        <CardContent sx={{ padding: { xs: 3, sm: 4 } }}>
-          <Typography
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontSize: { xs: '0.875rem', sm: '1rem' },
-              color: themeColors.textSecondary,
-              textAlign: 'center',
-              padding: 3,
-            }}
-          >
-            No children found. Add your first child!
-          </Typography>
-        </CardContent>
-      </Card>
+      <>
+        <Card
+          sx={{
+            borderRadius: { xs: '16px', sm: '20px' },
+            backgroundColor: themeColors.bgCard,
+            border: `1px solid ${themeColors.border}`,
+          }}
+        >
+          <CardContent sx={{ padding: { xs: 3, sm: 4 } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: { xs: 2, sm: 3 } }}>
+              <PeopleIcon
+                sx={{
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  color: themeColors.secondary,
+                }}
+              />
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  fontWeight: 700,
+                  color: themeColors.secondary,
+                }}
+              >
+                Your Children
+              </Typography>
+            </Box>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 2,
+                padding: { xs: 3, sm: 4 },
+              }}
+            >
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  color: themeColors.textSecondary,
+                  textAlign: 'center',
+                }}
+              >
+                No children found. Add your first child to get started!
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<PersonAddIcon />}
+                onClick={handleOpenAddModal}
+                aria-label="Add your first child"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  textTransform: 'none',
+                  backgroundColor: themeColors.secondary,
+                  color: themeColors.textInverse,
+                  borderRadius: { xs: '10px', sm: '12px' },
+                  paddingX: { xs: '20px', sm: '24px' },
+                  paddingY: { xs: '10px', sm: '12px' },
+                  boxShadow: '0 2px 8px rgba(98, 202, 202, 0.2)',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    backgroundColor: '#4db5b5',
+                    boxShadow: '0 4px 12px rgba(98, 202, 202, 0.3)',
+                    transform: 'translateY(-2px)',
+                  },
+                }}
+              >
+                Add Your First Child
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Child Add Modal */}
+        <ChildAddModal
+          open={addModalOpen}
+          onClose={handleCloseAddModal}
+          loading={childrenLoading}
+          onSave={handleAddChild}
+        />
+      </>
     );
   }
 
@@ -140,23 +230,51 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
       }}
     >
       <CardContent sx={{ padding: { xs: 3, sm: 4 } }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: { xs: 2, sm: 3 } }}>
-          <PeopleIcon
-            sx={{
-              fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              color: themeColors.secondary,
-            }}
-          />
-          <Typography
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: { xs: 2, sm: 3 } }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PeopleIcon
+              sx={{
+                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                color: themeColors.secondary,
+              }}
+            />
+            <Typography
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                fontWeight: 700,
+                color: themeColors.secondary,
+              }}
+            >
+              Your Children
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={handleOpenAddModal}
+            aria-label="Add new child"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              fontWeight: 700,
-              color: themeColors.secondary,
+              fontWeight: 600,
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
+              textTransform: 'none',
+              backgroundColor: themeColors.secondary,
+              color: themeColors.textInverse,
+              borderRadius: { xs: '8px', sm: '10px' },
+              paddingX: { xs: '12px', sm: '16px' },
+              paddingY: { xs: '6px', sm: '8px' },
+              boxShadow: '0 2px 8px rgba(98, 202, 202, 0.2)',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: '#4db5b5',
+                boxShadow: '0 4px 12px rgba(98, 202, 202, 0.3)',
+                transform: 'translateY(-2px)',
+              },
             }}
           >
-            Your Children
-          </Typography>
+            Add Child
+          </Button>
         </Box>
 
         <Grid container spacing={{ xs: 2, sm: 2, md: 2 }}>
@@ -296,6 +414,14 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
         loading={childrenLoading}
         onSave={handleSaveChild}
         onDelete={handleDeleteChild}
+      />
+
+      {/* Child Add Modal */}
+      <ChildAddModal
+        open={addModalOpen}
+        onClose={handleCloseAddModal}
+        loading={childrenLoading}
+        onSave={handleAddChild}
       />
     </Card>
   );
