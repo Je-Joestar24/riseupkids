@@ -119,6 +119,15 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
       
       console.log(`[VideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId}. Total stars: ${previousTotalStars} -> ${updatedStats.totalStars}`);
 
+      // Check for badges after awarding stars
+      try {
+        const badgeCheck = require('./badgeCheck.service');
+        await badgeCheck.updateBadges(childId, { silent: false });
+      } catch (badgeError) {
+        console.error(`[VideoWatch] Error checking badges after star award:`, badgeError);
+        // Don't throw - badge checking failure shouldn't block video watch
+      }
+
       // Update VideoWatch record
       videoWatch.starsAwarded = true;
       videoWatch.starsAwardedAt = new Date();

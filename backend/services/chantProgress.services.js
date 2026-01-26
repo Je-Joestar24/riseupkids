@@ -148,6 +148,15 @@ const completeChant = async ({
       const stats = await ChildStats.getOrCreate(childId);
       await stats.addStars(starsToAward);
 
+      // Check for badges after awarding stars
+      try {
+        const badgeCheck = require('./badgeCheck.service');
+        await badgeCheck.updateBadges(childId, { silent: false });
+      } catch (badgeError) {
+        console.error(`[ChantProgress] Error checking badges after star award:`, badgeError);
+        // Don't throw - badge checking failure shouldn't block chant completion
+      }
+
       progress.starsEarned = starsToAward;
       progress.starsAwarded = true;
       progress.starsAwardedAt = new Date();

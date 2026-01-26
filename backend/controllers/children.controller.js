@@ -234,6 +234,40 @@ const restoreChild = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get child profile with full stats, badges, and level info
+ * @route   GET /api/children/:id/profile
+ * @access  Private (Parent only)
+ */
+const getChildProfile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const parentId = req.user._id;
+
+    // Verify user is a parent
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only parents can access this route',
+      });
+    }
+
+    const child = await childrenService.getChildProfileWithStats(id, parentId);
+
+    res.status(200).json({
+      success: true,
+      message: 'Child profile retrieved successfully',
+      data: child,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 400;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to retrieve child profile',
+    });
+  }
+};
+
 module.exports = {
   getAllChildren,
   getChildById,
@@ -241,5 +275,6 @@ module.exports = {
   updateChild,
   deleteChild,
   restoreChild,
+  getChildProfile,
 };
 

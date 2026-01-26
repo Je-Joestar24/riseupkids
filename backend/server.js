@@ -32,6 +32,7 @@ const parentDashboardRoutes = require('./routes/parentDashboard.routes');
 const contactSupportRoutes = require('./routes/contactSupport.routes');
 const stripeRoutes = require('./routes/stripe.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
+const badgeRoutes = require('./routes/badge.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -99,6 +100,7 @@ app.use('/api/explore', exploreRoutes);
 app.use('/api/explore/videos', exploreVideoWatchRoutes);
 app.use('/api/parent-dashboard', parentDashboardRoutes);
 app.use('/api/contact-support', contactSupportRoutes);
+app.use('/api/badges', badgeRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 

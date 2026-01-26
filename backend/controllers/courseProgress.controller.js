@@ -576,6 +576,15 @@ const submitBookCompletion = async (req, res) => {
           after: updatedChildStats.totalStars,
         });
 
+        // Check for badges after awarding stars
+        try {
+          const badgeCheck = require('../services/badgeCheck.service');
+          await badgeCheck.updateBadges(childId, { silent: false });
+        } catch (badgeError) {
+          console.error(`[Book Completion] Error checking badges after star award:`, badgeError);
+          // Don't throw - badge checking failure shouldn't block book completion
+        }
+
         // Mark stars as awarded in CourseProgress
         const finalProgress = await CourseProgress.findOne({
           child: childId,

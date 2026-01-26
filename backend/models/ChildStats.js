@@ -204,5 +204,63 @@ childStatsSchema.statics.getOrCreate = async function (childId) {
   return stats;
 };
 
+/**
+ * Calculate current level based on total stars
+ * Level thresholds must match level badge criteria
+ * @returns {String} Current level name
+ */
+childStatsSchema.methods.calculateLevel = function () {
+  const stars = this.totalStars || 0;
+
+  // Level thresholds (must match level badge criteria)
+  if (stars >= 2500) return 'Mega Star';
+  if (stars >= 1000) return 'Champion';
+  if (stars >= 500) return 'Diamond Level';
+  if (stars >= 250) return 'Star Collector';
+  if (stars >= 100) return 'Super Learner';
+  if (stars >= 50) return 'Rising Star';
+  if (stars >= 25) return 'Star Beginner';
+  if (stars >= 10) return 'Getting Started';
+  if (stars >= 1) return 'First Star';
+  return 'New Learner';
+};
+
+/**
+ * Get next level information
+ * @returns {Object} { level: String, starsNeeded: Number }
+ */
+childStatsSchema.methods.getNextLevel = function () {
+  const stars = this.totalStars || 0;
+  const levelThresholds = [
+    { level: 'First Star', stars: 1 },
+    { level: 'Getting Started', stars: 10 },
+    { level: 'Star Beginner', stars: 25 },
+    { level: 'Rising Star', stars: 50 },
+    { level: 'Super Learner', stars: 100 },
+    { level: 'Star Collector', stars: 250 },
+    { level: 'Diamond Level', stars: 500 },
+    { level: 'Champion', stars: 1000 },
+    { level: 'Mega Star', stars: 2500 },
+  ];
+
+  const currentLevel = this.calculateLevel();
+  const currentIndex = levelThresholds.findIndex((l) => l.level === currentLevel);
+
+  if (currentIndex === -1 || currentIndex === levelThresholds.length - 1) {
+    return { level: null, starsNeeded: 0 }; // Max level reached
+  }
+
+  const nextLevel = levelThresholds[currentIndex + 1];
+  return {
+    level: nextLevel.level,
+    starsNeeded: nextLevel.stars - stars,
+  };
+};
+
+// Virtual for level (for display purposes)
+childStatsSchema.virtual('level').get(function () {
+  return this.calculateLevel();
+});
+
 module.exports = mongoose.model('ChildStats', childStatsSchema);
 

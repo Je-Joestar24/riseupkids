@@ -7,6 +7,7 @@ const {
   updateChild,
   deleteChild,
   restoreChild,
+  getChildProfile,
 } = require('../controllers/children.controller');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -37,6 +38,9 @@ router.get('/', getAllChildren);
 
 // Get single child by ID
 router.get('/:id', getChildById);
+
+// Get child profile with full stats, badges, and level info
+router.get('/:id/profile', getChildProfile);
 
 // Create new child profile
 router.post('/', createChild);

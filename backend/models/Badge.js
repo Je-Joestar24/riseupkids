@@ -20,16 +20,17 @@ const badgeSchema = new mongoose.Schema(
       maxlength: [500, 'Description cannot exceed 500 characters'],
     },
     icon: {
-      type: String, // Emoji or icon identifier (e.g., "🏆", "⭐", "🎯")
-      default: '🏆',
+      type: String, // Emoji or icon identifier (optional - for future custom badges)
+      default: null, // Static badges use frontend mapping, custom badges can set this
     },
     image: {
-      type: String, // File path or URL for badge image
+      type: String, // File path or URL for badge image (optional - for future custom badges)
       default: null,
     },
     category: {
       type: String,
       enum: [
+        'level', // Level badges (automatically awarded when level is reached)
         'streak',
         'completion',
         'milestone',

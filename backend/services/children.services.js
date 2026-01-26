@@ -429,6 +429,77 @@ const restoreChild = async (childId, parentId) => {
   return restoredChild;
 };
 
+/**
+ * Get Child Profile with Full Stats, Badges, and Level Info
+ * 
+ * Retrieves child profile with complete stats, earned badges, level info, and next level progress
+ * 
+ * @param {String} childId - Child profile's MongoDB ID
+ * @param {String} parentId - Parent's MongoDB ID (for verification)
+ * @returns {Object} Child profile with full stats, badges, and level info
+ * @throws {Error} If child not found or doesn't belong to parent
+ */
+const getChildProfileWithStats = async (childId, parentId) => {
+  const ChildStats = require('../models/ChildStats');
+  const Badge = require('../models/Badge');
+
+  const child = await ChildProfile.findOne({
+    _id: childId,
+    parent: parentId,
+  })
+    .populate('currentJourney', 'title description order')
+    .populate('currentLesson', 'title description order')
+    .lean();
+
+  if (!child) {
+    throw new Error('Child profile not found or does not belong to you');
+  }
+
+  // Get stats with badges populated
+  const stats = await ChildStats.findOne({ child: childId })
+    .populate('badges', 'name description category rarity order createdAt')
+    .lean();
+
+  const childStats = stats || {
+    totalStars: 0,
+    currentStreak: 0,
+    longestStreak: 0,
+    totalBadges: 0,
+    badges: [],
+    totalActivitiesCompleted: 0,
+    totalVideosWatched: 0,
+    totalBooksRead: 0,
+    totalAudioAssignmentsCompleted: 0,
+    totalLessonsCompleted: 0,
+    totalJourneysCompleted: 0,
+  };
+
+  // Calculate level and next level info
+  let currentLevel = 'New Learner';
+  let nextLevelInfo = { level: 'First Star', starsNeeded: 1 };
+
+  if (stats) {
+    const statsDoc = await ChildStats.findById(stats._id);
+    if (statsDoc) {
+      currentLevel = statsDoc.calculateLevel();
+      nextLevelInfo = statsDoc.getNextLevel();
+    }
+  } else {
+    // No stats yet, default to first level
+    nextLevelInfo = { level: 'First Star', starsNeeded: 1 };
+  }
+
+  return {
+    ...child,
+    stats: {
+      ...childStats,
+      level: currentLevel,
+      nextLevel: nextLevelInfo.level,
+      starsNeededForNextLevel: nextLevelInfo.starsNeeded,
+    },
+  };
+};
+
 module.exports = {
   getAllChildren,
   getChildById,
@@ -437,5 +508,6 @@ module.exports = {
   deleteChild,
   restoreChild,
   assignDefaultCourses,
+  getChildProfileWithStats,
 };
 

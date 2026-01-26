@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppBar, Box, Toolbar, IconButton, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useNavigate } from 'react-router-dom';
 import StarIcon from '@mui/icons-material/Star';
 import CloudIcon from '@mui/icons-material/Cloud';
 import smallLogo from '../../assets/images/small-logo.png';
@@ -14,6 +15,7 @@ import { themeColors } from '../../config/themeColors';
  */
 const ChildHeader = ({ childId }) => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [totalStars, setTotalStars] = React.useState(0);
 
   // Get total stars from child profile stats
@@ -59,8 +61,10 @@ const ChildHeader = ({ childId }) => {
   }, [getTotalStars]);
 
   const handlePointsClick = () => {
-    // TODO: Implement points view functionality
-    console.log('Points clicked');
+    // Navigate to child profile page
+    if (childId) {
+      navigate(`/child/${childId}/profile`);
+    }
   };
 
   const handleCloudClick = () => {

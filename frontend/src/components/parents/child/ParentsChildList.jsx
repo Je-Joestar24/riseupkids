@@ -32,6 +32,7 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: `0 4px 12px ${borderColor}40`,
+                backgroundColor: '#fdd5c4',
               },
             }}
           >
@@ -48,7 +49,7 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
                   justifyContent: 'center',
                   background: child.avatar 
                     ? `url(${child.avatar}) center/cover`
-                    : `linear-gradient(135deg, ${index % 2 === 0 ? '#62caca' : '#e98a68'} 0%, ${index % 2 === 0 ? '#85c2b9' : '#f2af10'} 100%)`,
+                    : `linear-gradient(135deg, ${index % 2 === 0 ? 'rgb(98, 202, 202)' : 'rgb(233, 138, 104)'} 0%, ${index % 2 === 0 ? 'rgb(98, 202, 202)' : 'rgb(233, 138, 104)'} 100%)`,
                   flexShrink: 0,
                   position: 'relative',
                   boxShadow: `0 4px 12px ${borderColor}40`,
