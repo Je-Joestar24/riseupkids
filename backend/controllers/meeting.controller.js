@@ -72,6 +72,44 @@ const getAllMeetings = async (req, res) => {
 };
 
 /**
+ * @desc    Get upcoming meetings for children/parents (read-only)
+ * @route   GET /api/meetings/upcoming
+ * @access  Private (Parent/Child/Teacher/Admin)
+ * @query   limit - Number of upcoming meetings to return (default: 5)
+ */
+const getUpcomingMeetings = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query;
+    const now = new Date();
+
+    // Build filters for upcoming meetings
+    const filters = {
+      status: 'scheduled',
+      isArchived: false,
+      startDate: now.toISOString(), // Only future meetings
+      page: 1,
+      limit: parseInt(limit, 10) || 5,
+      sortBy: 'startTime',
+      sortOrder: 'asc', // Earliest first
+    };
+
+    const result = await meetingService.getAllMeetings(filters);
+
+    res.status(200).json({
+      success: true,
+      message: 'Upcoming meetings retrieved successfully',
+      data: result.meetings,
+    });
+  } catch (error) {
+    console.error('[Meeting] Error fetching upcoming meetings:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch upcoming meetings',
+    });
+  }
+};
+
+/**
  * @desc    Get meeting by ID
  * @route   GET /api/meetings/:id
  * @access  Private (Teacher/Admin only)
@@ -329,6 +367,7 @@ const deleteMeeting = async (req, res) => {
 
 module.exports = {
   getAllMeetings,
+  getUpcomingMeetings,
   getMeetingById,
   updateMeeting,
   archiveMeeting,

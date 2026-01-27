@@ -29,6 +29,8 @@ import {
   PlayCircleOutlined,
   WallpaperOutlined,
   AudiotrackOutlined,
+  MeetingRoomOutlined,
+  VideocamOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -62,11 +64,14 @@ const AdminSidebar = () => {
         { text: 'Explore', icon: <PlayCircleOutlined />, path: '/admin/courses/explore' },
       ],
     },/* 
-    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */    { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
-/*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
-    { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
-    { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
-    { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'} */
+    { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
+    { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },
+    { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
+    { text: 'Live Classes', icon: <VideocamOutlined />, path: '/admin/meetings' },
+    /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
+        { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
+        { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
+        { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'} */
   ];
 
   const handleNavigation = (path) => {
@@ -143,13 +148,13 @@ const AdminSidebar = () => {
       >
         <List sx={{ padding: 0 }}>
           {menuItems.map((item, index) => {
-            const isActive = location.pathname === item.path || 
+            const isActive = location.pathname === item.path ||
               (item.subItems && item.subItems.some(sub => location.pathname === sub.path));
             const hasSubItems = item.subItems && item.subItems.length > 0;
-            
+
             return (
               <React.Fragment key={item.text}>
-                <ListItem 
+                <ListItem
                   disablePadding
                   sx={{ marginBottom: 0.5 }}
                 >
@@ -182,8 +187,8 @@ const AdminSidebar = () => {
                     <ListItemIcon
                       sx={{
                         minWidth: 44,
-                        color: isActive 
-                          ? theme.palette.textCustom.inverse 
+                        color: isActive
+                          ? theme.palette.textCustom.inverse
                           : theme.palette.text.secondary,
                       }}
                     >

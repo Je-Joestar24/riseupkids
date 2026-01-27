@@ -16,6 +16,7 @@ import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
 import AdminKidsWall from '../pages/admin/AdminKidsWall';
 import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
+import AdminMeetings from '../pages/admin/AdminMeetings';
 import AdminLayout from '../layouts/AdminLayout';
 import TeacherLayout from '../layouts/TeacherLayout';
 import TeacherDashboard from '../pages/teacher/TeacherDashboard';
@@ -284,6 +285,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <AdminLayout>
                 <AdminCheckingAudio />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/meetings"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminMeetings />
               </AdminLayout>
             </AuthedAccess>
           }

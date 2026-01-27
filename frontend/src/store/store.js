@@ -10,6 +10,7 @@ import courseReducer from './slices/courseSlice';
 import kidsWallReducer from './slices/kidsWallSlice';
 import exploreReducer from './slices/exploreSlice';
 import teacherReducer from './slices/teacherSlice';
+import meetingReducer from './slices/meetingSlice';
 
 export const store = configureStore({
   reducer: {
@@ -24,6 +25,7 @@ export const store = configureStore({
     course: courseReducer, // Course/Content Collection management
     kidsWall: kidsWallReducer, // KidsWall posts management
     explore: exploreReducer, // Explore content management
+    meeting: meetingReducer, // Meeting management
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

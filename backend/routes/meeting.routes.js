@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllMeetings,
+  getUpcomingMeetings,
   getMeetingById,
   updateMeeting,
   archiveMeeting,
@@ -19,7 +20,10 @@ const { protect, authorize } = require('../middleware/auth');
  * All routes require authentication and teacher/admin role
  */
 
-// Get all meetings with filters and pagination
+// Get upcoming meetings (for children/parents - read-only)
+router.get('/upcoming', protect, authorize('parent', 'child', 'teacher', 'admin'), getUpcomingMeetings);
+
+// Get all meetings with filters and pagination (teacher/admin only)
 router.get('/', protect, authorize('teacher', 'admin'), getAllMeetings);
 
 // Get meeting by ID
