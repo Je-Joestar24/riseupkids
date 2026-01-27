@@ -25,6 +25,7 @@ const CourseProgress = require('./CourseProgress');
 const VideoWatch = require('./VideoWatch');
 const ContactSupport = require('./ContactSupport');
 const GoogleIntegration = require('./GoogleIntegration');
+const Meeting = require('./Meeting');
 
 module.exports = {
   User,
@@ -53,5 +54,6 @@ module.exports = {
   VideoWatch,
   ContactSupport,
   GoogleIntegration,
+  Meeting,
 };
 

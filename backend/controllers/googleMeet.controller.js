@@ -57,10 +57,15 @@ const handleOAuthCallback = async (req, res) => {
 
     const { integration, returnTo } = await googleOAuth.exchangeCodeForTokens(code, state);
 
-    // Redirect to frontend success page
+    // Redirect back to the original page (or success page if returnTo is not set)
     const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
-    const successPath = returnTo.startsWith('/') ? returnTo : `/${returnTo}`;
-    res.redirect(`${frontendUrl}/integrations/google/success?email=${encodeURIComponent(integration.connectedEmail || '')}`);
+    const redirectPath = returnTo && returnTo !== '/' 
+      ? returnTo 
+      : '/admin/meetings'; // Default to meetings page if no returnTo specified
+    
+    // Add success query params to show success message
+    const redirectUrl = `${frontendUrl}${redirectPath}?success=true&email=${encodeURIComponent(integration.connectedEmail || '')}`;
+    res.redirect(redirectUrl);
   } catch (error) {
     console.error('[GoogleMeet] OAuth callback error:', error);
     const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
@@ -79,11 +84,15 @@ const getConnectionStatus = async (req, res) => {
   try {
     const userId = req.user._id.toString();
     const status = await googleOAuth.getUserIntegration(userId);
+    const oAuthEnabled = process.env.USE_GOOGLE_OAUTH !== 'false';
 
     res.status(200).json({
       success: true,
       message: 'Connection status retrieved successfully',
-      data: status,
+      data: {
+        ...status,
+        oAuthEnabled, // Include OAuth enabled status
+      },
     });
   } catch (error) {
     console.error('[GoogleMeet] Error getting connection status:', error);
@@ -122,6 +131,8 @@ const disconnectGoogle = async (req, res) => {
  * @route   POST /api/google/meetings
  * @access  Private (Teacher/Admin only)
  * @body    { summary, description?, startTime, endTime, timeZone, attendees?[] }
+ * 
+ * If OAuth is enabled and user not connected, returns special error to trigger OAuth flow
  */
 const createMeeting = async (req, res) => {
   try {
@@ -147,17 +158,31 @@ const createMeeting = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Meeting created successfully',
+      message: meeting.isMock 
+        ? 'Test meeting created (OAuth disabled)' 
+        : 'Meeting created successfully',
       data: meeting,
     });
   } catch (error) {
     console.error('[GoogleMeet] Error creating meeting:', error);
+
+    // Special error code: OAuth required but not connected
+    if (error.message === 'GOOGLE_OAUTH_REQUIRED') {
+      return res.status(401).json({
+        success: false,
+        message: 'Google account connection required',
+        code: 'OAUTH_REQUIRED',
+        requiresOAuth: true,
+      });
+    }
 
     // Check if it's a connection error
     if (error.message.includes('not connected') || error.message.includes('refresh')) {
       return res.status(401).json({
         success: false,
         message: 'Google account not connected or token expired. Please reconnect your Google account.',
+        code: 'OAUTH_REQUIRED',
+        requiresOAuth: true,
       });
     }
 

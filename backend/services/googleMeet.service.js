@@ -1,12 +1,63 @@
 const { google } = require('googleapis');
 const googleOAuth = require('./googleOAuth.service');
+const meetingService = require('./meeting.service');
 
 /**
  * Google Meet Service
  * 
  * Handles Google Calendar API operations for creating/managing meetings
- * Requires authenticated Google account (OAuth)
+ * Requires authenticated Google account (OAuth) unless USE_GOOGLE_OAUTH=false
  */
+
+/**
+ * Check if OAuth is enabled
+ * @returns {Boolean}
+ */
+const isOAuthEnabled = () => {
+  return process.env.USE_GOOGLE_OAUTH !== 'false';
+};
+
+/**
+ * Generate a valid-looking Google Meet link format (for testing)
+ * Google Meet links follow pattern: abc-defg-hij (3 groups, lowercase alphanumeric)
+ * Note: This is a mock link and won't actually work - it's for testing UI only
+ */
+const generateMockMeetCode = () => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const generateGroup = (length) => {
+    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  };
+  // Format: abc-defg-hij (3-4-3 pattern, common for Meet links)
+  return `${generateGroup(3)}-${generateGroup(4)}-${generateGroup(3)}`;
+};
+
+/**
+ * Create a mock/test meeting (when OAuth is disabled)
+ * @param {Object} meetingData - Meeting details
+ * @returns {Object} Mock meeting details
+ */
+const createMockMeeting = (meetingData) => {
+  const { summary, description, startTime, endTime, timeZone } = meetingData;
+  
+  // Generate a mock event ID and Meet code
+  const mockEventId = `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const mockMeetCode = generateMockMeetCode();
+  // Generate a valid-looking Meet link format (but it's still a mock - won't work)
+  const mockMeetLink = `https://meet.google.com/${mockMeetCode}`;
+  
+  return {
+    eventId: mockEventId,
+    meetLink: mockMeetLink,
+    meetCode: mockMeetCode, // Store the code separately for display
+    calendarLink: `https://calendar.google.com/event?eid=${mockEventId}`,
+    startTime,
+    endTime,
+    timeZone,
+    summary,
+    description: description || '',
+    isMock: true, // Flag to indicate this is a test/mock meeting
+  };
+};
 
 /**
  * Create a Google Meet meeting
@@ -19,7 +70,7 @@ const googleOAuth = require('./googleOAuth.service');
  * @param {String} meetingData.timeZone - Timezone (e.g., 'America/New_York')
  * @param {Array<String>} meetingData.attendees - Email addresses (optional)
  * @returns {Object} Meeting details with Meet link
- * @throws {Error} If creation fails
+ * @throws {Error} If creation fails or OAuth required but not connected
  */
 const createMeeting = async (userId, meetingData) => {
   const { summary, description, startTime, endTime, timeZone, attendees = [] } = meetingData;
@@ -27,6 +78,18 @@ const createMeeting = async (userId, meetingData) => {
   // Validate required fields
   if (!summary || !startTime || !endTime || !timeZone) {
     throw new Error('Missing required fields: summary, startTime, endTime, timeZone');
+  }
+
+  // If OAuth is disabled, return mock meeting
+  if (!isOAuthEnabled()) {
+    console.log('[GoogleMeet] OAuth disabled - creating mock meeting for testing');
+    return createMockMeeting(meetingData);
+  }
+
+  // Check if user has Google integration
+  const integration = await googleOAuth.getUserIntegration(userId);
+  if (!integration.connected) {
+    throw new Error('GOOGLE_OAUTH_REQUIRED'); // Special error code for frontend to trigger OAuth
   }
 
   // Get authenticated client
@@ -100,7 +163,7 @@ const createMeeting = async (userId, meetingData) => {
       throw new Error('Failed to create Google Meet link');
     }
 
-    return {
+    const meetingResult = {
       eventId: createdEvent.id,
       meetLink,
       calendarLink: createdEvent.htmlLink,
@@ -110,6 +173,30 @@ const createMeeting = async (userId, meetingData) => {
       summary: createdEvent.summary,
       description: createdEvent.description,
     };
+
+    // Save meeting to database
+    try {
+      await meetingService.createMeeting(userId, {
+        googleEventId: createdEvent.id,
+        meetLink,
+        calendarLink: createdEvent.htmlLink,
+        title: createdEvent.summary,
+        description: createdEvent.description || '',
+        startTime: createdEvent.start.dateTime || createdEvent.start.date,
+        endTime: createdEvent.end.dateTime || createdEvent.end.date,
+        timeZone: createdEvent.start.timeZone || timeZone,
+        attendees: createdEvent.attendees?.map((a) => a.email) || [],
+        relatedCourse: meetingData.relatedCourse,
+        relatedLesson: meetingData.relatedLesson,
+        metadata: meetingData.metadata || {},
+      });
+    } catch (dbError) {
+      console.error('[GoogleMeet] Error saving meeting to database:', dbError);
+      // Don't fail the entire operation if DB save fails
+      // The meeting is still created in Google Calendar
+    }
+
+    return meetingResult;
   } catch (error) {
     console.error('[GoogleMeet] Error creating meeting:', error);
     if (error.response) {
@@ -130,6 +217,24 @@ const createMeeting = async (userId, meetingData) => {
  * @throws {Error} If update fails
  */
 const updateMeeting = async (userId, eventId, updates) => {
+  // If OAuth is disabled and it's a mock meeting, return updated mock
+  if (!isOAuthEnabled() && eventId.startsWith('mock-')) {
+    console.log('[GoogleMeet] OAuth disabled - updating mock meeting');
+    const mockMeeting = createMockMeeting({
+      summary: updates.summary || 'Updated Meeting',
+      description: updates.description,
+      startTime: updates.startTime || new Date(),
+      endTime: updates.endTime || new Date(Date.now() + 3600000),
+      timeZone: updates.timeZone || 'UTC',
+    });
+    mockMeeting.eventId = eventId; // Keep original event ID
+    return mockMeeting;
+  }
+
+  if (!isOAuthEnabled()) {
+    throw new Error('Cannot update real meetings when OAuth is disabled');
+  }
+
   const auth = await googleOAuth.getAuthenticatedClient(userId);
   const calendar = google.calendar({ version: 'v3', auth });
 
@@ -217,7 +322,7 @@ const updateMeeting = async (userId, eventId, updates) => {
       }
     }
 
-    return {
+    const meetingResult = {
       eventId: updated.id,
       meetLink,
       calendarLink: updated.htmlLink,
@@ -227,6 +332,25 @@ const updateMeeting = async (userId, eventId, updates) => {
       summary: updated.summary,
       description: updated.description,
     };
+
+    // Update meeting in database
+    try {
+      const dbMeeting = await meetingService.getMeetingByGoogleEventId(eventId);
+      await meetingService.updateMeeting(dbMeeting._id.toString(), {
+        title: updated.summary,
+        description: updated.description || '',
+        startTime: updated.start.dateTime || updated.start.date,
+        endTime: updated.end.dateTime || updated.end.date,
+        timeZone: updated.start.timeZone,
+        attendees: updated.attendees?.map((a) => a.email) || [],
+        calendarLink: updated.htmlLink,
+      });
+    } catch (dbError) {
+      console.error('[GoogleMeet] Error updating meeting in database:', dbError);
+      // Don't fail the entire operation if DB update fails
+    }
+
+    return meetingResult;
   } catch (error) {
     console.error('[GoogleMeet] Error updating meeting:', error);
     if (error.response) {
@@ -246,6 +370,16 @@ const updateMeeting = async (userId, eventId, updates) => {
  * @throws {Error} If cancellation fails
  */
 const cancelMeeting = async (userId, eventId) => {
+  // If OAuth is disabled and it's a mock meeting, just return success
+  if (!isOAuthEnabled() && eventId.startsWith('mock-')) {
+    console.log('[GoogleMeet] OAuth disabled - cancelling mock meeting');
+    return true;
+  }
+
+  if (!isOAuthEnabled()) {
+    throw new Error('Cannot cancel real meetings when OAuth is disabled');
+  }
+
   const auth = await googleOAuth.getAuthenticatedClient(userId);
   const calendar = google.calendar({ version: 'v3', auth });
 
@@ -254,6 +388,15 @@ const cancelMeeting = async (userId, eventId) => {
       calendarId: 'primary',
       eventId,
     });
+
+    // Update meeting status in database
+    try {
+      const dbMeeting = await meetingService.getMeetingByGoogleEventId(eventId);
+      await meetingService.cancelMeeting(dbMeeting._id.toString());
+    } catch (dbError) {
+      console.error('[GoogleMeet] Error updating meeting status in database:', dbError);
+      // Don't fail the entire operation if DB update fails
+    }
 
     return true;
   } catch (error) {
@@ -278,6 +421,22 @@ const cancelMeeting = async (userId, eventId) => {
  * @throws {Error} If fetch fails
  */
 const getMeeting = async (userId, eventId) => {
+  // If OAuth is disabled and it's a mock meeting, return mock data
+  if (!isOAuthEnabled() && eventId.startsWith('mock-')) {
+    console.log('[GoogleMeet] OAuth disabled - returning mock meeting');
+    return createMockMeeting({
+      summary: 'Test Meeting',
+      description: 'This is a test meeting (OAuth disabled)',
+      startTime: new Date(),
+      endTime: new Date(Date.now() + 3600000),
+      timeZone: 'UTC',
+    });
+  }
+
+  if (!isOAuthEnabled()) {
+    throw new Error('Cannot fetch real meetings when OAuth is disabled');
+  }
+
   const auth = await googleOAuth.getAuthenticatedClient(userId);
   const calendar = google.calendar({ version: 'v3', auth });
 
@@ -331,4 +490,5 @@ module.exports = {
   updateMeeting,
   cancelMeeting,
   getMeeting,
+  isOAuthEnabled,
 };
