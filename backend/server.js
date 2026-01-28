@@ -35,6 +35,7 @@ const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 const badgeRoutes = require('./routes/badge.routes');
 const googleMeetRoutes = require('./routes/googleMeet.routes');
 const meetingRoutes = require('./routes/meeting.routes');
+const youtubeLiveRoutes = require('./routes/youtubeLive.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -105,6 +106,7 @@ app.use('/api/contact-support', contactSupportRoutes);
 app.use('/api/badges', badgeRoutes);
 app.use('/api/google', googleMeetRoutes);
 app.use('/api/meetings', meetingRoutes);
+app.use('/api/youtube', youtubeLiveRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 
