@@ -45,8 +45,20 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // Middleware
-app.use(cors());
-app.use(morgan('dev'));
+// CORS configuration - use environment variable or allow all in development
+const corsOptions = {
+  origin: (() => {
+    if (process.env.CORS_ORIGIN) {
+      // Support comma-separated origins
+      return process.env.CORS_ORIGIN.split(',').map(origin => origin.trim());
+    }
+    // In production, require CORS_ORIGIN to be set; in development, allow all
+    return process.env.NODE_ENV === 'production' ? false : true;
+  })(),
+  credentials: true,
+};
+app.use(cors(corsOptions));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Stripe webhook route needs raw body BEFORE express.json()
 // This must be before other routes that use express.json()
@@ -165,7 +177,7 @@ const startServer = async () => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`API endpoint: http://localhost:${PORT}/api`);
+    console.log(`API endpoint: http://0.0.0.0:${PORT}/api`);
   });
 };
 
