@@ -1,31 +1,39 @@
 import React from 'react';
-import { Box, Typography, Paper, Stack, Button, Chip } from '@mui/material';
+import { Box, Typography, Paper, Stack, Button, Chip, Alert } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Add as AddIcon, Link as LinkIcon, LinkOff as LinkOffIcon } from '@mui/icons-material';
-import useMeetings from '../../../hooks/meetingHooks';
+import { useSelector } from 'react-redux';
+import useYouTubeLive from '../../../hooks/youtubeHook';
 
 /**
- * MeetingsHeader Component
+ * YoutubeHeader Component
  *
- * Header section for Meetings management page
- * Shows title, Google connection status, and create meeting button
+ * Header section for YouTube Live management page
+ * Shows title, YouTube connection status, and create stream button
  */
-const MeetingsHeader = ({ onCreateClick }) => {
+const YoutubeHeader = ({ onCreateClick }) => {
   const theme = useTheme();
-  const { connectionStatus, initiateOAuth, disconnectGoogle, loading } = useMeetings();
+  const user = useSelector((state) => state.user?.user || state.auth?.user);
+  const isAdmin = user?.role === 'admin';
+  const {
+    connectionStatus,
+    getAuthUrl,
+    disconnectYouTube,
+    streamLoading,
+  } = useYouTubeLive();
 
   const handleConnect = async () => {
     try {
-      await initiateOAuth();
+      await getAuthUrl();
     } catch (error) {
       console.error('Failed to initiate OAuth:', error);
     }
   };
 
   const handleDisconnect = async () => {
-    if (window.confirm('Are you sure you want to disconnect your Google account?')) {
+    if (window.confirm('Are you sure you want to disconnect your YouTube account?')) {
       try {
-        await disconnectGoogle();
+        await disconnectYouTube();
       } catch (error) {
         console.error('Failed to disconnect:', error);
       }
@@ -56,7 +64,7 @@ const MeetingsHeader = ({ onCreateClick }) => {
                 color: theme.palette.text.primary,
               }}
             >
-              Meetings
+              YouTube Live Classes
             </Typography>
             <Typography
               variant="body1"
@@ -67,7 +75,7 @@ const MeetingsHeader = ({ onCreateClick }) => {
                 marginTop: 1,
               }}
             >
-              Manage and track your scheduled meetings
+              Create and manage live streaming sessions for your classes
             </Typography>
           </Box>
           {onCreateClick && (
@@ -75,8 +83,8 @@ const MeetingsHeader = ({ onCreateClick }) => {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={onCreateClick}
-              disabled={loading}
-              aria-label="Create meeting"
+              disabled={streamLoading || !connectionStatus.connected}
+              aria-label="Create live stream"
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 600,
@@ -95,48 +103,51 @@ const MeetingsHeader = ({ onCreateClick }) => {
                 },
               }}
             >
-              Create Meeting
+              Start Live Class
             </Button>
           )}
         </Box>
 
         {/* Connection Status */}
-        {connectionStatus?.oAuthEnabled && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 2,
-              padding: 2,
-              borderRadius: '8px',
-              backgroundColor: theme.palette.background.default,
-            }}
-          >
-            {connectionStatus.loading ? (
-              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontFamily: 'Quicksand, sans-serif' }}>
-                Checking connection status...
-              </Typography>
-            ) : (
-              <>
-                <Chip
-                  icon={connectionStatus?.connected ? <LinkIcon /> : <LinkOffIcon />}
-                  label={
-                    connectionStatus?.connected
-                      ? `Connected: ${connectionStatus?.connectedEmail || 'Google Account'}`
-                      : 'Not Connected'
-                  }
-                  color={connectionStatus?.connected ? 'success' : 'warning'}
-                  variant="outlined"
-                  sx={{
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 600,
-                  }}
-                />
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            padding: 2,
+            borderRadius: '8px',
+            backgroundColor: theme.palette.background.default,
+          }}
+        >
+          {connectionStatus.loading ? (
+            <Typography
+              variant="body2"
+              sx={{ color: theme.palette.text.secondary, fontFamily: 'Quicksand, sans-serif' }}
+            >
+              Checking connection status...
+            </Typography>
+          ) : (
+            <>
+              <Chip
+                icon={connectionStatus.connected ? <LinkIcon /> : <LinkOffIcon />}
+                label={
+                  connectionStatus.connected
+                    ? `Connected: ${connectionStatus.connectedEmail || 'YouTube Account'}`
+                    : 'Not Connected'
+                }
+                color={connectionStatus.connected ? 'success' : 'warning'}
+                variant="outlined"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                }}
+              />
+              {isAdmin && (
                 <Button
-                  variant={connectionStatus?.connected ? 'outlined' : 'contained'}
+                  variant={connectionStatus.connected ? 'outlined' : 'contained'}
                   size="small"
-                  onClick={connectionStatus?.connected ? handleDisconnect : handleConnect}
-                  disabled={loading}
+                  onClick={connectionStatus.connected ? handleDisconnect : handleConnect}
+                  disabled={streamLoading}
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
                     fontWeight: 600,
@@ -145,15 +156,20 @@ const MeetingsHeader = ({ onCreateClick }) => {
                     borderRadius: '6px',
                   }}
                 >
-                  {connectionStatus?.connected ? 'Disconnect' : 'Connect Google'}
+                  {connectionStatus.connected ? 'Disconnect' : 'Connect YouTube'}
                 </Button>
-              </>
-            )}
-          </Box>
-        )}
+              )}
+              {!isAdmin && !connectionStatus.connected && (
+                <Alert severity="info" sx={{ fontFamily: 'Quicksand, sans-serif', fontSize: '0.75rem' }}>
+                  Please ask an admin to connect the YouTube account
+                </Alert>
+              )}
+            </>
+          )}
+        </Box>
       </Stack>
     </Paper>
   );
 };
 
-export default MeetingsHeader;
+export default YoutubeHeader;

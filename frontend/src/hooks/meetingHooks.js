@@ -250,6 +250,19 @@ export const useMeetings = () => {
   }, [initiateOAuth, fetchMeetings]);
 
   /**
+   * Create a manual meeting (title, description, link only - no Google OAuth)
+   * Use when Google account cannot be connected.
+   */
+  const createManualMeeting = useCallback(async (data) => {
+    const response = await meetingService.createManualMeeting(data);
+    if (response.success) {
+      await fetchMeetings();
+      return response.data;
+    }
+    throw new Error(response.message || 'Failed to create meeting');
+  }, [fetchMeetings]);
+
+  /**
    * Fetch upcoming meetings (for children/parents)
    * @param {Number} limit - Number of meetings to fetch (default: 5)
    */
@@ -301,6 +314,7 @@ export const useMeetings = () => {
     initiateOAuth,
     disconnectGoogle,
     createGoogleMeeting,
+    createManualMeeting,
     
     // Upcoming Meetings (for children/parents)
     fetchUpcomingMeetings,

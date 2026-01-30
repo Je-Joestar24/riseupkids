@@ -117,9 +117,9 @@ const MeetingFilters = () => {
               <MenuItem value="scheduled" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                 Scheduled
               </MenuItem>
-              <MenuItem value="completed" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+{/*               <MenuItem value="completed" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                 Completed
-              </MenuItem>
+              </MenuItem> */}
               <MenuItem value="cancelled" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                 Cancelled
               </MenuItem>

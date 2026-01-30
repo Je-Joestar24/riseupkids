@@ -70,6 +70,21 @@ const meetingService = {
       throw error.response?.data || error.message;
     }
   },
+
+  /**
+   * Create a manual meeting (title, description, link only - no Google OAuth)
+   * Use when Google account cannot be connected.
+   * @param {Object} data - { title, description?, meetLink }
+   * @returns {Promise} API response with meeting data
+   */
+  createManualMeeting: async (data) => {
+    try {
+      const response = await api.post('/meetings/manual', data);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
   /**
    * Get all meetings with filters and pagination
    * @param {Object} params - Query parameters

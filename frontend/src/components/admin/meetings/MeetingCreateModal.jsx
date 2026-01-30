@@ -11,19 +11,28 @@ import {
   IconButton,
   Alert,
   CircularProgress,
+  ToggleButtonGroup,
+  ToggleButton,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, Link as LinkIcon, VideoCall as VideoCallIcon } from '@mui/icons-material';
 import useMeetings from '../../../hooks/meetingHooks';
+
+const CREATE_MODE_GOOGLE = 'google';
+const CREATE_MODE_MANUAL = 'manual';
 
 /**
  * MeetingCreateModal Component
- * 
- * Modal for creating a new Google Meet meeting
+ *
+ * Modal for creating a new meeting:
+ * - With Google: creates Google Meet event (requires OAuth).
+ * - Manual: title, description, and link only (no Google required).
  */
 const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
   const theme = useTheme();
-  const { createGoogleMeeting, connectionStatus, loading } = useMeetings();
+  const { createGoogleMeeting, createManualMeeting, connectionStatus, loading } = useMeetings();
+
+  const [createMode, setCreateMode] = useState(CREATE_MODE_MANUAL);
 
   const [formData, setFormData] = useState({
     summary: '',
@@ -32,6 +41,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
     endTime: '',
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     attendees: '',
+    meetLink: '',
   });
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
@@ -48,64 +58,67 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
     }
   };
 
-  const validateForm = () => {
+  const validateGoogleForm = () => {
     const newErrors = {};
-
-    if (!formData.summary.trim()) {
-      newErrors.summary = 'Meeting title is required';
-    }
-
+    if (!formData.summary.trim()) newErrors.summary = 'Meeting title is required';
     if (!formData.startTime) {
       newErrors.startTime = 'Start time is required';
     } else {
       const start = new Date(formData.startTime);
-      if (isNaN(start.getTime())) {
-        newErrors.startTime = 'Invalid start time';
-      }
+      if (isNaN(start.getTime())) newErrors.startTime = 'Invalid start time';
     }
-
     if (!formData.endTime) {
       newErrors.endTime = 'End time is required';
     } else {
       const end = new Date(formData.endTime);
-      if (isNaN(end.getTime())) {
-        newErrors.endTime = 'Invalid end time';
-      } else if (formData.startTime && new Date(formData.startTime) >= end) {
-        newErrors.endTime = 'End time must be after start time';
-      }
+      if (isNaN(end.getTime())) newErrors.endTime = 'Invalid end time';
+      else if (formData.startTime && new Date(formData.startTime) >= end) newErrors.endTime = 'End time must be after start time';
     }
-
-    if (!formData.timeZone) {
-      newErrors.timeZone = 'Timezone is required';
-    }
-
-    // Validate attendees if provided
+    if (!formData.timeZone) newErrors.timeZone = 'Timezone is required';
     if (formData.attendees) {
-      const emails = formData.attendees.split(',').map((email) => email.trim()).filter(Boolean);
+      const emails = formData.attendees.split(',').map((e) => e.trim()).filter(Boolean);
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const invalidEmails = emails.filter((email) => !emailRegex.test(email));
-      if (invalidEmails.length > 0) {
-        newErrors.attendees = 'One or more email addresses are invalid';
-      }
+      if (emails.some((email) => !emailRegex.test(email))) newErrors.attendees = 'One or more email addresses are invalid';
     }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
+  const validateManualForm = () => {
+    const newErrors = {};
+    if (!formData.summary.trim()) newErrors.summary = 'Title is required';
+    if (!formData.meetLink.trim()) newErrors.meetLink = 'Meeting link is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError(null);
 
-    if (!validateForm()) {
+    if (createMode === CREATE_MODE_MANUAL) {
+      if (!validateManualForm()) return;
+      try {
+        const result = await createManualMeeting({
+          title: formData.summary.trim(),
+          description: formData.description?.trim() || '',
+          meetLink: formData.meetLink.trim(),
+        });
+        handleClose();
+        if (onSuccess) onSuccess(result);
+      } catch (err) {
+        console.error('Failed to create manual meeting:', err);
+        setSubmitError(err.message || 'Failed to create meeting. Please try again.');
+      }
       return;
     }
 
+    if (!validateGoogleForm()) return;
+
     try {
-      setSubmitError(null);
       const attendees = formData.attendees
         ? formData.attendees.split(',').map((email) => email.trim()).filter(Boolean)
         : [];
-
       const meetingData = {
         summary: formData.summary,
         description: formData.description || undefined,
@@ -116,13 +129,9 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
       };
 
       const result = await createGoogleMeeting(meetingData);
-      
-      // If OAuth is required, the hook will handle redirect
       if (result && !result.requiresOAuth) {
         handleClose();
-        if (onSuccess) {
-          onSuccess(result);
-        }
+        if (onSuccess) onSuccess(result);
       }
     } catch (err) {
       console.error('Failed to create meeting:', err);
@@ -131,6 +140,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
   };
 
   const handleClose = () => {
+    setCreateMode(CREATE_MODE_MANUAL);
     setFormData({
       summary: '',
       description: '',
@@ -138,6 +148,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
       endTime: '',
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       attendees: '',
+      meetLink: '',
     });
     setErrors({});
     setSubmitError(null);
@@ -189,16 +200,36 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
             </Alert>
           )}
 
-          {!connectionStatus.connected && connectionStatus.oAuthEnabled && (
+          {createMode === CREATE_MODE_GOOGLE && !connectionStatus?.connected && connectionStatus?.oAuthEnabled && (
             <Alert severity="warning" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-              Please connect your Google account to create meetings.
+              Connect your Google account to create Google Meet meetings, or use &quot;Add link manually&quot; below.
             </Alert>
           )}
+
+          <ToggleButtonGroup
+            value={createMode}
+            exclusive
+            onChange={(_, value) => value && setCreateMode(value)}
+            sx={{ fontFamily: 'Quicksand, sans-serif' }}
+          >
+            <ToggleButton value={CREATE_MODE_MANUAL} aria-label="Add link manually">
+              <LinkIcon sx={{ mr: 0.5 }} />
+              Add link manually
+            </ToggleButton>
+            <ToggleButton
+              value={CREATE_MODE_GOOGLE}
+              aria-label="Create with Google Meet"
+              disabled={!connectionStatus?.connected}
+            >
+              <VideoCallIcon sx={{ mr: 0.5 }} />
+              Create with Google
+            </ToggleButton>
+          </ToggleButtonGroup>
 
           <form onSubmit={handleSubmit} id="meeting-create-form">
             <Stack spacing={2.5}>
               <TextField
-                label="Meeting Title"
+                label={createMode === CREATE_MODE_MANUAL ? 'Title' : 'Meeting Title'}
                 name="summary"
                 value={formData.summary}
                 onChange={handleInputChange}
@@ -230,77 +261,101 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                 }}
               />
 
-              <TextField
-                label="Start Time"
-                name="startTime"
-                type="datetime-local"
-                value={formData.startTime}
-                onChange={handleInputChange}
-                required
-                fullWidth
-                error={!!errors.startTime}
-                helperText={errors.startTime}
-                InputLabelProps={{
-                  shrink: true,
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-              />
+              {createMode === CREATE_MODE_MANUAL && (
+                <TextField
+                  label="Meeting Link"
+                  name="meetLink"
+                  value={formData.meetLink}
+                  onChange={handleInputChange}
+                  required
+                  fullWidth
+                  placeholder="https://meet.google.com/xxx-xxxx-xxx or any video link"
+                  error={!!errors.meetLink}
+                  helperText={errors.meetLink}
+                  InputProps={{
+                    sx: { fontFamily: 'Quicksand, sans-serif' },
+                  }}
+                  InputLabelProps={{
+                    sx: { fontFamily: 'Quicksand, sans-serif' },
+                  }}
+                />
+              )}
 
-              <TextField
-                label="End Time"
-                name="endTime"
-                type="datetime-local"
-                value={formData.endTime}
-                onChange={handleInputChange}
-                required
-                fullWidth
-                error={!!errors.endTime}
-                helperText={errors.endTime}
-                InputLabelProps={{
-                  shrink: true,
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-              />
+              {createMode === CREATE_MODE_GOOGLE && (
+                <>
+                  <TextField
+                    label="Start Time"
+                    name="startTime"
+                    type="datetime-local"
+                    value={formData.startTime}
+                    onChange={handleInputChange}
+                    required
+                    fullWidth
+                    error={!!errors.startTime}
+                    helperText={errors.startTime}
+                    InputLabelProps={{
+                      shrink: true,
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                    InputProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                  />
 
-              <TextField
-                label="Timezone"
-                name="timeZone"
-                value={formData.timeZone}
-                onChange={handleInputChange}
-                required
-                fullWidth
-                error={!!errors.timeZone}
-                helperText={errors.timeZone || 'e.g., America/New_York, Europe/London'}
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputLabelProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-              />
+                  <TextField
+                    label="End Time"
+                    name="endTime"
+                    type="datetime-local"
+                    value={formData.endTime}
+                    onChange={handleInputChange}
+                    required
+                    fullWidth
+                    error={!!errors.endTime}
+                    helperText={errors.endTime}
+                    InputLabelProps={{
+                      shrink: true,
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                    InputProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                  />
 
-              <TextField
-                label="Attendees (Optional)"
-                name="attendees"
-                value={formData.attendees}
-                onChange={handleInputChange}
-                fullWidth
-                placeholder="email1@example.com, email2@example.com"
-                helperText={errors.attendees || 'Comma-separated email addresses'}
-                error={!!errors.attendees}
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputLabelProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-              />
+                  <TextField
+                    label="Timezone"
+                    name="timeZone"
+                    value={formData.timeZone}
+                    onChange={handleInputChange}
+                    required
+                    fullWidth
+                    error={!!errors.timeZone}
+                    helperText={errors.timeZone || 'e.g., America/New_York, Europe/London'}
+                    InputProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                    InputLabelProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                  />
+
+                  <TextField
+                    label="Attendees (Optional)"
+                    name="attendees"
+                    value={formData.attendees}
+                    onChange={handleInputChange}
+                    fullWidth
+                    placeholder="email1@example.com, email2@example.com"
+                    helperText={errors.attendees || 'Comma-separated email addresses'}
+                    error={!!errors.attendees}
+                    InputProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                    InputLabelProps={{
+                      sx: { fontFamily: 'Quicksand, sans-serif' },
+                    }}
+                  />
+                </>
+              )}
             </Stack>
           </form>
         </Stack>
@@ -328,9 +383,11 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
           disabled={
             loading ||
             !formData.summary ||
-            !formData.startTime ||
-            !formData.endTime ||
-            (!connectionStatus.connected && connectionStatus.oAuthEnabled)
+            (createMode === CREATE_MODE_MANUAL ? !formData.meetLink : (
+              !formData.startTime ||
+              !formData.endTime ||
+              (connectionStatus?.oAuthEnabled && !connectionStatus?.connected)
+            ))
           }
           sx={{
             fontFamily: 'Quicksand, sans-serif',

@@ -13,5 +13,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Ensure proper asset handling
+    assetsDir: 'assets',
+    // Generate source maps for debugging (optional, remove in production)
+    sourcemap: false,
+  },
+  // Preview server for testing production build
+  preview: {
+    port: 3000,
+    open: true,
+  },
 });
 

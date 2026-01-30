@@ -433,7 +433,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                       Scheduled
                     </MenuItem>
                     <MenuItem value="completed" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                      Completed
+                      Done
                     </MenuItem>
                     <MenuItem value="cancelled" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                       Cancelled

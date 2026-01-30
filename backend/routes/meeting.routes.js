@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+  createManualMeeting,
   getAllMeetings,
   getUpcomingMeetings,
   getMeetingById,
@@ -22,6 +23,9 @@ const { protect, authorize } = require('../middleware/auth');
 
 // Get upcoming meetings (for children/parents - read-only)
 router.get('/upcoming', protect, authorize('parent', 'child', 'teacher', 'admin'), getUpcomingMeetings);
+
+// Create manual meeting (title, description, link only - no Google OAuth)
+router.post('/manual', protect, authorize('teacher', 'admin'), createManualMeeting);
 
 // Get all meetings with filters and pagination (teacher/admin only)
 router.get('/', protect, authorize('teacher', 'admin'), getAllMeetings);

@@ -163,11 +163,45 @@ const MeetingList = () => {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
+  /**
+   * "Done" is derived: meeting is done when status is 'completed' OR when end time has passed.
+   * It is not a stored status; stored statuses remain scheduled | completed | cancelled.
+   */
+  const isDoneByTime = (meeting) => {
+    if (!meeting?.endTime) return false;
+    return new Date(meeting.endTime) < new Date();
+  };
+
+  /** Display status: 'scheduled' | 'done' | 'cancelled' (done = completed or end time passed) */
+  const getDisplayStatus = (meeting) => {
+    if (!meeting) return 'scheduled';
+    if (meeting.status === 'cancelled') return 'cancelled';
+    if (meeting.status === 'completed') return 'done';
+    if (meeting.status === 'scheduled' && isDoneByTime(meeting)) return 'done';
+    return 'scheduled';
+  };
+
+  /** Join Meeting and Meet Link only when meeting is still active (scheduled and end time not passed) */
+  const canShowMeetingLink = (meeting) => getDisplayStatus(meeting) === 'scheduled';
+
+  const getStatusDisplayLabel = (displayStatus) => {
+    switch (displayStatus) {
+      case 'scheduled':
+        return 'Scheduled';
+      case 'done':
+        return 'Done';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return displayStatus || '—';
+    }
+  };
+
+  const getStatusColor = (displayStatus) => {
+    switch (displayStatus) {
       case 'scheduled':
         return 'primary';
-      case 'completed':
+      case 'done':
         return 'success';
       case 'cancelled':
         return 'error';
@@ -176,8 +210,8 @@ const MeetingList = () => {
     }
   };
 
-  const getStatusChipSx = (status) => {
-    if (status === 'scheduled') {
+  const getStatusChipSx = (displayStatus) => {
+    if (displayStatus === 'scheduled') {
       return {
         fontFamily: 'Quicksand, sans-serif',
         textTransform: 'capitalize',
@@ -375,14 +409,14 @@ const MeetingList = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={meeting.status}
-                    color={getStatusColor(meeting.status)}
+                    label={getStatusDisplayLabel(getDisplayStatus(meeting))}
+                    color={getStatusColor(getDisplayStatus(meeting))}
                     size="small"
-                    sx={getStatusChipSx(meeting.status)}
+                    sx={getStatusChipSx(getDisplayStatus(meeting))}
                   />
                 </TableCell>
                 <TableCell sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                  {meeting.meetLink ? (
+                  {canShowMeetingLink(meeting) && meeting.meetLink ? (
                     <Stack direction="row" spacing={1} alignItems="center">
                       <Link
                         href={meeting.meetLink}
@@ -450,7 +484,9 @@ const MeetingList = () => {
                         fontStyle: 'italic',
                       }}
                     >
-                      No link
+                      {getDisplayStatus(meeting) === 'cancelled' || getDisplayStatus(meeting) === 'done'
+                        ? '—'
+                        : 'No link'}
                     </Typography>
                   )}
                 </TableCell>

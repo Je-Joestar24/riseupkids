@@ -1,3 +1,5 @@
+
+const mongoose = require('mongoose');
 const Meeting = require('../models/Meeting');
 
 /**
@@ -5,7 +7,46 @@ const Meeting = require('../models/Meeting');
  * 
  * Handles database operations for Google Meet meetings
  * Includes CRUD, filtering, pagination, search, and archive functionality
+ * Supports both Google Meet and manual (title + description + link) meetings
  */
+
+/**
+ * Create a manual meeting (no Google OAuth)
+ * Used when Google account cannot be connected; only title, description, and link are required.
+ * @param {String} userId - User's MongoDB ID
+ * @param {Object} data - { title, description?, meetLink }
+ * @returns {Object} Created meeting
+ */
+const createManualMeeting = async (userId, data) => {
+  const { title, description = '', meetLink } = data;
+
+  if (!title || !title.trim()) {
+    throw new Error('Title is required');
+  }
+  if (!meetLink || !meetLink.trim()) {
+    throw new Error('Meeting link is required');
+  }
+
+  const now = new Date();
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  const manualEventId = `manual_${new mongoose.Types.ObjectId()}`;
+
+  const meeting = await Meeting.create({
+    createdBy: userId,
+    googleEventId: manualEventId,
+    meetLink: meetLink.trim(),
+    title: title.trim(),
+    description: (description || '').trim(),
+    startTime: now,
+    endTime: oneHourLater,
+    timeZone: 'UTC',
+    attendees: [],
+    status: 'scheduled',
+    isArchived: false,
+  });
+
+  return meeting;
+};
 
 /**
  * Create a meeting in database
@@ -117,6 +158,29 @@ const getAllMeetings = async (filters = {}) => {
       pages: Math.ceil(total / limit),
     },
   };
+};
+
+/**
+ * Get upcoming meetings for children/parents (visible until end time)
+ * Shows meetings that have not yet ended (endTime > now), including currently ongoing ones.
+ * @param {Number} limit - Max number of meetings to return (default: 5)
+ * @returns {Array} Meetings sorted by startTime ascending (earliest first)
+ */
+const getUpcomingMeetings = async (limit = 5) => {
+  const now = new Date();
+  const meetings = await Meeting.find({
+    status: 'scheduled',
+    isArchived: false,
+    endTime: { $gt: now },
+  })
+    .populate('createdBy', 'name email role')
+    .populate('relatedCourse', 'title')
+    .populate('relatedLesson', 'title')
+    .sort({ startTime: 1 })
+    .limit(Math.min(parseInt(limit, 10) || 5, 50))
+    .lean();
+
+  return meetings;
 };
 
 /**
@@ -255,7 +319,9 @@ const deleteMeeting = async (meetingId) => {
 
 module.exports = {
   createMeeting,
+  createManualMeeting,
   getAllMeetings,
+  getUpcomingMeetings,
   getMeetingById,
   getMeetingByGoogleEventId,
   updateMeeting,

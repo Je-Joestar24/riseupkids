@@ -101,7 +101,7 @@ const ChildHomeLiveClass = () => {
   // Get instructor name from meeting data
   const getInstructorName = () => {
     if (nextMeeting?.createdBy?.name) {
-      return `with ${nextMeeting.createdBy.name}`;
+      return `with ${nextMeeting?.createdBy?.role === 'admin' ? '' : 'Teacher'} ${nextMeeting.createdBy.name} `;
     }
     return 'Starting soon!';
   };

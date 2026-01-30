@@ -16,8 +16,9 @@ const meetingSchema = new mongoose.Schema(
     },
     googleEventId: {
       type: String,
-      required: [true, 'Google Event ID is required'],
+      required: false,
       unique: true,
+      sparse: true, // Allow multiple null/absent; unique only for present values
       index: true,
     },
     meetLink: {
@@ -39,17 +40,17 @@ const meetingSchema = new mongoose.Schema(
     },
     startTime: {
       type: Date,
-      required: [true, 'Start time is required'],
+      required: false,
       index: true,
     },
     endTime: {
       type: Date,
-      required: [true, 'End time is required'],
+      required: false,
       index: true,
     },
     timeZone: {
       type: String,
-      required: [true, 'Timezone is required'],
+      required: false,
       default: 'UTC',
     },
     attendees: [

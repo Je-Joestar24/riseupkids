@@ -8,6 +8,50 @@ const meetingService = require('../services/meeting.service');
  */
 
 /**
+ * @desc    Create a manual meeting (title, description, link only - no Google OAuth)
+ * @route   POST /api/meetings/manual
+ * @access  Private (Teacher/Admin only)
+ * @body    { title, description?, meetLink }
+ */
+const createManualMeeting = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { title, description, meetLink } = req.body;
+
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title is required',
+      });
+    }
+    if (!meetLink || typeof meetLink !== 'string' || !meetLink.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Meeting link is required',
+      });
+    }
+
+    const meeting = await meetingService.createManualMeeting(userId, {
+      title: title.trim(),
+      description: description == null ? '' : String(description).trim(),
+      meetLink: meetLink.trim(),
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Meeting created successfully',
+      data: meeting,
+    });
+  } catch (error) {
+    console.error('[Meeting] Error creating manual meeting:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to create meeting',
+    });
+  }
+};
+
+/**
  * @desc    Get all meetings with filters and pagination
  * @route   GET /api/meetings
  * @access  Private (Teacher/Admin only)
@@ -80,25 +124,14 @@ const getAllMeetings = async (req, res) => {
 const getUpcomingMeetings = async (req, res) => {
   try {
     const { limit = 5 } = req.query;
-    const now = new Date();
 
-    // Build filters for upcoming meetings
-    const filters = {
-      status: 'scheduled',
-      isArchived: false,
-      startDate: now.toISOString(), // Only future meetings
-      page: 1,
-      limit: parseInt(limit, 10) || 5,
-      sortBy: 'startTime',
-      sortOrder: 'asc', // Earliest first
-    };
-
-    const result = await meetingService.getAllMeetings(filters);
+    // Show meetings that have not yet ended (endTime > now), including currently ongoing
+    const meetings = await meetingService.getUpcomingMeetings(limit);
 
     res.status(200).json({
       success: true,
       message: 'Upcoming meetings retrieved successfully',
-      data: result.meetings,
+      data: meetings,
     });
   } catch (error) {
     console.error('[Meeting] Error fetching upcoming meetings:', error);
@@ -366,6 +399,7 @@ const deleteMeeting = async (req, res) => {
 };
 
 module.exports = {
+  createManualMeeting,
   getAllMeetings,
   getUpcomingMeetings,
   getMeetingById,
