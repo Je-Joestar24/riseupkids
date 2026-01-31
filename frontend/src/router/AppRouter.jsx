@@ -17,6 +17,7 @@ import AdminExplore from '../pages/admin/AdminExplore';
 import AdminKidsWall from '../pages/admin/AdminKidsWall';
 import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
 import AdminMeetings from '../pages/admin/AdminMeetings';
+import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
 import AdminLayout from '../layouts/AdminLayout';
 import TeacherLayout from '../layouts/TeacherLayout';
 import TeacherDashboard from '../pages/teacher/TeacherDashboard';
@@ -300,6 +301,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/admin/youtube-live"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminYoutubeLive />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/admin/*"
           element={
             <AuthedAccess allowedRoles={['admin']}>
@@ -367,6 +378,27 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <TeacherLayout>
                 <AdminCheckingAudio />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        
+        <Route
+          path="/teacher/meetings"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <TeacherLayout>
+                <AdminMeetings />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/youtube-live"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <TeacherLayout>
+                <AdminYoutubeLive />
               </TeacherLayout>
             </AuthedAccess>
           }

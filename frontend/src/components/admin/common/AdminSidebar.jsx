@@ -31,6 +31,7 @@ import {
   AudiotrackOutlined,
   MeetingRoomOutlined,
   VideocamOutlined,
+  LiveTvOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -68,6 +69,7 @@ const AdminSidebar = () => {
     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
     { text: 'Live Classes', icon: <VideocamOutlined />, path: '/admin/meetings' },
+    { text: 'YouTube Live', icon: <LiveTvOutlined />, path: '/admin/youtube-live' },
     /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
         { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
         { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },

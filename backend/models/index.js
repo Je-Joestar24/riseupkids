@@ -26,6 +26,7 @@ const VideoWatch = require('./VideoWatch');
 const ContactSupport = require('./ContactSupport');
 const GoogleIntegration = require('./GoogleIntegration');
 const Meeting = require('./Meeting');
+const YouTubeLive = require('./YouTubeLive');
 
 module.exports = {
   User,
@@ -55,5 +56,6 @@ module.exports = {
   ContactSupport,
   GoogleIntegration,
   Meeting,
+  YouTubeLive,
 };
 

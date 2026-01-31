@@ -1,14 +1,29 @@
 import { useCallback, useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import youtubeService from '../services/youtubeService';
+import {
+  fetchLives,
+  fetchLiveById,
+  archiveLive as archiveLiveAction,
+  deleteLive as deleteLiveAction,
+  setFilters,
+  clearFilters,
+  clearCurrentLive,
+  clearError,
+} from '../store/slices/youtubeSlice';
 
 /**
  * Custom hook for YouTube Live operations
- * 
- * Provides state and actions for YouTube Live stream creation
- * Includes OAuth integration for YouTube account connection
+ *
+ * Provides:
+ * - Connection status and OAuth (create stream, connect/disconnect)
+ * - List/detail/archive/delete via Redux (lives, pagination, currentLive)
  */
 export const useYouTubeLive = () => {
-  // Connection status state
+  const dispatch = useDispatch();
+  const youtubeState = useSelector((state) => state.youtube);
+
+  // Connection status state (not in Redux; local to hook)
   const [connectionStatus, setConnectionStatus] = useState({
     connected: false,
     connectedEmail: null,
@@ -92,10 +107,9 @@ export const useYouTubeLive = () => {
    * @param {Object} streamData - Stream details
    * @param {String} streamData.title - Stream title (required)
    * @param {String} streamData.description - Stream description (optional)
-   * @param {Date|String} streamData.scheduledStartTime - Scheduled start time (optional, ISO string)
-   * @param {String} streamData.privacyStatus - Privacy status: 'public', 'unlisted', 'private'
-   * @param {Boolean} streamData.enableAutoStart - Auto-start when OBS connects (optional)
-   * @param {Boolean} streamData.enableAutoStop - Auto-stop when OBS disconnects (optional)
+   * @param {String} streamData.privacyStatus - Always 'public' (fixed)
+   * @param {Boolean} streamData.enableAutoStart - Always true (fixed)
+   * @param {Boolean} streamData.enableAutoStop - Always true (fixed)
    * @returns {Promise} Stream data or { requiresOAuth: true } if OAuth needed
    */
   const createLiveStream = useCallback(async (streamData) => {
@@ -154,13 +168,79 @@ export const useYouTubeLive = () => {
   }, []);
 
   /**
-   * Reset all stream state
+   * Reset all stream state (create-only)
    */
   const resetStreamState = useCallback(() => {
     setStreamLoading(false);
     setStreamError(null);
     setCreatedStream(null);
   }, []);
+
+  // --- List / detail / archive / delete (Redux) ---
+
+  /**
+   * Fetch lives list with optional params (page, limit, search, isArchived)
+   * @param {Object} params - Override filters for this request
+   */
+  const getLives = useCallback(
+    async (params = {}) => {
+      const merged = { ...youtubeState.filters, ...params };
+      return dispatch(fetchLives(merged));
+    },
+    [dispatch, youtubeState.filters]
+  );
+
+  /**
+   * Fetch one live by LMS id (sets currentLive in Redux)
+   * @param {String} id - LMS document _id
+   */
+  const getLiveById = useCallback(
+    async (id) => {
+      return dispatch(fetchLiveById(id));
+    },
+    [dispatch]
+  );
+
+  /**
+   * Archive a live (creator only)
+   * @param {String} id - LMS document _id
+   */
+  const archiveLive = useCallback(
+    async (id) => {
+      return dispatch(archiveLiveAction(id));
+    },
+    [dispatch]
+  );
+
+  /**
+   * Delete a live from LMS (creator only)
+   * @param {String} id - LMS document _id
+   */
+  const deleteLive = useCallback(
+    async (id) => {
+      return dispatch(deleteLiveAction(id));
+    },
+    [dispatch]
+  );
+
+  const setLiveFilters = useCallback(
+    (filters) => {
+      dispatch(setFilters(filters));
+    },
+    [dispatch]
+  );
+
+  const clearLiveFilters = useCallback(() => {
+    dispatch(clearFilters());
+  }, [dispatch]);
+
+  const clearLiveDetail = useCallback(() => {
+    dispatch(clearCurrentLive());
+  }, [dispatch]);
+
+  const clearLiveError = useCallback(() => {
+    dispatch(clearError());
+  }, [dispatch]);
 
   // Fetch connection status on mount
   useEffect(() => {
@@ -187,10 +267,29 @@ export const useYouTubeLive = () => {
     disconnectYouTube,
     checkConnection,
 
-    // Utility actions
+    // Utility (create flow)
     clearStreamError,
     clearCreatedStream,
     resetStreamState,
+
+    // --- List / detail / archive / delete (Redux) ---
+    lives: youtubeState.lives,
+    currentLive: youtubeState.currentLive,
+    pagination: youtubeState.pagination,
+    filters: youtubeState.filters,
+    listLoading: youtubeState.listLoading,
+    detailLoading: youtubeState.detailLoading,
+    actionLoading: youtubeState.actionLoading,
+    liveError: youtubeState.error,
+
+    getLives,
+    getLiveById,
+    archiveLive,
+    deleteLive,
+    setLiveFilters,
+    clearLiveFilters,
+    clearLiveDetail,
+    clearLiveError,
   };
 };
 

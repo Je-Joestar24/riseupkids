@@ -23,6 +23,8 @@ import {
   PlayCircleOutlined,
   WallpaperOutlined,
   AudiotrackOutlined,
+  VideocamOutlined,
+  LiveTvOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -56,11 +58,13 @@ const TeacherSidebar = () => {
     },/* 
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/teacher/kids-wall' },
-     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/teacher/checking-audio' }
-/*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
-    { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
-    { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
-    { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'} */
+    { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/teacher/checking-audio' },
+    { text: 'Live Classes', icon: <VideocamOutlined />, path: '/teacher/meetings' },
+    { text: 'YouTube Live', icon: <LiveTvOutlined />, path: '/teacher/youtube-live' },
+    /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
+        { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
+        { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
+        { text: 'Support Desk', icon: <HelpOutline/>, path: '/admin/support'} */
   ];
 
   const handleNavigation = (path) => {
@@ -137,13 +141,13 @@ const TeacherSidebar = () => {
       >
         <List sx={{ padding: 0 }}>
           {menuItems.map((item, index) => {
-            const isActive = location.pathname === item.path || 
+            const isActive = location.pathname === item.path ||
               (item.subItems && item.subItems.some(sub => location.pathname === sub.path));
             const hasSubItems = item.subItems && item.subItems.length > 0;
-            
+
             return (
               <React.Fragment key={item.text}>
-                <ListItem 
+                <ListItem
                   disablePadding
                   sx={{ marginBottom: 0.5 }}
                 >
@@ -176,8 +180,8 @@ const TeacherSidebar = () => {
                     <ListItemIcon
                       sx={{
                         minWidth: 44,
-                        color: isActive 
-                          ? theme.palette.textCustom.inverse 
+                        color: isActive
+                          ? theme.palette.textCustom.inverse
                           : theme.palette.text.secondary,
                       }}
                     >

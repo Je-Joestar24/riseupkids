@@ -12,22 +12,20 @@ import {
   Alert,
   CircularProgress,
   Box,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormControlLabel,
-  Checkbox,
   Divider,
   Link,
+  Paper,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   Close as CloseIcon,
   ContentCopy as CopyIcon,
   OpenInNew as OpenInNewIcon,
+  CheckCircle as CheckCircleIcon,
+  InfoOutlined as InfoIcon,
 } from '@mui/icons-material';
 import useYouTubeLive from '../../../hooks/youtubeHook';
+import { themeColors } from '../../../config/themeColors';
 
 /**
  * YoutubeLiveCreateModal Component
@@ -51,10 +49,6 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    scheduledStartTime: '',
-    privacyStatus: 'unlisted',
-    enableAutoStart: false,
-    enableAutoStop: false,
   });
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
@@ -75,15 +69,9 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
 
   const validateForm = () => {
     const newErrors = {};
-
     if (!formData.title.trim()) {
       newErrors.title = 'Stream title is required';
     }
-
-    if (formData.privacyStatus && !['public', 'unlisted', 'private'].includes(formData.privacyStatus)) {
-      newErrors.privacyStatus = 'Invalid privacy status';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -103,10 +91,9 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
       const streamData = {
         title: formData.title,
         description: formData.description || undefined,
-        scheduledStartTime: formData.scheduledStartTime || undefined,
-        privacyStatus: formData.privacyStatus,
-        enableAutoStart: formData.enableAutoStart,
-        enableAutoStop: formData.enableAutoStop,
+        privacyStatus: 'public',
+        enableAutoStart: true,
+        enableAutoStop: true,
       };
 
       const result = await createLiveStream(streamData);
@@ -126,10 +113,6 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
     setFormData({
       title: '',
       description: '',
-      scheduledStartTime: '',
-      privacyStatus: 'unlisted',
-      enableAutoStart: false,
-      enableAutoStop: false,
     });
     setErrors({});
     setSubmitError(null);
@@ -187,7 +170,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
         >
           Create Live Stream
         </Typography>
-        <IconButton onClick={handleClose} size="small">
+        <IconButton onClick={handleClose} size="small" aria-label="Close">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
@@ -212,127 +195,178 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
             </Alert>
           )}
 
-          {/* Show stream info if stream was created */}
+          {/* Success state: stream details + next steps */}
           {createdStream && !createdStream.requiresOAuth && (
-            <Alert
-              severity="success"
-              sx={{ fontFamily: 'Quicksand, sans-serif', marginBottom: 2 }}
-            >
-              <Typography variant="h6" sx={{ fontWeight: 600, marginBottom: 1 }}>
-                Stream Created Successfully!
-              </Typography>
-              <Typography variant="body2" sx={{ marginBottom: 2 }}>
-                Configure OBS with the following details:
-              </Typography>
-              <Stack spacing={2}>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600, marginBottom: 0.5 }}>
-                    Stream URL (RTMP):
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      gap: 1,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <TextField
-                      value={createdStream.rtmpUrl}
-                      fullWidth
-                      size="small"
-                      InputProps={{ readOnly: true }}
-                      sx={{
-                        '& .MuiInputBase-root': {
-                          fontFamily: 'monospace',
-                          fontSize: '0.875rem',
-                        },
-                      }}
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopyToClipboard(createdStream.rtmpUrl)}
-                      sx={{ color: theme.palette.primary.main }}
-                    >
-                      <CopyIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600, marginBottom: 0.5 }}>
-                    Stream Key:
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      gap: 1,
-                      alignItems: 'center',
-                    }}
-                  >
-                    <TextField
-                      value={createdStream.streamKey}
-                      fullWidth
-                      size="small"
-                      type="password"
-                      InputProps={{ readOnly: true }}
-                      sx={{
-                        '& .MuiInputBase-root': {
-                          fontFamily: 'monospace',
-                          fontSize: '0.875rem',
-                        },
-                      }}
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={() => handleCopyToClipboard(createdStream.streamKey)}
-                      sx={{ color: theme.palette.primary.main }}
-                    >
-                      <CopyIcon />
-                    </IconButton>
-                  </Box>
-                </Box>
-                <Divider />
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600, marginBottom: 0.5 }}>
-                    Watch URL:
-                  </Typography>
-                  <Link
-                    href={createdStream.watchUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.5,
-                      fontFamily: 'Quicksand, sans-serif',
-                    }}
-                  >
-                    {createdStream.watchUrl}
-                    <OpenInNewIcon sx={{ fontSize: '1rem' }} />
-                  </Link>
-                </Box>
-                {createdStream.embedUrl && (
+            <Stack spacing={3}>
+              <Alert
+                severity="success"
+                icon={<CheckCircleIcon />}
+                sx={{ fontFamily: 'Quicksand, sans-serif' }}
+              >
+                <Typography variant="subtitle1" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
+                  Stream created successfully
+                </Typography>
+                <Typography variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', marginTop: 0.5 }}>
+                  Copy the details below and follow the steps to start streaming with OBS.
+                </Typography>
+              </Alert>
+
+              {/* Stream details card */}
+              <Paper
+                variant="outlined"
+                sx={{
+                  padding: 2.5,
+                  borderRadius: '12px',
+                  border: `1px solid ${theme.palette.border?.main || themeColors.border}`,
+                  backgroundColor: theme.palette.background?.default || themeColors.bgSecondary,
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 700,
+                    color: theme.palette.text.primary,
+                    marginBottom: 1.5,
+                  }}
+                >
+                  Stream details (use these in OBS)
+                </Typography>
+                <Stack spacing={2}>
                   <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, marginBottom: 0.5 }}>
-                      Embed URL:
+                    <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, color: theme.palette.text.secondary }}>
+                      Stream URL (RTMP) — paste in OBS as &quot;Server&quot;
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', marginTop: 0.5 }}>
+                      <TextField
+                        value={createdStream.rtmpUrl || ''}
+                        fullWidth
+                        size="small"
+                        InputProps={{ readOnly: true }}
+                        sx={{ '& .MuiInputBase-root': { fontFamily: 'monospace', fontSize: '0.875rem' } }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleCopyToClipboard(createdStream.rtmpUrl)}
+                        sx={{ color: theme.palette.orange?.main || themeColors.orange }}
+                        aria-label="Copy RTMP URL"
+                      >
+                        <CopyIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, color: theme.palette.text.secondary }}>
+                      Stream Key — paste in OBS as &quot;Stream Key&quot;
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', marginTop: 0.5 }}>
+                      <TextField
+                        value={createdStream.streamKey || ''}
+                        fullWidth
+                        size="small"
+                        type="password"
+                        InputProps={{ readOnly: true }}
+                        sx={{ '& .MuiInputBase-root': { fontFamily: 'monospace', fontSize: '0.875rem' } }}
+                      />
+                      <IconButton
+                        size="small"
+                        onClick={() => handleCopyToClipboard(createdStream.streamKey)}
+                        sx={{ color: theme.palette.orange?.main || themeColors.orange }}
+                        aria-label="Copy stream key"
+                      >
+                        <CopyIcon />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                  <Divider />
+                  <Box>
+                    <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, color: theme.palette.text.secondary }}>
+                      Watch URL: 
                     </Typography>
                     <Link
-                      href={createdStream.embedUrl}
+                      href={createdStream.watchUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       sx={{
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: 0.5,
                         fontFamily: 'Quicksand, sans-serif',
+                        fontSize: '0.875rem',
+                        marginTop: 0.5,
+                        wordBreak: 'break-all',
                       }}
                     >
-                      {createdStream.embedUrl}
+                      {createdStream.watchUrl}
                       <OpenInNewIcon sx={{ fontSize: '1rem' }} />
                     </Link>
                   </Box>
-                )}
-              </Stack>
-            </Alert>
+                  {createdStream.embedUrl && (
+                    <Box>
+                      <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, color: theme.palette.text.secondary }}>
+                        Embed URL:
+                      </Typography>
+                      <Link
+                        href={createdStream.embedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontSize: '0.875rem',
+                          marginTop: 0.5,
+                          wordBreak: 'break-all',
+                        }}
+                      >
+                        {createdStream.embedUrl}
+                        <OpenInNewIcon sx={{ fontSize: '1rem' }} />
+                      </Link>
+                    </Box>
+                  )}
+                </Stack>
+              </Paper>
+
+              {/* Next steps to go live (shown only after successful creation) */}
+              <Paper
+                variant="outlined"
+                sx={{
+                  padding: 2.5,
+                  borderRadius: '12px',
+                  border: `1px solid ${theme.palette.border?.main || themeColors.border}`,
+                  backgroundColor: theme.palette.background?.paper || themeColors.bgCard,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: 1.5 }}>
+                  <InfoIcon sx={{ color: theme.palette.orange?.main || themeColors.orange }} />
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 700,
+                      color: theme.palette.text.primary,
+                    }}
+                  >
+                    Next steps to go live
+                  </Typography>
+                </Box>
+                <Stack spacing={1.25} component="ol" sx={{ margin: 0, paddingLeft: 2.5 }}>
+                  <Typography component="li" variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
+                    Copy the <strong>Stream URL</strong> and <strong>Stream Key</strong> above (use the copy buttons).
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
+                    Open <strong>OBS Studio</strong>. Go to <strong>Settings → Stream</strong>. Select <strong>Service: Custom</strong>.
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
+                    Paste the <strong>Stream URL</strong> into the <strong>Server</strong> field and the <strong>Stream Key</strong> into the <strong>Stream Key</strong> field. Click <strong>Apply</strong> then <strong>OK</strong>.
+                  </Typography>
+                  <Typography component="li" variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
+                    In OBS, click <strong>Start Streaming</strong>. Your stream will appear on YouTube; share the <strong>Watch URL</strong> with students so they can watch.
+                  </Typography>
+                </Stack>
+              </Paper>
+            </Stack>
           )}
 
           {/* Show form only if stream not created yet */}
@@ -370,63 +404,6 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
                   InputLabelProps={{
                     sx: { fontFamily: 'Quicksand, sans-serif' },
                   }}
-                />
-
-                <TextField
-                  label="Scheduled Start Time (Optional)"
-                  name="scheduledStartTime"
-                  type="datetime-local"
-                  value={formData.scheduledStartTime}
-                  onChange={handleInputChange}
-                  fullWidth
-                  InputLabelProps={{
-                    shrink: true,
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                />
-
-                <FormControl fullWidth>
-                  <InputLabel sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                    Privacy Status
-                  </InputLabel>
-                  <Select
-                    name="privacyStatus"
-                    value={formData.privacyStatus}
-                    onChange={handleInputChange}
-                    label="Privacy Status"
-                    sx={{ fontFamily: 'Quicksand, sans-serif' }}
-                  >
-                    <MenuItem value="public">Public</MenuItem>
-                    <MenuItem value="unlisted">Unlisted</MenuItem>
-                    <MenuItem value="private">Private</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="enableAutoStart"
-                      checked={formData.enableAutoStart}
-                      onChange={handleInputChange}
-                    />
-                  }
-                  label="Enable Auto-Start (stream starts automatically when OBS connects)"
-                  sx={{ fontFamily: 'Quicksand, sans-serif' }}
-                />
-
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="enableAutoStop"
-                      checked={formData.enableAutoStop}
-                      onChange={handleInputChange}
-                    />
-                  }
-                  label="Enable Auto-Stop (stream stops automatically when OBS disconnects)"
-                  sx={{ fontFamily: 'Quicksand, sans-serif' }}
                 />
               </Stack>
             </form>

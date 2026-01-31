@@ -3,17 +3,25 @@ const mongoose = require('mongoose');
 /**
  * YouTubeIntegration Model
  * 
- * Stores OAuth tokens for teachers/admins who connect their YouTube accounts
- * Used for creating and managing YouTube Live streams
+ * Stores OAuth tokens for centralized YouTube account connection
+ * Single admin account manages the LMS YouTube channel
+ * All teachers use this account to create streams
  */
 const youtubeIntegrationSchema = new mongoose.Schema(
   {
-    user: {
+    // Single integration for the entire system (not per-user)
+    // Use a fixed identifier to ensure only one integration exists
+    integrationType: {
+      type: String,
+      default: 'admin',
+      enum: ['admin'],
+      required: true,
+    },
+    // Store which admin user set up the connection (for reference)
+    setupBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'User is required'],
-      unique: true,
-      index: true,
+      required: false, // Optional, for tracking
     },
     accessToken: {
       type: String,
@@ -49,7 +57,7 @@ const youtubeIntegrationSchema = new mongoose.Schema(
 );
 
 // Indexes
-youtubeIntegrationSchema.index({ user: 1 }, { unique: true });
+youtubeIntegrationSchema.index({ integrationType: 1 }, { unique: true });
 youtubeIntegrationSchema.index({ expiryDate: 1 });
 
 /**

@@ -11,6 +11,7 @@ import kidsWallReducer from './slices/kidsWallSlice';
 import exploreReducer from './slices/exploreSlice';
 import teacherReducer from './slices/teacherSlice';
 import meetingReducer from './slices/meetingSlice';
+import youtubeReducer from './slices/youtubeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -26,6 +27,7 @@ export const store = configureStore({
     kidsWall: kidsWallReducer, // KidsWall posts management
     explore: exploreReducer, // Explore content management
     meeting: meetingReducer, // Meeting management
+    youtube: youtubeReducer, // YouTube Live list/detail/archive/delete
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -34,6 +36,11 @@ export const store = configureStore({
           'api/fetchData/fulfilled',
           'ui/showConfirmationDialog',
           'ui/hideConfirmationDialog',
+        ],
+        // Callbacks stored in confirmation dialog are intentional; avoid serialization warning
+        ignoredPaths: [
+          'ui.confirmationDialog.onConfirm',
+          'ui.confirmationDialog.onCancel',
         ],
       },
     }),

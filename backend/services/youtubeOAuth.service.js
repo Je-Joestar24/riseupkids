@@ -12,11 +12,18 @@ const User = require('../models/User');
 
 // OAuth2 client configuration
 const getOAuth2Client = () => {
-  return new google.auth.OAuth2(
-    process.env.YOUTUBE_CLIENT_ID,
-    process.env.YOUTUBE_CLIENT_SECRET,
-    process.env.YOUTUBE_REDIRECT_URI
-  );
+  const clientId = process.env.YOUTUBE_CLIENT_ID;
+  const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
+  const redirectUri = process.env.YOUTUBE_REDIRECT_URI;
+
+  // Validate required environment variables
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error(
+      'YouTube OAuth credentials not configured. Please check YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, and YOUTUBE_REDIRECT_URI in .env file'
+    );
+  }
+
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 };
 
 /**
@@ -94,14 +101,14 @@ const exchangeCodeForTokens = async (code, state) => {
 
   const { userId } = stateData;
 
-  // Verify user exists and is teacher/admin
+  // Verify user exists and is admin (only admins can set up YouTube connection)
   const user = await User.findById(userId);
   if (!user) {
     throw new Error('User not found');
   }
 
-  if (!['teacher', 'admin'].includes(user.role)) {
-    throw new Error('Only teachers and admins can connect YouTube accounts');
+  if (user.role !== 'admin') {
+    throw new Error('Only admins can connect YouTube account for the LMS channel');
   }
 
   const oauth2Client = getOAuth2Client();
@@ -129,11 +136,12 @@ const exchangeCodeForTokens = async (code, state) => {
     console.warn('[YouTubeOAuth] Could not fetch user email:', error.message);
   }
 
-  // Save or update integration
+  // Save or update SINGLE admin integration (not per-user)
   const integration = await YouTubeIntegration.findOneAndUpdate(
-    { user: userId },
+    { integrationType: 'admin' },
     {
-      user: userId,
+      integrationType: 'admin',
+      setupBy: userId, // Track which admin set it up
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       scope: tokens.scope || 'https://www.googleapis.com/auth/youtube',
@@ -151,13 +159,12 @@ const exchangeCodeForTokens = async (code, state) => {
 };
 
 /**
- * Refresh access token if needed
- * @param {String} userId - User's MongoDB ID
+ * Refresh access token if needed (for centralized admin account)
  * @returns {Object} Updated integration
  * @throws {Error} If refresh fails
  */
-const refreshAccessTokenIfNeeded = async (userId) => {
-  const integration = await YouTubeIntegration.findOne({ user: userId, isActive: true });
+const refreshAccessTokenIfNeeded = async () => {
+  const integration = await YouTubeIntegration.findOne({ integrationType: 'admin', isActive: true });
 
   if (!integration) {
     throw new Error('YouTube account not connected');
@@ -199,12 +206,11 @@ const refreshAccessTokenIfNeeded = async (userId) => {
 };
 
 /**
- * Revoke token and disconnect YouTube account
- * @param {String} userId - User's MongoDB ID
+ * Revoke token and disconnect YouTube account (centralized admin account)
  * @returns {Boolean} Success
  */
-const revokeToken = async (userId) => {
-  const integration = await YouTubeIntegration.findOne({ user: userId, isActive: true });
+const revokeToken = async () => {
+  const integration = await YouTubeIntegration.findOne({ integrationType: 'admin', isActive: true });
 
   if (!integration) {
     return true; // Already disconnected
@@ -223,18 +229,17 @@ const revokeToken = async (userId) => {
   }
 
   // Delete integration
-  await YouTubeIntegration.findOneAndDelete({ user: userId });
+  await YouTubeIntegration.findOneAndDelete({ integrationType: 'admin' });
 
   return true;
 };
 
 /**
- * Get user's YouTube integration status
- * @param {String} userId - User's MongoDB ID
+ * Get YouTube integration status (centralized admin account)
  * @returns {Object} Integration status
  */
-const getUserIntegration = async (userId) => {
-  const integration = await YouTubeIntegration.findOne({ user: userId, isActive: true });
+const getIntegrationStatus = async () => {
+  const integration = await YouTubeIntegration.findOne({ integrationType: 'admin', isActive: true });
 
   if (!integration) {
     return {
@@ -251,14 +256,13 @@ const getUserIntegration = async (userId) => {
 };
 
 /**
- * Get OAuth2 client with user's credentials
- * @param {String} userId - User's MongoDB ID
+ * Get OAuth2 client with admin credentials (centralized)
  * @returns {Object} Configured OAuth2 client
  * @throws {Error} If not connected or token refresh fails
  */
-const getAuthenticatedClient = async (userId) => {
+const getAuthenticatedClient = async () => {
   // Refresh token if needed
-  const integration = await refreshAccessTokenIfNeeded(userId);
+  const integration = await refreshAccessTokenIfNeeded();
 
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
@@ -275,6 +279,6 @@ module.exports = {
   exchangeCodeForTokens,
   refreshAccessTokenIfNeeded,
   revokeToken,
-  getUserIntegration,
+  getIntegrationStatus, // Renamed from getUserIntegration
   getAuthenticatedClient,
 };
