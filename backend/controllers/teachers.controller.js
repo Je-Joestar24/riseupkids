@@ -77,7 +77,17 @@ const createTeacher = async (req, res) => {
 const updateTeacher = async (req, res) => {
   try {
     const { id } = req.params;
-    const teacher = await teachersService.updateTeacher(id, req.body);
+    const { password, ...rest } = req.body;
+
+    if (password !== undefined && password !== '' && password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 6 characters',
+      });
+    }
+
+    const updateData = password !== undefined ? { ...rest, password } : rest;
+    const teacher = await teachersService.updateTeacher(id, updateData);
     res.status(200).json({
       success: true,
       message: 'Teacher updated successfully',

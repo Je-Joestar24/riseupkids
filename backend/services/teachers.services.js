@@ -95,7 +95,7 @@ const createTeacher = async (teacherData) => {
 };
 
 const updateTeacher = async (teacherId, updateData) => {
-  const { name, email, isActive } = updateData;
+  const { name, email, isActive, password } = updateData;
 
   const teacher = await User.findById(teacherId);
   if (!teacher) {
@@ -120,6 +120,10 @@ const updateTeacher = async (teacherId, updateData) => {
 
   if (isActive !== undefined) {
     teacher.isActive = isActive;
+  }
+
+  if (password !== undefined && password !== '') {
+    teacher.password = password;
   }
 
   await teacher.save();

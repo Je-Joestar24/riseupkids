@@ -16,17 +16,17 @@ const users = [
   {
     name: 'Super Admin',
     email: 'super@gmail.com',
-    password: 'Jejomar@09',
+    password: 'Password@09',
     role: 'admin',
     isActive: true,
   },
-  {
+/*   {
     name: 'Parent User',
     email: 'parent@gmail.com',
-    password: 'Jejomar@09',
+    password: 'Password@09',
     role: 'parent',
     isActive: true,
-  },
+  }, */
 ];
 
 const seedUsers = async () => {

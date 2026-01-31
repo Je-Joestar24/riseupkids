@@ -30,6 +30,8 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
     name: '',
     email: '',
     isActive: true,
+    password: '',
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -42,11 +44,12 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
 
   useEffect(() => {
     if (currentTeacher) {
-      setFormData({
+      setFormData((prev) => ({
+        ...prev,
         name: currentTeacher.name || '',
         email: currentTeacher.email || '',
         isActive: currentTeacher.isActive !== undefined ? currentTeacher.isActive : true,
-      });
+      }));
     }
   }, [currentTeacher]);
 
@@ -69,6 +72,14 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
+    const hasPassword = !!formData.password.trim();
+    const hasConfirm = !!formData.confirmPassword.trim();
+    if (hasPassword || hasConfirm) {
+      if (!formData.password.trim()) newErrors.password = 'New password is required';
+      else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+      if (!formData.confirmPassword.trim()) newErrors.confirmPassword = 'Please confirm the password';
+      else if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -77,8 +88,14 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
+    const { password, confirmPassword, ...rest } = formData;
+    const updatePayload = { ...rest };
+    if (password && password.trim()) {
+      updatePayload.password = password.trim();
+    }
+
     try {
-      await updateTeacherData(teacherId, formData);
+      await updateTeacherData(teacherId, updatePayload);
       onClose();
     } catch (error) {
       // handled by hook notifications
@@ -86,7 +103,7 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
   };
 
   const handleClose = () => {
-    setFormData({ name: '', email: '', isActive: true });
+    setFormData({ name: '', email: '', isActive: true, password: '', confirmPassword: '' });
     setErrors({});
     onClose();
   };
@@ -180,6 +197,51 @@ const AdminEditTeacherModal = ({ open, onClose, teacherId }) => {
               required
               error={!!errors.email}
               helperText={errors.email}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  fontFamily: 'Quicksand, sans-serif',
+                  borderRadius: '8px',
+                  backgroundColor: theme.palette.background.paper,
+                  '& fieldset': { borderColor: theme.palette.border.main },
+                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+                },
+                '& .MuiInputLabel-root': { fontFamily: 'Quicksand, sans-serif' },
+              }}
+            />
+
+            <TextField
+              label="New password (optional)"
+              type="password"
+              value={formData.password}
+              onChange={handleChange('password')}
+              fullWidth
+              autoComplete="new-password"
+              error={!!errors.password}
+              helperText={errors.password || 'Leave blank to keep current password'}
+              placeholder="Min 6 characters"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  fontFamily: 'Quicksand, sans-serif',
+                  borderRadius: '8px',
+                  backgroundColor: theme.palette.background.paper,
+                  '& fieldset': { borderColor: theme.palette.border.main },
+                  '&:hover fieldset': { borderColor: theme.palette.primary.main },
+                  '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+                },
+                '& .MuiInputLabel-root': { fontFamily: 'Quicksand, sans-serif' },
+              }}
+            />
+
+            <TextField
+              label="Confirm new password"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange('confirmPassword')}
+              fullWidth
+              autoComplete="new-password"
+              error={!!errors.confirmPassword}
+              helperText={errors.confirmPassword}
               sx={{
                 '& .MuiOutlinedInput-root': {
                   fontFamily: 'Quicksand, sans-serif',

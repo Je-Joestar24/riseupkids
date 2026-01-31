@@ -66,6 +66,7 @@ const teacherService = {
    * @param {String} [updateData.name] - Teacher name
    * @param {String} [updateData.email] - Teacher email
    * @param {Boolean} [updateData.isActive] - Active status
+   * @param {String} [updateData.password] - New password (optional, min 6 characters)
    * @returns {Promise} API response with updated teacher
    */
   updateTeacher: async (teacherId, updateData) => {
