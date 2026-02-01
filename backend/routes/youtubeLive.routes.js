@@ -6,9 +6,11 @@ const {
   getConnectionStatus,
   disconnectYouTube,
   createLiveStream,
+  getActiveLive,
   getAllLives,
   getLiveById,
   archiveLive,
+  endLive,
   deleteLive,
 } = require('../controllers/youtubeLive.controller');
 const { protect, authorize } = require('../middleware/auth');
@@ -29,6 +31,7 @@ const { protect, authorize } = require('../middleware/auth');
  * - GET /live - List lives (paginated, search) (Teacher/Admin only)
  * - GET /live/:id - Get one live (Teacher/Admin only, creator)
  * - PATCH /live/:id/archive - Archive live (Teacher/Admin only, creator)
+ * - PATCH /live/:id/end - End broadcast on YouTube (Teacher/Admin only, creator)
  * - DELETE /live/:id - Delete live from LMS (Teacher/Admin only, creator)
  */
 
@@ -38,11 +41,13 @@ router.get('/oauth/callback', handleOAuthCallback); // Public - called by Google
 router.get('/status', protect, authorize('teacher', 'admin'), getConnectionStatus); // All can check status
 router.post('/disconnect', protect, authorize('admin'), disconnectYouTube); // Admin only
 
-// Live stream routes (order: list before :id)
+// Live stream routes (order: list before :id, /active before /:id)
 router.post('/live/create', protect, authorize('teacher', 'admin'), createLiveStream);
+router.get('/live/active', protect, getActiveLive); // Any authenticated user (child, parent, teacher, admin)
 router.get('/live', protect, authorize('teacher', 'admin'), getAllLives);
 router.get('/live/:id', protect, authorize('teacher', 'admin'), getLiveById);
 router.patch('/live/:id/archive', protect, authorize('teacher', 'admin'), archiveLive);
+router.patch('/live/:id/end', protect, authorize('teacher', 'admin'), endLive);
 router.delete('/live/:id', protect, authorize('teacher', 'admin'), deleteLive);
 
 module.exports = router;

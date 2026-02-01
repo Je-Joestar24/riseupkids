@@ -392,7 +392,55 @@ const createLiveStream = async (userId, streamData) => {
   }
 };
 
+/**
+ * End a YouTube live broadcast (transition to complete)
+ * Stops the stream on YouTube so it no longer accepts RTMP; playback can continue from DVR if enabled.
+ * @param {String} broadcastId - YouTube broadcast ID (youtubeBroadcastId from YouTubeLive document)
+ * @returns {Object} Updated broadcast resource from API
+ * @throws {Error} If OAuth not connected or API fails
+ */
+const endBroadcast = async (broadcastId) => {
+  if (!broadcastId) {
+    throw new Error('Broadcast ID is required');
+  }
+
+  if (!isOAuthEnabled()) {
+    console.log('[YouTubeLive] OAuth disabled - skipping end broadcast');
+    return { id: broadcastId, status: { lifeCycleStatus: 'complete' } };
+  }
+
+  const integration = await youtubeOAuth.getIntegrationStatus();
+  if (!integration.connected) {
+    throw new Error('YOUTUBE_NOT_CONNECTED');
+  }
+
+  const auth = await youtubeOAuth.getAuthenticatedClient();
+  const youtube = google.youtube({ version: 'v3', auth });
+
+  try {
+    const response = await youtube.liveBroadcasts.transition({
+      part: ['id', 'status', 'snippet'],
+      id: broadcastId,
+      broadcastStatus: 'complete',
+    });
+
+    const broadcast = response.data?.items?.[0];
+    if (broadcast) {
+      console.log(`[YouTubeLive] Broadcast ${broadcastId} transitioned to complete`);
+    }
+    return broadcast || { id: broadcastId, status: { lifeCycleStatus: 'complete' } };
+  } catch (error) {
+    const msg = error.response?.data?.error?.message || error.message;
+    console.error('[YouTubeLive] Error ending broadcast:', msg);
+    if (msg.includes('not enabled for live streaming') || msg.includes('not found')) {
+      throw new Error(`Could not end broadcast: ${msg}`);
+    }
+    throw new Error(msg || 'Failed to end broadcast');
+  }
+};
+
 module.exports = {
   createLiveStream,
+  endBroadcast,
   isOAuthEnabled,
 };

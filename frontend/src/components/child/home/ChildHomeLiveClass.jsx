@@ -1,71 +1,120 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Button, Typography, CircularProgress } from '@mui/material';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import StopIcon from '@mui/icons-material/Stop';
 import liveIcon from '../../../assets/images/live.png';
 import liveClassImage from '../../../assets/images/liveclass.jpeg';
 import { themeColors } from '../../../config/themeColors';
 import meetingService from '../../../services/meetingService';
+import youtubeService from '../../../services/youtubeService';
+import useYouTubeLive from '../../../hooks/youtubeHook';
+import { useSelector } from 'react-redux';
+
+const CARD_STYLE = {
+  backgroundColor: 'white',
+  padding: '24px',
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+  border: `4px solid ${themeColors.secondary}`,
+  borderRadius: '0px',
+  overflow: 'hidden',
+  marginTop: '16px',
+};
 
 /**
  * ChildHomeLiveClass Component
- * 
- * Next Live Class card component for child home page
- * Displays upcoming live class information with image and join button
- * Fetches the next upcoming meeting and allows child to join as guest
+ *
+ * Displays both:
+ * - Live now: current YouTube Live (embedded) with optional End stream for teacher/admin
+ * - Next Live Class: upcoming meeting (Google Meet) with Join button
+ * Fetches active YouTube live and next upcoming meeting.
  */
 const ChildHomeLiveClass = () => {
+  const user = useSelector((state) => state.user?.user || state.auth?.user);
+  const isTeacherOrAdmin = user?.role === 'teacher' || user?.role === 'admin';
+  const canEndYoutubeLive =
+    isTeacherOrAdmin &&
+    activeYoutubeLive &&
+    (activeYoutubeLive.createdBy?._id?.toString() === user?._id?.toString() ||
+      activeYoutubeLive.createdBy === user?._id?.toString());
+
   const [nextMeeting, setNextMeeting] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [activeYoutubeLive, setActiveYoutubeLive] = useState(null);
+  const [meetingLoading, setMeetingLoading] = useState(true);
+  const [youtubeLoading, setYoutubeLoading] = useState(true);
+  const [meetingError, setMeetingError] = useState(null);
 
-  // Fetch next upcoming meeting
-  useEffect(() => {
-    const fetchNextMeeting = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await meetingService.getUpcomingMeetings(1);
-        if (response.success && response.data && response.data.length > 0) {
-          setNextMeeting(response.data[0]);
-        } else {
-          setNextMeeting(null);
-        }
-      } catch (err) {
-        console.error('[ChildHomeLiveClass] Error fetching upcoming meeting:', err);
-        setError(err.message || 'Failed to load live class');
+  const { endLive, actionLoading } = useYouTubeLive();
+
+  const fetchNextMeeting = useCallback(async () => {
+    try {
+      setMeetingLoading(true);
+      setMeetingError(null);
+      const response = await meetingService.getUpcomingMeetings(1);
+      if (response.success && response.data && response.data.length > 0) {
+        setNextMeeting(response.data[0]);
+      } else {
         setNextMeeting(null);
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchNextMeeting();
+    } catch (err) {
+      console.error('[ChildHomeLiveClass] Error fetching upcoming meeting:', err);
+      setMeetingError(err.message || 'Failed to load live class');
+      setNextMeeting(null);
+    } finally {
+      setMeetingLoading(false);
+    }
   }, []);
 
-  const handleJoinClass = () => {
-    if (!nextMeeting || !nextMeeting.meetLink) {
-      return;
+  const fetchActiveYoutubeLive = useCallback(async () => {
+    try {
+      setYoutubeLoading(true);
+      const response = await youtubeService.getActiveLive();
+      if (response.success && response.data) {
+        setActiveYoutubeLive(response.data);
+      } else {
+        setActiveYoutubeLive(null);
+      }
+    } catch (err) {
+      console.error('[ChildHomeLiveClass] Error fetching active YouTube live:', err);
+      setActiveYoutubeLive(null);
+    } finally {
+      setYoutubeLoading(false);
     }
+  }, []);
 
-    // Generate guest-mode link to force guest access
-    // This ensures child joins as guest even if parent's Google account is logged in
+  useEffect(() => {
+    fetchNextMeeting();
+  }, [fetchNextMeeting]);
+
+  useEffect(() => {
+    fetchActiveYoutubeLive();
+  }, [fetchActiveYoutubeLive]);
+
+  const handleJoinClass = () => {
+    if (!nextMeeting || !nextMeeting.meetLink) return;
     const guestLink = meetingService.getGuestModeLink(nextMeeting.meetLink);
-    
-    // Open in new tab
     if (guestLink) {
       window.open(guestLink, '_blank', 'noopener,noreferrer');
     } else {
-      // Fallback to original link
       window.open(nextMeeting.meetLink, '_blank', 'noopener,noreferrer');
     }
   };
 
-  // Format date to "Today", "Tomorrow", or date string
+  const handleEndYoutubeLive = async () => {
+    if (!activeYoutubeLive) return;
+    const id = activeYoutubeLive._id || activeYoutubeLive.id;
+    if (!window.confirm('End this live stream on YouTube? The broadcast will be marked complete.')) return;
+    try {
+      await endLive(id);
+      setActiveYoutubeLive(null);
+    } catch (err) {
+      console.error('Failed to end live stream:', err);
+    }
+  };
+
   const formatMeetingDate = (dateString) => {
     if (!dateString) return 'TBD';
-    
     const meetingDate = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -73,307 +122,273 @@ const ChildHomeLiveClass = () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const meetingDay = new Date(meetingDate);
     meetingDay.setHours(0, 0, 0, 0);
-
-    if (meetingDay.getTime() === today.getTime()) {
-      return 'Today';
-    } else if (meetingDay.getTime() === tomorrow.getTime()) {
-      return 'Tomorrow';
-    } else {
-      return meetingDate.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: meetingDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
-      });
-    }
+    if (meetingDay.getTime() === today.getTime()) return 'Today';
+    if (meetingDay.getTime() === tomorrow.getTime()) return 'Tomorrow';
+    return meetingDate.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: meetingDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
+    });
   };
 
-  // Format time to 12-hour format
   const formatMeetingTime = (dateString) => {
     if (!dateString) return 'TBD';
-    const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
       hour12: true,
     });
   };
 
-  // Get instructor name from meeting data
-  const getInstructorName = () => {
-    if (nextMeeting?.createdBy?.name) {
-      return `with ${nextMeeting?.createdBy?.role === 'admin' ? '' : 'Teacher'} ${nextMeeting.createdBy.name} `;
+  const getInstructorName = (meeting) => {
+    if (meeting?.createdBy?.name) {
+      return meeting.createdBy.role === 'admin' ? `with ${meeting.createdBy.name}` : `with Teacher ${meeting.createdBy.name}`;
     }
     return 'Starting soon!';
   };
 
-  // Don't show component if no upcoming meeting
-  if (loading) {
+  const loading = meetingLoading && youtubeLoading;
+  const hasAny = activeYoutubeLive || nextMeeting;
+
+  if (loading && !hasAny) {
     return (
-      <Box
-        sx={{
-          backgroundColor: 'white',
-          padding: '24px',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-          border: `4px solid ${themeColors.secondary}`,
-          borderRadius: '0px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: '200px',
-        }}
-      >
-        <CircularProgress sx={{ color: themeColors.primary }} />
+      <Box sx={{ ...CARD_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+        <CircularProgress sx={{ color: themeColors.primary }} aria-label="Loading live class" />
       </Box>
     );
   }
 
-  if (error || !nextMeeting) {
-    // Don't show component if there's an error or no upcoming meeting
+  if (!hasAny && !meetingLoading && !youtubeLoading) {
     return null;
   }
 
-  return (
-    <Box
-      sx={{
-        backgroundColor: 'white',
-        padding: '24px',
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-        border: `4px solid ${themeColors.secondary}`, // --theme-secondary: #85c2b9
-        borderRadius: '0px',
-        overflow: 'hidden',
-        marginTop: '16px',
-      }}
-    >
-      {/* Top Section - Icon, Title, and Image */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          alignItems: 'flex-start',
-          gap: '16px',
-          marginBottom: '16px',
-        }}
-      >
-        {/* Left Section - Icon and Text */}
-        <Box
-          sx={{
-            flex: 1,
-            width: '100%',
-            order: { xs: 1, md: 1 },
-          }}
-        >
-          {/* Icon and Title Row */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              marginBottom: '16px',
-            }}
-          >
-            {/* Circular Icon Container */}
-            <Box
-              sx={{
-                width: { xs: '80px', md: '128px' },
-                height: { xs: '80px', md: '128px' },
-                borderRadius: '50%',
-                backgroundColor: themeColors.orange, // --theme-orange: #e98a68
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <Box
-                component="img"
-                src={liveIcon}
-                alt="Video"
-                sx={{
-                  width: { xs: '48px', md: '80px' },
-                  height: { xs: '48px', md: '80px' },
-                  objectFit: 'cover',
-                }}
-              />
-            </Box>
+  const embedUrl = activeYoutubeLive?.embedUrl || (activeYoutubeLive?.watchUrl
+    ? activeYoutubeLive.watchUrl.replace(/\/watch\?v=/, '/embed/').split('&')[0]
+    : null);
 
-            {/* Title and Subtitle */}
+  return (
+    <Box sx={{ marginTop: '16px' }}>
+      {/* Live now: YouTube embed + End stream (teacher/admin) */}
+      {activeYoutubeLive && (
+        <Box sx={CARD_STYLE}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 2 }}>
+            <Box
+              component="img"
+              src={liveIcon}
+              alt=""
+              sx={{ width: 48, height: 48, objectFit: 'cover' }}
+            />
             <Box>
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: { xs: '20px', md: '24px' },
+                  fontSize: { xs: '18px', md: '22px' },
                   fontWeight: 600,
-                  color: themeColors.primary, // --theme-primary: #62caca
-                  lineHeight: 1.2,
-                  marginBottom: '4px',
-                }}
-              >
-                Next Live Class
-              </Typography>
-              <Typography
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontSize: { xs: '16px', md: '18px' },
-                  fontWeight: 500,
-                  color: themeColors.orange, // --theme-orange: #e98a68
-                  lineHeight: 1.4,
-                }}
-              >
-                {getInstructorName()}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Right Section - Image with Time Badge */}
-        <Box
-          sx={{
-            flexShrink: 0,
-            width: { xs: '100%', md: 'auto' },
-            order: { xs: 2, md: 2 },
-          }}
-        >
-          {/* Image Container with Relative Positioning */}
-          <Box
-            sx={{
-              position: 'relative',
-              width: { xs: '100%', md: '192px' },
-              height: '128px',
-              overflow: 'hidden',
-              marginBottom: '8px',
-              borderRadius: '0px',
-            }}
-          >
-            <img
-              src={liveClassImage}
-              alt="Live class"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-            />
-            {/* Gradient Overlay */}
-            <Box
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                background: 'linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent)',
-              }}
-            />
-            {/* Floating Time Badge */}
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: '8px',
-                left: '8px',
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                backdropFilter: 'blur(4px)',
-                borderRadius: '9999px',
-                padding: '4px 12px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <AccessTimeIcon
-                sx={{
-                  fontSize: '16px',
                   color: themeColors.primary,
                 }}
-              />
+              >
+                Live now
+              </Typography>
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: '14px',
+                  fontSize: '16px',
                   fontWeight: 500,
-                  color: themeColors.text,
+                  color: themeColors.orange,
                 }}
               >
-                {formatMeetingTime(nextMeeting.startTime)}
+                {activeYoutubeLive.title || 'Live stream'}
               </Typography>
             </Box>
+            {canEndYoutubeLive && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<StopIcon />}
+                onClick={handleEndYoutubeLive}
+                disabled={actionLoading}
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  textTransform: 'none',
+                  borderRadius: 0,
+                  borderColor: themeColors.orange,
+                  color: themeColors.orange,
+                  marginLeft: 'auto',
+                  '&:hover': { borderColor: themeColors.orange, backgroundColor: `${themeColors.orange}14` },
+                }}
+              >
+                End stream
+              </Button>
+            )}
           </Box>
+          {embedUrl && (
+            <Box
+              sx={{
+                position: 'relative',
+                width: '100%',
+                paddingBottom: '56.25%',
+                height: 0,
+                overflow: 'hidden',
+                borderRadius: 0,
+              }}
+            >
+              <iframe
+                title={activeYoutubeLive.title || 'YouTube Live'}
+                src={embedUrl}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  border: 0,
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
 
-          {/* Calendar and Date */}
+      {/* Next Live Class: Meeting (Google Meet) */}
+      {nextMeeting && !meetingError && (
+        <Box sx={CARD_STYLE}>
           <Box
             sx={{
               display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '4px',
+              flexDirection: { xs: 'column', md: 'row' },
+              alignItems: 'flex-start',
+              gap: 2,
+              marginBottom: 2,
             }}
           >
-            <CalendarTodayIcon
-              sx={{
-                fontSize: '16px',
-                color: themeColors.accent, // --theme-accent: #f2af10
-              }}
-            />
-            <Typography
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: themeColors.accent, // --theme-accent: #f2af10
-              }}
-            >
-              {formatMeetingDate(nextMeeting.startTime)}
-            </Typography>
+            <Box sx={{ flex: 1, width: '100%' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 2 }}>
+                <Box
+                  sx={{
+                    width: { xs: 80, md: 128 },
+                    height: { xs: 80, md: 128 },
+                    borderRadius: '50%',
+                    backgroundColor: themeColors.orange,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Box
+                    component="img"
+                    src={liveIcon}
+                    alt=""
+                    sx={{ width: { xs: 48, md: 80 }, height: { xs: 48, md: 80 }, objectFit: 'cover' }}
+                  />
+                </Box>
+                <Box>
+                  <Typography
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontSize: { xs: '20px', md: '24px' },
+                      fontWeight: 600,
+                      color: themeColors.primary,
+                      marginBottom: 0.5,
+                    }}
+                  >
+                    Next Live Class
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontSize: { xs: '16px', md: '18px' },
+                      fontWeight: 500,
+                      color: themeColors.orange,
+                    }}
+                  >
+                    {getInstructorName(nextMeeting)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Box>
+            <Box sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }}>
+              <Box sx={{ position: 'relative', width: { xs: '100%', md: 192 }, height: 128, overflow: 'hidden', marginBottom: 1 }}>
+                <img
+                  src={liveClassImage}
+                  alt="Live class"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)',
+                  }}
+                />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: 8,
+                    left: 8,
+                    backgroundColor: 'rgba(255,255,255,0.9)',
+                    borderRadius: 9999,
+                    padding: '4px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <AccessTimeIcon sx={{ fontSize: 16, color: themeColors.primary }} />
+                  <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontSize: 14, fontWeight: 500, color: themeColors.text }}>
+                    {formatMeetingTime(nextMeeting.startTime)}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: 0.5 }}>
+                <CalendarTodayIcon sx={{ fontSize: 16, color: themeColors.accent }} />
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontSize: 14, fontWeight: 500, color: themeColors.accent }}>
+                  {formatMeetingDate(nextMeeting.startTime)}
+                </Typography>
+              </Box>
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  color: themeColors.primary,
+                }}
+              >
+                {nextMeeting.title || 'Live Class'}
+              </Typography>
+            </Box>
           </Box>
-
-          {/* Class Title */}
-          <Typography
+          <Button
+            onClick={handleJoinClass}
+            fullWidth
             sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
+              backgroundColor: themeColors.primary,
+              color: 'white',
+              padding: '20px 32px',
+              fontSize: '24px',
               fontWeight: 600,
-              color: themeColors.primary, // --theme-primary: #62caca
-              lineHeight: 1.4,
+              fontFamily: 'Quicksand, sans-serif',
+              textTransform: 'none',
+              borderRadius: 0,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1,
+              '&:hover': {
+                backgroundColor: themeColors.primary,
+                boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                transform: 'scale(1.02)',
+              },
             }}
           >
-            {nextMeeting.title || 'Live Class'}
-          </Typography>
+            <VideocamIcon sx={{ fontSize: 20 }} />
+            Join Class
+          </Button>
         </Box>
-      </Box>
-
-      {/* Join Class Button */}
-      <Button
-        onClick={handleJoinClass}
-        fullWidth
-        sx={{
-          backgroundColor: themeColors.primary, // --theme-accent: #f2af10
-          color: 'white',
-          padding: '20px 32px',
-          fontSize: '24px',
-          fontWeight: 600,
-          fontFamily: 'Quicksand, sans-serif',
-          textTransform: 'none',
-          borderRadius: '0px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            backgroundColor: themeColors.primary, 
-            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-            transform: 'scale(1.05)',
-          },
-          '&:active': {
-            transform: 'scale(0.95)',
-          },
-        }}
-      >
-        <VideocamIcon
-          sx={{
-            fontSize: '20px',
-            fill: 'white',
-          }}
-        />
-        Join Class
-      </Button>
+      )}
     </Box>
   );
 };

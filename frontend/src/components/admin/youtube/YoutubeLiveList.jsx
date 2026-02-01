@@ -19,20 +19,22 @@ import {
     Visibility as VisibilityIcon,
     Archive as ArchiveIcon,
     Delete as DeleteIcon,
+    Stop as StopIcon,
+    Videocam as VideocamIcon,
 } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
-import { VideocamOutlined as VideocamIcon, InfoOutlined as InfoIcon } from '@mui/icons-material';
 
 /**
  * YoutubeLiveList Component
  *
- * Table of YouTube lives: title, status, created date, archived badge, actions (View, Archive, Delete).
+ * Table of YouTube lives: title, status, created date, archived badge, actions (View, End stream, Archive, Delete).
  */
 const YoutubeLiveList = ({
     lives,
     listLoading,
     actionLoading,
     onView,
+    onEnd,
     onArchive,
     onDelete,
 }) => {
@@ -265,6 +267,24 @@ const YoutubeLiveList = ({
                                             </IconButton>
                                         </span>
                                     </Tooltip>
+                                    {onEnd && live.status !== 'complete' && (
+                                        <Tooltip title="End stream (stop on YouTube)" arrow>
+                                            <span>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => onEnd(live)}
+                                                    disabled={actionLoading}
+                                                    aria-label={`End stream ${live.title}`}
+                                                    sx={{
+                                                        color: theme.palette.warning?.main || themeColors.warning,
+                                                        '&:hover': { backgroundColor: `${theme.palette.warning?.main || themeColors.warning}14` },
+                                                    }}
+                                                >
+                                                    <StopIcon fontSize="small" />
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
+                                    )}
                                     {!live.isArchived && (
                                         <Tooltip title="Archive" arrow>
                                             <span>

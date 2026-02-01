@@ -244,6 +244,44 @@ const createLiveStream = async (req, res) => {
 };
 
 /**
+ * @desc    Get current active YouTube live for students/child (embed-safe, no stream key)
+ * @route   GET /api/youtube/live/active
+ * @access  Private (any authenticated user)
+ */
+const getActiveLive = async (req, res) => {
+  try {
+    const live = await YouTubeLive.findOne({
+      isArchived: { $ne: true },
+      status: { $ne: 'complete' },
+    })
+      .sort({ createdAt: -1 })
+      .populate('createdBy', 'name role')
+      .select('title description watchUrl embedUrl status createdAt createdBy')
+      .lean();
+
+    if (!live) {
+      return res.status(200).json({
+        success: true,
+        message: 'No active live stream',
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Active live retrieved',
+      data: live,
+    });
+  } catch (error) {
+    console.error('[YouTubeLive] Error getting active live:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get active live',
+    });
+  }
+};
+
+/**
  * @desc    List YouTube lives for current user (paginated, search)
  * @route   GET /api/youtube/live
  * @access  Private (Teacher/Admin only)
@@ -379,6 +417,66 @@ const archiveLive = async (req, res) => {
 };
 
 /**
+ * @desc    End a YouTube live broadcast (transition to complete on YouTube)
+ * @route   PATCH /api/youtube/live/:id/end
+ * @access  Private (Teacher/Admin only, creator)
+ */
+const endLive = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const { id } = req.params;
+
+    const live = await YouTubeLive.findOne({ _id: id, createdBy: userId }).lean();
+    if (!live) {
+      return res.status(404).json({
+        success: false,
+        message: 'Live stream not found',
+      });
+    }
+
+    const broadcastId = live.youtubeBroadcastId;
+    if (!broadcastId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This live has no YouTube broadcast ID',
+      });
+    }
+
+    await youtubeLive.endBroadcast(broadcastId);
+
+    await YouTubeLive.findOneAndUpdate(
+      { _id: id, createdBy: userId },
+      { status: 'complete' },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Live stream ended successfully. The broadcast is now complete on YouTube.',
+    });
+  } catch (error) {
+    console.error('[YouTubeLive] Error ending live:', error);
+    if (error.name === 'CastError') {
+      return res.status(404).json({
+        success: false,
+        message: 'Live stream not found',
+      });
+    }
+    if (error.message === 'YOUTUBE_NOT_CONNECTED') {
+      return res.status(503).json({
+        success: false,
+        message: 'YouTube account is not connected. Ask an admin to connect the YouTube account.',
+        code: 'YOUTUBE_NOT_CONNECTED',
+      });
+    }
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to end live stream',
+    });
+  }
+};
+
+/**
  * @desc    Delete a YouTube live from LMS (creator only)
  * @route   DELETE /api/youtube/live/:id
  * @access  Private (Teacher/Admin only)
@@ -422,8 +520,10 @@ module.exports = {
   getConnectionStatus,
   disconnectYouTube,
   createLiveStream,
+  getActiveLive,
   getAllLives,
   getLiveById,
   archiveLive,
+  endLive,
   deleteLive,
 };

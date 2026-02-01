@@ -69,7 +69,7 @@ const YoutubeFilters = ({ filters, onFiltersChange, disabled }) => {
           },
         }}
         InputLabelProps={{ sx: { fontFamily: 'Quicksand, sans-serif' } }}
-        sx={{ minWidth: 220 }}
+        sx={{ minWidth: 220, width: '100%' }}
         aria-label="Search lives"
       />
       <FormControl size="small" sx={{ minWidth: 160 }} disabled={disabled}>

@@ -142,7 +142,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth={createdStream ? "md" : "sm"}
       fullWidth
       PaperProps={{
         sx: {
@@ -180,12 +180,6 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
           {submitError && (
             <Alert severity="error" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
               {submitError}
-            </Alert>
-          )}
-
-          {streamError && (
-            <Alert severity="error" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-              {streamError}
             </Alert>
           )}
 

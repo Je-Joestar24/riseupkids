@@ -5,6 +5,7 @@ import {
   fetchLives,
   fetchLiveById,
   archiveLive as archiveLiveAction,
+  endLive as endLiveAction,
   deleteLive as deleteLiveAction,
   setFilters,
   clearFilters,
@@ -213,6 +214,17 @@ export const useYouTubeLive = () => {
   );
 
   /**
+   * End a live broadcast on YouTube (creator only). Stops the stream on YouTube.
+   * @param {String} id - LMS document _id
+   */
+  const endLive = useCallback(
+    async (id) => {
+      return dispatch(endLiveAction(id));
+    },
+    [dispatch]
+  );
+
+  /**
    * Delete a live from LMS (creator only)
    * @param {String} id - LMS document _id
    */
@@ -285,6 +297,7 @@ export const useYouTubeLive = () => {
     getLives,
     getLiveById,
     archiveLive,
+    endLive,
     deleteLive,
     setLiveFilters,
     clearLiveFilters,

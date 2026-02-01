@@ -36,6 +36,7 @@ const AdminYoutubeLive = () => {
     listLoading,
     actionLoading,
     archiveLive,
+    endLive,
     deleteLive,
     liveError,
   } = useYouTubeLive();
@@ -128,6 +129,26 @@ const AdminYoutubeLive = () => {
     );
   };
 
+  const handleEnd = (live) => {
+    const id = live._id || live.id;
+    const title = live.title || 'This live';
+    dispatch(
+      showConfirmationDialog({
+        title: 'End Stream',
+        message: `End the YouTube broadcast "${title}"? This will complete the stream on YouTube (e.g. after you stopped OBS).`,
+        onConfirm: async () => {
+          try {
+            await endLive(id);
+            refetchLives();
+            if (selectedLiveId === id) handleCloseViewModal();
+          } catch (err) {
+            console.error('Failed to end stream:', err);
+          }
+        },
+      })
+    );
+  };
+
   const handleDelete = (live) => {
     const id = live._id || live.id;
     const title = live.title || 'This live';
@@ -214,6 +235,7 @@ const AdminYoutubeLive = () => {
           listLoading={listLoading}
           actionLoading={actionLoading}
           onView={handleView}
+          onEnd={handleEnd}
           onArchive={handleArchive}
           onDelete={handleDelete}
         />
@@ -240,6 +262,7 @@ const AdminYoutubeLive = () => {
         open={viewModalOpen}
         liveId={selectedLiveId}
         onClose={handleCloseViewModal}
+        onEnd={handleEnd}
         onRefetch={refetchLives}
       />
     </Box>

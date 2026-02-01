@@ -70,6 +70,19 @@ const youtubeService = {
   },
 
   /**
+   * Get current active YouTube live for students/child (embed-safe; no stream key)
+   * @returns {Promise} API response with data (one live or null)
+   */
+  getActiveLive: async () => {
+    try {
+      const response = await api.get('/youtube/live/active');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
    * Get paginated list of YouTube lives for current user
    * @param {Object} params - Query params
    * @param {Number} params.page - Page number (default 1)
@@ -109,6 +122,21 @@ const youtubeService = {
   archiveLive: async (id) => {
     try {
       const response = await api.patch(`/youtube/live/${id}/archive`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * End a YouTube live broadcast on YouTube (creator only)
+   * Transitions the broadcast to "complete" so the stream stops on YouTube.
+   * @param {String} id - LMS document _id
+   * @returns {Promise} API response
+   */
+  endLive: async (id) => {
+    try {
+      const response = await api.patch(`/youtube/live/${id}/end`);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;

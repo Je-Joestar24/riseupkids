@@ -22,6 +22,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Archive as ArchiveIcon,
   Delete as DeleteIcon,
+  Stop as StopIcon,
 } from '@mui/icons-material';
 import useYouTubeLive from '../../../hooks/youtubeHook';
 import { themeColors } from '../../../config/themeColors';
@@ -32,7 +33,7 @@ import { themeColors } from '../../../config/themeColors';
  * Detail view for one YouTube live: title, description, stream key, RTMP URL,
  * watch URL, embed URL, copy buttons, Archive, Delete (with confirm).
  */
-const YoutubeViewModal = ({ open, liveId, onClose, onArchive, onDelete, onRefetch }) => {
+const YoutubeViewModal = ({ open, liveId, onClose, onEnd, onArchive, onDelete, onRefetch }) => {
   const theme = useTheme();
   const orange = theme.palette.orange?.main || themeColors.orange;
   const border = theme.palette.border?.main || themeColors.border;
@@ -152,7 +153,10 @@ const YoutubeViewModal = ({ open, liveId, onClose, onArchive, onDelete, onRefetc
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ padding: 3 }}>
+      <DialogContent sx={{
+        padding: 3,
+        marginTop: 2,
+      }}>
         <Stack spacing={2}>
           {liveError && (
             <Alert severity="error" onClose={clearLiveError} sx={{ fontFamily: 'Quicksand, sans-serif' }}>
@@ -305,6 +309,26 @@ const YoutubeViewModal = ({ open, liveId, onClose, onArchive, onDelete, onRefetc
             flexWrap: 'wrap',
           }}
         >
+          {onEnd && currentLive.status !== 'complete' && (
+            <Button
+              variant="outlined"
+              startIcon={<StopIcon />}
+              onClick={() => onEnd(currentLive)}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                textTransform: 'none',
+                borderRadius: '8px',
+                borderColor: theme.palette.warning?.main || themeColors.warning,
+                color: theme.palette.warning?.main || themeColors.warning,
+                '&:hover': {
+                  borderColor: theme.palette.warning?.main || themeColors.warning,
+                  backgroundColor: `${theme.palette.warning?.main || themeColors.warning}14`,
+                },
+              }}
+            >
+              End Stream
+            </Button>
+          )}
           {!currentLive.isArchived && (
             <Button
               variant="outlined"

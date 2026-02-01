@@ -47,6 +47,21 @@ export const archiveLive = createAsyncThunk(
 );
 
 /**
+ * Async thunk: end a YouTube live broadcast (transition to complete on YouTube)
+ */
+export const endLive = createAsyncThunk(
+  'youtube/endLive',
+  async (id, { rejectWithValue }) => {
+    try {
+      await youtubeService.endLive(id);
+      return { id };
+    } catch (error) {
+      return rejectWithValue(error?.message || error || 'Failed to end live stream');
+    }
+  }
+);
+
+/**
  * Async thunk: delete a YouTube live from LMS
  */
 export const deleteLive = createAsyncThunk(
@@ -163,6 +178,27 @@ const youtubeSlice = createSlice({
         state.error = null;
       })
       .addCase(archiveLive.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.error = action.payload;
+      });
+
+    // End broadcast
+    builder
+      .addCase(endLive.pending, (state) => {
+        state.actionLoading = true;
+        state.error = null;
+      })
+      .addCase(endLive.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        const { id } = action.payload;
+        const index = state.lives.findIndex((l) => l._id === id || l.id === id);
+        if (index !== -1) state.lives[index] = { ...state.lives[index], status: 'complete' };
+        if (state.currentLive && (state.currentLive._id === id || state.currentLive.id === id)) {
+          state.currentLive = { ...state.currentLive, status: 'complete' };
+        }
+        state.error = null;
+      })
+      .addCase(endLive.rejected, (state, action) => {
         state.actionLoading = false;
         state.error = action.payload;
       });
