@@ -10,6 +10,7 @@ import axios, {
 } from 'axios';
 
 import { API_BASE_URL } from '@/config';
+import { getAuthToken } from './tokenBridge';
 
 const instance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -30,11 +31,9 @@ instance.interceptors.response.use(
   }
 );
 
-// Request interceptor for future auth token attachment
 instance.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // Add auth token here when implemented
-  // const token = await getAuthToken();
-  // if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = getAuthToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 

@@ -1,37 +1,62 @@
 /**
- * Rise Up Kids auth store
- * Placeholder for auth state - will be populated when auth is implemented
+ * Rise Up Kids Auth Store
+ * Reactive auth state, hydrated from AsyncStorage
  */
 
 import { create } from 'zustand';
 
-export type UserRole = 'parent' | 'child';
+import { authService } from '@/services/authService';
+
+export type UserRole = 'parent' | 'child' | 'admin' | 'teacher';
 
 export interface AuthUser {
-  id: string;
+  _id: string;
+  id?: string;
   email: string;
   role: UserRole;
+  name?: string;
   displayName?: string;
+  [key: string]: unknown;
 }
 
 interface AuthState {
   user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
-  isLoading: boolean;
-  setUser: (user: AuthUser | null) => void;
-  logout: () => void;
+  isHydrated: boolean;
+  setAuth: (user: AuthUser | null, token: string | null) => void;
+  logout: () => Promise<void>;
+  hydrate: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  token: null,
   isAuthenticated: false,
-  isLoading: false,
-  setUser: (user) => set({
+  isHydrated: false,
+
+  setAuth: (user, token) => set({
     user,
-    isAuthenticated: !!user,
+    token,
+    isAuthenticated: !!(user && token),
   }),
-  logout: () => set({
-    user: null,
-    isAuthenticated: false,
-  }),
+
+  logout: async () => {
+    await authService.clearStorage();
+    set({ user: null, token: null, isAuthenticated: false });
+  },
+
+  hydrate: async () => {
+    const [token, user] = await Promise.all([
+      authService.getTokenFromStorage(),
+      authService.getUserFromStorage(),
+    ]);
+    const authUser = user ? { ...user, id: user._id ?? user.id, _id: String(user._id ?? user.id) } as AuthUser : null;
+    set({
+      token,
+      user: authUser,
+      isAuthenticated: !!(token && authUser),
+      isHydrated: true,
+    });
+  },
 }));

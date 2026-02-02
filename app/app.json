@@ -49,8 +49,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "6f303e45-a982-4f14-b078-59a4f6a07d66"
+        "projectId": "e3d66b4b-fc7d-4275-a06b-d2d30c1ce868"
       }
-    }
+    },
+    "owner": "jejomarp"
   }
 }

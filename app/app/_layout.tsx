@@ -12,12 +12,21 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { GlobalDialog } from '@/components/ui/global-dialog';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/hooks/authHook';
+import { setTokenGetter } from '@/services/tokenBridge';
+import { useAuthStore } from '@/store/useAuthStore';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { hydrate } = useAuth();
+
+  useEffect(() => {
+    setTokenGetter(() => useAuthStore.getState().token);
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Quicksand_400Regular,
@@ -27,8 +36,10 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (fontsLoaded) {
+      hydrate().finally(() => SplashScreen.hideAsync());
+    }
+  }, [fontsLoaded, hydrate]);
 
   if (!fontsLoaded) return null;
 
@@ -38,6 +49,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="signup" />
       </Stack>
+      <GlobalDialog />
       <StatusBar style="auto" />
     </ThemeProvider>
   );

@@ -19,9 +19,11 @@ import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
+import { useAuth } from '@/hooks/authHook';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,8 +44,9 @@ export default function LoginScreen() {
     if (!validate()) return;
     setLoading(true);
     try {
-      // TODO: Call auth API
-      await new Promise((r) => setTimeout(r, 800));
+      await login(email, password);
+    } catch {
+      // Error shown via global dialog
     } finally {
       setLoading(false);
     }
@@ -207,7 +210,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 384,
     backgroundColor: colors.bgCard,
-    borderRadius: radii.none,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     padding: spacing[6],
