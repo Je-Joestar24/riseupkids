@@ -1,0 +1,41 @@
+# Sibling projects (EAS archives from git root - exclude these large folders)
+backend/
+frontend/
+.cursor/
+
+# Dependencies (EAS runs npm install on the server)
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Expo/Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native build folders
+ios/
+android/
+
+# Debug and logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment files (use EAS Secrets instead)
+.env
+.env.*
+.env*.local
+
+# Documentation (not needed for build)
+*.md
+!README.md
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
