@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[4],
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: '#f8fafc',
   },
   title: {
     fontFamily: 'Quicksand_700Bold',
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing[4],
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: '#f8fafc',
   },
   btnOutlined: {
     paddingVertical: spacing[2],
