@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -23,12 +23,19 @@ import { useAuth } from '@/hooks/authHook';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
+
+  // Redirect parent to select-child screen after successful login
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'parent') {
+      router.replace('/parent/selectchild');
+    }
+  }, [isAuthenticated, user?.role, router]);
 
   const validate = () => {
     const next: { email?: string; password?: string } = {};
@@ -203,8 +210,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   logo: {
-    width: 140,
-    height: 80,
+    width: 180,
+    height: 180,
   },
   card: {
     width: '100%',
