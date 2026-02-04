@@ -22,7 +22,7 @@ export default function ChildLayout() {
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
-          contentStyle: { backgroundColor: colors.bgSecondary },
+          contentStyle: { backgroundColor: colors.secondary },
         }}
         >
         <Stack.Screen name="home" />

@@ -15,7 +15,7 @@ export const colors = {
 
   // Backgrounds
   bgSolid: '#62caca',
-  bgSecondary: '#85c2b9',
+  bgSecondary: '#f8fafc',
   bgTertiary: '#f1f5f9',
   bgCard: 'rgba(255, 255, 255, 0.95)',
   bgOverlay: 'rgba(255, 255, 255, 0.9)',
