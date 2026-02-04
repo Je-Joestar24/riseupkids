@@ -7,6 +7,7 @@
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
 import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
@@ -53,6 +54,7 @@ function getActiveFromPath(pathname: string): NavValue {
 export function FooterNavigation({ childId }: FooterNavigationProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const insets = useSafeAreaInsets();
     const activeValue = getActiveFromPath(pathname);
 
     const handleNav = (value: NavValue) => {
@@ -99,7 +101,7 @@ export function FooterNavigation({ childId }: FooterNavigationProps) {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <View style={styles.inner}>
                 {NAV_ITEMS.map((item) => {
                     const isActive = activeValue === item.value;

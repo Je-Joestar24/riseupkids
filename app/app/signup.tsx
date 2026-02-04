@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
@@ -10,7 +10,7 @@ export default function SignupScreen() {
   const router = useRouter();
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.content}>
         <ThemedText type="title">Create Account</ThemedText>
         <ThemedText style={styles.subtitle}>Coming soon</ThemedText>
@@ -18,7 +18,7 @@ export default function SignupScreen() {
           ← Back to Login
         </ThemedText>
       </View>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 

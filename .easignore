@@ -1,0 +1,15 @@
+# EAS archives from git root - exclude everything except app/
+# Place this at repository root: RiseUpKids/.easignore
+
+# Exclude sibling projects
+backend/
+frontend/
+
+# Exclude root-level files
+*.md
+!app/README.md
+ProfileSidebar.jsx
+.cursor/
+
+# Dependencies (EAS runs npm install)
+**/node_modules/

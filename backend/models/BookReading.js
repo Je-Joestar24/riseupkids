@@ -12,13 +12,13 @@ const bookReadingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Reading must be associated with a child'],
-      index: true,
+      //index: true,
     },
     book: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Book',
       required: [true, 'Reading must be associated with a book'],
-      index: true,
+      // index: true,
     },
     // Reading session status
     status: {

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, Typography, Card, CardContent } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import rocketSvg from '../../../assets/icons/rocket-svgrepo-com.svg';
+import starSvg from '../../../assets/icons/star-svgrepo-com.svg';
 
 /**
  * ParentsChildList Component
@@ -32,12 +34,12 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
               '&:hover': {
                 transform: 'translateY(-2px)',
                 boxShadow: `0 4px 12px ${borderColor}40`,
-                backgroundColor: '#fdd5c4',
+                backgroundColor: index % 2 === 0 ?  '#c4d6d3' : 'rgba(233, 138, 104, 0.5)',
               },
             }}
           >
             <CardContent sx={{ padding: '20px !important', display: 'flex', alignItems: 'center', gap: 2 }}>
-              {/* Avatar - Child-friendly with emoji */}
+              {/* Avatar - Child-friendly with SVG icons */}
               <Box
                 sx={{
                   width: 70,
@@ -56,15 +58,17 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
                 }}
               >
                 {!child.avatar && (
-                  <Typography
+                  <Box
+                    component="img"
+                    src={index % 2 === 0 ? rocketSvg : starSvg}
+                    alt=""
                     sx={{
-                      fontSize: '2.5rem',
-                      lineHeight: 1,
-                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+                      width: 36,
+                      height: 36,
+                      objectFit: 'contain',
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))',
                     }}
-                  >
-                    {index % 2 === 0 ? '🚀' : '⭐'}
-                  </Typography>
+                  />
                 )}
                 {/* Decorative circle */}
                 <Box

@@ -103,7 +103,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for performance
-userSchema.index({ email: 1 }, { sparse: true }); // Sparse index to allow multiple null emails
+// userSchema.index({ email: 1 }); Sparse index to allow multiple null emails
 userSchema.index({ role: 1 });
 userSchema.index({ linkedParent: 1 });
 

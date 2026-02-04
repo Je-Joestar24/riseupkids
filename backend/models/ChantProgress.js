@@ -13,13 +13,13 @@ const chantProgressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Progress must be associated with a child'],
-      index: true,
+      //index: true,
     },
     chant: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Chant',
       required: [true, 'Progress must be associated with a chant'],
-      index: true,
+      // index: true,
     },
     status: {
       type: String,

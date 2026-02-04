@@ -64,7 +64,7 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       enum: ['scheduled', 'completed', 'cancelled'],
       default: 'scheduled',
-      index: true,
+      //index: true,
     },
     isArchived: {
       type: Boolean,

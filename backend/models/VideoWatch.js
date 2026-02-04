@@ -63,10 +63,7 @@ const videoWatchSchema = new mongoose.Schema(
 // Compound index - one watch record per child per video
 videoWatchSchema.index({ child: 1, video: 1 }, { unique: true });
 
-// Index for querying by child
-videoWatchSchema.index({ child: 1, watchCount: -1 });
-
-// Index for querying by video
-videoWatchSchema.index({ video: 1 });
+// Index for querying by watch count (video field has index: true)
+videoWatchSchema.index({ watchCount: -1 });
 
 module.exports = mongoose.model('VideoWatch', videoWatchSchema);

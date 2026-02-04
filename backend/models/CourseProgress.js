@@ -15,7 +15,7 @@ const courseProgressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Progress must be associated with a child'],
-      index: true,
+      //index: true,
     },
     course: {
       type: mongoose.Schema.Types.ObjectId,

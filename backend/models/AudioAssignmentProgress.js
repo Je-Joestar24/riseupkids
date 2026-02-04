@@ -12,13 +12,13 @@ const audioAssignmentProgressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Progress must be associated with a child'],
-      index: true,
+      //index: true,
     },
     audioAssignment: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'AudioAssignment',
       required: [true, 'Progress must be associated with an audio assignment'],
-      index: true,
+      // index: true,
     },
     // Status
     status: {

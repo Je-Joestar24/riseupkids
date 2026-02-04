@@ -1,12 +1,12 @@
 /**
  * Child Header Navigation
- * Sticky header: centered logo, points (stars) button on right
- * Follows web ChilHeader design
+ * Two columns: (1) flex area with logo centered in the left side, (2) points button sized to content
  */
 
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
@@ -23,6 +23,7 @@ interface HeaderNavProps {
 
 export function HeaderNav({ childId }: HeaderNavProps) {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [totalStars, setTotalStars] = useState(0);
 
   const fetchStars = async () => {
@@ -51,10 +52,10 @@ export function HeaderNav({ childId }: HeaderNavProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.toolbar}>
-        {/* Logo - centered */}
-        <View style={styles.logoWrap}>
+        {/* Column 1: takes all space, logo centered within it */}
+        <View style={styles.logoColumn}>
           <Image
             source={require('@/assets/images/small-logo.png')}
             style={styles.logo}
@@ -63,7 +64,7 @@ export function HeaderNav({ childId }: HeaderNavProps) {
           />
         </View>
 
-        {/* Right: Points button */}
+        {/* Column 2: only as wide as its contents */}
         <Pressable
           onPress={handlePointsPress}
           style={({ pressed }) => [styles.pointsButton, pressed && styles.pointsButtonPressed]}
@@ -91,7 +92,6 @@ const styles = StyleSheet.create({
   },
   toolbar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
@@ -100,17 +100,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     minHeight: 100,
   },
-  logoWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+  logoColumn: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    pointerEvents: 'none',
   },
   logo: {
-    height: 88,
-    width: 120,
+    height: 75,
   },
   pointsButton: {
     flexDirection: 'row',
@@ -120,7 +116,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[4],
     paddingHorizontal: spacing[8],
     borderRadius: 0,
-    marginLeft: 'auto',
   },
   pointsButtonPressed: {
     opacity: 0.9,

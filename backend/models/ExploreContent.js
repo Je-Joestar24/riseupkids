@@ -79,7 +79,7 @@ const exploreContentSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [50, 'Category cannot exceed 50 characters'],
-      index: true,
+      //index: true,
     },
     // Stars awarded for completion
     starsAwarded: {

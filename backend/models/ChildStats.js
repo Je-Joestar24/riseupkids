@@ -13,7 +13,7 @@ const childStatsSchema = new mongoose.Schema(
       ref: 'ChildProfile',
       required: [true, 'Stats must be associated with a child'],
       unique: true,
-      index: true,
+      //index: true,
     },
     // Total stars earned (cumulative)
     totalStars: {
@@ -95,8 +95,7 @@ const childStatsSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
-childStatsSchema.index({ child: 1 });
+// Indexes - child has unique:true above which creates { child: 1 } index
 childStatsSchema.index({ totalStars: -1 }); // For leaderboards
 childStatsSchema.index({ currentStreak: -1 }); // For streak leaderboards
 

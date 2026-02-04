@@ -9,9 +9,11 @@ export const loginUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await authService.login(email, password);
-      return response.data;
+      // API returns { success, message, data: { user, token, childProfiles } }
+      return response.data?.data ?? response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Login failed');
+      const message = error?.message || error?.response?.data?.message || 'Login failed';
+      return rejectWithValue(typeof message === 'string' ? message : 'Login failed');
     }
   }
 );

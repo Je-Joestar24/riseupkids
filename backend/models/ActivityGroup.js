@@ -37,7 +37,7 @@ const activityGroupSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [50, 'Category cannot exceed 50 characters'],
-      index: true,
+      //index: true,
     },
     // Order for display in explore section
     order: {

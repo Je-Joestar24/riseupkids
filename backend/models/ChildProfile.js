@@ -6,7 +6,7 @@ const childProfileSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Child profile must have a parent'],
-      index: true,
+      // index: true,
     },
     displayName: {
       type: String,

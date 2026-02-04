@@ -6,7 +6,7 @@ const progressSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Progress must be associated with a child'],
-      index: true,
+      //index: true,
     },
     lesson: {
       type: mongoose.Schema.Types.ObjectId,
@@ -14,27 +14,27 @@ const progressSchema = new mongoose.Schema(
       required: function () {
         return !this.activity; // Required if not a standalone activity
       },
-      index: true,
+      // index: true,
     },
     lessonItem: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'LessonItem',
       default: null,
-      index: true,
+      // index: true,
     },
     // For standalone activities (not in lessons)
     activity: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Activity',
       default: null,
-      index: true,
+      // index: true,
     },
     // Reference to activity group (if activity belongs to a group)
     activityGroup: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ActivityGroup',
       default: null,
-      index: true,
+      // index: true,
     },
     status: {
       type: String,

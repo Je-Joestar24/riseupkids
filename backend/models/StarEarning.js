@@ -12,7 +12,7 @@ const starEarningSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Star earning must be associated with a child'],
-      index: true,
+      //index: true,
     },
     // Number of stars earned
     stars: {

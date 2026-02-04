@@ -17,6 +17,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ChildAddModal } from '@/components/parents/child/child-add-modal';
@@ -82,7 +83,7 @@ export default function SelectChildScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -152,7 +153,7 @@ export default function SelectChildScreen() {
       </ScrollView>
 
       <ChildAddModal open={addModalOpen} onClose={handleCloseAddModal} />
-    </View>
+    </SafeAreaView>
   );
 }
 

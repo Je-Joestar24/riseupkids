@@ -38,7 +38,7 @@ const youtubeIntegrationSchema = new mongoose.Schema(
     expiryDate: {
       type: Date,
       required: [true, 'Expiry date is required'],
-      index: true,
+      // index: true,
     },
     connectedEmail: {
       type: String,

@@ -40,14 +40,14 @@ const contactSupportSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'Contact message must be associated with a user'],
-      index: true,
+      //index: true,
     },
     // Status of the message
     status: {
       type: String,
       enum: ['pending', 'in_progress', 'resolved', 'closed'],
       default: 'pending',
-      index: true,
+      // index: true,
     },
     // Admin's response to the message
     adminResponse: {

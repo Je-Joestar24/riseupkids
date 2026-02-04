@@ -11,6 +11,7 @@ import ParentChildAddModal from '../../components/parents/child/ParentChildAddMo
 import useAuth from '../../hooks/userHook';
 import useChildren from '../../hooks/childrenHook';
 import { themeColors } from '../../config/themeColors';
+import handIcon from '../../assets/icons/HAND.png';
 import '../../assets/css/ParentsChild.css';
 
 /**
@@ -91,16 +92,33 @@ const ParentsChild = () => {
           <CardContent className="parents-child-card-content">
             {/* Header */}
             <Box className="parents-child-header">
-              <Typography 
-                className="parents-child-welcome" 
+              <Box
+                className="parents-child-welcome"
+                component="span"
                 sx={{
-                  fontSize: '22px', 
-                  fontWeight: '700', 
-                  color: theme.palette.primary.main
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  fontSize: '22px',
+                  fontWeight: '700',
+                  color: theme.palette.primary.main,
                 }}
               >
-                Welcome Back! 👏
-              </Typography>
+                <Typography component="span" sx={{ fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit' }}>
+                  Welcome Back!
+                </Typography>
+                <Box
+                  component="img"
+                  src={handIcon}
+                  alt=""
+                  aria-hidden
+                  sx={{
+                    height: '1.5em',
+                    width: 'auto',
+                    verticalAlign: 'middle',
+                  }}
+                />
+              </Box>
               <Typography variant="body2" className="parents-child-subtitle">
                 Pick your profile:
               </Typography>

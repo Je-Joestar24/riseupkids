@@ -12,7 +12,7 @@ const kidsWallPostSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ChildProfile',
       required: [true, 'Post must be associated with a child'],
-      index: true,
+      //index: true,
     },
     // Post type
     type: {

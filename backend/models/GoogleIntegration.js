@@ -12,8 +12,8 @@ const googleIntegrationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: [true, 'User is required'],
-      unique: true,
-      index: true,
+      //unique: true,
+      //index: true,
     },
     accessToken: {
       type: String,
@@ -30,7 +30,7 @@ const googleIntegrationSchema = new mongoose.Schema(
     expiryDate: {
       type: Date,
       required: [true, 'Expiry date is required'],
-      index: true,
+      //index: true,
     },
     connectedEmail: {
       type: String,
