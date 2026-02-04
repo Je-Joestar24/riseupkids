@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   avatar: {
-    width: 96,
-    height: 96,
+    width: 90,
+    height: 90,
     borderRadius: 48,
     backgroundColor: colors.secondary,
     alignItems: 'center',
@@ -81,8 +81,8 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   avatarImage: {
-    width: 96,
-    height: 96,
+    width: 50,
+    height: 50,
     borderRadius: 48,
   },
   textWrap: {
