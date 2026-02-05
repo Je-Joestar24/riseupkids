@@ -1,57 +1,62 @@
 # Rise Up Kids
 
-## Child Learning Management System (MVP)
+## Child Learning Management System (LMS)
 
 ### 📌 Project Overview
 
-This project is a child-friendly Learning Management System (LMS) built using the **MERN stack** (MongoDB, Express, React, Node.js).
+Rise Up Kids is a child-friendly Learning Management System built with the **MERN stack** (MongoDB, Express, React, Node.js) and a **React Native (Expo)** mobile app.
 
-The platform is designed around three core users:
+The platform is designed around **four core user roles**:
 
-- **Admin** – manages lessons and content
-- **Parent** – manages child accounts and tracks progress
-- **Child** – learns through guided lessons, stories, and activities
+- **Admin** – Platform and content management, teacher management, integrations (YouTube, Google Meet)
+- **Teacher** – Delivers content, creates live classes (Google Meet & YouTube Live), manages courses and Kids Wall
+- **Parent** – Account owner, child profiles, progress tracking, subscription (Stripe)
+- **Child** – Learner: lessons, books, videos, SCORM, live classes (Meet + YouTube), Kids Wall
 
-The goal of this MVP is to deliver a fully functional learning flow while keeping the system simple, stable, and extensible.
+**Web frontend** (React/Vite) serves **Admin**, **Teacher**, **Parent**, and **Child**. The **mobile app** (Expo) serves **Parent** and **Child** only; Admin and Teacher use the web dashboard.
 
 ---
 
-## 🎯 MVP Scope
+## 🎯 Current Scope
 
-For the current version:
-
-- Focus only on **Admin**, **Parent**, and **Child**
-- All files (videos, audio, images) are stored **locally on the backend**
-- No cloud storage (Cloudinary, S3) yet
-- Designed to later support mobile and cloud migration
+- **User roles:** Admin, Teacher, Parent, Child (JWT + role-based access)
+- **Payments:** Stripe integration for parent signup and subscription (yearly commitment, webhooks, cancel flow)
+- **Live classes:** Google Meet (create/join) and YouTube Live (create/stream/watch, OAuth)
+- **Content:** Lessons, books, videos, activities, SCORM packages, explore videos, audio assignments, chants
+- **Social:** Kids Wall (moderated), Share Something
+- **Progress:** Course progress, badges, video watch tracking, book reading
+- **Storage:** Local file storage (backend `uploads/`); SCORM served from `/scorm`
+- **Support:** Contact support flow
 
 ---
 
 ## 🧱 Tech Stack
 
-### Frontend
-
-- React
-- React Router
-- Context API (or Redux later)
-- Child-friendly UI design
-
 ### Backend
 
-- Node.js
-- Express.js
+- Node.js, Express.js
 - MongoDB (Mongoose)
-- Local file storage (uploads folder)
+- JWT authentication, role-based authorization (admin, teacher, parent, child)
+- Local file storage (`backend/uploads/`), static serve for SCORM
 
-### Authentication
+### Web Frontend
 
-- JWT-based authentication
-- Role-based access control (Admin, Parent, Child)
+- React, Vite
+- React Router
+- Redux (store + slices)
+- Admin, Teacher, Parent, and Child dashboards and flows
 
-### Payment & Subscription (Future)
+### Mobile App (`app/`)
 
-- Stripe integration for subscription management
-- Parent subscription plans and billing
+- React Native with **Expo**
+- Parent and Child only (portrait, phone → tablet responsive)
+- Same backend API; theme aligned with web
+
+### Integrations
+
+- **Stripe** – Parent signup checkout, subscription lifecycle, webhooks, cancel subscription
+- **Google Meet** – OAuth for teachers/admins; create meetings; children/parents join via link
+- **YouTube Live** – OAuth (admin connects channel); teachers/admins create streams; embed/watch for children; end/archive/delete
 
 ---
 
@@ -59,68 +64,66 @@ For the current version:
 
 ### 1️⃣ Admin
 
-**Purpose:** Platform manager and content uploader
+**Purpose:** Platform manager, content and integration owner.
 
-**Main Responsibilities:**
+**Main responsibilities:**
 
 - Login to admin dashboard
-- Manage school/platform settings
-- Manage parent accounts
-- Send announcements
-- Create and manage:
-  - Lessons
-  - Books
-  - Videos
-  - Activities
-  - Assignments
-  - Storytime content
-- Upload media files (audio, video, images)
-- Search, update, or archive content
-- View overall learning progress
-
-> **Note:** Admins are the only users allowed to upload and manage lesson-related content.
+- Manage platform/school settings
+- **Manage teachers** (CRUD, archive, restore)
+- Manage parent/child accounts
+- **Connect YouTube** (OAuth) for the LMS; teachers/admins then create streams
+- Create and manage: lessons, books, videos, activities, assignments, storytime, explore content
+- **Create and manage Google Meet meetings** (after Google OAuth)
+- **Create and manage YouTube Live streams** (after admin connects YouTube)
+- Upload media (audio, video, images)
+- Kids Wall moderation, Check Audio (audio assignments)
+- View learning progress and dashboard metrics
 
 ---
 
-### 2️⃣ Parent
+### 2️⃣ Teacher
 
-**Purpose:** Account owner and progress monitor
+**Purpose:** Deliver lessons and live classes; manage content visible to children.
 
-**Main Responsibilities:**
+**Main responsibilities:**
 
-- Register and login
-- Access parent dashboard
-- Add, update, or remove child profiles
+- Login to teacher dashboard (web only)
+- **Live Classes (Google Meet):** Create and manage meetings; children/parents join via link
+- **YouTube Live:** Create live streams (uses LMS YouTube connection), view stream key/RTMP, end/archive/delete own streams
+- Manage courses: modules, contents, explore videos
+- Kids Wall, Check Audio (audio assignments)
+- Teachers are created and managed by Admin only
+
+---
+
+### 3️⃣ Parent
+
+**Purpose:** Account owner, progress monitor, subscription holder.
+
+**Main responsibilities:**
+
+- Register and login (signup flow includes **Stripe** checkout for subscription)
+- Parent dashboard; add/update/remove child profiles
 - View child learning progress
-- Search and view progress history
-- Manage subscription via Stripe (future integration)
-- Handle billing and payment methods
-- Receive updates and announcements
-
-> **Note:** Parents do not upload lessons or content.
+- **Manage subscription** (Stripe): view status, cancel subscription
+- Join live classes (Google Meet link) and watch YouTube Live with child when applicable
+- Receive announcements; contact support
 
 ---
 
-### 3️⃣ Child
+### 4️⃣ Child
 
-**Purpose:** Learner
+**Purpose:** Learner.
 
-**Main Responsibilities:**
+**Main responsibilities:**
 
-- Login to child-friendly interface
-- Access Home page
-- Learn and join classes
-- View learning status
-- Follow "My Journey":
-  - View lessons
-  - Read books
-  - Listen to audio
-  - Complete steps and activities
-  - Submit assignments
-  - Explore learning content
-- Use Kids Wall (basic interaction, moderated)
-
-> **Note:** Children see only learning-related features.
+- Login to child interface (web or app)
+- Home: **Live now** (YouTube Live embed) and **Next Live Class** (Google Meet join link)
+- **My Journey:** Lessons, books, audio, activities, assignments, SCORM
+- **Explore:** Videos and replays
+- **Kids Wall** and Share Something (moderated)
+- View learning status and badges
 
 ---
 
@@ -128,262 +131,132 @@ For the current version:
 
 ### 🔐 Authentication & Authorization
 
-- Secure login for all users
-- Role-based access control
-- Parent-child relationship enforced at backend level
+- JWT-based auth for admin, teacher, parent, child
+- Role-based access control; parent–child relationship enforced in backend
 
-### 📚 Lesson Management
+### 💳 Stripe (Subscription & Payments)
 
-- Structured lessons created by Admin
-- Each lesson can include:
-  - Text
-  - Images
-  - Video
-  - Audio
-  - Activities
-  - Assignments
-- Lessons are grouped into journeys or categories
+- **Parent signup:** Create parent account → Stripe Checkout Session (yearly price) → redirect to Stripe → success/cancel return
+- **Webhooks:** `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, invoice events to keep subscription status in sync
+- **Subscription management:** Parent can cancel subscription (API + dashboard); status and period end stored on user
+- **Access control:** Subscription status (e.g. active, cancelled, pending_payment) for parent access
 
-### 📖 Read-Along Books (Audio + Text)
+See `STRIP_INTEGRATION_PLAN.md` and `backend/STRIPE_LOCAL_SETUP.md` for setup.
 
-Each book can include:
+### 📅 Live Classes – Google Meet
 
-- Written text
-- Pre-recorded audio narration
-- (Optional) subtitles generated from audio
+- **Teachers & Admins:** OAuth with Google (Calendar API); create and list meetings; store meeting link and metadata
+- **Children & Parents:** Join via meeting link (no Google account required)
+- **App:** Opens Meet link in browser/InAppBrowser
 
-This allows children to:
+See `GOOGLE_MEETING_INTEGRATION.md`.
 
-- Read
-- Listen
-- Read while listening
+### 📺 YouTube Live
 
-### 📈 Progress Tracking
+- **Admin:** Connects LMS to YouTube channel (OAuth); single shared connection
+- **Teachers & Admins:** Create live streams; receive stream key/RTMP URL; list own streams; end broadcast, archive, or delete
+- **Children & Parents (web & app):** See “Live now” (embed) and join; no stream key exposed
+- **API:** `/api/youtube` – OAuth, create/list/get/archive/end/delete
 
-- Track lesson completion
-- Track activities done
-- Track assignments submitted
-- Parent-visible progress summaries
+### 📚 Lessons, Books, Videos, SCORM
 
-### 📢 Announcements
+- Structured lessons (text, images, video, audio, activities, assignments)
+- Read-along books (text + optional audio)
+- Videos and explore videos with watch tracking
+- SCORM packages (upload, launch, completion tracking)
+- Audio assignments and chants (with review flow for teachers/admins)
 
-- Created by Admin
-- Visible to parents and children (based on rules)
+### 📈 Progress & Gamification
 
-### 💳 Subscription & Payment Management (Future)
+- Course/module progress, lesson and activity completion
+- Badges; video watch and book reading tracking
+- Parent-visible progress and parent dashboard
 
-- Stripe integration for secure payment processing
-- Parent subscription plans (monthly/annual)
-- Automated billing and invoicing
-- Subscription status tracking
-- Payment method management
-- Subscription upgrades/downgrades
-- Access control based on subscription status
+### 📢 Kids Wall & Support
+
+- Kids Wall (moderated posts); Share Something
+- Contact support (backend + frontend)
 
 ---
 
-## 🗂 File Storage Strategy (MVP)
-
-For now, all uploaded files are stored **locally on the backend server**.
-
-**Example structure:**
+## 🗂 Repository Structure
 
 ```
-backend/
- └── uploads/
-     ├── books/
-     │   ├── text/
-     │   ├── audio/
-     │   └── images/
-     ├── videos/
-     ├── activities/
-     └── assignments/
+RiseUpKids/
+├── backend/          # Express API (shared by web + app)
+├── frontend/         # React/Vite web app — Admin, Teacher, Parent, Child
+├── app/              # React Native (Expo) app — Parent + Child only
+├── README.md
+├── APP_PLAN.md       # App scope, layout, theming
+├── GOOGLE_MEETING_INTEGRATION.md
+├── STRIP_INTEGRATION_PLAN.md
+├── SCORM_INTEGRATION_GUIDE.md
+└── backend/STRIPE_LOCAL_SETUP.md
 ```
 
-**This approach:**
+### File storage (backend)
 
-- Simplifies development
-- Reduces cost
-- Works well for MVP and testing
-- Can later be migrated to Cloudinary or S3
+- **Uploads:** `backend/uploads/` (books, videos, activities, assignments, etc.)
+- **SCORM:** Served under `/scorm` from `uploads/scorm`
 
 ---
 
-## 🎙 Read-Along Audio + Subtitle Question (Important)
+## 🎙 Read-Along Audio & Subtitles
 
-### ❓ Is it really possible to:
-
-**Upload audio → transcribe it → generate subtitles?**
-
-### ✅ Short Answer: **YES, it is absolutely possible**
-
-**How it works (Simple Explanation):**
-
-1. Admin uploads an audio narration for a book
-2. The backend sends that audio file to a speech-to-text service
-3. The service returns:
-   - Transcribed text
-   - Timestamped words or sentences
-4. The system:
-   - Saves the subtitle text
-   - Displays it synced with the audio
-
-### 🧠 APIs That Can Do This
-
-You can integrate later with:
-
-- OpenAI Speech-to-Text
-- Google Speech-to-Text
-- Whisper-based APIs
-- AssemblyAI
-- Deepgram
-
-**For MVP:**
-
-- You can store audio only
-- Or store manually added text
-- Then later enable auto-transcription
-
-### ⚠ Important Reality Check (Honest)
-
-- Auto-transcription is **not free**
-- Accuracy depends on:
-  - Audio quality
-  - Language
-  - Accent
-
-**For MVP:**
-
-- It's okay to support the feature design
-- But activate transcription later
-- This is industry-normal, not a limitation.
+- **Possible:** Upload audio → speech-to-text → timestamped subtitles (e.g. OpenAI, Google, Whisper, AssemblyAI).
+- **MVP:** Store audio (and optional manual text); auto-transcription can be added later.
+- Cost and accuracy depend on quality and language; design supports transcription when enabled.
 
 ---
 
-## 💳 Stripe Integration (Future)
+## 🧪 Development Phases (Reference)
 
-### Overview
-
-Stripe will be integrated to handle all subscription and payment processing for parent accounts. This will enable the platform to offer subscription-based access to learning content.
-
-### Planned Features
-
-- **Subscription Plans**
-  - Monthly and annual subscription options
-  - Multiple tier plans (Basic, Premium, Family)
-  - Free trial periods
-
-- **Payment Processing**
-  - Secure credit/debit card payments
-  - Multiple payment methods support
-  - Automatic recurring billing
-
-- **Subscription Management**
-  - Parent dashboard for subscription management
-  - Upgrade/downgrade subscription plans
-  - Cancel or pause subscriptions
-  - View billing history and invoices
-
-- **Access Control**
-  - Content access based on subscription status
-  - Grace period for expired subscriptions
-  - Automatic access revocation for unpaid subscriptions
-
-### Implementation Notes
-
-- Stripe API integration will be implemented in Phase 3
-- Webhook handling for subscription events (created, updated, canceled)
-- Secure storage of Stripe customer IDs and subscription IDs
-- Admin dashboard for monitoring subscription metrics
+- **Done:** Auth, roles (admin, teacher, parent, child), teachers CRUD, local uploads, lessons/books/videos, progress, Stripe signup & webhooks, Google Meet, YouTube Live, SCORM, Kids Wall, badges, contact support, explore videos, parent dashboard, mobile app (Parent + Child).
+- **Future (examples):** Cloud storage, more analytics, additional payment plans, mobile for teacher/admin (if ever needed).
 
 ---
 
-## 🧪 MVP Development Phases
+## 🚀 Getting Started
 
-### Phase 1
+### Prerequisites
 
-- Auth
-- Roles
-- Local uploads
-- Lesson CRUD
-- Parent-child linking
+- Node.js (v14+)
+- MongoDB (local or Atlas)
+- npm or yarn
 
-### Phase 2
+### Environment
 
-- Progress tracking
-- Read-along books
-- Assignments
-- Admin dashboards
+Create `.env` in `backend/` and `frontend/` (and `app/` if running the app). Backend may include:
 
-### Phase 3 (Later)
+- `MONGODB_URI`, `JWT_SECRET`
+- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_YEARLY` (see `STRIP_INTEGRATION_PLAN.md`, `backend/STRIPE_LOCAL_SETUP.md`)
+- Google Meet: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (see `GOOGLE_MEETING_INTEGRATION.md`)
+- YouTube: Google OAuth credentials and YouTube API (see backend YouTube routes and docs)
 
-- Cloud storage
-- Mobile optimization
-- Auto transcription
-- Advanced analytics
-- Stripe payment integration
-- Subscription management system
+### Install & run
 
----
+```bash
+# Backend
+cd backend
+npm install
+npm start
 
-## 🚀 Future Scalability
+# Web frontend
+cd frontend
+npm install
+npm start
 
-The system is designed to later support:
-
-- Cloud storage
-- Mobile apps
-- More roles (Educator, Moderator)
-- Advanced communities
-- AI-assisted learning tools
-- Stripe payment integration for parent subscriptions
-- Automated billing and subscription management
+# Mobile app (optional)
+cd app
+npm install
+npx expo start
+```
 
 ---
 
 ## 🧾 One-Line Summary
 
-A MERN-based child learning platform where admins manage content, parents track progress, and children learn through guided lessons, stories, and activities.
-
----
-
-## 📝 Getting Started
-
-### Prerequisites
-
-- Node.js (v14 or higher)
-- MongoDB (local or Atlas)
-- npm or yarn
-
-### Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-
-# Install backend dependencies
-cd backend
-npm install
-
-# Install frontend dependencies
-cd ../frontend
-npm install
-```
-
-### Environment Setup
-
-Create `.env` files in both `backend` and `frontend` directories with the necessary environment variables.
-
-### Running the Application
-
-```bash
-# Start backend server
-cd backend
-npm start
-
-# Start frontend development server
-cd frontend
-npm start
-```
+Rise Up Kids is a MERN-based child LMS with four roles (Admin, Teacher, Parent, Child): admins and teachers manage content and run live classes (Google Meet + YouTube Live), parents pay via Stripe and track progress, and children learn through lessons, books, videos, SCORM, and live streams—on web and in an Expo app (Parent + Child).
 
 ---
 
@@ -411,4 +284,3 @@ npm start
 ## 📞 Support
 
 For support, email jpar1252003@gmail.com or create an issue in the repository.
-
