@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     maxWidth: 848,
-    marginBottom: spacing[8],
+    marginBottom: spacing[2],
     alignItems: 'center',
     justifyContent: 'center',
   },

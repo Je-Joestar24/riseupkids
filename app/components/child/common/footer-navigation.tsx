@@ -45,7 +45,8 @@ const NAV_ITEMS: { value: NavValue; label: string; isImage: boolean }[] = [
 ];
 
 function getActiveFromPath(pathname: string): NavValue {
-    if (pathname.includes('/journey')) return 'journey';
+    // Module is a sibling route; when on module, keep "My Journey" active in footer
+    if (pathname.includes('/module') || pathname.includes('/journey')) return 'journey';
     if (pathname.includes('/explore')) return 'explore';
     if (pathname.includes('/wall')) return 'wall';
     return 'home';

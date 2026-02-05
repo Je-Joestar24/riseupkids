@@ -1,6 +1,6 @@
 /**
  * Child Journey – My Journey page.
- * Header + Progress Summary (cards skipped for now).
+ * Header, Progress Summary, and Journey Cards (completed / in progress / locked).
  */
 
 import { useLocalSearchParams } from 'expo-router';
@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { JourneyCards } from '@/components/child/journey/journey-cards';
 import { JourneyHeader } from '@/components/child/journey/journey-header';
 import { JourneySummary } from '@/components/child/journey/journey-summary';
 import { ThemedText } from '@/components/themed-text';
@@ -21,7 +22,7 @@ import { useJourney } from '@/hooks/journeyHook';
 
 export default function ChildJourneyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { loading, error, courseProgress } = useJourney(id);
+  const { loading, error, courseProgress, coursesWithProgress } = useJourney(id);
 
   const step =
     courseProgress.completedCount +
@@ -50,6 +51,9 @@ export default function ChildJourneyScreen() {
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}>
       <JourneyHeader week={step} totalWeeks={totalSteps} />
+      {id && (
+        <JourneyCards courses={coursesWithProgress} childId={id} />
+      )}
       <JourneySummary
         completed={courseProgress.completedCount}
         current={courseProgress.inProgressCount}
@@ -70,6 +74,7 @@ const styles = StyleSheet.create({
     maxWidth: 848,
     width: '100%',
     alignSelf: 'center',
+    gap: spacing[4],
   },
   centered: {
     flex: 1,

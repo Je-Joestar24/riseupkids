@@ -21,16 +21,10 @@ export default function ChildLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'slide_from_right',
+          animation: 'fade_from_bottom',
           contentStyle: { backgroundColor: colors.secondary },
         }}
-        >
-        <Stack.Screen name="home" />
-        <Stack.Screen name="journey" />
-        <Stack.Screen name="explore" />
-        <Stack.Screen name="wall" />
-        <Stack.Screen name="profile" />
-      </Stack>
+      />
       <FooterNavigation childId={id} />
     </View>
   );
