@@ -1,0 +1,93 @@
+/**
+ * Chant Service
+ *
+ * API client for chant progress operations.
+ * - Start chant for a child (creates progress)
+ * - Get chant progress
+ * - Complete chant with recorded audio (multipart/form-data)
+ *
+ * Mirrors frontend chantProgressService and backend /api/chants/:id/child/:childId/*
+ */
+
+import { api } from './api';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+}
+
+export interface ChantProgress {
+  _id: string;
+  chant: string | { _id: string; title?: string; instructions?: string; instructionVideo?: unknown };
+  child: string;
+  status: 'not_started' | 'in_progress' | 'completed';
+  starsEarned?: number;
+  recordedAudioUrl?: string;
+  recordedAudioPath?: string;
+  timeSpent?: number;
+  completedAt?: string;
+  [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+const chantService = {
+  /**
+   * Start chant for a child (creates progress if missing)
+   * POST /api/chants/:chantId/child/:childId/start
+   */
+  start: async (
+    chantId: string,
+    childId: string
+  ): Promise<ApiResponse<ChantProgress>> => {
+    const res = await api.post<ApiResponse<ChantProgress>>(
+      `/chants/${chantId}/child/${childId}/start`
+    );
+    return res as ApiResponse<ChantProgress>;
+  },
+
+  /**
+   * Get chant progress for a child
+   * GET /api/chants/:chantId/child/:childId/progress
+   */
+  getProgress: async (
+    chantId: string,
+    childId: string
+  ): Promise<ApiResponse<ChantProgress>> => {
+    const res = await api.get<ApiResponse<ChantProgress>>(
+      `/chants/${chantId}/child/${childId}/progress`
+    );
+    return res as ApiResponse<ChantProgress>;
+  },
+
+  /**
+   * Complete chant with child's recorded audio
+   * POST /api/chants/:chantId/child/:childId/complete
+   * multipart/form-data: recordedAudio, timeSpent, metadata (JSON string)
+   */
+  complete: async (
+    chantId: string,
+    childId: string,
+    formData: FormData
+  ): Promise<ApiResponse<ChantProgress>> => {
+    const res = await api.post<ApiResponse<ChantProgress>>(
+      `/chants/${chantId}/child/${childId}/complete`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    return res as ApiResponse<ChantProgress>;
+  },
+};
+
+export { chantService };

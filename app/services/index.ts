@@ -4,6 +4,19 @@
 
 export { api } from './api';
 export { authService } from './authService';
+export { chantService } from './chantService';
+export type { ChantProgress } from './chantService';
+export { audioAssignmentService } from './audioAssignmentService';
+export type {
+  AudioAssignmentProgress,
+  ReviewInput,
+  ListSubmissionsParams,
+} from './audioAssignmentService';
+export { videoWatchService } from './videoWatchService';
+export type {
+  VideoWatchStatus,
+  MarkVideoWatchedResult,
+} from './videoWatchService';
 export { journeyService } from './journeyService';
 export { moduleService } from './moduleService';
 export { parentChildService } from './parentChildService';

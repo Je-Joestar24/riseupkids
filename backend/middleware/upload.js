@@ -106,6 +106,11 @@ const fileFilter = (req, file, cb) => {
     'audio/ogg',
     'audio/webm',
     'audio/aac',
+    'audio/mp4',       // Android (expo-av m4a/AAC)
+    'audio/x-caf',     // iOS (expo-av Core Audio Format)
+    'audio/x-m4a',     // Alternative m4a
+    'audio/3gpp',      // Some Android devices (3gp)
+    'audio/amr',       // Some Android devices (AMR)
     // SCORM files (ZIP)
     'application/zip',
     'application/x-zip-compressed',

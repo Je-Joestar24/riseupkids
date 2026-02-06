@@ -8,3 +8,8 @@ export { useParentChildStore } from './parentChildStore';
 export type { ParentChildState, ParentChildActions } from './parentChildStore';
 export { useModuleStore } from './moduleStore';
 export type { ModuleState, ModuleActions } from './moduleStore';
+export { useContentProgressStore } from './contentProgressStore';
+export type {
+  ContentProgressState,
+  ContentProgressActions,
+} from './contentProgressStore';

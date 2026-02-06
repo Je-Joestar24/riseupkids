@@ -5,7 +5,7 @@
  */
 
 import { useGlobalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -13,6 +13,9 @@ import {
   View,
 } from 'react-native';
 
+import { AudioModal } from '@/components/child/common/audio-modal';
+import { ChantModal } from '@/components/child/common/chant-modal';
+import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
 import { ModuleAudioAssignments } from '@/components/child/module/module-audio-assignments';
 import { ModuleBooks } from '@/components/child/module/module-books';
 import { ModuleBreadcrumbs } from '@/components/child/module/module-breadcrumbs';
@@ -37,6 +40,10 @@ export default function ChildModuleScreen() {
     id?: string;
     courseId?: string;
   }>();
+  const [videoModal, setVideoModal] = useState<PopulatedContentItem | null>(null);
+  const [chantModal, setChantModal] = useState<PopulatedContentItem | null>(null);
+  const [audioModal, setAudioModal] = useState<PopulatedContentItem | null>(null);
+
   const {
     course,
     progressSummary,
@@ -50,6 +57,7 @@ export default function ChildModuleScreen() {
     error,
     fetchModuleDetails,
     clearModule,
+    refreshVideoWatches,
     getBookProgressCircles,
     isBookCompleted,
     getVideoProgressCircles,
@@ -135,6 +143,7 @@ export default function ChildModuleScreen() {
         getProgressCircles={getVideoProgressCircles}
         isCompleted={isVideoCompleted}
         getStarPoints={getVideoStarPoints}
+        onVideoPress={(v) => setVideoModal(v)}
       />
       <ModuleBooks
         books={books}
@@ -146,13 +155,48 @@ export default function ChildModuleScreen() {
         chants={chants}
         isCompleted={isChantCompleted}
         getStarPoints={getChantStarPoints}
+        onChantPress={(c) => setChantModal(c)}
       />
       <ModuleAudioAssignments
         audioAssignments={audioAssignments}
         getStatus={(audio) => getAudioStatus(audio) as 'not_started' | 'in_progress' | 'completed' | 'rejected' | null}
         getStarPoints={() => 0}
+        onAudioPress={(a) => setAudioModal(a)}
       />
       <ModuleFooter />
+
+      <VideoPlayerModal
+        open={Boolean(videoModal)}
+        onClose={() => setVideoModal(null)}
+        video={videoModal}
+        childId={childId ?? null}
+        courseId={courseId ?? null}
+        onVideoComplete={() => {
+          if (childId) refreshVideoWatches(childId);
+          fetchModuleDetails(courseId!, childId!);
+          setVideoModal(null);
+        }}
+      />
+      <ChantModal
+        open={Boolean(chantModal)}
+        onClose={() => setChantModal(null)}
+        chant={chantModal}
+        childId={childId ?? null}
+        courseId={courseId ?? null}
+        onAfterComplete={() => {
+          fetchModuleDetails(courseId!, childId!);
+        }}
+      />
+      <AudioModal
+        open={Boolean(audioModal)}
+        onClose={() => setAudioModal(null)}
+        audioAssignment={audioModal}
+        childId={childId ?? null}
+        courseId={courseId ?? null}
+        onAfterApproved={() => {
+          fetchModuleDetails(courseId!, childId!);
+        }}
+      />
     </ScrollView>
   );
 }
