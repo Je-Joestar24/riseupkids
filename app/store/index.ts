@@ -13,3 +13,5 @@ export type {
   ContentProgressState,
   ContentProgressActions,
 } from './contentProgressStore';
+export { useExploreStore, exploreCacheKey } from './exploreStore';
+export type { ExploreState, ExploreActions } from './exploreStore';

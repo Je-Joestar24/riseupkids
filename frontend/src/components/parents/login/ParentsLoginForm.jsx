@@ -93,7 +93,7 @@ const ParentLoginForm = () => {
       {/* Title with lock icon */}
       <Box className="auth-form-header"  sx={{margin: 'auto'}}>
         <Typography variant="h5" className="auth-form-title">
-          Parent/Teacher Access
+          Parent Access
         </Typography>
         <LockIcon className="auth-lock-icon" />
       </Box>

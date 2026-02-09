@@ -26,25 +26,44 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
+import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { moduleService } from '@/services/moduleService';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 
+/** Minimal video shape for explore (url pre-built by caller) */
+export interface ExploreVideoInput {
+  _id: string;
+  title: string;
+  url?: string | null;
+}
+
+export type VideoPlayerModalVideo = PopulatedContentItem | ExploreVideoInput;
+
 export interface VideoPlayerModalProps {
   open: boolean;
   onClose: () => void;
-  video: PopulatedContentItem | null;
+  video: VideoPlayerModalVideo | null;
   childId: string | null;
   courseId?: string | null;
-  onVideoComplete?: (video: PopulatedContentItem) => void;
+  /** Explore video: use explore watch API and pass content id + type for completion */
+  isExploreVideo?: boolean;
+  exploreContentId?: string | null;
+  videoType?: string;
+  onVideoComplete?: (video: VideoPlayerModalVideo) => void;
 }
 
 /** Build full video URL from url or filePath */
-function getVideoUrl(video: PopulatedContentItem | null): string | null {
+function getVideoUrl(video: VideoPlayerModalVideo | null): string | null {
   if (!video) return null;
-  const raw = (video as { url?: string; filePath?: string }).url ?? (video as { filePath?: string }).filePath;
-  if (!raw || typeof raw !== 'string') return null;
-  return getCoverImageUrl(raw);
+  const v = video as { url?: string; filePath?: string };
+  const raw = v.url ?? v.filePath;
+  if (raw && typeof raw === 'string') {
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return getCoverImageUrl(raw);
+  }
+  const fallback = (video as { url?: string; filePath?: string }).url ?? (video as { filePath?: string }).filePath;
+  return getCoverImageUrl(typeof fallback === 'string' ? fallback : null);
 }
 
 export function VideoPlayerModal({
@@ -53,9 +72,12 @@ export function VideoPlayerModal({
   video,
   childId,
   courseId,
+  isExploreVideo,
+  exploreContentId,
+  videoType,
   onVideoComplete,
 }: VideoPlayerModalProps) {
-  const videoId = String(video?._id ?? video?._contentId ?? video?.contentId ?? video?.id ?? '');
+  const videoId = String(video?._id ?? (video as { _contentId?: string })?._contentId ?? (video as { contentId?: string })?.contentId ?? (video as { id?: string })?.id ?? '');
   const showDialog = useUiStore((s) => s.showDialog);
 
   const {
@@ -64,7 +86,9 @@ export function VideoPlayerModal({
     refreshVideoWatches,
     updateCourseContentProgress,
     isLoadingVideo,
-  } = useContentProgress({ childId, courseId });
+  } = useContentProgress({ childId, courseId: isExploreVideo ? undefined : courseId });
+
+  const { markExploreVideoWatched } = useExploreVideoWatch(childId);
 
   const videoRef = useRef<Video>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -126,7 +150,7 @@ export function VideoPlayerModal({
   }, [open, video]);
 
   useEffect(() => {
-    if (open && childId && videoId) {
+    if (open && childId && videoId && !isExploreVideo) {
       getVideoWatchStatus(videoId).then((status) => {
         const s = status as {
           currentWatchCount?: number;
@@ -142,10 +166,40 @@ export function VideoPlayerModal({
         }
       });
     }
-  }, [open, childId, videoId, getVideoWatchStatus]);
+  }, [open, childId, videoId, isExploreVideo, getVideoWatchStatus]);
 
   const handleVideoEnd = useCallback(async () => {
-    if (hasRecordedWatch || !childId || !videoId || videoId === 'undefined') return;
+    if (hasRecordedWatch || !childId) return;
+    if (isExploreVideo) {
+      if (!exploreContentId) return;
+      setVideoEnded(true);
+      setIsRecordingWatch(true);
+      setHasRecordedWatch(true);
+      try {
+        await markExploreVideoWatched(exploreContentId, 100, videoType);
+        showDialog({
+          message: 'Great job watching the video!',
+          type: 'success',
+          duration: 4000,
+        });
+        exitFullscreen();
+        setShowCompletionDialog(false);
+        setWatchResult(null);
+        if (video) onVideoComplete?.(video);
+        onClose();
+      } catch (e) {
+        showDialog({
+          message: (e as Error)?.message ?? 'Failed to record video watch',
+          type: 'error',
+          duration: 5000,
+        });
+        setShowCompletionDialog(true);
+      } finally {
+        setIsRecordingWatch(false);
+      }
+      return;
+    }
+    if (!videoId || videoId === 'undefined') return;
     setVideoEnded(true);
     setIsRecordingWatch(true);
     setHasRecordedWatch(true);
@@ -196,11 +250,19 @@ export function VideoPlayerModal({
     hasRecordedWatch,
     childId,
     videoId,
+    video,
+    isExploreVideo,
+    exploreContentId,
+    videoType,
+    markExploreVideoWatched,
     markVideoWatched,
     watchStatusBefore,
     courseId,
     refreshVideoWatches,
     showDialog,
+    exitFullscreen,
+    onClose,
+    onVideoComplete,
   ]);
 
   const handlePlaybackStatusUpdate = useCallback(
@@ -233,18 +295,9 @@ export function VideoPlayerModal({
     exitFullscreen();
     if (video) onVideoComplete?.(video);
     onClose();
-    const msg =
-      watchResult?.starsJustAwarded && watchResult.starsToAward
-        ? `You earned ${watchResult.starsToAward} star${watchResult.starsToAward !== 1 ? 's' : ''}! 🎉`
-        : watchResult?.starsWereAlreadyAwarded
-          ? 'Stars already earned for this video! ⭐'
-          : 'Great job watching the video! 🎬';
-    showDialog({
-      message: msg,
-      type: 'success',
-      duration: 4000,
-    });
-  }, [watchResult, exitFullscreen, showDialog, onVideoComplete, video, onClose]);
+    // Module videos: do not show global dialog; the in-modal completion card already showed the message.
+    // Explore videos close before this (they show global dialog and close in handleVideoEnd).
+  }, [exitFullscreen, onVideoComplete, video, onClose]);
 
   if (!open) return null;
 

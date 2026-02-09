@@ -79,8 +79,15 @@ const AuthLoginForm = () => {
     }
     
     try {
-      await login(email, password);
-      // Navigation will be handled by useEffect when isAuthenticated changes
+      const result = await login(email, password);
+      // Navigate immediately after successful login (deterministic; avoids useEffect timing issues)
+      if (result?.data?.user?.role === 'parent') {
+        navigate('/parents/child');
+      } else if (result?.data?.user?.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (result?.data?.user?.role === 'teacher') {
+        navigate('/teacher/dashboard');
+      }
     } catch (error) {
       // Error notification is already shown by the hook
       console.error('Login error:', error);

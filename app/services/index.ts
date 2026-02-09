@@ -47,3 +47,17 @@ export type {
   VideoWatchStatus,
   BookReadingStatus,
 } from './moduleService';
+export { exploreService } from './exploreService';
+export type {
+  ExploreContentItem,
+  ExploreListParams,
+  ExploreListResponse,
+  ExplorePagination,
+  ExploreSingleResponse,
+  ExploreVideoFile,
+  ExploreWatchStatus,
+  MarkExploreVideoWatchedResult,
+  MarkExploreVideoWatchedResponse,
+  TotalStarsForVideoTypeResponse,
+  VideoTypeProgressResponse,
+} from './exploreService';

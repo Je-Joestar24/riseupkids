@@ -5,6 +5,7 @@ import ExploreSomething from "../../components/child/explore/ExploreSomething";
 import ExploreReplays from "../../components/child/explore/ExploreReplays";
 import ExploreVideoCollectionsCards from "../../components/child/explore/ExploreVideoCollectionsCards";
 import ExploreFooter from "../../components/child/explore/ExploreFooter";
+import ExploreStarCam from "../../components/child/explore/ExploreStarCam";
 
 const ChildExplore = ({ childId }) => {
     const theme = useTheme();
@@ -47,7 +48,8 @@ const ChildExplore = ({ childId }) => {
                 <ExploreReplays childId={childId} />
                 <ExploreSomething />
                 <ExploreVideoCollectionsCards onVideoTypeClick={handleVideoTypeClick} childId={childId} />
-                <ExploreFooter />
+                <ExploreStarCam />
+                {/* <ExploreFooter /> */}
             </Box>
         </Box>
     )
