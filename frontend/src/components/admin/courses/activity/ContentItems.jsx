@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -9,6 +9,7 @@ import {
   Grid,
   Card,
   CardContent,
+  CardActionArea,
   IconButton,
   Menu,
   MenuItem,
@@ -20,10 +21,13 @@ import {
   Edit as EditIcon,
   Archive as ArchiveIcon,
   Restore as RestoreIcon,
+  PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import ContentEditModal from './ContentEditModl';
+import AdminTestScormModal from '../../common/AdminTestScormModal';
+import useAdminScormHook from '../../../../hooks/adminScormHook';
 
 /**
  * ContentItems Component
@@ -45,6 +49,12 @@ const ContentItems = ({ loading, onRefresh }) => {
   const [selectedContentType, setSelectedContentType] = useState(CONTENT_TYPES.ACTIVITY);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const { openTest, modalProps, canTestScormByType } = useAdminScormHook();
+
+  const resolvedMenuType = useMemo(() => {
+    if (!selectedItem) return null;
+    return selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+  }, [selectedItem, filters.contentType]);
 
   const handleMenuOpen = (event, item) => {
     setAnchorEl(event.currentTarget);
@@ -61,6 +71,14 @@ const ContentItems = ({ loading, onRefresh }) => {
       setSelectedContentId(selectedItem._id);
       setSelectedContentType(selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY);
       setEditModalOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleTestScorm = () => {
+    if (selectedItem) {
+      const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      openTest(selectedItem, type);
     }
     handleMenuClose();
   };
@@ -175,6 +193,10 @@ const ContentItems = ({ loading, onRefresh }) => {
     <Grid container spacing={2}>
       {contentItems.map((item) => (
         <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={item._id}>
+          {/*
+            Card is clickable for SCORM-enabled items (except the 3-dots menu button).
+            For non-SCORM items, it remains static.
+          */}
           <Card
             sx={{
               borderRadius: '0px',
@@ -205,203 +227,268 @@ const ContentItems = ({ loading, onRefresh }) => {
                   opacity: 1,
                 },
               }}
-              onClick={(e) => handleMenuOpen(e, item)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMenuOpen(e, item);
+              }}
+              aria-label="Content actions"
             >
               <MoreVertIcon />
             </IconButton>
 
-            {/* Cover / Placeholder - full width square */}
-            {item.coverImage ? (
-              <Box
-                sx={{
-                  position: 'relative',
-                  width: '100%',
-                  paddingTop: '100%',
-                  overflow: 'hidden',
-                }}
-              >
+            <CardActionArea
+              onClick={() => {
+                const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+                if (canTestScormByType(type, item)) {
+                  openTest(item, type);
+                }
+              }}
+              disabled={!canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)}
+              sx={{
+                cursor: canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  ? 'pointer'
+                  : 'default',
+              }}
+              aria-label={
+                canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  ? `Test SCORM for ${item.title}`
+                  : `${item.title}`
+              }
+            >
+              {/* Cover / Placeholder - full width square */}
+              {item.coverImage ? (
                 <Box
-                  component="img"
-                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.coverImage}`}
-                  alt={item.title}
                   sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
+                    position: 'relative',
                     width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-                {/* Type Badge - Upper left */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: 8,
-                    left: 8,
-                    zIndex: 1,
+                    paddingTop: '100%',
+                    overflow: 'hidden',
                   }}
                 >
-                  <Chip
-                    label={getTypeBadge(item)}
-                    size="small"
+                  <Box
+                    component="img"
+                    src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.coverImage}`}
+                    alt={item.title}
                     sx={{
-                      backgroundColor: `${theme.palette.orange.main}e0`,
-                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                      backdropFilter: 'blur(4px)',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
                     }}
                   />
-                </Box>
-                {/* Published/Draft Badge - Lower right */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    zIndex: 1,
-                  }}
-                >
-                  <Chip
-                    label={item.isPublished ? 'Published' : 'Draft'}
-                    size="small"
+                  {/* Type Badge - Upper left */}
+                  <Box
                     sx={{
-                      backgroundColor: item.isPublished
-                        ? `${theme.palette.success.main}e0`
-                        : `${theme.palette.grey[600]}e0`,
-                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 500,
-                      backdropFilter: 'blur(4px)',
-                    }}
-                  />
-                </Box>
-                {/* Stars / SCORM badge - Lower left */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    left: 8,
-                    zIndex: 1,
-                  }}
-                >
-                  <Chip
-                    label={`⭐ ${getStarsValue(item)}`}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${theme.palette.primary.main}e0`,
-                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                      backdropFilter: 'blur(4px)',
-                    }}
-                  />
-                </Box>
-              </Box>
-            ) : (
-              <Box
-                sx={{
-                  width: '100%',
-                  paddingTop: '100%',
-                  position: 'relative',
-                  backgroundColor: theme.palette.custom.bgSecondary || theme.palette.grey[100],
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-              >
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                >
-                  <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
-                </Box>
-                {/* Type Badge - Upper left */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: 8,
-                    left: 8,
-                    zIndex: 1,
-                  }}
-                >
-                  <Chip
-                    label={getTypeBadge(item)}
-                    size="small"
-                    sx={{
-                      backgroundColor: `${theme.palette.orange.main}e0`,
-                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                      backdropFilter: 'blur(4px)',
-                    }}
-                  />
-                </Box>
-                {/* Published/Draft Badge - Lower right */}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    zIndex: 1,
-                  }}
-                >
-                  <Chip
-                    label={item.isPublished ? 'Published' : 'Draft'}
-                    size="small"
-                    sx={{
-                      backgroundColor: item.isPublished
-                        ? `${theme.palette.success.main}e0`
-                        : `${theme.palette.grey[600]}e0`,
-                      color: theme.palette.textCustom.inverse || theme.palette.common.white,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 500,
-                      backdropFilter: 'blur(4px)',
-                    }}
-                  />
-                </Box>
-              </Box>
-            )}
-
-            <CardContent sx={{ flexGrow: 1, padding: 2.5 }}>
-              <Stack spacing={2}>
-                {/* Title */}
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 600,
-                    fontSize: '1.125rem',
-                    color: theme.palette.text.primary,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {item.title}
-                </Typography>
-
-                {/* Description */}
-                {item.description && (
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      color: theme.palette.text.secondary,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      zIndex: 1,
                     }}
                   >
-                    {item.description}
+                    <Chip
+                      label={getTypeBadge(item)}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${theme.palette.orange.main}e0`,
+                        color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 600,
+                        backdropFilter: 'blur(4px)',
+                      }}
+                    />
+                  </Box>
+                  {/* Published/Draft Badge - Lower right */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 8,
+                      right: 8,
+                      zIndex: 1,
+                    }}
+                  >
+                    <Chip
+                      label={item.isPublished ? 'Published' : 'Draft'}
+                      size="small"
+                      sx={{
+                        backgroundColor: item.isPublished
+                          ? `${theme.palette.success.main}e0`
+                          : `${theme.palette.grey[600]}e0`,
+                        color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 500,
+                        backdropFilter: 'blur(4px)',
+                      }}
+                    />
+                  </Box>
+                  {/* Stars badge - Lower left */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 8,
+                      left: 8,
+                      zIndex: 1,
+                      display: 'flex',
+                      gap: 1,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Chip
+                      label={`⭐ ${getStarsValue(item)}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${theme.palette.primary.main}e0`,
+                        color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 600,
+                        backdropFilter: 'blur(4px)',
+                      }}
+                    />
+                    {canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                      <Chip
+                        icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
+                        label="Test"
+                        size="small"
+                        sx={{
+                          backgroundColor: `${theme.palette.success.main}e0`,
+                          color: theme.palette.common.white,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 700,
+                          backdropFilter: 'blur(4px)',
+                        }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    width: '100%',
+                    paddingTop: '100%',
+                    position: 'relative',
+                    backgroundColor: theme.palette.custom.bgSecondary || theme.palette.grey[100],
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  >
+                    <DescriptionIcon sx={{ fontSize: 48, color: theme.palette.orange.main }} />
+                  </Box>
+                  {/* Type Badge - Upper left */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      left: 8,
+                      zIndex: 1,
+                    }}
+                  >
+                    <Chip
+                      label={getTypeBadge(item)}
+                      size="small"
+                      sx={{
+                        backgroundColor: `${theme.palette.orange.main}e0`,
+                        color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 600,
+                        backdropFilter: 'blur(4px)',
+                      }}
+                    />
+                  </Box>
+                  {/* Published/Draft Badge - Lower right */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 8,
+                      right: 8,
+                      zIndex: 1,
+                    }}
+                  >
+                    <Chip
+                      label={item.isPublished ? 'Published' : 'Draft'}
+                      size="small"
+                      sx={{
+                        backgroundColor: item.isPublished
+                          ? `${theme.palette.success.main}e0`
+                          : `${theme.palette.grey[600]}e0`,
+                        color: theme.palette.textCustom.inverse || theme.palette.common.white,
+                        fontFamily: 'Quicksand, sans-serif',
+                        fontWeight: 500,
+                        backdropFilter: 'blur(4px)',
+                      }}
+                    />
+                  </Box>
+                  {/* Test badge (if SCORM) - Lower left */}
+                  {canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 8,
+                        left: 8,
+                        zIndex: 1,
+                      }}
+                    >
+                      <Chip
+                        icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
+                        label="Test"
+                        size="small"
+                        sx={{
+                          backgroundColor: `${theme.palette.success.main}e0`,
+                          color: theme.palette.common.white,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 700,
+                          backdropFilter: 'blur(4px)',
+                        }}
+                      />
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              <CardContent sx={{ flexGrow: 1, padding: 2.5 }}>
+                <Stack spacing={2}>
+                  {/* Title */}
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      fontSize: '1.125rem',
+                      color: theme.palette.text.primary,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {item.title}
                   </Typography>
-                )}
-              </Stack>
-            </CardContent>
+
+                  {/* Description */}
+                  {item.description && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        color: theme.palette.text.secondary,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {item.description}
+                    </Typography>
+                  )}
+                </Stack>
+              </CardContent>
+            </CardActionArea>
           </Card>
         </Grid>
       ))}
@@ -419,6 +506,18 @@ const ContentItems = ({ loading, onRefresh }) => {
           },
         }}
       >
+        {selectedItem && resolvedMenuType && canTestScormByType(resolvedMenuType, selectedItem) && (
+          <MenuItem
+            onClick={handleTestScorm}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Test SCORM
+          </MenuItem>
+        )}
         <MenuItem
           onClick={handleEdit}
           sx={{
@@ -461,6 +560,9 @@ const ContentItems = ({ loading, onRefresh }) => {
         contentType={selectedContentType}
         onSuccess={handleEditModalClose}
       />
+
+      {/* SCORM Test Modal (admin/teacher) */}
+      <AdminTestScormModal {...modalProps} />
     </Grid>
   );
 };

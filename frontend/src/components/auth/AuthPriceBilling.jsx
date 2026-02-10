@@ -1,12 +1,17 @@
-import React from 'react';
-import { Box, Typography, Button, Stack, Divider } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, Typography, Button, Stack, Divider, FormControlLabel, Checkbox } from '@mui/material';
+import TermsConditionServicesModal from './TermsConditionServicesModal';
 
 /**
  * Step 3: Billing Summary
  *
  * Shows the subscription price and yearly commitment before redirecting to Stripe.
+ * Requires user to accept Terms & Conditions via checkbox; "View Terms" opens the modal.
  */
 const AuthPriceBilling = ({ email, name, onBack, onContinue, loading, error }) => {
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
+
   return (
     <Box
       sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
@@ -58,6 +63,35 @@ const AuthPriceBilling = ({ email, name, onBack, onContinue, loading, error }) =
 
       <Divider sx={{ my: 1 }} />
 
+      <Box sx={{ mt: 1 }}>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              inputProps={{
+                'aria-label': 'I have read and agree to the Terms & Conditions',
+              }}
+            />
+          }
+          label={
+            <Typography variant="body2">
+              I have read and agree to the{' '}
+              <Button
+                type="button"
+                variant="text"
+                size="small"
+                sx={{ minWidth: 0, p: 0, textTransform: 'none', fontWeight: 600 }}
+                onClick={() => setTermsModalOpen(true)}
+                aria-label="View Terms & Conditions"
+              >
+                Terms & Conditions
+              </Button>
+            </Typography>
+          }
+        />
+      </Box>
+
       {error && (
         <Typography variant="body2" color="error" role="alert">
           {error}
@@ -78,7 +112,7 @@ const AuthPriceBilling = ({ email, name, onBack, onContinue, loading, error }) =
           type="button"
           variant="contained"
           color="primary"
-          disabled={loading}
+          disabled={loading || !termsAccepted}
           onClick={onContinue}
           aria-label="Continue to Stripe secure payment"
           sx={{
@@ -95,6 +129,12 @@ const AuthPriceBilling = ({ email, name, onBack, onContinue, loading, error }) =
           {loading ? 'Redirecting…' : 'Continue to secure payment'}
         </Button>
       </Stack>
+
+      <TermsConditionServicesModal
+        open={termsModalOpen}
+        onClose={() => setTermsModalOpen(false)}
+        onAccept={() => setTermsAccepted(true)}
+      />
     </Box>
   );
 };

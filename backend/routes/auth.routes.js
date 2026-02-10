@@ -7,6 +7,7 @@ const {
   logout,
   updateProfile,
   changePassword,
+  getTerms,
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth');
 
@@ -29,6 +30,7 @@ const { protect } = require('../middleware/auth');
 // Public routes
 router.post('/register', register);
 router.post('/login', login);
+router.get('/terms', getTerms);
 
 // Protected routes (require authentication)
 router.get('/me', protect, getMe);

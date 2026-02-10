@@ -30,7 +30,7 @@ const { generateToken } = require('../services/auth.services');
  */
 exports.createParentSignupSession = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body || {};
+    const { name, email, password, terms_version: termsVersion } = req.body || {};
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -65,6 +65,7 @@ exports.createParentSignupSession = async (req, res, next) => {
       userId: String(user._id),
       successUrl,
       cancelUrl,
+      termsVersion: termsVersion || undefined,
     });
 
     return res.status(201).json({
@@ -101,7 +102,7 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
     let token = null;
 
     if (userId) {
-      // Get user with subscription fields (can't mix exclusion and inclusion in MongoDB)
+      // Get user with subscription and terms fields
       user = await User.findById(userId).select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate +stripeCustomerId');
       // Remove password from response
       if (user && user.password) {
@@ -148,6 +149,12 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
               user.subscriptionCurrentPeriodEnd = new Date(subscription.current_period_end * 1000);
               console.log(`[Stripe] Setting period end to: ${user.subscriptionCurrentPeriodEnd}`);
             }
+
+            // Store terms consent (legal record) - client IP from this request (parent's browser)
+            const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
+            user.termsAcceptedAt = new Date();
+            user.termsAcceptedIp = clientIp;
+            user.termsVersion = session.metadata?.terms_version || 'unknown';
             
             await user.save();
             console.log(`[Stripe] Updated subscription for user ${userId} via checkout session verification`);
@@ -158,6 +165,15 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
           console.error('[Stripe] Error stack:', error.stack);
           // Don't fail the request, just log the error - webhook will handle it
         }
+      }
+
+      // When webhook ran first we may have termsAcceptedAt/termsVersion but not termsAcceptedIp (client IP). Set it now.
+      if (!user.termsAcceptedIp) {
+        const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
+        user.termsAcceptedIp = clientIp;
+        if (!user.termsAcceptedAt) user.termsAcceptedAt = new Date();
+        if (!user.termsVersion) user.termsVersion = session.metadata?.terms_version || 'unknown';
+        await user.save();
       }
 
       // Generate JWT so the frontend can log the parent in immediately.
@@ -368,6 +384,11 @@ exports.handleWebhook = async (req, res, next) => {
           } else {
             console.warn(`[Stripe Webhook] No current_period_end or current_period_start in subscription. Will be set by customer.subscription.updated event.`);
           }
+
+          // Store terms consent (legal record) - webhook has no client IP; success-page verification will set IP when parent loads success URL
+          user.termsAcceptedAt = new Date();
+          user.termsVersion = session.metadata?.terms_version || 'unknown';
+          // termsAcceptedIp left unset here; set when parent hits GET checkout-session (success page)
 
           await user.save();
           console.log(`[Stripe Webhook] Activated subscription for user ${userId} (subscription: ${subscriptionId})`);

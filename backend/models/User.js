@@ -94,6 +94,19 @@ const userSchema = new mongoose.Schema(
       // When current billing period ends (for next billing date display)
       index: true,
     },
+    // Terms/Privacy consent at checkout (legal record)
+    termsAcceptedAt: {
+      type: Date,
+      // Server timestamp when payment succeeded
+    },
+    termsAcceptedIp: {
+      type: String,
+      // Client IP from request at acceptance
+    },
+    termsVersion: {
+      type: String,
+      // e.g. "terms_v1_2026-02-09"
+    },
   },
   {
     timestamps: true,

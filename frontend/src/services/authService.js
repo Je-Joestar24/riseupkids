@@ -198,6 +198,16 @@ const authService = {
   },
 
   /**
+   * Get Terms & Conditions content (public).
+   * Used by TermsConditionServicesModal to display terms text.
+   * @returns {Promise<{ content: string }>} API response data with content
+   */
+  getTermsContent: async () => {
+    const response = await api.get('/auth/terms');
+    return response.data?.data ?? { content: '' };
+  },
+
+  /**
    * Soft logout - clears child context but keeps token
    * Used when switching from child view to parent dashboard
    */

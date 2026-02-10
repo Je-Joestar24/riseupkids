@@ -17,10 +17,11 @@ import axios from '../api/axios';
  * 8. LMSGetDiagnostic(errorCode) - Get diagnostic info
  */
 class SCORMAPI {
-  constructor(contentId, contentType, userId) {
+  constructor(contentId, contentType, userId, options = {}) {
     this.contentId = contentId;
     this.contentType = contentType;
     this.userId = userId;
+    this.onEvent = typeof options?.onEvent === 'function' ? options.onEvent : null;
     this.initialized = false;
     this.data = {};
     this.errorCode = 0;
@@ -32,6 +33,23 @@ class SCORMAPI {
     
     // Track if data has changed (for auto-commit)
     this.hasUncommittedChanges = false;
+
+    // Debug/analytics counters (used by admin test modal)
+    this._setValueCount = 0;
+    this._commitCount = 0;
+  }
+
+  emit(event) {
+    if (!this.onEvent) return;
+    try {
+      this.onEvent({
+        at: Date.now(),
+        ...event,
+      });
+    } catch (e) {
+      // Never break SCORM flow due to instrumentation
+      console.warn('[SCORMAPI] onEvent handler failed:', e);
+    }
   }
 
   /**
@@ -47,17 +65,21 @@ class SCORMAPI {
     }
 
     try {
+      this.emit({ type: 'INITIALIZE_CALL' });
+
       // Load existing progress from backend
       this.loadProgress()
         .then(() => {
           this.initialized = true;
           this.errorCode = 0;
+          this.emit({ type: 'INITIALIZE_LOADED_PROGRESS' });
         })
         .catch((error) => {
           console.error('Failed to load SCORM progress:', error);
           // Continue anyway - will use defaults
           this.initialized = true;
           this.errorCode = 0;
+          this.emit({ type: 'INITIALIZE_PROGRESS_FAILED', error: error?.message || String(error) });
         });
 
       // Note: We return immediately and load progress async
@@ -70,10 +92,12 @@ class SCORMAPI {
       }, 100);
 
       this.errorCode = 0;
+      this.emit({ type: 'INITIALIZE_OK' });
       return 'true';
     } catch (error) {
       this.errorCode = 101; // General exception
       this.errorString = error.message || 'General exception';
+      this.emit({ type: 'INITIALIZE_ERROR', error: this.errorString, errorCode: this.errorCode });
       return 'false';
     }
   }
@@ -103,6 +127,7 @@ class SCORMAPI {
     } catch (error) {
       this.errorCode = 101; // General exception
       this.errorString = error.message || 'General exception';
+      this.emit({ type: 'GET_VALUE_ERROR', element, error: this.errorString, errorCode: this.errorCode });
       return '';
     }
   }
@@ -136,12 +161,21 @@ class SCORMAPI {
       if (!this.validateValue(element, value)) {
         this.errorCode = 351; // Invalid set value
         this.errorString = `Invalid value for ${element}`;
+        this.emit({
+          type: 'SET_VALUE_INVALID',
+          element,
+          value,
+          error: this.errorString,
+          errorCode: this.errorCode,
+        });
         return 'false';
       }
 
       // Store value
       this.data[element] = value;
       this.hasUncommittedChanges = true;
+      this._setValueCount += 1;
+      this.emit({ type: 'SET_VALUE', element, value, setValueCount: this._setValueCount });
 
       // Auto-commit critical values immediately
       if (this.isCriticalElement(element)) {
@@ -157,6 +191,7 @@ class SCORMAPI {
     } catch (error) {
       this.errorCode = 101; // General exception
       this.errorString = error.message || 'General exception';
+      this.emit({ type: 'SET_VALUE_ERROR', element, value, error: this.errorString, errorCode: this.errorCode });
       return 'false';
     }
   }
@@ -179,16 +214,26 @@ class SCORMAPI {
     }
 
     try {
+      this._commitCount += 1;
+      this.emit({ type: 'COMMIT_CALL', commitCount: this._commitCount });
+
       // Save to backend
       this.saveProgress()
         .then(() => {
           this.hasUncommittedChanges = false;
           this.errorCode = 0;
+          this.emit({ type: 'COMMIT_OK', commitCount: this._commitCount });
         })
         .catch((error) => {
           console.error('Failed to save SCORM progress:', error);
           this.errorCode = 101; // General exception
           this.errorString = error.message || 'Failed to save progress';
+          this.emit({
+            type: 'COMMIT_ERROR',
+            commitCount: this._commitCount,
+            error: this.errorString,
+            errorCode: this.errorCode,
+          });
         });
 
       // Clear auto-commit timer
@@ -203,6 +248,7 @@ class SCORMAPI {
     } catch (error) {
       this.errorCode = 101; // General exception
       this.errorString = error.message || 'General exception';
+      this.emit({ type: 'COMMIT_THROW', error: this.errorString, errorCode: this.errorCode });
       return 'false';
     }
   }
@@ -219,6 +265,7 @@ class SCORMAPI {
     }
 
     try {
+      this.emit({ type: 'FINISH_CALL' });
       // Final save
       this.LMSCommit('');
 
@@ -232,10 +279,12 @@ class SCORMAPI {
       this.initialized = false;
       this.errorCode = 0;
       this.errorString = '';
+      this.emit({ type: 'FINISH_OK' });
       return 'true';
     } catch (error) {
       this.errorCode = 101; // General exception
       this.errorString = error.message || 'General exception';
+      this.emit({ type: 'FINISH_ERROR', error: this.errorString, errorCode: this.errorCode });
       return 'false';
     }
   }

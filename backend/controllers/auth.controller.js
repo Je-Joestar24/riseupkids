@@ -276,6 +276,26 @@ const changePassword = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get Terms & Conditions content (public, for display in modal)
+ * @route   GET /api/auth/terms
+ * @access  Public
+ */
+const getTerms = async (req, res) => {
+  try {
+    const result = await authService.getTermsContent();
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to load terms',
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -283,5 +303,6 @@ module.exports = {
   logout,
   updateProfile,
   changePassword,
+  getTerms,
 };
 

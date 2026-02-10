@@ -5,7 +5,7 @@ import AuthLogo from '../../components/auth/AuthLogo';
 import AuthEmailCheck from '../../components/auth/AuthEmailCheck';
 import AuthSignupForm from '../../components/auth/AuthSignupForm';
 import AuthPriceBilling from '../../components/auth/AuthPriceBilling';
-import stripeService from '../../services/stripeService';
+import stripeService, { TERMS_VERSION } from '../../services/stripeService';
 
 /**
  * ParentSignup Page
@@ -65,58 +65,42 @@ const ParentSignup = () => {
     updateSearchParams(2, { email });
   };
 
-  const handleSignupNext = async ({ name, password }) => {
+  const handleSignupNext = ({ name, password }) => {
     setError('');
-    setLoading(true);
-    try {
-      const payload = {
-        name,
-        email: formData.email,
-        password,
-      };
-
-      const data = await stripeService.createParentSignupSession(payload);
-
-      setFormData((prev) => ({
-        ...prev,
-        name,
-        password, // not persisted anywhere else; only in memory during this flow
-        sessionId: data.sessionId,
-        checkoutUrl: data.url,
-      }));
-
-      setStep(3);
-      updateSearchParams(3, {
-        email: formData.email,
-        name,
-        sessionId: data.sessionId,
-        checkoutUrl: data.url,
-      });
-    } catch (err) {
-      const message =
-        err?.message ||
-        err?.response?.data?.message ||
-        'Unable to start billing session. Please try again.';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
+    setFormData((prev) => ({
+      ...prev,
+      name,
+      password, // kept in memory only for step 3; never sent except when creating session
+    }));
+    setStep(3);
+    updateSearchParams(3, { email: formData.email, name });
   };
 
   const handleGoToCheckout = async () => {
     setError('');
     setLoading(true);
     try {
-      if (!formData.checkoutUrl) {
-        throw new Error('Missing Stripe checkout URL. Please go back and try again.');
+      const { name, email, password } = formData;
+      if (!name || !email || !password) {
+        throw new Error('Missing account details. Please go back and complete the form.');
       }
 
-      window.location.href = formData.checkoutUrl;
+      const data = await stripeService.createParentSignupSession({
+        name,
+        email,
+        password,
+        terms_version: TERMS_VERSION,
+      });
+      const url = data?.url;
+      if (!url) {
+        throw new Error('No checkout URL received. Please try again.');
+      }
+      window.location.href = url;
     } catch (err) {
       const message =
         err?.message ||
         err?.response?.data?.message ||
-        'Unable to redirect to Stripe. Please try again.';
+        'Unable to start checkout. Please try again.';
       setError(message);
       setLoading(false);
     }

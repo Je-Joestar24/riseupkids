@@ -23,6 +23,7 @@ async function createParentSignupCheckoutSession({
   userId,
   successUrl,
   cancelUrl,
+  termsVersion,
 }) {
   if (!stripe) {
     throw new Error('Stripe is not configured. STRIPE_SECRET_KEY is missing.');
@@ -30,6 +31,14 @@ async function createParentSignupCheckoutSession({
 
   if (!STRIPE_PRICE_ID_YEARLY) {
     throw new Error('Stripe price is not configured. STRIPE_PRICE_ID_YEARLY is missing.');
+  }
+
+  const metadata = {
+    userId,
+    role: 'parent',
+  };
+  if (termsVersion) {
+    metadata.terms_version = termsVersion;
   }
 
   const session = await stripe.checkout.sessions.create({
@@ -44,10 +53,7 @@ async function createParentSignupCheckoutSession({
     ],
     success_url: successUrl,
     cancel_url: cancelUrl,
-    metadata: {
-      userId,
-      role: 'parent',
-    },
+    metadata,
   });
 
   return session;

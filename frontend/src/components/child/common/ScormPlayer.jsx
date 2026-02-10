@@ -122,6 +122,72 @@ const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, isCompleted }) =
   </Dialog>
 );
 
+// Try Again Dialog – when child doesn’t pass / completion not met (child-friendly)
+const TryAgainDialog = ({ open, onTryAgain }) => (
+  <Dialog
+    open={open}
+    onClose={() => {}}
+    maxWidth="xs"
+    fullWidth
+    PaperProps={{
+      sx: {
+        borderRadius: '24px',
+        fontFamily: 'Quicksand, sans-serif',
+        backgroundColor: themeColors.bgCard,
+        padding: '8px',
+        textAlign: 'center',
+      },
+    }}
+  >
+    <DialogContent sx={{ pt: 4, pb: 2, px: 3 }}>
+      <Typography
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 700,
+          fontSize: '1.5rem',
+          color: themeColors.text,
+          lineHeight: 1.5,
+        }}
+      >
+        Not quite yet!
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 600,
+          fontSize: '1.15rem',
+          color: themeColors.textSecondary,
+          mt: 1.5,
+          lineHeight: 1.5,
+        }}
+      >
+        Give it another try when you’re ready.
+      </Typography>
+    </DialogContent>
+    <DialogActions sx={{ justifyContent: 'center', pb: 3, px: 3 }}>
+      <Button
+        onClick={onTryAgain}
+        variant="contained"
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontWeight: 700,
+          fontSize: '1.2rem',
+          textTransform: 'none',
+          padding: '14px 40px',
+          borderRadius: '16px',
+          backgroundColor: themeColors.orange,
+          color: themeColors.textInverse,
+          '&:hover': {
+            backgroundColor: themeColors.primary,
+          },
+        }}
+      >
+        Try again
+      </Button>
+    </DialogActions>
+  </Dialog>
+);
+
 /**
  * ScormPlayer Component (Child-facing)
  * 
@@ -170,6 +236,7 @@ const ScormPlayer = ({
   const [isCheckingCompletion, setIsCheckingCompletion] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false); // Prevent multiple calls
   const [completionError, setCompletionError] = useState(null);
+  const [showTryAgainDialog, setShowTryAgainDialog] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [completionData, setCompletionData] = useState(null);
   const [readingProgress, setReadingProgress] = useState({ readingCount: 0, requiredReadingCount: 5 });
@@ -493,7 +560,7 @@ const ScormPlayer = ({
     // Validate that we have courseId and childId
     if (!courseId || !childId) {
       console.error(`[SCORM Frontend] Request ${requestId} - Missing courseId or childId`);
-      setCompletionError('Unable to complete: Missing course or child information. Please refresh the page.');
+      setShowTryAgainDialog(true);
       setIsCompleting(false);
       setIsCheckingCompletion(false);
       return;
@@ -599,11 +666,8 @@ const ScormPlayer = ({
           });
         }
       } else {
-        // Requirements not met - show error message
-        const errorMessage = data.message || 'Please spend more time reading the book before completing.';
-        setCompletionError(errorMessage);
-        
-        // Log validation details if available
+        // Requirements not met – show friendly try-again dialog (no Alert)
+        setShowTryAgainDialog(true);
         if (data.data?.requirements) {
           console.log(`[SCORM Frontend] Request ${requestId} - Validation failed:`, data.data.requirements);
           console.log(`[SCORM Frontend] Request ${requestId} - Current values:`, data.data.current);
@@ -612,12 +676,22 @@ const ScormPlayer = ({
     } catch (err) {
       console.error(`[SCORM Frontend] Request ${requestId} - ❌ Error:`, err);
       console.error(`[SCORM Frontend] Request ${requestId} - Error response:`, err.response?.data);
-      setCompletionError(err.response?.data?.message || 'Failed to check completion. Please try again.');
+      setShowTryAgainDialog(true);
     } finally {
       setIsCompleting(false);
       setIsCheckingCompletion(false);
       console.log(`[SCORM Frontend] Request ${requestId} - ✅ handleDoneClick COMPLETED\n`);
     }
+  };
+
+  /**
+   * Try again: close dialog and reload SCORM from the start
+   */
+  const handleTryAgain = () => {
+    setShowTryAgainDialog(false);
+    setCompletionError(null);
+    setScormUrl(null);
+    loadScormContent();
   };
 
   /**
@@ -1010,22 +1084,6 @@ const ScormPlayer = ({
           gap: 2,
         }}
       >
-        {/* Completion Error Message */}
-        {completionError && (
-          <Alert
-            severity="warning"
-            sx={{
-              width: '100%',
-              fontFamily: 'Quicksand, sans-serif',
-              fontSize: '1.2rem',
-              fontWeight: 600,
-            }}
-            onClose={() => setCompletionError(null)}
-          >
-            {completionError}
-          </Alert>
-        )}
-        
         {/* Button Group */}
         <Box sx={{ display: 'flex', gap: 2, width: '100%', justifyContent: 'flex-end' }}>
           <Button
@@ -1121,6 +1179,9 @@ const ScormPlayer = ({
       title={isCompleted ? 'Activity Completed!' : 'Close Activity?'}
       isCompleted={isCompleted}
     />
+
+    {/* Try Again Dialog – when score/requirements not met (child-friendly) */}
+    <TryAgainDialog open={showTryAgainDialog} onTryAgain={handleTryAgain} />
 
     {/* Completion Success Dialog */}
     <ScormCompletionDialog
