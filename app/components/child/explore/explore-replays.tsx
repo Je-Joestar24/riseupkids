@@ -6,10 +6,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
 import type { ExploreVideoInput } from '@/components/child/common/video-player-modal';
@@ -25,6 +27,7 @@ export interface ExploreReplaysProps {
 }
 
 export function ExploreReplays({ childId }: ExploreReplaysProps) {
+  const router = useRouter();
   const { fetchByType, getCoverImageUrl, getVideoFileUrl, isLoadingByType } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
@@ -124,6 +127,16 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
           </View>
           <ThemedText style={styles.sectionTitle}>Watch Replays</ThemedText>
         </View>
+        {childId ? (
+          <Pressable
+            onPress={() => router.push(`/child/${childId}/replays` as never)}
+            accessibilityRole="button"
+            accessibilityLabel="View all replays"
+            hitSlop={10}
+            style={({ pressed }) => [styles.viewAllBtn, pressed && { opacity: 0.85 }]}>
+            <ThemedText style={styles.viewAllText}>View all →</ThemedText>
+          </Pressable>
+        ) : null}
       </View>
       <ScrollView
         horizontal
@@ -189,6 +202,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '700',
     color: colors.secondary,
+  },
+  viewAllBtn: {
+    paddingVertical: spacing[1],
+    paddingHorizontal: spacing[2],
+  },
+  viewAllText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.orange,
   },
   scroll: {
     marginHorizontal: -spacing[4],
