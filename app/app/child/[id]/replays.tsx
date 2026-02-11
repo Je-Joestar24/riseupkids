@@ -26,7 +26,7 @@ export default function ChildReplaysScreen() {
         <ReplaysHeader childId={id} />
         <View style={{ height: spacing[6] }} />
         <ReplaysCards childId={id} />
-        <View style={{ height: spacing[8] }} />s
+        <View style={{ height: spacing[8] }} />
         <ReplaysFooter />
       </ScrollView>
     </View>

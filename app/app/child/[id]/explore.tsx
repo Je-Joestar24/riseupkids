@@ -3,8 +3,8 @@
  * Star Cam, Watch Replays, What Do You Want to Learn?, Video collections
  */
 
-import { useLocalSearchParams } from 'expo-router';
-import React from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ExploreReplays } from '@/components/child/explore/explore-replays';
@@ -16,7 +16,18 @@ import { spacing } from '@/config/theme/spacing';
 
 export default function ChildExploreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const childId = id ?? null;
+
+  const handleVideoTypePress = useCallback(
+    (videoType: string) => {
+      if (!childId) return;
+      router.push(
+        `/child/${childId}/explore-content?videoType=${encodeURIComponent(videoType)}` as never
+      );
+    },
+    [childId, router]
+  );
 
   return (
     <View style={styles.container}>
@@ -26,7 +37,10 @@ export default function ChildExploreScreen() {
         showsVerticalScrollIndicator={false}>
         <ExploreReplays childId={childId} />
         <ExploreSomething />
-        <ExploreVideoCollection childId={childId} />
+        <ExploreVideoCollection
+          childId={childId}
+          onVideoTypePress={handleVideoTypePress}
+        />
         <ExploreStarCam />
       </ScrollView>
     </View>
