@@ -61,3 +61,14 @@ export type {
   TotalStarsForVideoTypeResponse,
   VideoTypeProgressResponse,
 } from './exploreService';
+export { kidswallService, toErrorMessage } from './kidswallService';
+export type {
+  KidsWallApiResponse,
+  KidsWallPost,
+  KidsWallChildRef,
+  KidsWallImage,
+  KidsWallLike,
+  KidsWallStar,
+  CreatePostInput,
+  UpdatePostInput,
+} from './kidswallService';

@@ -29,7 +29,7 @@ const AdminKidsWall = () => {
     const currentParams = searchParams.toString();
     
     // Only proceed if params actually changed (prevents infinite loops)
-    if (currentParams === lastSearchParamsRef.current) {
+    if ((currentParams === lastSearchParamsRef.current) && (currentParams !== '')) {
       return;
     }
     

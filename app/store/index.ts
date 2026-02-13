@@ -15,3 +15,5 @@ export type {
 } from './contentProgressStore';
 export { useExploreStore, exploreCacheKey } from './exploreStore';
 export type { ExploreState, ExploreActions } from './exploreStore';
+export { useKidsWallStore } from './kidswallStore';
+export type { KidsWallState, KidsWallActions, KidsWallFetchContext } from './kidswallStore';
