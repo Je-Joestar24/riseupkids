@@ -73,11 +73,9 @@ export function GlobalDialog() {
               ]}>
               {dialog.message}
             </ThemedText>
-            {dialog.type === 'success' && (
-              <ThemedText style={styles.subtitle}>
-                Everyone can see your amazing work now!
-              </ThemedText>
-            )}
+            {dialog.type === 'success' && dialog.subtitle ? (
+              <ThemedText style={styles.subtitle}>{dialog.subtitle}</ThemedText>
+            ) : null}
           </View>
         </Pressable>
       </Pressable>
