@@ -51,26 +51,40 @@ const bookSchema = new mongoose.Schema(
       type: String, // File path or URL
       default: null,
     },
-    // SCORM file reference (books are SCORM-powered)
+    // Package type: admin chooses on upload (radio). One book = SCORM or HTML5, not both.
+    packageType: {
+      type: String,
+      enum: ['scorm', 'html5'],
+      default: 'scorm',
+    },
+    // SCORM file reference (required when packageType === 'scorm')
     scormFile: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Media',
-      required: [true, 'Please provide a SCORM file for the book'],
+      default: null,
     },
-    // SCORM file path (for direct access)
     scormFilePath: {
       type: String,
-      required: true,
+      default: null,
     },
-    // SCORM file URL (for serving)
     scormFileUrl: {
       type: String,
-      required: true,
+      default: null,
     },
-    // SCORM file metadata
     scormFileSize: {
-      type: Number, // in bytes
-      required: true,
+      type: Number,
+      default: null,
+    },
+    // HTML5 package (required when packageType === 'html5'). id from html5handler upload.
+    html5PackageId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    html5EntryPoint: {
+      type: String,
+      default: 'index.html',
+      trim: true,
     },
     // Pages array (optional - kept for backward compatibility, but SCORM file is primary)
     pages: [pageSchema],
@@ -151,12 +165,30 @@ const bookSchema = new mongoose.Schema(
   }
 );
 
+// Validate: one package type per book (SCORM or HTML5; chosen by admin via radio)
+bookSchema.pre('validate', function (next) {
+  const type = this.packageType || 'scorm';
+  if (type === 'scorm') {
+    if (!this.scormFile || !this.scormFilePath || !this.scormFileUrl) {
+      next(new Error('SCORM package requires scormFile, scormFilePath, and scormFileUrl'));
+      return;
+    }
+  } else if (type === 'html5') {
+    if (!this.html5PackageId || !this.html5PackageId.trim()) {
+      next(new Error('HTML5 package requires html5PackageId'));
+      return;
+    }
+  }
+  next();
+});
+
 // Indexes
 bookSchema.index({ createdBy: 1 });
 bookSchema.index({ isPublished: 1 });
 bookSchema.index({ language: 1 });
 bookSchema.index({ readingLevel: 1 });
 bookSchema.index({ scormFile: 1 });
+bookSchema.index({ packageType: 1 });
 bookSchema.index({ badgeAwarded: 1 });
 
 // Virtual for total pages

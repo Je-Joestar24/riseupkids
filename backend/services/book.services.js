@@ -1,17 +1,19 @@
 const { Book, Media, Badge } = require('../models');
 const fs = require('fs');
 const path = require('path');
+const html5handlerService = require('./html5handler.service');
 
 /**
  * Create Book Service
- * 
- * Creates a new book with SCORM file and cover image
- * Books are SCORM-powered and require 5 readings by default
- * 
+ *
+ * Creates a new book with either SCORM or HTML5 package (admin chooses via radio on form).
+ * - packageType 'scorm': zip stored as SCORM, scormFile/Path/Url/Size set.
+ * - packageType 'html5': zip sent to html5handler (extract + host), html5PackageId + html5EntryPoint set.
+ *
  * @param {String} userId - Admin user's MongoDB ID
- * @param {Object} bookData - Book data
- * @param {Array} files - Uploaded files (from multer)
- * @returns {Object} Created book with populated media
+ * @param {Object} bookData - Book data (includes packageType: 'scorm' | 'html5')
+ * @param {Object} files - Uploaded files (from multer: scormFile = zip, coverImage optional)
+ * @returns {Object} Created book
  * @throws {Error} If validation fails
  */
 const createBook = async (userId, bookData, files = {}) => {
@@ -27,21 +29,21 @@ const createBook = async (userId, bookData, files = {}) => {
     badgeAwarded,
     tags,
     isPublished,
+    packageType: rawPackageType,
   } = bookData;
 
-  // Validate required fields
+  const packageType = (rawPackageType && rawPackageType.toLowerCase()) === 'html5' ? 'html5' : 'scorm';
+
   if (!title || !title.trim()) {
     throw new Error('Please provide a book title');
   }
 
-  // Validate SCORM file is provided
   if (!files.scormFile || !Array.isArray(files.scormFile) || files.scormFile.length === 0) {
-    throw new Error('Please provide a SCORM file (ZIP format) for the book');
+    throw new Error('Please provide a package file (ZIP) for the book');
   }
 
-  const scormFile = files.scormFile[0];
+  const zipFile = files.scormFile[0];
 
-  // Validate badge if provided
   if (badgeAwarded) {
     const badge = await Badge.findById(badgeAwarded);
     if (!badge) {
@@ -49,50 +51,11 @@ const createBook = async (userId, bookData, files = {}) => {
     }
   }
 
-  // Process SCORM file and create Media record
-  const relativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-  const scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
-  
-  const scormMedia = await Media.create({
-    type: 'video', // Using 'video' type for SCORM files
-    title: scormFile.originalname,
-    filePath: scormFile.path,
-    url: scormFileUrl,
-    mimeType: scormFile.mimetype,
-    size: scormFile.size,
-    uploadedBy: userId,
-  });
-
-  // Process cover image if provided
-  let coverImagePath = null;
-  if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
-    const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-  }
-
-  // Parse tags
-  let parsedTags = [];
-  if (tags) {
-    try {
-      parsedTags = typeof tags === 'string' ? JSON.parse(tags) : tags;
-      if (!Array.isArray(parsedTags)) {
-        parsedTags = [];
-      }
-    } catch (error) {
-      parsedTags = [];
-    }
-  }
-
-  // Create book
-  const book = await Book.create({
+  let bookPayload = {
     title: title.trim(),
     description: description?.trim() || null,
-    coverImage: coverImagePath,
-    scormFile: scormMedia._id,
-    scormFilePath: scormFile.path,
-    scormFileUrl: scormFileUrl,
-    scormFileSize: scormFile.size,
+    coverImage: null,
+    packageType,
     language: language || 'en',
     readingLevel: readingLevel || 'beginner',
     estimatedReadingTime: estimatedReadingTime ? parseInt(estimatedReadingTime, 10) : null,
@@ -100,12 +63,63 @@ const createBook = async (userId, bookData, files = {}) => {
     starsPerReading: starsPerReading ? parseInt(starsPerReading, 10) : 10,
     totalStarsAwarded: totalStarsAwarded ? parseInt(totalStarsAwarded, 10) : 50,
     badgeAwarded: badgeAwarded || null,
-    tags: parsedTags.filter(t => t && t.trim()).map(t => t.trim()),
+    tags: [],
     isPublished: isPublished === 'true' || isPublished === true,
     createdBy: userId,
-  });
+  };
 
-  // Get created book with populated data
+  if (packageType === 'html5') {
+    const { id, entryPoint } = await html5handlerService.extractAndStore(zipFile.path);
+    bookPayload.html5PackageId = id;
+    bookPayload.html5EntryPoint = entryPoint || 'index.html';
+    bookPayload.scormFile = null;
+    bookPayload.scormFilePath = null;
+    bookPayload.scormFileUrl = null;
+    bookPayload.scormFileSize = null;
+    try {
+      if (zipFile.path && fs.existsSync(zipFile.path)) {
+        fs.unlinkSync(zipFile.path);
+      }
+    } catch (e) {
+      // ignore cleanup failure
+    }
+  } else {
+    const relativePath = zipFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    const scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
+    const scormMedia = await Media.create({
+      type: 'video',
+      title: zipFile.originalname,
+      filePath: zipFile.path,
+      url: scormFileUrl,
+      mimeType: zipFile.mimetype,
+      size: zipFile.size,
+      uploadedBy: userId,
+    });
+    bookPayload.scormFile = scormMedia._id;
+    bookPayload.scormFilePath = zipFile.path;
+    bookPayload.scormFileUrl = scormFileUrl;
+    bookPayload.scormFileSize = zipFile.size;
+    bookPayload.html5PackageId = null;
+    bookPayload.html5EntryPoint = null;
+  }
+
+  if (tags) {
+    try {
+      const parsed = typeof tags === 'string' ? JSON.parse(tags) : tags;
+      bookPayload.tags = Array.isArray(parsed) ? parsed.filter(t => t && t.trim()).map(t => t.trim()) : [];
+    } catch (e) {
+      bookPayload.tags = [];
+    }
+  }
+
+  if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
+    const coverImage = files.coverImage[0];
+    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
+    bookPayload.coverImage = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+  }
+
+  const book = await Book.create(bookPayload);
+
   const createdBook = await Book.findById(book._id)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')

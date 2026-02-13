@@ -37,6 +37,7 @@ const ensureUploadDirs = () => {
     path.join(__dirname, '../uploads/scorm'),
     path.join(__dirname, '../uploads/scorm/audio-assignments'),
     path.join(__dirname, '../uploads/scorm/chants'),
+    path.join(__dirname, '../uploads/html5'),
     path.join(__dirname, '../uploads/media/images'),
     path.join(__dirname, '../uploads/media/videos'),
     path.join(__dirname, '../uploads/media/audio'),

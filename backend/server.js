@@ -23,6 +23,7 @@ const videoRoutes = require('./routes/video.routes');
 const audioAssignmentRoutes = require('./routes/audioAssignment.routes');
 const chantRoutes = require('./routes/chant.routes');
 const scormRoutes = require('./routes/scorm.routes');
+const html5handlerRoutes = require('./routes/html5handler.routes');
 const kidsWallRoutes = require('./routes/kidsWall.routes');
 const videoWatchRoutes = require('./routes/videoWatch.routes');
 const bookReadingRoutes = require('./routes/bookReading.routes');
@@ -89,6 +90,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Serve extracted SCORM packages
 app.use('/scorm', express.static(path.join(__dirname, 'uploads/scorm')));
+// Serve HTML5 packages (Captivate etc.)
+app.use('/html5', express.static(path.join(__dirname, 'uploads/html5')));
 
 // Routes
 app.use('/api', apiRoutes);
@@ -108,6 +111,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/audio-assignments', audioAssignmentRoutes);
 app.use('/api/chants', chantRoutes);
 app.use('/api/scorm', scormRoutes);
+app.use('/api/html5handler', html5handlerRoutes);
 app.use('/api/kids-wall', kidsWallRoutes);
 app.use('/api/video-watch', videoWatchRoutes);
 app.use('/api/book-reading', bookReadingRoutes);

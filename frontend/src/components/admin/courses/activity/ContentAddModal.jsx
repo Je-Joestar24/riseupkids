@@ -8,6 +8,8 @@ import {
   TextField,
   Stack,
   FormControl,
+  FormControlLabel,
+  FormLabel,
   InputLabel,
   Select,
   MenuItem,
@@ -16,7 +18,8 @@ import {
   Chip,
   IconButton,
   Checkbox,
-  FormControlLabel,
+  Radio,
+  RadioGroup,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
@@ -62,6 +65,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     tags: [],
     starsAwarded: 15,
     // book-specific
+    packageType: 'scorm', // 'scorm' | 'html5' — admin chooses; one book = one type
     language: 'en',
     readingLevel: 'beginner',
     estimatedReadingTime: '',
@@ -101,9 +105,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     setFormData({
       title: '',
       description: '',
-      isPublished: renderAsDrawer ? true : false, // Default to published when creating from drawer
+      isPublished: renderAsDrawer ? true : false,
       tags: [],
       starsAwarded: 15,
+      packageType: 'scorm',
       language: 'en',
       readingLevel: 'beginner',
       estimatedReadingTime: '',
@@ -152,9 +157,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
       if (contentType === CONTENT_TYPES.BOOK) {
         if (!selectedFiles.scormFile) {
-          alert('Please upload a SCORM file (ZIP) for the book.');
+          alert('Please upload a package file (ZIP) for the book. Choose SCORM or HTML5 above.');
           return;
         }
+        fd.append('packageType', formData.packageType || 'scorm');
         fd.append('language', formData.language || 'en');
         fd.append('readingLevel', formData.readingLevel || 'beginner');
         if (formData.estimatedReadingTime) {
@@ -258,6 +264,34 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       case CONTENT_TYPES.BOOK:
         return (
           <>
+            <FormControl component="fieldset" fullWidth>
+              <FormLabel
+                component="legend"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Package type
+              </FormLabel>
+              <RadioGroup
+                row
+                value={formData.packageType || 'scorm'}
+                onChange={(e) => handleInputChange('packageType', e.target.value)}
+                sx={{
+                  '& .MuiFormControlLabel-label': {
+                    fontFamily: 'Quicksand, sans-serif',
+                  },
+                }}
+              >
+                <FormControlLabel value="scorm" control={<Radio />} label="SCORM" />
+                <FormControlLabel value="html5" control={<Radio />} label="HTML5 (Captivate)" />
+              </RadioGroup>
+              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
+                One book = one type. Upload the matching ZIP below.
+              </Typography>
+            </FormControl>
             <FormControl fullWidth>
               <InputLabel>Language</InputLabel>
               <Select
@@ -565,7 +599,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
         {contentType === CONTENT_TYPES.BOOK && (
           <>
-            {/* SCORM File (required) */}
             <Box>
               <Typography
                 variant="subtitle2"
@@ -575,7 +608,12 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                   marginBottom: 1,
                 }}
               >
-                Book SCORM File <span style={{ color: 'red' }}>*</span>
+                Package file (ZIP) <span style={{ color: 'red' }}>*</span>
+              </Typography>
+              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                {formData.packageType === 'html5'
+                  ? 'Upload an HTML5 (Captivate) export ZIP.'
+                  : 'Upload a SCORM package ZIP.'}
               </Typography>
               <input
                 accept=".zip,application/zip,application/x-zip-compressed"
@@ -595,7 +633,9 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     fontFamily: 'Quicksand, sans-serif',
                   }}
                 >
-                  Upload Book SCORM File (ZIP)
+                  {formData.packageType === 'html5'
+                    ? 'Upload HTML5 package (ZIP)'
+                    : 'Upload SCORM package (ZIP)'}
                 </Button>
               </label>
               {selectedFiles.scormFile && (
@@ -1020,7 +1060,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             }}
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
-            <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM or HTML5)</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
             <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>
