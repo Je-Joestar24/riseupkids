@@ -134,10 +134,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     try {
       const fd = new FormData();
 
-      // common fields
-      fd.append('title', formData.title);
+      // common fields (FormData values should be strings for consistency)
+      fd.append('title', formData.title ?? '');
       fd.append('description', formData.description || '');
-      fd.append('isPublished', formData.isPublished);
+      fd.append('isPublished', formData.isPublished === true || formData.isPublished === 'true' ? 'true' : 'false');
 
       if (formData.tags?.length) {
         fd.append('tags', JSON.stringify(formData.tags));
@@ -160,15 +160,17 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           alert('Please upload a package file (ZIP) for the book. Choose SCORM or HTML5 above.');
           return;
         }
-        fd.append('packageType', formData.packageType || 'scorm');
+        // Same endpoint POST /api/books for both SCORM and HTML5; backend uses packageType to decide handling
+        const bookPackageType = formData.packageType === 'html5' ? 'html5' : 'scorm';
+        fd.append('packageType', bookPackageType);
         fd.append('language', formData.language || 'en');
         fd.append('readingLevel', formData.readingLevel || 'beginner');
-        if (formData.estimatedReadingTime) {
-          fd.append('estimatedReadingTime', formData.estimatedReadingTime);
+        if (formData.estimatedReadingTime != null && formData.estimatedReadingTime !== '') {
+          fd.append('estimatedReadingTime', String(formData.estimatedReadingTime));
         }
-        fd.append('requiredReadingCount', formData.requiredReadingCount || 5);
-        fd.append('starsPerReading', formData.starsPerReading || 10);
-        fd.append('totalStarsAwarded', formData.totalStarsAwarded || 50);
+        fd.append('requiredReadingCount', String(formData.requiredReadingCount ?? 5));
+        fd.append('starsPerReading', String(formData.starsPerReading ?? 10));
+        fd.append('totalStarsAwarded', String(formData.totalStarsAwarded ?? 50));
         fd.append('scormFile', selectedFiles.scormFile);
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
@@ -251,6 +253,9 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       }
     } catch (error) {
       console.error('Error creating content:', error);
+      // useContent hook already shows notification; ensure user sees message (e.g. network/server errors)
+      const message = typeof error === 'string' ? error : error?.message;
+      if (message) alert(message);
     }
   };
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -25,9 +25,12 @@ import {
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
 import AdminTestScormModal from '../../common/AdminTestScormModal';
+import AdminTestHtmlModal from '../../common/AdminTestHtmlModal';
 import useAdminScormHook from '../../../../hooks/adminScormHook';
+import useHtml5 from '../../../../hooks/html5Hook';
 
 /**
  * ContentItems Component
@@ -50,11 +53,29 @@ const ContentItems = ({ loading, onRefresh }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const { openTest, modalProps, canTestScormByType } = useAdminScormHook();
+  const { openTestHtml5, modalProps: html5ModalProps, canTestHtml5 } = useHtml5();
 
   const resolvedMenuType = useMemo(() => {
     if (!selectedItem) return null;
     return selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
   }, [selectedItem, filters.contentType]);
+
+  const canShowTest = useCallback(
+    (type, item) => canTestHtml5(type, item) || canTestScormByType(type, item),
+    [canTestHtml5, canTestScormByType]
+  );
+
+  const handleTestClick = useCallback(
+    (item) => {
+      const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      if (canTestHtml5(type, item)) {
+        openTestHtml5(item, type);
+      } else if (canTestScormByType(type, item)) {
+        openTest(item, type);
+      }
+    },
+    [filters.contentType, canTestHtml5, canTestScormByType, openTest, openTestHtml5]
+  );
 
   const handleMenuOpen = (event, item) => {
     setAnchorEl(event.currentTarget);
@@ -79,6 +100,14 @@ const ContentItems = ({ loading, onRefresh }) => {
     if (selectedItem) {
       const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
       openTest(selectedItem, type);
+    }
+    handleMenuClose();
+  };
+
+  const handleTestHtml5 = () => {
+    if (selectedItem) {
+      const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      openTestHtml5(selectedItem, type);
     }
     handleMenuClose();
   };
@@ -237,21 +266,16 @@ const ContentItems = ({ loading, onRefresh }) => {
             </IconButton>
 
             <CardActionArea
-              onClick={() => {
-                const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
-                if (canTestScormByType(type, item)) {
-                  openTest(item, type);
-                }
-              }}
-              disabled={!canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)}
+              onClick={() => handleTestClick(item)}
+              disabled={!canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)}
               sx={{
-                cursor: canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                cursor: canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
                   ? 'pointer'
                   : 'default',
               }}
               aria-label={
-                canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
-                  ? `Test SCORM for ${item.title}`
+                canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  ? `Test ${item?.packageType === 'html5' ? 'HTML5' : 'SCORM'} for ${item.title}`
                   : `${item.title}`
               }
             >
@@ -267,7 +291,7 @@ const ContentItems = ({ loading, onRefresh }) => {
                 >
                   <Box
                     component="img"
-                    src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${item.coverImage}`}
+                    src={`${BACKEND_BASE_URL}${item.coverImage}`}
                     alt={item.title}
                     sx={{
                       position: 'absolute',
@@ -345,7 +369,7 @@ const ContentItems = ({ loading, onRefresh }) => {
                         backdropFilter: 'blur(4px)',
                       }}
                     />
-                    {canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                    {canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
                       <Chip
                         icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
                         label="Test"
@@ -427,8 +451,8 @@ const ContentItems = ({ loading, onRefresh }) => {
                       }}
                     />
                   </Box>
-                  {/* Test badge (if SCORM) - Lower left */}
-                  {canTestScormByType(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                  {/* Test badge (SCORM or HTML5) - Lower left */}
+                  {canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -506,6 +530,18 @@ const ContentItems = ({ loading, onRefresh }) => {
           },
         }}
       >
+        {selectedItem && resolvedMenuType && canTestHtml5(resolvedMenuType, selectedItem) && (
+          <MenuItem
+            onClick={handleTestHtml5}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Test HTML5
+          </MenuItem>
+        )}
         {selectedItem && resolvedMenuType && canTestScormByType(resolvedMenuType, selectedItem) && (
           <MenuItem
             onClick={handleTestScorm}
@@ -563,6 +599,8 @@ const ContentItems = ({ loading, onRefresh }) => {
 
       {/* SCORM Test Modal (admin/teacher) */}
       <AdminTestScormModal {...modalProps} />
+      {/* HTML5 Test Modal (admin/teacher, books with packageType html5) */}
+      <AdminTestHtmlModal {...html5ModalProps} />
     </Grid>
   );
 };

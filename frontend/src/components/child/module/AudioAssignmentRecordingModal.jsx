@@ -16,6 +16,7 @@ import { Close as CloseIcon, Mic as MicIcon, Stop as StopIcon, Upload as UploadI
 import { themeColors } from '../../../config/themeColors';
 import audioAssignmentProgressService from '../../../services/audioAssignmentProgressService';
 import courseProgressService from '../../../services/courseProgressService';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 const buildPublicUrl = (maybeUrl) => {
   if (!maybeUrl) return null;
@@ -26,9 +27,8 @@ const buildPublicUrl = (maybeUrl) => {
   // If already absolute, return as-is
   if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) return urlStr;
   
-  // Otherwise, prepend base URL
-  const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-  return `${baseUrl}${urlStr.startsWith('/') ? urlStr : `/${urlStr}`}`;
+  // Otherwise, prepend base URL (BACKEND_BASE_URL is '' in dev so proxy is used)
+  return `${BACKEND_BASE_URL}${urlStr.startsWith('/') ? urlStr : `/${urlStr}`}`;
 };
 
 const pickBestAudioMimeType = () => {

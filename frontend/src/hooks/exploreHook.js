@@ -16,6 +16,7 @@ import {
 } from '../store/slices/exploreSlice';
 import { showNotification } from '../store/slices/uiSlice';
 import { getVideoTypeLabel as getVideoTypeLabelFromConstants } from '../constants/exploreVideoTypes';
+import { BACKEND_BASE_URL } from '../config/constants';
 
 /**
  * Custom hook for explore content management
@@ -276,8 +277,8 @@ export const useExplore = () => {
       return coverImagePath;
     }
     
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
+    const baseUrl = BACKEND_BASE_URL;
     return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   };
 
@@ -294,8 +295,8 @@ export const useExplore = () => {
       return videoFileUrl;
     }
     
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
+    const baseUrl = BACKEND_BASE_URL;
     return `${baseUrl}${videoFileUrl.startsWith('/') ? videoFileUrl : `/${videoFileUrl}`}`;
   };
 

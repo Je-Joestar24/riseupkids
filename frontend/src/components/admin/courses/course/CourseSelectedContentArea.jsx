@@ -15,6 +15,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, Image as ImageIcon, Reorder as ReorderIcon } from '@mui/icons-material';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 
 /**
  * CourseSelectedContentArea Component
@@ -68,8 +69,7 @@ const CourseSelectedContentArea = ({ selectedContents = [], onRemove, onReorder 
     if (coverImage.startsWith('http://') || coverImage.startsWith('https://')) {
       return coverImage;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${coverImage.startsWith('/') ? coverImage : `/${coverImage}`}`;
+    return `${BACKEND_BASE_URL}${coverImage.startsWith('/') ? coverImage : `/${coverImage}`}`;
   };
 
   // Group selected contents by content type

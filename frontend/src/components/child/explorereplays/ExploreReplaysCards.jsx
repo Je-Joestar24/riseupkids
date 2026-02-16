@@ -4,6 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { themeColors } from '../../../config/themeColors';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 import VideoPlayerModal from '../common/VideoPlayerModal';
 
 /**
@@ -217,7 +218,7 @@ const ExploreReplaysCards = ({ childId }) => {
         videoUrl = videoFile.url;
       } else {
         // Build full URL from relative path
-        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const baseUrl = BACKEND_BASE_URL;
         videoUrl = `${baseUrl}${videoFile.url.startsWith('/') ? videoFile.url : `/${videoFile.url}`}`;
       }
     } else if (exploreVideo?.videoFileUrl) {
@@ -225,7 +226,7 @@ const ExploreReplaysCards = ({ childId }) => {
       if (exploreVideo.videoFileUrl.startsWith('http://') || exploreVideo.videoFileUrl.startsWith('https://')) {
         videoUrl = exploreVideo.videoFileUrl;
       } else {
-        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const baseUrl = BACKEND_BASE_URL;
         videoUrl = `${baseUrl}${exploreVideo.videoFileUrl.startsWith('/') ? exploreVideo.videoFileUrl : `/${exploreVideo.videoFileUrl}`}`;
       }
     }

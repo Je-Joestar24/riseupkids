@@ -4,6 +4,7 @@ import videoWatchService from '../services/videoWatchService';
 import bookReadingService from '../services/bookReadingService';
 import { showNotification } from '../store/slices/uiSlice';
 import { useDispatch } from 'react-redux';
+import { BACKEND_BASE_URL } from '../config/constants';
 
 /**
  * Custom hook for course progress management
@@ -224,8 +225,8 @@ export const useCourseProgress = (childId) => {
       return coverImagePath;
     }
     
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
+    const baseUrl = BACKEND_BASE_URL;
     return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   }, []);
 

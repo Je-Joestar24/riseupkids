@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 /**
  * ChildModuleChantCards Component
@@ -22,8 +23,8 @@ const ChildModuleChantCards = ({
       return coverImagePath;
     }
     
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
+    const baseUrl = BACKEND_BASE_URL;
     return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   };
 

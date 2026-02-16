@@ -20,6 +20,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 
 /**
  * BookEditModal Component
@@ -183,7 +184,7 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
   const displayCoverImage = selectedCoverImage && imagePreviewUrl
     ? imagePreviewUrl
     : currentCoverImage
-    ? `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${currentCoverImage}`
+    ? `${BACKEND_BASE_URL}${currentCoverImage}`
     : null;
 
   return (

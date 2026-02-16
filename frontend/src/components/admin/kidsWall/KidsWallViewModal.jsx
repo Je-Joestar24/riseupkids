@@ -24,6 +24,7 @@ import {
   Comment as CommentIcon,
 } from '@mui/icons-material';
 import { formatDate } from '../../../util/helpers';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 /**
  * KidsWallViewModal Component
@@ -44,9 +45,8 @@ const KidsWallViewModal = ({ open, onClose, post, onApprove, onReject }) => {
     if (image.url && (image.url.startsWith('http://') || image.url.startsWith('https://'))) {
       return image.url;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
     const path = image.url || image.filePath;
-    return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    return `${BACKEND_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   };
 
   // Get avatar URL
@@ -55,8 +55,7 @@ const KidsWallViewModal = ({ open, onClose, post, onApprove, onReject }) => {
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       return avatar;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${avatar.startsWith('/') ? avatar : `/${avatar}`}`;
+    return `${BACKEND_BASE_URL}${avatar.startsWith('/') ? avatar : `/${avatar}`}`;
   };
 
   const image = post.images?.[0];

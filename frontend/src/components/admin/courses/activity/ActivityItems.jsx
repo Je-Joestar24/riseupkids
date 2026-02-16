@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ActivityEditModal from './ActivityEditModal';
 
 /**
@@ -200,7 +201,7 @@ const ActivityItems = ({ loading, onRefresh }) => {
               >
                 <Box
                   component="img"
-                  src={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${activity.coverImage}`}
+                  src={`${BACKEND_BASE_URL}${activity.coverImage}`}
                   alt={activity.title}
                   sx={{
                     position: 'absolute',

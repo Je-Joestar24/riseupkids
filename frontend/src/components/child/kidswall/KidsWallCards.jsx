@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, IconButton, Button } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 /**
  * Heart Icon Component (Custom SVG)
@@ -66,8 +67,8 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
       return image.url;
     }
 
-    // Build full URL from relative path
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
+    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
+    const baseUrl = BACKEND_BASE_URL;
     const path = image.url || image.filePath;
     return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
   };

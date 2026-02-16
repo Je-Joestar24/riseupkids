@@ -7,7 +7,8 @@ const hasScormAsset = (item) =>
 const canTestScormByType = (contentType, item) => {
   if (!contentType) return false;
   if (contentType === CONTENT_TYPES.ACTIVITY) return true;
-  if (contentType === CONTENT_TYPES.BOOK) return true;
+  // Book: only SCORM books (not HTML5)
+  if (contentType === CONTENT_TYPES.BOOK) return item?.packageType !== 'html5';
   // Video/Chant/AudioAssignment can be SCORM-enabled but optional
   return hasScormAsset(item);
 };

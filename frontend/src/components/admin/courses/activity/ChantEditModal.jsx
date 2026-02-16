@@ -20,6 +20,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 
 /**
  * ChantEditModal Component
@@ -192,14 +193,13 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
     const url = typeof media === 'string' ? media : media.url;
     if (!url) return null;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    return `${BACKEND_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
   const displayCoverImage = selectedCoverImage && imagePreviewUrl
     ? imagePreviewUrl
     : currentCoverImage
-    ? `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}${currentCoverImage}`
+    ? `${BACKEND_BASE_URL}${currentCoverImage}`
     : null;
 
   const displayInstructionVideo = selectedInstructionVideo && instructionVideoPreviewUrl

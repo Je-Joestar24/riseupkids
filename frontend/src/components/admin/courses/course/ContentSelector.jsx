@@ -23,6 +23,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CheckCircle as CheckCircleIcon, Image as ImageIcon, Add as AddIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BACKEND_BASE_URL } from '../../../../config/constants';
 
 /**
  * ContentSelector Component
@@ -242,8 +243,7 @@ const ContentSelector = ({ selectedContents = [], onSelectionChange, onCreateCon
     if (coverImage.startsWith('http://') || coverImage.startsWith('https://')) {
       return coverImage;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${coverImage.startsWith('/') ? coverImage : `/${coverImage}`}`;
+    return `${BACKEND_BASE_URL}${coverImage.startsWith('/') ? coverImage : `/${coverImage}`}`;
   };
 
   // Get stars value for content item

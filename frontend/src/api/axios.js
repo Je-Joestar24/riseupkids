@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/constants';
 
-// Create axios instance with default configuration
+// Create axios instance. In dev uses relative /api so Vite proxy forwards to backend (no connection refused)
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   timeout: 60000,
   headers: {
     'Content-Type': 'application/json',

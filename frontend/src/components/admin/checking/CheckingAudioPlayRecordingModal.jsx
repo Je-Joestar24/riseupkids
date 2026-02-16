@@ -16,6 +16,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 import {
   PlayArrowOutlined,
   PauseOutlined,
@@ -55,9 +56,7 @@ const CheckingAudioPlayRecordingModal = ({
       return relativePath;
     }
     
-    // Build full URL with base URL
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${relativePath}`;
+    return `${BACKEND_BASE_URL}${relativePath}`;
   };
 
   if (!submission) return null;

@@ -20,6 +20,7 @@ import ChildDialogBox from '../../common/ChildDialogBox';
 import { useDispatch } from 'react-redux';
 import { updateChildStats } from '../../../store/slices/userSlice';
 import courseProgressService from '../../../services/courseProgressService';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
@@ -341,10 +342,8 @@ const VideoPlayerModal = ({
           return video.url;
         }
 
-        // Build full URL from relative path
-        const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
         const path = video.url || video.filePath;
-        return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+        return `${BACKEND_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
       };
 
       const newVideoUrl = getVideoUrl();

@@ -30,6 +30,7 @@ import {
 import useKidsWall from '../../../hooks/kidsWallHook';
 import KidsWallViewModal from './KidsWallViewModal';
 import { formatDate } from '../../../util/helpers';
+import { BACKEND_BASE_URL } from '../../../config/constants';
 
 /**
  * KidsWallTableList Component
@@ -58,9 +59,8 @@ const KidsWallTableList = () => {
     if (image.url && (image.url.startsWith('http://') || image.url.startsWith('https://'))) {
       return image.url;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
     const path = image.url || image.filePath;
-    return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    return `${BACKEND_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   };
 
   // Get avatar URL
@@ -69,8 +69,7 @@ const KidsWallTableList = () => {
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       return avatar;
     }
-    const baseUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-    return `${baseUrl}${avatar.startsWith('/') ? avatar : `/${avatar}`}`;
+    return `${BACKEND_BASE_URL}${avatar.startsWith('/') ? avatar : `/${avatar}`}`;
   };
 
   // Format relative time

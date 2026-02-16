@@ -2,15 +2,16 @@ import api from '../api/axios';
 
 /**
  * Content Service
- * 
+ *
  * Unified service for managing all content types:
  * - Activities (SCORM-based)
- * - Books (SCORM-based with reading logic)
+ * - Books (SCORM or HTML5: same endpoint POST /api/books; formData.packageType selects handling)
  * - Videos (playable video + SCORM)
  * - Audio Assignments (reference audio)
  * - Chants (optional audio and SCORM files)
- * 
- * All methods accept a contentType parameter to route to the correct API endpoint
+ *
+ * All methods accept a contentType parameter to route to the correct API endpoint.
+ * Book create: always POST /api/books with packageType and scormFile (ZIP); no separate HTML5 URL.
  */
 
 // Content type constants
@@ -22,7 +23,7 @@ export const CONTENT_TYPES = {
   CHANT: 'chant',
 };
 
-// API endpoint mapping
+// API endpoint mapping (BOOK: same /books for SCORM and HTML5; backend uses body.packageType)
 const API_ENDPOINTS = {
   [CONTENT_TYPES.ACTIVITY]: '/activities',
   [CONTENT_TYPES.BOOK]: '/books',
@@ -77,14 +78,23 @@ const contentService = {
         throw new Error(`Invalid content type: ${contentType}`);
       }
 
-      const response = await api.post(endpoint, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // FormData: do not set Content-Type so the browser sets multipart/form-data with boundary (required for file uploads)
+      const config =
+        formData instanceof FormData
+          ? {
+              headers: { 'Content-Type': undefined },
+              timeout: 120000, // 2 min for large ZIP (SCORM/HTML5)
+            }
+          : {};
+      const response = await api.post(endpoint, formData, config);
       return response.data;
     } catch (error) {
-      throw error.response?.data?.message || error.message;
+      const msg =
+        error.response?.data?.message ||
+        (error.code === 'ERR_NETWORK' || error.message === 'Network Error'
+          ? 'Cannot reach the backend server. Make sure it is running (e.g. on the port in your API URL).'
+          : error.message);
+      throw msg;
     }
   },
 
@@ -122,14 +132,23 @@ const contentService = {
         throw new Error(`Invalid content type: ${contentType}`);
       }
 
-      const response = await api.put(`${endpoint}/${contentId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      // FormData: do not set Content-Type so the browser sets multipart/form-data with boundary
+      const config =
+        formData instanceof FormData
+          ? {
+              headers: { 'Content-Type': undefined },
+              timeout: 120000,
+            }
+          : {};
+      const response = await api.put(`${endpoint}/${contentId}`, formData, config);
       return response.data;
     } catch (error) {
-      throw error.response?.data?.message || error.message;
+      const msg =
+        error.response?.data?.message ||
+        (error.code === 'ERR_NETWORK' || error.message === 'Network Error'
+          ? 'Cannot reach the backend server. Make sure it is running (e.g. on the port in your API URL).'
+          : error.message);
+      throw msg;
     }
   },
 
