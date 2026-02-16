@@ -43,13 +43,40 @@ function detectEntryPoint(extractedPath) {
  * @returns {Promise<{ id: string, entryPoint: string }>}
  */
 async function extractAndStore(zipInput) {
+  if (!zipInput) {
+    throw new Error('No ZIP file provided for HTML5 package.');
+  }
+
+  let zipPath = null;
+  if (typeof zipInput === 'string') {
+    zipPath = zipInput;
+    if (!(await fs.pathExists(zipPath))) {
+      throw new Error('HTML5 package file was not found on server. Please try uploading again.');
+    }
+    const stat = await fs.stat(zipPath).catch(() => null);
+    if (!stat || !stat.isFile()) {
+      throw new Error('HTML5 package path is not a valid file. Please upload a ZIP file.');
+    }
+  }
+
   await fs.ensureDir(HTML5_BASE);
 
   const id = generatePackageId();
   const extractDir = path.join(HTML5_BASE, id);
 
-  const zip = new AdmZip(zipInput);
-  zip.extractAllTo(extractDir, true);
+  let zip;
+  try {
+    zip = new AdmZip(zipInput);
+  } catch (e) {
+    throw new Error('Invalid or corrupted ZIP file. Please upload a valid HTML5 (ZIP) package.');
+  }
+
+  try {
+    zip.extractAllTo(extractDir, true);
+  } catch (e) {
+    await fs.remove(extractDir).catch(() => { });
+    throw new Error('Failed to extract HTML5 package. The file may be corrupted or not a valid ZIP.');
+  }
 
   const entryPoint = detectEntryPoint(extractDir);
 

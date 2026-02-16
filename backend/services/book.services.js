@@ -43,6 +43,9 @@ const createBook = async (userId, bookData, files = {}) => {
   }
 
   const zipFile = files.scormFile[0];
+  if (!zipFile || typeof zipFile.path !== 'string') {
+    throw new Error('Package file was not uploaded correctly. Please try again.');
+  }
 
   if (badgeAwarded) {
     const badge = await Badge.findById(badgeAwarded);
@@ -69,19 +72,25 @@ const createBook = async (userId, bookData, files = {}) => {
   };
 
   if (packageType === 'html5') {
-    const { id, entryPoint } = await html5handlerService.extractAndStore(zipFile.path);
-    bookPayload.html5PackageId = id;
-    bookPayload.html5EntryPoint = entryPoint || 'index.html';
-    bookPayload.scormFile = null;
-    bookPayload.scormFilePath = null;
-    bookPayload.scormFileUrl = null;
-    bookPayload.scormFileSize = null;
     try {
-      if (zipFile.path && fs.existsSync(zipFile.path)) {
-        fs.unlinkSync(zipFile.path);
+      const { id, entryPoint } = await html5handlerService.extractAndStore(zipFile.path);
+      bookPayload.html5PackageId = id;
+      bookPayload.html5EntryPoint = entryPoint || 'index.html';
+      bookPayload.scormFile = null;
+      bookPayload.scormFilePath = null;
+      bookPayload.scormFileUrl = null;
+      bookPayload.scormFileSize = null;
+    } catch (err) {
+      const message = err && err.message ? err.message : 'Failed to process HTML5 package.';
+      throw new Error(message);
+    } finally {
+      try {
+        if (zipFile.path && fs.existsSync(zipFile.path)) {
+          fs.unlinkSync(zipFile.path);
+        }
+      } catch (e) {
+        // ignore cleanup failure
       }
-    } catch (e) {
-      // ignore cleanup failure
     }
   } else {
     const relativePath = zipFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
@@ -121,7 +130,7 @@ const createBook = async (userId, bookData, files = {}) => {
   const book = await Book.create(bookPayload);
 
   const createdBook = await Book.findById(book._id)
-    .populate('scormFile', 'type title url mimeType size')
+    .populate({ path: 'scormFile', select: 'type title url mimeType size', strictPopulate: false })
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();

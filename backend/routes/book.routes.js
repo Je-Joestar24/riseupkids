@@ -31,8 +31,10 @@ router.use(protect);
 // All routes require admin/teacher role
 router.use(authorize('admin', 'teacher'));
 
-// Create new book (with SCORM file and cover image upload)
-router.post('/', uploadBook, createBook);
+// Create new book (with SCORM file and cover image upload). Wrap so async rejections are passed to error handler.
+router.post('/', uploadBook, (req, res, next) => {
+  createBook(req, res).catch(next);
+});
 
 // Get all books
 router.get('/', getAllBooks);

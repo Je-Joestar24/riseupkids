@@ -178,10 +178,11 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`API endpoint: http://0.0.0.0:${PORT}/api`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n  Backend is running.`);
+    console.log(`  Local:   http://localhost:${PORT}/api`);
+    console.log(`  Network: http://0.0.0.0:${PORT}/api`);
+    console.log(`  Env:     ${process.env.NODE_ENV || 'development'}\n`);
   });
 };
 

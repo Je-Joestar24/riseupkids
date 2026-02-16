@@ -21,6 +21,9 @@ const bookService = require('../services/book.services');
  * - coverImage: File (optional) - Cover image for the book
  */
 const createBook = async (req, res) => {
+  const packageType = (req.body && req.body.packageType) || 'scorm';
+  console.log('[createBook] request received, packageType=', packageType);
+
   try {
     const userId = req.user._id;
 
@@ -40,6 +43,7 @@ const createBook = async (req, res) => {
       data: book,
     });
   } catch (error) {
+    console.error('[createBook] error:', error.message || error);
     const statusCode = error.message.includes('Invalid') || error.message.includes('required') ? 400 : 500;
     res.status(statusCode).json({
       success: false,
