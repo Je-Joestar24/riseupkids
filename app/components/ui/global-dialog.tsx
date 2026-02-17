@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -120,7 +121,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: typography.sizes.xl,
-    fontFamily: 'Quicksand_600SemiBold',
+    fontFamily: Quicksand.semiBold,
     textAlign: 'center',
     lineHeight: 28,
     color: colors.text,
@@ -130,7 +131,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_400Regular',
+    fontFamily: Quicksand.regular,
     color: colors.textSecondary,
     marginTop: spacing[2],
     textAlign: 'center',

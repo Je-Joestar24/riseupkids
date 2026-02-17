@@ -37,23 +37,33 @@ export const Colors = {
   },
 };
 
+/** Quicksand font family names (Expo loaded fonts) - use in child-friendly UI */
+export const Quicksand = {
+  regular: 'Quicksand_400Regular',
+  semiBold: 'Quicksand_600SemiBold',
+  bold: 'Quicksand_700Bold',
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
     sans: 'System',
     serif: 'Georgia',
-    rounded: 'System',
+    rounded: Quicksand.regular,
     mono: 'Menlo',
+    ...Quicksand,
   },
   default: {
     sans: 'System',
     serif: 'serif',
-    rounded: 'sans-serif',
+    rounded: Quicksand.regular,
     mono: 'monospace',
+    ...Quicksand,
   },
   web: {
     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: 'sans-serif',
+    rounded: `'Quicksand', ${Quicksand.regular}, sans-serif`,
     mono: "Menlo, Monaco, Consolas, monospace",
+    ...Quicksand,
   },
 });

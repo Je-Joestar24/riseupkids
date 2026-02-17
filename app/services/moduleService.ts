@@ -78,6 +78,12 @@ export interface PopulatedContentItem {
   description?: string;
   coverImage?: string;
   thumbnail?: string;
+  /** Book package type; when 'html5' the app opens HTML5 modal (SCORM not supported in app). */
+  packageType?: 'scorm' | 'html5';
+  /** When packageType === 'html5', id for GET /api/html5handler/:id/launch and static /html5/:id/ */
+  html5PackageId?: string;
+  /** Entry file e.g. index.html (when packageType === 'html5'). */
+  html5EntryPoint?: string;
   [key: string]: unknown;
 }
 

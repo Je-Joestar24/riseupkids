@@ -1,5 +1,6 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
+import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -39,25 +40,25 @@ const styles = StyleSheet.create({
   default: {
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: 'Quicksand_400Regular',
+    fontFamily: Quicksand.regular,
   },
   defaultSemiBold: {
     fontSize: 16,
     lineHeight: 24,
-    fontFamily: 'Quicksand_600SemiBold',
+    fontFamily: Quicksand.semiBold,
   },
   title: {
     fontSize: 28,
     lineHeight: 32,
-    fontFamily: 'Quicksand_700Bold',
+    fontFamily: Quicksand.bold,
   },
   subtitle: {
     fontSize: 18,
-    fontFamily: 'Quicksand_600SemiBold',
+    fontFamily: Quicksand.semiBold,
   },
   link: {
     lineHeight: 24,
     fontSize: 16,
-    fontFamily: 'Quicksand_600SemiBold',
+    fontFamily: Quicksand.semiBold,
   },
 });

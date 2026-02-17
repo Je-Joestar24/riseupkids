@@ -15,6 +15,7 @@ import {
 
 import { AudioModal } from '@/components/child/common/audio-modal';
 import { ChantModal } from '@/components/child/common/chant-modal';
+import { Html5Modal } from '@/components/child/common/html5-modal';
 import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
 import { ModuleAudioAssignments } from '@/components/child/module/module-audio-assignments';
 import { ModuleBooks } from '@/components/child/module/module-books';
@@ -28,6 +29,7 @@ import { ModuleVideos } from '@/components/child/module/module-videos';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
+import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
 import type { PopulatedContentItem } from '@/services/moduleService';
 
@@ -43,6 +45,26 @@ export default function ChildModuleScreen() {
   const [videoModal, setVideoModal] = useState<PopulatedContentItem | null>(null);
   const [chantModal, setChantModal] = useState<PopulatedContentItem | null>(null);
   const [audioModal, setAudioModal] = useState<PopulatedContentItem | null>(null);
+
+  const {
+    open: html5Open,
+    selectedBook: html5Book,
+    openModal: openHtml5Modal,
+    closeModal: closeHtml5Modal,
+    launchUrl: html5LaunchUrl,
+    loading: html5Loading,
+    error: html5Error,
+  } = useHtml5Modal();
+
+  const handleBookPress = useCallback(
+    (book: PopulatedContentItem) => {
+      if (isHtml5Book(book)) {
+        openHtml5Modal(book);
+      }
+      // SCORM not supported in app; tap does nothing for non-HTML5 books
+    },
+    [openHtml5Modal]
+  );
 
   const {
     course,
@@ -150,6 +172,7 @@ export default function ChildModuleScreen() {
         getProgressCircles={getBookProgressCircles}
         isCompleted={isBookCompleted}
         getStarPoints={getBookStarPoints}
+        onBookPress={handleBookPress}
       />
       <ModuleChants
         chants={chants}
@@ -195,6 +218,20 @@ export default function ChildModuleScreen() {
         courseId={courseId ?? null}
         onAfterApproved={() => {
           fetchModuleDetails(courseId!, childId!);
+        }}
+      />
+      <Html5Modal
+        open={html5Open}
+        onClose={closeHtml5Modal}
+        launchUrl={html5LaunchUrl}
+        title={html5Book?.title ?? undefined}
+        loading={html5Loading}
+        error={html5Error}
+        courseId={courseId ?? null}
+        childId={childId ?? null}
+        bookId={html5Book ? getContentId(html5Book) : null}
+        onAfterComplete={() => {
+          if (courseId && childId) fetchModuleDetails(courseId, childId);
         }}
       />
     </ScrollView>
