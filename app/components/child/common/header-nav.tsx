@@ -1,10 +1,11 @@
 /**
  * Child Header Navigation
  * Two columns: (1) flex area with logo centered in the left side, (2) points button sized to content
+ * Total stars are read from the explore store (single source of truth); store updates when stars are awarded.
  */
 
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -12,10 +13,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const SELECTED_CHILD_KEY = '@riseupkids_selectedChild';
-const CHILD_PROFILES_KEY = '@riseupkids_childProfiles';
+import { useExploreStore } from '@/store/exploreStore';
 
 interface HeaderNavProps {
   childId: string;
@@ -24,28 +22,15 @@ interface HeaderNavProps {
 export function HeaderNav({ childId }: HeaderNavProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [totalStars, setTotalStars] = useState(0);
-
-  const fetchStars = async () => {
-    try {
-      const [childData, profilesRaw] = await Promise.all([
-        AsyncStorage.getItem(SELECTED_CHILD_KEY),
-        AsyncStorage.getItem(CHILD_PROFILES_KEY),
-      ]);
-
-      const child = childData ? JSON.parse(childData) : null;
-      const profiles = profilesRaw ? JSON.parse(profilesRaw) : [];
-
-      const source = child?.stats ? child : profiles.find((c: { _id: string }) => c._id === childId);
-      setTotalStars(source?.stats?.totalStars ?? 0);
-    } catch {
-      setTotalStars(0);
-    }
-  };
+  const totalStars = useExploreStore((s) => (childId ? s.childTotalStars[childId] : undefined));
+  const fetchChildTotalStars = useExploreStore((s) => s.fetchChildTotalStars);
 
   useEffect(() => {
-    fetchStars();
-  }, [childId]);
+    if (!childId) return;
+    if (totalStars === undefined) {
+      fetchChildTotalStars(childId);
+    }
+  }, [childId, totalStars, fetchChildTotalStars]);
 
   const handlePointsPress = () => {
     router.push(`/child/${childId}/profile` as never);
@@ -71,7 +56,7 @@ export function HeaderNav({ childId }: HeaderNavProps) {
           accessibilityRole="button"
           accessibilityLabel="Points">
           <ThemedText style={styles.starEmoji}>⭐</ThemedText>
-          <ThemedText style={styles.pointsText}>{totalStars}</ThemedText>
+          <ThemedText style={styles.pointsText}>{totalStars ?? 0}</ThemedText>
         </Pressable>
       </View>
     </View>

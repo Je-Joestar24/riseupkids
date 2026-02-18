@@ -46,16 +46,26 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 
 // Middleware
-// CORS configuration - use environment variable or allow all in development
+// CORS: enforced by browsers (Expo web, WebView). Native built apps (APK/IPA) often send no Origin or Origin: null.
+// - Production with CORS_ORIGIN: allow listed origins + no origin / null (so native app builds are not blocked).
+// - Development: allow localhost, 127.0.0.1, Expo origins, and no origin.
 const corsOptions = {
-  origin: (() => {
+  origin: (origin, callback) => {
+    const noOrigin = origin === undefined || origin === null || origin === '' || String(origin) === 'null';
     if (process.env.CORS_ORIGIN) {
-      // Support comma-separated origins
-      return process.env.CORS_ORIGIN.split(',').map(origin => origin.trim());
+      const allowed = process.env.CORS_ORIGIN.split(',').map((o) => o.trim());
+      if (noOrigin || allowed.includes(origin)) return callback(null, true);
+      return callback(null, false);
     }
-    // In production, require CORS_ORIGIN to be set; in development, allow all
-    return process.env.NODE_ENV === 'production' ? false : true;
-  })(),
+    if (process.env.NODE_ENV === 'production') {
+      return callback(new Error('CORS_ORIGIN must be set in production'), false);
+    }
+    const allowedDev =
+      noOrigin ||
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+      /^https:\/\/(.*\.)?(expo\.run|expo\.dev)$/.test(origin);
+    callback(null, allowedDev);
+  },
   credentials: true,
 };
 app.use(cors(corsOptions));

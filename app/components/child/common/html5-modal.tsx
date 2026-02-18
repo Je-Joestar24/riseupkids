@@ -1,7 +1,7 @@
 /**
  * HTML5 content modal for child app.
  * Opens in portrait (like video); fullscreen = landscape with 4/6 width content, white background.
- * Title, countdown, Done and minimize are fixed at screen corners (outside the content box).
+ * Title and Done are fixed at corners; Done is always on the right and child can submit any time.
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,7 +29,6 @@ import { spacing } from '@/config/theme/spacing';
 import { moduleService } from '@/services/moduleService';
 import { useUiStore } from '@/store/uiStore';
 
-const COUNTDOWN_SECONDS = 60;
 /** Pass threshold: score / maxScore >= 75% */
 const PASS_THRESHOLD = 75;
 const OVERLAY_BG = 'rgba(0,0,0,0.55)';
@@ -38,6 +37,8 @@ const BACKDROP_BG = 'rgba(0,0,0,0.5)';
 const PORTRAIT_CARD_MAX_WIDTH = 480;
 /** Fullscreen content width ratio (4/6 of screen width). */
 const FULLSCREEN_CONTENT_WIDTH_RATIO = 4 / 6;
+/** Seconds to wait for second tap on Close before resetting "tap again" state. */
+const CLOSE_CONFIRM_RESET_MS = 2500;
 
 /** Injected script to read Captivate quiz score/max and post to RN (debug / future submit). */
 const GET_QUIZ_SCORE_SCRIPT = `
@@ -118,54 +119,13 @@ export function Html5Modal({
     bookId,
     onAfterComplete,
 }: Html5ModalProps) {
-    const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [result, setResult] = useState<Html5Result | null>(null);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [closeConfirmActive, setCloseConfirmActive] = useState(false);
     const webViewRef = useRef<WebView>(null);
     const scoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const closeConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showDialog = useUiStore((s) => s.showDialog);
-
-    const canClose = countdown <= 0;
-    const showCountdown = open && launchUrl && !error && (externalLoading === false);
-    const isCounting = showCountdown && !canClose;
-
-    const startCountdown = useCallback(() => {
-        if (intervalRef.current) return;
-        setCountdown(COUNTDOWN_SECONDS);
-        intervalRef.current = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    if (intervalRef.current) {
-                        clearInterval(intervalRef.current);
-                        intervalRef.current = null;
-                    }
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-    }, []);
-
-    useEffect(() => {
-        if (!open) {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-            setCountdown(COUNTDOWN_SECONDS);
-            return;
-        }
-        if (launchUrl && !externalLoading && !error) {
-            startCountdown();
-        }
-        return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
-            }
-        };
-    }, [open, launchUrl, externalLoading, error, startCountdown]);
 
     const handleWebViewMessage = useCallback(
         (event: { nativeEvent: { data: string } }) => {
@@ -210,7 +170,6 @@ export function Html5Modal({
     );
 
     const handleDone = useCallback(() => {
-        if (!canClose) return;
         setResult(null);
         try {
             webViewRef.current?.injectJavaScript(GET_QUIZ_SCORE_SCRIPT);
@@ -223,7 +182,7 @@ export function Html5Modal({
                 prev === null ? { score: null, maxScore: null, passed: null, progress: null } : prev
             );
         }, 1800);
-    }, [canClose]);
+    }, []);
 
     const PORTRAIT = ScreenOrientation.OrientationLock.PORTRAIT_UP;
     const LANDSCAPE = ScreenOrientation.OrientationLock.LANDSCAPE;
@@ -255,6 +214,11 @@ export function Html5Modal({
     }, []);
 
     const clearResultAndClose = useCallback(() => {
+        if (closeConfirmTimeoutRef.current) {
+            clearTimeout(closeConfirmTimeoutRef.current);
+            closeConfirmTimeoutRef.current = null;
+        }
+        setCloseConfirmActive(false);
         if (scoreTimeoutRef.current) {
             clearTimeout(scoreTimeoutRef.current);
             scoreTimeoutRef.current = null;
@@ -265,6 +229,25 @@ export function Html5Modal({
         }
         onClose();
     }, [isFullscreen, onClose, exitFullscreen]);
+
+    /** Close with persistency: first tap prompts "Tap again to close", second tap closes. */
+    const handleClosePress = useCallback(() => {
+        if (closeConfirmActive) {
+            if (closeConfirmTimeoutRef.current) {
+                clearTimeout(closeConfirmTimeoutRef.current);
+                closeConfirmTimeoutRef.current = null;
+            }
+            setCloseConfirmActive(false);
+            clearResultAndClose();
+            return;
+        }
+        setCloseConfirmActive(true);
+        showDialog({ message: 'Tap Close again to exit.', type: 'info' });
+        closeConfirmTimeoutRef.current = setTimeout(() => {
+            closeConfirmTimeoutRef.current = null;
+            setCloseConfirmActive(false);
+        }, CLOSE_CONFIRM_RESET_MS);
+    }, [closeConfirmActive, showDialog, clearResultAndClose]);
 
     /** Close only the completion dialog so the child can continue the activity (stay in HTML5). */
     const closeCompletionDialogOnly = useCallback(() => {
@@ -308,55 +291,51 @@ export function Html5Modal({
             scoreTimeoutRef.current = null;
         }
         setResult(null);
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
-        setCountdown(COUNTDOWN_SECONDS);
-        startCountdown();
         try {
             webViewRef.current?.reload();
         } catch {
             // ignore
         }
-    }, [startCountdown]);
+    }, []);
 
     // When modal opens, start in portrait; when it closes, restore portrait and system UI
     useEffect(() => {
         exitFullscreen();
     }, [open, exitFullscreen]);
 
+    useEffect(() => {
+        if (!open) {
+            setCloseConfirmActive(false);
+            if (closeConfirmTimeoutRef.current) {
+                clearTimeout(closeConfirmTimeoutRef.current);
+                closeConfirmTimeoutRef.current = null;
+            }
+        }
+    }, [open]);
+
     if (!open) return null;
 
-    const renderDoneRow = (isOverlay?: boolean) => (
-        <>
-            {isCounting ? (
-                <ThemedText
-                    style={isOverlay ? styles.countdownTextOverlay : styles.countdownText}
-                    accessibilityLabel={`Done button available in ${countdown} seconds`}
-                >
-                    Done in {countdown}s
-                </ThemedText>
-            ) : null}
+    const renderDoneRow = () => (
+        <View style={styles.doneRow}>
             <Pressable
-                onPress={handleDone}
-                disabled={!canClose}
-                style={({ pressed }) => [
-                    styles.doneButton,
-                    (!canClose || pressed) && styles.doneButtonDisabled,
-                    canClose && pressed && styles.doneButtonPressed,
-                ]}
+                onPress={handleClosePress}
+                style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
                 accessibilityRole="button"
-                accessibilityLabel={canClose ? 'Done' : `Done available in ${countdown} seconds`}
-                accessibilityState={{ disabled: !canClose }}
+                accessibilityLabel={closeConfirmActive ? 'Tap again to close' : 'Close'}
             >
-                <ThemedText
-                    style={[styles.doneButtonText, !canClose && styles.doneButtonTextDisabled]}
-                >
-                    Done
+                <ThemedText style={styles.closeButtonText}>
+                    {closeConfirmActive ? 'Tap again' : 'Close'}
                 </ThemedText>
             </Pressable>
-        </>
+            <Pressable
+                onPress={handleDone}
+                style={({ pressed }) => [styles.doneButton, pressed && styles.doneButtonPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+            >
+                <ThemedText style={styles.doneButtonText}>Done</ThemedText>
+            </Pressable>
+        </View>
     );
 
     return (
@@ -364,7 +343,7 @@ export function Html5Modal({
             visible={open}
             animationType="slide"
             transparent
-            onRequestClose={canClose ? onClose : undefined}
+            onRequestClose={onClose}
             accessibilityLabel="HTML5 content"
             statusBarTranslucent={isFullscreen}
         >
@@ -434,34 +413,29 @@ export function Html5Modal({
                                         color={colors.primary}
                                     />
                                 </Pressable>
-                                <View style={styles.cornerBottomLeft} pointerEvents="box-none">
-                                    {isCounting ? (
-                                        <ThemedText
-                                            style={styles.cornerCountdown}
-                                            accessibilityLabel={`Done available in ${countdown} seconds`}
-                                        >
-                                            Done in {countdown}s
-                                        </ThemedText>
-                                    ) : null}
-                                </View>
-                                <Pressable
-                                    onPress={handleDone}
-                                    disabled={!canClose}
-                                    style={({ pressed }) => [
-                                        styles.cornerBottomRight,
-                                        !canClose && styles.doneButtonDisabled,
-                                        canClose && pressed && styles.doneButtonPressed,
-                                    ]}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={canClose ? 'Done' : `Done available in ${countdown} seconds`}
-                                    accessibilityState={{ disabled: !canClose }}
-                                >
-                                    <ThemedText
-                                        style={[styles.doneButtonText, !canClose && styles.doneButtonTextDisabled]}
+                                <View style={styles.cornerBottomRow}>
+                                    <Pressable
+                                        onPress={handleClosePress}
+                                        style={({ pressed }) => [styles.closeButtonCorner, pressed && styles.closeButtonPressed]}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={closeConfirmActive ? 'Tap again to close' : 'Close'}
                                     >
-                                        Done
-                                    </ThemedText>
-                                </Pressable>
+                                        <ThemedText style={styles.closeButtonText}>
+                                            {closeConfirmActive ? 'Tap again' : 'Close'}
+                                        </ThemedText>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={handleDone}
+                                        style={({ pressed }) => [
+                                            styles.cornerBottomRight,
+                                            pressed && styles.doneButtonPressed,
+                                        ]}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Done"
+                                    >
+                                        <ThemedText style={styles.doneButtonText}>Done</ThemedText>
+                                    </Pressable>
+                                </View>
                             </View>
                         ) : (
                             <View style={styles.portraitCard}>
@@ -496,7 +470,7 @@ export function Html5Modal({
                                     />
                                 </View>
                                 <View style={styles.footer}>
-                                    {renderDoneRow(false)}
+                                    {renderDoneRow()}
                                 </View>
                             </View>
                         )}
@@ -665,27 +639,32 @@ const styles = StyleSheet.create({
         padding: spacing[2],
         zIndex: 10,
     },
-    cornerBottomLeft: {
-        position: 'absolute',
-        bottom: spacing[4],
-        left: spacing[4],
-        zIndex: 10,
-    },
-    cornerCountdown: {
-        fontSize: 14,
-        color: colors.primary,
-    },
-    cornerBottomRight: {
+    cornerBottomRow: {
         position: 'absolute',
         bottom: spacing[4],
         right: spacing[4],
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing[3],
+        zIndex: 10,
+    },
+    closeButtonCorner: {
+        paddingVertical: spacing[3],
+        paddingHorizontal: spacing[4],
+        backgroundColor: 'transparent',
+        borderRadius: 8,
+        borderWidth: 2,
+        borderColor: colors.primary,
+        minWidth: 90,
+        alignItems: 'center',
+    },
+    cornerBottomRight: {
         paddingVertical: spacing[3],
         paddingHorizontal: spacing[5],
         backgroundColor: colors.secondary,
         borderRadius: 8,
         minWidth: 100,
         alignItems: 'center',
-        zIndex: 10,
     },
     centered: {
         flex: 1,
@@ -716,21 +695,37 @@ const styles = StyleSheet.create({
     footer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         paddingHorizontal: spacing[4],
         paddingVertical: spacing[4],
         backgroundColor: colors.bgSecondary,
         borderTopWidth: 1,
         borderTopColor: colors.border,
-        gap: spacing[4],
     },
-    countdownText: {
-        fontSize: 16,
-        color: colors.textSecondary,
+    doneRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        width: '100%',
+        gap: spacing[3],
     },
-    countdownTextOverlay: {
+    closeButton: {
+        paddingVertical: spacing[3],
+        paddingHorizontal: spacing[5],
+        backgroundColor: 'transparent',
+        borderRadius: 8,
+        borderWidth: 2,
+        borderColor: colors.secondary,
+        minWidth: 90,
+        alignItems: 'center',
+    },
+    closeButtonPressed: {
+        opacity: 0.85,
+    },
+    closeButtonText: {
         fontSize: 16,
-        color: colors.textInverse,
+        fontFamily: Quicksand.semiBold,
+        color: colors.secondary,
     },
     doneButton: {
         paddingVertical: spacing[3],
@@ -743,16 +738,10 @@ const styles = StyleSheet.create({
     doneButtonPressed: {
         opacity: 0.9,
     },
-    doneButtonDisabled: {
-        opacity: 0.5,
-    },
     doneButtonText: {
         fontSize: 16,
         fontFamily: Quicksand.semiBold,
         color: colors.textInverse,
-    },
-    doneButtonTextDisabled: {
-        color: colors.textSecondary,
     },
     resultOverlay: {
         ...StyleSheet.absoluteFillObject,

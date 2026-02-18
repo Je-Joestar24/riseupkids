@@ -22,6 +22,7 @@ import {
   type ExploreVideoType,
 } from '@/constants/explore';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
+import { useExploreStore } from '@/store/exploreStore';
 
 export interface ExploreVideoCollectionProps {
   childId: string | null;
@@ -101,6 +102,7 @@ export function ExploreVideoCollection({
 }: ExploreVideoCollectionProps) {
   const { fetchByType } = useExplore();
   const { getVideoTypeProgress, getTotalStarsForVideoType } = useExploreVideoWatch(childId);
+  const lastExploreStarsAwardedAt = useExploreStore((s) => s.lastExploreStarsAwardedAt);
   const [dataByType, setDataByType] = useState<Record<string, CollectionData>>({});
   const [loading, setLoading] = useState(true);
 
@@ -142,6 +144,10 @@ export function ExploreVideoCollection({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (lastExploreStarsAwardedAt != null) load();
+  }, [lastExploreStarsAwardedAt]);
 
   if (loading) {
     return (

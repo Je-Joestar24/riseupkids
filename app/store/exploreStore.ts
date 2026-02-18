@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 
 import { exploreService } from '@/services/exploreService';
+import { homeService } from '@/services/homeService';
 import type {
   ExploreContentItem,
   ExploreListParams,
@@ -64,6 +65,10 @@ export interface ExploreState {
   loadingWatch: boolean;
   /** Error for video watch */
   errorWatch: string | null;
+  /** Timestamp when explore stars were last awarded (so header/home can refresh overall stars) */
+  lastExploreStarsAwardedAt: number | null;
+  /** Child overall total stars (for header nav); keyed by childId */
+  childTotalStars: Record<string, number>;
 }
 
 export interface ExploreActions {
@@ -110,6 +115,8 @@ export interface ExploreActions {
   getTotalStarsForVideoType: (childId: string, videoType: string) => Promise<number>;
   /** Clear video watch error */
   clearErrorWatch: () => void;
+  /** Fetch and store child overall total stars (used by header); returns current value. */
+  fetchChildTotalStars: (childId: string) => Promise<number>;
 }
 
 const initialState: ExploreState = {
@@ -127,6 +134,8 @@ const initialState: ExploreState = {
   totalStarsByVideoType: {},
   loadingWatch: false,
   errorWatch: null,
+  lastExploreStarsAwardedAt: null,
+  childTotalStars: {},
 };
 
 export const useExploreStore = create<ExploreState & ExploreActions>((set, get) => ({
@@ -233,6 +242,7 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
       const data = res?.success ? res.data : null;
       const statusKey = `${childId}_${exploreContentId}`;
       const vw = data?.videoWatch as { watchCount?: number; video?: { _id?: string } } | undefined;
+      const starsAwarded = !!(data?.starsAwarded ?? data?.starsJustAwarded);
       if (vw && data) {
         set((s) => ({
           watchStatusCache: {
@@ -250,6 +260,7 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
           },
           loadingWatch: false,
           errorWatch: null,
+          lastExploreStarsAwardedAt: starsAwarded ? Date.now() : s.lastExploreStarsAwardedAt,
         }));
       } else {
         set({ loadingWatch: false, errorWatch: null });
@@ -263,6 +274,9 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
           delete nextStars[progressKey];
           return { progressByVideoType: nextProgress, totalStarsByVideoType: nextStars };
         });
+      }
+      if (starsAwarded && childId) {
+        get().fetchChildTotalStars(childId);
       }
       return data;
     } catch (err) {
@@ -336,4 +350,18 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
   },
 
   clearErrorWatch: () => set({ errorWatch: null }),
+
+  fetchChildTotalStars: async (childId) => {
+    if (!childId) return 0;
+    try {
+      const res = await homeService.getChildProgress(childId);
+      const total = res?.data?.totalStars ?? 0;
+      set((s) => ({
+        childTotalStars: { ...s.childTotalStars, [childId]: total },
+      }));
+      return total;
+    } catch {
+      return get().childTotalStars[childId] ?? 0;
+    }
+  },
 }));

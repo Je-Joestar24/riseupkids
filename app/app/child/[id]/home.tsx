@@ -6,8 +6,9 @@
  * - Accumulated stats
  */
 
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -37,6 +38,12 @@ export default function ChildHomeScreen() {
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const homeData = useHomeData(id);
+
+  useFocusEffect(
+    useCallback(() => {
+      homeData.refresh();
+    }, [homeData.refresh])
+  );
 
   useEffect(() => {
     const load = async () => {

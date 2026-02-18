@@ -5,7 +5,7 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -14,6 +14,7 @@ import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { getVideoTypeLabel, VIDEO_TYPE_DESCRIPTIONS } from '@/constants/explore';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
+import { useExploreStore } from '@/store/exploreStore';
 
 const VIDEO_TYPE_ICONS: Record<string, React.ComponentProps<typeof MaterialCommunityIcons>['name']> = {
   arts_crafts: 'palette',
@@ -30,15 +31,19 @@ export interface ContentsHeaderProps {
   videoType: string;
 }
 
+const starsCacheKey = (childId: string, videoType: string) => `${childId}_${videoType}`;
+
 export function ContentsHeader({ childId, videoType }: ContentsHeaderProps) {
   const router = useRouter();
   const { getTotalStarsForVideoType } = useExploreVideoWatch(childId);
-  const [totalStars, setTotalStars] = useState(0);
+  const cacheKey = starsCacheKey(childId, videoType);
+  const cachedStars = useExploreStore((s) => s.totalStarsByVideoType[cacheKey]);
 
   useEffect(() => {
     if (!childId || !videoType) return;
-    getTotalStarsForVideoType(videoType).then(setTotalStars).catch(() => setTotalStars(0));
-  }, [childId, videoType, getTotalStarsForVideoType]);
+    if (cachedStars !== undefined) return;
+    getTotalStarsForVideoType(videoType).catch(() => {});
+  }, [childId, videoType, cachedStars, getTotalStarsForVideoType]);
 
   const label = getVideoTypeLabel(videoType);
   const description = VIDEO_TYPE_DESCRIPTIONS[videoType] ?? "Let's explore!";
@@ -70,7 +75,7 @@ export function ContentsHeader({ childId, videoType }: ContentsHeaderProps) {
 
       <View style={styles.starsRow}>
         <MaterialCommunityIcons name="star" size={22} color={colors.accent} />
-        <ThemedText style={styles.starsValue}>{totalStars}</ThemedText>
+        <ThemedText style={styles.starsValue}>{cachedStars ?? 0}</ThemedText>
         <ThemedText style={styles.starsLabel}>Total Stars Earned</ThemedText>
       </View>
     </View>
