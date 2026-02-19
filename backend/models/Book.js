@@ -75,6 +75,9 @@ const bookSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    /** When extracted SCORM is on S3/CloudFront. */
+    scormBaseUrl: { type: String, default: null, trim: true },
+    scormEntryPoint: { type: String, default: 'index.html', trim: true },
     // HTML5 package (required when packageType === 'html5'). id from html5handler upload.
     html5PackageId: {
       type: String,
@@ -84,6 +87,12 @@ const bookSchema = new mongoose.Schema(
     html5EntryPoint: {
       type: String,
       default: 'index.html',
+      trim: true,
+    },
+    /** When HTML5 package is on S3/CloudFront, base URL (e.g. https://xxx.cloudfront.net/html5/abc123). */
+    html5BaseUrl: {
+      type: String,
+      default: null,
       trim: true,
     },
     // Pages array (optional - kept for backward compatibility, but SCORM file is primary)

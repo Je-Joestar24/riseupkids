@@ -9,18 +9,7 @@ const {
   StarEarning,
 } = require('../models');
 
-/**
- * Convert an absolute uploaded file path to a public /uploads URL.
- * Example: D:\...\backend\uploads\media\audio\file.webm -> /uploads/media/audio/file.webm
- */
-const filePathToUploadsUrl = (absolutePath) => {
-  const uploadsIndex = absolutePath.indexOf('uploads');
-  if (uploadsIndex === -1) return absolutePath;
-  const relativePath = absolutePath
-    .substring(uploadsIndex + 'uploads'.length)
-    .replace(/\\/g, '/');
-  return `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
-};
+const s3Service = require('./s3.service');
 
 const getOrCreateProgress = async ({ childId, audioAssignmentId }) => {
   const progress = await AudioAssignmentProgress.findOne({
@@ -108,12 +97,11 @@ const submitAudioAssignmentRecording = async ({
   const child = await ChildProfile.findById(childId).select('_id displayName').lean();
   if (!child) throw new Error('Child not found');
 
-  // Create media for recorded audio
-  const audioUrl = filePathToUploadsUrl(recordedAudioFile.path);
+  const { url: audioUrl, s3Key } = await s3Service.uploadFileFromMulter(recordedAudioFile, 'scorm/audio-assignments');
   const recordedAudioMedia = await Media.create({
     type: 'audio',
     title: recordedAudioFile.originalname || `audio-assignment-${audioAssignmentId}`,
-    filePath: recordedAudioFile.path,
+    filePath: s3Key,
     url: audioUrl,
     mimeType: recordedAudioFile.mimetype,
     size: recordedAudioFile.size,

@@ -2,6 +2,7 @@ const AdmZip = require('adm-zip');
 const fs = require('fs-extra');
 const path = require('path');
 const { parseString } = require('xml2js');
+const s3Service = require('./s3.service');
 
 /**
  * SCORM Service
@@ -250,6 +251,39 @@ async function cleanupScormPackage(extractedPath) {
   }
 }
 
+/**
+ * Extract SCORM zip buffer to temp dir, upload extracted folder to S3, return base URL and entry point.
+ * Used so SCORM can be served from CloudFront (like HTML5) instead of downloading zip on each launch.
+ * @param {Buffer} zipBuffer - SCORM zip file buffer
+ * @param {string} contentType - 'activity' | 'book' | 'video' | 'chant' | 'audioAssignment'
+ * @param {string} contentId - MongoDB content ID (activityId, bookId, etc.)
+ * @returns {Promise<{ baseUrl: string, entryPoint: string } | null>} null if S3 not configured
+ */
+async function uploadExtractedScormToS3(zipBuffer, contentType, contentId) {
+  if (!s3Service.isConfigured() || !zipBuffer || !contentType || !contentId) {
+    return null;
+  }
+  const idStr = contentId.toString();
+  const tempDir = path.join(__dirname, '../uploads/scorm', contentType, idStr, 'extract-upload');
+  const tempZip = path.join(tempDir, 'package.zip');
+  try {
+    await fs.ensureDir(tempDir);
+    await fs.writeFile(tempZip, zipBuffer);
+    const extractDir = path.join(tempDir, 'extracted');
+    await extractScormPackage(tempZip, extractDir);
+    await validateScormPackage(extractDir);
+    const manifestPath = await findManifestFile(extractDir);
+    const entryPoint = manifestPath
+      ? await getScormEntryPoint(manifestPath, extractDir)
+      : 'index.html';
+    const s3Prefix = `scorm/${contentType}/${idStr}`;
+    const { baseUrl } = await s3Service.uploadDirectory(extractDir, s3Prefix);
+    return { baseUrl, entryPoint };
+  } finally {
+    await fs.remove(tempDir).catch(() => {});
+  }
+}
+
 module.exports = {
   extractScormPackage,
   parseManifest,
@@ -258,4 +292,5 @@ module.exports = {
   findManifestFile,
   getScormMetadata,
   cleanupScormPackage,
+  uploadExtractedScormToS3,
 };

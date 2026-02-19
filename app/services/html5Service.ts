@@ -1,6 +1,7 @@
 /**
  * HTML5 package launch URL for child app.
- * Calls backend GET /api/html5handler/:id/launch and builds WebView URL from BACKEND_ORIGIN.
+ * Calls backend GET /api/html5handler/:id/launch. When S3/CloudFront is used, the API returns a full
+ * CloudFront URL and we use it as-is; otherwise we build a URL from BACKEND_ORIGIN for legacy disk-backed packages.
  */
 
 import { api } from '@/services/api';
@@ -36,7 +37,10 @@ export async function getLaunchUrl(
   const { launchUrl: serverLaunchUrl, entryPoint: resolvedEntry } = response.data;
   const entry = (entryPoint?.trim() || resolvedEntry || 'index.html').replace(/^\//, '');
   const base = BACKEND_ORIGIN.replace(/\/+$/, '');
-  const launchUrl = `${base}/html5/${packageId}/${entry}`;
+  const launchUrl =
+    serverLaunchUrl && serverLaunchUrl.startsWith('http')
+      ? serverLaunchUrl
+      : `${base}/html5/${packageId}/${entry}`;
 
   return { launchUrl, entryPoint: entry };
 }

@@ -1,6 +1,7 @@
 const { Media, Badge } = require('../models');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
+const scormService = require('./scorm.service');
 
 /**
  * Create Video Service
@@ -47,61 +48,61 @@ const createVideo = async (userId, videoData, files = {}) => {
     }
   }
 
-  // Process video file and create Media record
-  const videoRelativePath = videoFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-  const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-  
+  // Upload video to S3 and create Media record
+  const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
   const videoMedia = await Media.create({
     type: 'video',
-    title: title?.trim() || videoFile.originalname, // Use provided title, fallback to filename
+    title: title?.trim() || videoFile.originalname,
     description: description?.trim() || null,
-    filePath: videoFile.path, // Keep full path for server operations (deletion, etc.)
-    url: videoFileUrl, // Relative path for client access
+    filePath: videoS3Key,
+    url: videoFileUrl,
     mimeType: videoFile.mimetype,
     size: videoFile.size,
     duration: duration ? parseInt(duration, 10) : null,
     starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
-    requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5, // Default to 5
+    requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
     isPublished: isPublished === 'true' || isPublished === true,
     uploadedBy: userId,
   });
 
-  // Attach optional badge to the video media
   if (badgeAwarded) {
     videoMedia.badgeAwarded = badgeAwarded;
   }
 
-  // Process SCORM file if provided (optional)
   if (scormFile) {
-    const scormRelativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const scormFileUrl = `/uploads${scormRelativePath.startsWith('/') ? scormRelativePath : `/${scormRelativePath}`}`;
-    
+    const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
     const scormMedia = await Media.create({
-      type: 'video', // Using 'video' type for SCORM files
+      type: 'video',
       title: scormFile.originalname,
-      filePath: scormFile.path, // Keep full path for server operations
-      url: scormFileUrl, // Relative path for client access
+      filePath: scormS3Key,
+      url: scormFileUrl,
       mimeType: scormFile.mimetype,
       size: scormFile.size,
       uploadedBy: userId,
     });
-
-    // Link SCORM file to video Media
     videoMedia.scormFile = scormMedia._id;
-    videoMedia.scormFilePath = scormFile.path; // Keep full path for server operations
-    videoMedia.scormFileUrl = scormFileUrl; // Relative path for client access
+    videoMedia.scormFilePath = scormS3Key;
+    videoMedia.scormFileUrl = scormFileUrl;
     videoMedia.scormFileSize = scormFile.size;
   }
 
   await videoMedia.save();
 
-  // Process cover image if provided
+  if (scormFile && scormFile.buffer) {
+    const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'video', videoMedia._id);
+    if (extracted) {
+      videoMedia.scormBaseUrl = extracted.baseUrl;
+      videoMedia.scormEntryPoint = extracted.entryPoint;
+      await videoMedia.save();
+    }
+  }
+
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    videoMedia.thumbnail = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    coverImagePath = coverUrl;
+    videoMedia.thumbnail = coverUrl;
     await videoMedia.save();
   }
 
@@ -323,9 +324,8 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    video.thumbnail = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    video.thumbnail = coverUrl;
   }
 
   await video.save();
@@ -360,34 +360,28 @@ const deleteVideo = async (videoId) => {
     throw new Error('Video not found');
   }
 
-  // Delete video file if exists
-  if (video.filePath && fs.existsSync(video.filePath)) {
-    try {
-      fs.unlinkSync(video.filePath);
-    } catch (error) {
-      console.error('Error deleting video file:', error);
-    }
+  try {
+    if (video.filePath) await s3Service.deleteByKey(video.filePath);
+  } catch (error) {
+    console.error('Error deleting video file from S3:', error);
   }
 
-  // Delete SCORM file if exists
   if (video.scormFile) {
     try {
       const scormMedia = await Media.findById(video.scormFile);
-      if (scormMedia && scormMedia.filePath && fs.existsSync(scormMedia.filePath)) {
-        fs.unlinkSync(scormMedia.filePath);
-      }
+      if (scormMedia && scormMedia.filePath) await s3Service.deleteByKey(scormMedia.filePath);
       await Media.findByIdAndDelete(video.scormFile);
     } catch (error) {
       console.error('Error deleting SCORM file:', error);
     }
   }
 
-  // Delete thumbnail if exists
-  if (video.thumbnail && fs.existsSync(path.join(__dirname, '../', video.thumbnail.replace('/uploads', 'uploads')))) {
+  if (video.thumbnail) {
     try {
-      fs.unlinkSync(path.join(__dirname, '../', video.thumbnail.replace('/uploads', 'uploads')));
+      const thumbKey = s3Service.getS3KeyFromUrl(video.thumbnail);
+      if (thumbKey) await s3Service.deleteByKey(thumbKey);
     } catch (error) {
-      console.error('Error deleting thumbnail:', error);
+      console.error('Error deleting thumbnail from S3:', error);
     }
   }
 

@@ -3,6 +3,7 @@ const Media = require('../models/Media');
 const { ChildProfile } = require('../models');
 const path = require('path');
 const fs = require('fs-extra');
+const s3Service = require('./s3.service');
 
 /**
  * KidsWall Service
@@ -118,18 +119,12 @@ const createMediaFromFile = async (file, uploadedBy) => {
       throw new Error('No file provided');
     }
 
-    // Build file URL
-    const relativePath = path.relative(
-      path.join(__dirname, '../uploads'),
-      file.path
-    ).replace(/\\/g, '/');
-    const fileUrl = `/uploads/${relativePath}`;
+    const { url: fileUrl, s3Key } = await s3Service.uploadFileFromMulter(file, 'kids-wall');
 
-    // Create Media record
     const media = await Media.create({
       type: 'image',
       title: file.originalname,
-      filePath: relativePath,
+      filePath: s3Key,
       url: fileUrl,
       mimeType: file.mimetype,
       size: file.size,
@@ -291,20 +286,16 @@ const updatePostWithImage = async (postId, childId, postData, imageFile, uploade
       // Update images array
       updateData.images = [newMedia._id];
 
-      // Delete old image file and Media record
+      // Delete old image from S3 and Media record
       if (oldImage) {
         try {
           const oldMedia = await Media.findById(oldImage);
           if (oldMedia && oldMedia.filePath) {
-            const oldFilePath = path.join(__dirname, '../uploads', oldMedia.filePath);
-            if (await fs.pathExists(oldFilePath)) {
-              await fs.remove(oldFilePath);
-            }
+            await s3Service.deleteByKey(oldMedia.filePath);
           }
           await Media.findByIdAndDelete(oldImage);
         } catch (err) {
           console.error('Error deleting old image:', err);
-          // Don't throw - continue with update
         }
       }
     }

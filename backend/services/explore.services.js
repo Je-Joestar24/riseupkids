@@ -1,6 +1,6 @@
 const { ExploreContent, Media } = require('../models');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
 
 /**
  * Create Explore Content Service
@@ -54,16 +54,14 @@ const createExploreContent = async (userId, contentData, files = {}) => {
 
   if (files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0) {
     const videoFile = files.videoFile[0];
-    const videoRelativePath = videoFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-    videoFilePath = videoFile.path;
-
-    // Create Media record for video
+    const { url: videoUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
+    videoFileUrl = videoUrl;
+    videoFilePath = videoS3Key;
     videoMedia = await Media.create({
       type: 'video',
       title: title?.trim() || videoFile.originalname,
       description: description?.trim() || null,
-      filePath: videoFile.path,
+      filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: videoFile.mimetype,
       size: videoFile.size,
@@ -74,12 +72,11 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     });
   }
 
-  // Process cover image if provided
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    coverImagePath = coverUrl;
   }
 
 
@@ -353,22 +350,18 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
     content.tags = parsedTags.filter(t => t && t.trim()).map(t => t.trim());
   }
 
-  // Process cover image if provided (for all video types)
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
-    // Delete old cover image if exists
     if (content.coverImage) {
-      const oldCoverPath = path.join(__dirname, '../', content.coverImage.replace('/uploads', 'uploads'));
-      if (fs.existsSync(oldCoverPath)) {
-        try {
-          fs.unlinkSync(oldCoverPath);
-        } catch (error) {
-          console.error('Error deleting old cover image:', error);
-        }
+      try {
+        const oldKey = s3Service.getS3KeyFromUrl(content.coverImage);
+        if (oldKey) await s3Service.deleteByKey(oldKey);
+      } catch (error) {
+        console.error('Error deleting old cover image:', error);
       }
     }
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    content.coverImage = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    content.coverImage = coverUrl;
   }
 
   await content.save();
@@ -400,37 +393,30 @@ const deleteExploreContent = async (contentId) => {
     throw new Error('Explore content not found');
   }
 
-  // Delete video file if exists
-  if (content.videoFilePath && fs.existsSync(content.videoFilePath)) {
+  if (content.videoFilePath) {
     try {
-      fs.unlinkSync(content.videoFilePath);
+      await s3Service.deleteByKey(content.videoFilePath);
     } catch (error) {
-      console.error('Error deleting video file:', error);
+      console.error('Error deleting video file from S3:', error);
     }
   }
 
-  // Delete associated Media record if exists
   if (content.videoFile) {
     try {
       const mediaRecord = await Media.findById(content.videoFile);
-      if (mediaRecord && mediaRecord.filePath && fs.existsSync(mediaRecord.filePath)) {
-        fs.unlinkSync(mediaRecord.filePath);
-      }
+      if (mediaRecord && mediaRecord.filePath) await s3Service.deleteByKey(mediaRecord.filePath);
       await Media.findByIdAndDelete(content.videoFile);
     } catch (error) {
       console.error('Error deleting media record:', error);
     }
   }
 
-  // Delete cover image if exists
   if (content.coverImage) {
-    const coverPath = path.join(__dirname, '../', content.coverImage.replace('/uploads', 'uploads'));
-    if (fs.existsSync(coverPath)) {
-      try {
-        fs.unlinkSync(coverPath);
-      } catch (error) {
-        console.error('Error deleting cover image:', error);
-      }
+    try {
+      const coverKey = s3Service.getS3KeyFromUrl(content.coverImage);
+      if (coverKey) await s3Service.deleteByKey(coverKey);
+    } catch (error) {
+      console.error('Error deleting cover image:', error);
     }
   }
 

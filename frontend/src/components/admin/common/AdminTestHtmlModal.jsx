@@ -49,7 +49,7 @@ export default function AdminTestHtmlModal({
     setLoading(true);
     setError(null);
     html5Service
-      .getLaunchUrl(html5PackageId)
+      .getLaunchUrl(html5PackageId, html5EntryPoint)
       .then(({ launchUrl: url }) => {
         setLaunchUrl(url);
         setError(null);
@@ -59,7 +59,7 @@ export default function AdminTestHtmlModal({
         setLaunchUrl(null);
       })
       .finally(() => setLoading(false));
-  }, [html5PackageId]);
+  }, [html5PackageId, html5EntryPoint]);
 
   useEffect(() => {
     if (!open) {

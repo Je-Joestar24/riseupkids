@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
+import { TIMEOUT } from '../constants/timeout';
 
 // Create axios instance. In dev uses relative /api so Vite proxy forwards to backend (no connection refused)
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000,
+  timeout: TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
   },

@@ -1,6 +1,7 @@
 const { Chant, Media, Badge } = require('../models');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
+const scormService = require('./scorm.service');
 
 /**
  * Create Chant Service
@@ -38,80 +39,67 @@ const createChant = async (userId, chantData, files = {}) => {
     }
   }
 
-  // Process audio if provided (optional)
   let audioId = null;
   if (files.audio && Array.isArray(files.audio) && files.audio.length > 0) {
     const audioFile = files.audio[0];
-    const audioRelativePath = audioFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const audioFileUrl = `/uploads${audioRelativePath.startsWith('/') ? audioRelativePath : `/${audioRelativePath}`}`;
-    
+    const { url: audioFileUrl, s3Key: audioS3Key } = await s3Service.uploadFileFromMulter(audioFile, 'media/audio');
     const audioMedia = await Media.create({
       type: 'audio',
       title: audioFile.originalname,
-      filePath: audioFile.path,
+      filePath: audioS3Key,
       url: audioFileUrl,
       mimeType: audioFile.mimetype,
       size: audioFile.size,
       uploadedBy: userId,
     });
-
     audioId = audioMedia._id;
   }
 
-  // Process instruction video if provided (optional)
   let instructionVideoId = null;
   if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
     const instructionVideo = files.instructionVideo[0];
-    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-    
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
     const videoMedia = await Media.create({
       type: 'video',
       title: instructionVideo.originalname,
-      filePath: instructionVideo.path,
+      filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: instructionVideo.mimetype,
       size: instructionVideo.size,
       uploadedBy: userId,
     });
-
     instructionVideoId = videoMedia._id;
   }
 
-  // Process SCORM file if provided (optional)
   let scormFileId = null;
   let scormFilePath = null;
   let scormFileUrl = null;
   let scormFileSize = null;
   let scormFileMimeType = null;
-  
   if (files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0) {
     const scormFile = files.scormFile[0];
-    const relativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
-    
+    const { url: scormUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
+    scormFileUrl = scormUrl;
     const scormMedia = await Media.create({
-      type: 'video', // Using 'video' type for SCORM files
+      type: 'video',
       title: scormFile.originalname,
-      filePath: scormFile.path,
+      filePath: scormS3Key,
       url: scormFileUrl,
       mimeType: scormFile.mimetype,
       size: scormFile.size,
       uploadedBy: userId,
     });
-
     scormFileId = scormMedia._id;
-    scormFilePath = scormFile.path;
+    scormFilePath = scormS3Key;
     scormFileSize = scormFile.size;
     scormFileMimeType = scormFile.mimetype;
   }
 
-  // Process cover image if provided (optional)
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    coverImagePath = coverUrl;
   }
 
   // Parse tags
@@ -127,7 +115,6 @@ const createChant = async (userId, chantData, files = {}) => {
     }
   }
 
-  // Create chant
   const chant = await Chant.create({
     title: title.trim(),
     description: description?.trim() || null,
@@ -148,7 +135,18 @@ const createChant = async (userId, chantData, files = {}) => {
     createdBy: userId,
   });
 
-  // Get created chant with populated data
+  if (files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0) {
+    const scormFile = files.scormFile[0];
+    if (scormFile.buffer) {
+      const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'chant', chant._id);
+      if (extracted) {
+        chant.scormBaseUrl = extracted.baseUrl;
+        chant.scormEntryPoint = extracted.entryPoint;
+        await chant.save();
+      }
+    }
+  }
+
   const createdChant = await Chant.findById(chant._id)
     .populate('audio', 'type title url mimeType size duration')
     .populate('instructionVideo', 'type title url mimeType size duration')
@@ -319,30 +317,24 @@ const updateChant = async (chantId, userId, updateData, files = {}) => {
     chant.isPublished = isPublished === 'true' || isPublished === true;
   }
 
-  // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    chant.coverImage = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    chant.coverImage = coverUrl;
   }
 
-  // Process instruction video if provided (allows adding/updating video)
   if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
     const instructionVideo = files.instructionVideo[0];
-    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-    
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
     const videoMedia = await Media.create({
       type: 'video',
       title: instructionVideo.originalname,
-      filePath: instructionVideo.path,
+      filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: instructionVideo.mimetype,
       size: instructionVideo.size,
       uploadedBy: userId,
     });
-
     chant.instructionVideo = videoMedia._id;
   }
 
@@ -376,49 +368,40 @@ const deleteChant = async (chantId) => {
     throw new Error('Chant not found');
   }
 
-  // Delete audio if exists
   if (chant.audio) {
     try {
       const audioMedia = await Media.findById(chant.audio);
-      if (audioMedia && audioMedia.filePath && fs.existsSync(audioMedia.filePath)) {
-        fs.unlinkSync(audioMedia.filePath);
-      }
+      if (audioMedia && audioMedia.filePath) await s3Service.deleteByKey(audioMedia.filePath);
       await Media.findByIdAndDelete(chant.audio);
     } catch (error) {
       console.error('Error deleting audio:', error);
     }
   }
 
-  // Delete instruction video if exists
   if (chant.instructionVideo) {
     try {
       const videoMedia = await Media.findById(chant.instructionVideo);
-      if (videoMedia && videoMedia.filePath && fs.existsSync(videoMedia.filePath)) {
-        fs.unlinkSync(videoMedia.filePath);
-      }
+      if (videoMedia && videoMedia.filePath) await s3Service.deleteByKey(videoMedia.filePath);
       await Media.findByIdAndDelete(chant.instructionVideo);
     } catch (error) {
       console.error('Error deleting instruction video:', error);
     }
   }
 
-  // Delete SCORM file if exists
   if (chant.scormFile) {
     try {
       const scormMedia = await Media.findById(chant.scormFile);
-      if (scormMedia && scormMedia.filePath && fs.existsSync(scormMedia.filePath)) {
-        fs.unlinkSync(scormMedia.filePath);
-      }
+      if (scormMedia && scormMedia.filePath) await s3Service.deleteByKey(scormMedia.filePath);
       await Media.findByIdAndDelete(chant.scormFile);
     } catch (error) {
       console.error('Error deleting SCORM file:', error);
     }
   }
 
-  // Delete cover image if exists
-  if (chant.coverImage && fs.existsSync(path.join(__dirname, '../', chant.coverImage.replace('/uploads', 'uploads')))) {
+  if (chant.coverImage) {
     try {
-      fs.unlinkSync(path.join(__dirname, '../', chant.coverImage.replace('/uploads', 'uploads')));
+      const coverKey = s3Service.getS3KeyFromUrl(chant.coverImage);
+      if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
       console.error('Error deleting cover image:', error);
     }

@@ -4,8 +4,8 @@ const Book = require('../models/Book');
 const Media = require('../models/Media');
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
 
 /**
  * Content Collection Service
@@ -42,29 +42,11 @@ const createCourse = async (userId, courseData, files = {}) => {
     throw new Error('Please provide a course title');
   }
 
-  // Process cover image if provided
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    // Convert absolute path to relative path starting with /uploads/
-    const uploadsPath = path.join(__dirname, '../uploads');
-    let coverRelativePath = coverImage.path;
-    
-    if (coverRelativePath.startsWith(uploadsPath)) {
-      coverRelativePath = coverRelativePath.replace(uploadsPath, '').replace(/\\/g, '/');
-      coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    } else if (coverRelativePath.includes('uploads')) {
-      // If path already contains 'uploads', extract relative part
-      const uploadsIndex = coverRelativePath.indexOf('uploads');
-      coverRelativePath = coverRelativePath.substring(uploadsIndex).replace(/\\/g, '/');
-      coverImagePath = `/${coverRelativePath}`;
-    } else {
-      // Fallback: use the path as-is if it's already relative
-      coverImagePath = coverImage.path.replace(/\\/g, '/');
-      if (!coverImagePath.startsWith('/uploads')) {
-        coverImagePath = `/uploads/courses/${path.basename(coverImage.path)}`;
-      }
-    }
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'courses');
+    coverImagePath = coverUrl;
   }
 
   // Parse tags
@@ -519,27 +501,8 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    // Convert absolute path to relative path starting with /uploads/
-    const uploadsPath = path.join(__dirname, '../uploads');
-    let coverRelativePath = coverImage.path;
-    
-    if (coverRelativePath.startsWith(uploadsPath)) {
-      coverRelativePath = coverRelativePath.replace(uploadsPath, '').replace(/\\/g, '/');
-      const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-      course.coverImage = coverImagePath;
-    } else if (coverRelativePath.includes('uploads')) {
-      // If path already contains 'uploads', extract relative part
-      const uploadsIndex = coverRelativePath.indexOf('uploads');
-      coverRelativePath = coverRelativePath.substring(uploadsIndex).replace(/\\/g, '/');
-      course.coverImage = `/${coverRelativePath}`;
-    } else {
-      // Fallback: use the path as-is if it's already relative
-      let coverImagePath = coverImage.path.replace(/\\/g, '/');
-      if (!coverImagePath.startsWith('/uploads')) {
-        coverImagePath = `/uploads/courses/${path.basename(coverImage.path)}`;
-      }
-      course.coverImage = coverImagePath;
-    }
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'courses');
+    course.coverImage = coverUrl;
   }
 
   await course.save();

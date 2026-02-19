@@ -24,12 +24,15 @@ const generateFileName = (originalname) => {
 
 /**
  * File Upload Middleware
- * 
- * Handles file uploads for activities, books, and other content
- * Files are stored locally in the uploads directory
+ *
+ * Uses memory storage; files are uploaded to S3 by services (s3.service.js).
+ * CloudFront base URL from env: AWS_S3_BASE_URL
  */
 
-// Ensure upload directories exist
+// Memory storage for S3 upload path (services call s3Service.uploadFileFromMulter)
+const memoryStorage = multer.memoryStorage();
+
+// Ensure upload directories exist (for temp/extraction when needed, e.g. SCORM)
 const ensureUploadDirs = () => {
   const dirs = [
     path.join(__dirname, '../uploads/activities'),
@@ -55,34 +58,7 @@ const ensureUploadDirs = () => {
 
 ensureUploadDirs();
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    let uploadPath = path.join(__dirname, '../uploads/media');
-    
-    // Determine subdirectory based on file type
-    if (file.mimetype.startsWith('image/')) {
-      uploadPath = path.join(uploadPath, 'images');
-    } else if (file.mimetype.startsWith('video/')) {
-      uploadPath = path.join(uploadPath, 'videos');
-    } else if (file.mimetype.startsWith('audio/')) {
-      uploadPath = path.join(uploadPath, 'audio');
-    } else {
-      uploadPath = path.join(uploadPath, 'other');
-    }
-
-    // Ensure directory exists
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename using date/time formatter
-    cb(null, generateFileName(file.originalname));
-  },
-});
+const storage = memoryStorage;
 
 // File filter - only allow specific file types
 const fileFilter = (req, file, cb) => {
@@ -143,23 +119,7 @@ const scormFileFilter = (req, file, cb) => {
   }
 };
 
-// Storage for SCORM files
-const scormStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../uploads/activities/scorm');
-    
-    // Ensure directory exists
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename using date/time formatter
-    cb(null, generateFileName(file.originalname));
-  },
-});
+const scormStorage = memoryStorage;
 
 // Configure multer
 const upload = multer({
@@ -188,30 +148,7 @@ const uploadScorm = multer({
 
 // Middleware for activity uploads (SCORM file + cover image)
 const uploadActivity = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'scormFile') {
-        uploadPath = path.join(__dirname, '../uploads/activities/scorm');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      // Ensure directory exists
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      // Generate unique filename using date/time formatter
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'scormFile') {
       // SCORM file must be ZIP
@@ -244,22 +181,7 @@ const uploadActivity = multer({
 
 // Middleware for activity update (cover image only, no SCORM file)
 const uploadActivityUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
-      
-      // Ensure directory exists
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      // Generate unique filename using date/time formatter
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     // Only allow cover image
     if (file.fieldname === 'coverImage') {
@@ -281,29 +203,7 @@ const uploadActivityUpdate = multer({
 
 // Middleware for book uploads (SCORM file + cover image) - same as activity
 const uploadBook = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'scormFile') {
-        uploadPath = path.join(__dirname, '../uploads/activities/scorm');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      // Ensure directory exists
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'scormFile') {
       const isZip = file.mimetype === 'application/zip' || 
@@ -334,20 +234,7 @@ const uploadBook = multer({
 
 // Middleware for book update (cover image only, no SCORM file)
 const uploadBookUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -368,30 +255,7 @@ const uploadBookUpdate = multer({
 
 // Middleware for video uploads (video file + SCORM file + cover image)
 const uploadVideo = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'videoFile') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      } else if (file.fieldname === 'scormFile') {
-        uploadPath = path.join(__dirname, '../uploads/activities/scorm');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'videoFile') {
       if (file.mimetype.startsWith('video/')) {
@@ -429,20 +293,7 @@ const uploadVideo = multer({
 
 // Middleware for video update (cover image only, no video/SCORM files)
 const uploadVideoUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -463,30 +314,7 @@ const uploadVideoUpdate = multer({
 
 // Middleware for audio assignment uploads (reference audio + cover image)
 const uploadAudioAssignment = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'referenceAudio') {
-        uploadPath = path.join(__dirname, '../uploads/media/audio');
-      } else if (file.fieldname === 'instructionVideo') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'referenceAudio') {
       if (file.mimetype.startsWith('audio/')) {
@@ -521,26 +349,7 @@ const uploadAudioAssignment = multer({
 
 // Middleware for audio assignment update (cover image + instruction video, no reference audio)
 const uploadAudioAssignmentUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath = path.join(__dirname, '../uploads/media/other');
-      
-      if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else if (file.fieldname === 'instructionVideo') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      }
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -568,20 +377,7 @@ const uploadAudioAssignmentUpdate = multer({
 
 // Middleware for course cover image upload
 const uploadCourse = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/courses');
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -602,32 +398,7 @@ const uploadCourse = multer({
 
 // Middleware for chant creation (audio, scormFile, coverImage - all optional)
 const uploadChant = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'audio') {
-        uploadPath = path.join(__dirname, '../uploads/media/audio');
-      } else if (file.fieldname === 'instructionVideo') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      } else if (file.fieldname === 'scormFile') {
-        uploadPath = path.join(__dirname, '../uploads/activities/scorm');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'audio') {
       if (file.mimetype.startsWith('audio/')) {
@@ -672,26 +443,7 @@ const uploadChant = multer({
 
 // Middleware for chant update (cover image + instruction video only, no audio/scormFile)
 const uploadChantUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath = path.join(__dirname, '../uploads/media/other');
-      
-      if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else if (file.fieldname === 'instructionVideo') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      }
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -723,28 +475,7 @@ const uploadRecordedAudio = upload.single('recordedAudio');
 
 // Middleware for explore content uploads (video file + cover photo for all video types)
 const uploadExplore = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      let uploadPath;
-      
-      if (file.fieldname === 'videoFile') {
-        uploadPath = path.join(__dirname, '../uploads/media/videos');
-      } else if (file.fieldname === 'coverImage') {
-        uploadPath = path.join(__dirname, '../uploads/media/images');
-      } else {
-        uploadPath = path.join(__dirname, '../uploads/media/other');
-      }
-
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'videoFile') {
       if (file.mimetype.startsWith('video/')) {
@@ -771,22 +502,8 @@ const uploadExplore = multer({
 ]);
 
 // Middleware for explore content update (cover photo only, no video file)
-// Cover photo allowed for all video types
 const uploadExploreUpdate = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/media/images');
-      
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
@@ -807,22 +524,7 @@ const uploadExploreUpdate = multer({
 
 // Middleware for KidsWall image uploads
 const uploadKidsWallImage = multer({
-  storage: multer.diskStorage({
-    destination: function (req, file, cb) {
-      const uploadPath = path.join(__dirname, '../uploads/kids-wall');
-      
-      // Ensure directory exists
-      if (!fs.existsSync(uploadPath)) {
-        fs.mkdirSync(uploadPath, { recursive: true });
-      }
-
-      cb(null, uploadPath);
-    },
-    filename: function (req, file, cb) {
-      // Generate unique filename using date/time formatter
-      cb(null, generateFileName(file.originalname));
-    },
-  }),
+  storage: memoryStorage,
   fileFilter: function (req, file, cb) {
     // Only allow image files
     const allowedImageMimes = [

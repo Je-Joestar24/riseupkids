@@ -1,6 +1,7 @@
 const { Activity, Media, Badge } = require('../models');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
+const scormService = require('./scorm.service');
 
 /**
  * Create Activity Service
@@ -44,14 +45,12 @@ const createActivity = async (userId, activityData, files = {}) => {
     }
   }
 
-  // Process SCORM file and create Media record
-  const relativePath = scormFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-  const scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
-  
+  // Upload SCORM file to S3 and create Media record
+  const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
   const scormMedia = await Media.create({
-    type: 'video', // Using 'video' type for SCORM files (or we could add 'scorm' type)
+    type: 'video',
     title: scormFile.originalname,
-    filePath: scormFile.path,
+    filePath: scormS3Key,
     url: scormFileUrl,
     mimeType: scormFile.mimetype,
     size: scormFile.size,
@@ -62,8 +61,8 @@ const createActivity = async (userId, activityData, files = {}) => {
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    coverImagePath = coverUrl;
   }
 
   // Parse tags
@@ -79,13 +78,12 @@ const createActivity = async (userId, activityData, files = {}) => {
     }
   }
 
-  // Create activity
   const activity = await Activity.create({
     title: title.trim(),
     description: description?.trim() || null,
     coverImage: coverImagePath,
     scormFile: scormMedia._id,
-    scormFilePath: scormFile.path,
+    scormFilePath: scormS3Key,
     scormFileUrl: scormFileUrl,
     scormFileSize: scormFile.size,
     estimatedTime: estimatedTime ? parseInt(estimatedTime, 10) : null,
@@ -96,7 +94,13 @@ const createActivity = async (userId, activityData, files = {}) => {
     createdBy: userId,
   });
 
-  // Get created activity with populated data
+  const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'activity', activity._id);
+  if (extracted) {
+    activity.scormBaseUrl = extracted.baseUrl;
+    activity.scormEntryPoint = extracted.entryPoint;
+    await activity.save();
+  }
+
   const createdActivity = await Activity.findById(activity._id)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
@@ -264,9 +268,8 @@ const updateActivity = async (activityId, userId, updateData, files = {}) => {
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    activity.coverImage = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    activity.coverImage = coverUrl;
   }
 
   await activity.save();

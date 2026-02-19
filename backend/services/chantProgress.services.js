@@ -10,15 +10,7 @@ const {
 } = require('../models');
 
 const { awardBadgeForChant } = require('./badgeAward.service');
-
-const filePathToUploadsUrl = (absolutePath) => {
-  const uploadsIndex = absolutePath.indexOf('uploads');
-  if (uploadsIndex === -1) return absolutePath;
-  const relativePath = absolutePath
-    .substring(uploadsIndex + 'uploads'.length)
-    .replace(/\\/g, '/');
-  return `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
-};
+const s3Service = require('./s3.service');
 
 const getOrCreateProgress = async ({ childId, chantId }) => {
   const progress = await ChantProgress.findOne({ child: childId, chant: chantId });
@@ -99,11 +91,11 @@ const completeChant = async ({
   const child = await ChildProfile.findById(childId).select('_id displayName').lean();
   if (!child) throw new Error('Child not found');
 
-  const audioUrl = filePathToUploadsUrl(recordedAudioFile.path);
+  const { url: audioUrl, s3Key } = await s3Service.uploadFileFromMulter(recordedAudioFile, 'scorm/chants');
   const recordedAudioMedia = await Media.create({
     type: 'audio',
     title: recordedAudioFile.originalname || `chant-${chantId}`,
-    filePath: recordedAudioFile.path,
+    filePath: s3Key,
     url: audioUrl,
     mimeType: recordedAudioFile.mimetype,
     size: recordedAudioFile.size,

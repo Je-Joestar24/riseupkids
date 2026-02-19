@@ -1,6 +1,6 @@
 const { AudioAssignment, Media, Badge } = require('../models');
-const fs = require('fs');
 const path = require('path');
+const s3Service = require('./s3.service');
 
 /**
  * Create Audio Assignment Service
@@ -44,52 +44,43 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
     }
   }
 
-  // Process reference audio if provided
   let referenceAudioId = null;
   if (files.referenceAudio && Array.isArray(files.referenceAudio) && files.referenceAudio.length > 0) {
     const referenceAudio = files.referenceAudio[0];
-    const audioRelativePath = referenceAudio.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const audioFileUrl = `/uploads${audioRelativePath.startsWith('/') ? audioRelativePath : `/${audioRelativePath}`}`;
-    
+    const { url: audioFileUrl, s3Key: audioS3Key } = await s3Service.uploadFileFromMulter(referenceAudio, 'media/audio');
     const audioMedia = await Media.create({
       type: 'audio',
       title: referenceAudio.originalname,
-      filePath: referenceAudio.path,
+      filePath: audioS3Key,
       url: audioFileUrl,
       mimeType: referenceAudio.mimetype,
       size: referenceAudio.size,
       uploadedBy: userId,
     });
-
     referenceAudioId = audioMedia._id;
   }
 
-  // Process instruction video if provided
   let instructionVideoId = null;
   if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
     const instructionVideo = files.instructionVideo[0];
-    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-    
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
     const videoMedia = await Media.create({
       type: 'video',
       title: instructionVideo.originalname,
-      filePath: instructionVideo.path,
+      filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: instructionVideo.mimetype,
       size: instructionVideo.size,
       uploadedBy: userId,
     });
-
     instructionVideoId = videoMedia._id;
   }
 
-  // Process cover image if provided
   let coverImagePath = null;
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    coverImagePath = coverUrl;
   }
 
   // Parse tags
@@ -305,30 +296,24 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
     audioAssignment.isPublished = isPublished === 'true' || isPublished === true;
   }
 
-  // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    audioAssignment.coverImage = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    audioAssignment.coverImage = coverUrl;
   }
 
-  // Process instruction video if provided (allows adding/updating video)
   if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
     const instructionVideo = files.instructionVideo[0];
-    const videoRelativePath = instructionVideo.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const videoFileUrl = `/uploads${videoRelativePath.startsWith('/') ? videoRelativePath : `/${videoRelativePath}`}`;
-    
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
     const videoMedia = await Media.create({
       type: 'video',
       title: instructionVideo.originalname,
-      filePath: instructionVideo.path,
+      filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: instructionVideo.mimetype,
       size: instructionVideo.size,
       uploadedBy: userId,
     });
-
     audioAssignment.instructionVideo = videoMedia._id;
   }
 
@@ -361,36 +346,30 @@ const deleteAudioAssignment = async (assignmentId) => {
     throw new Error('Audio assignment not found');
   }
 
-  // Delete reference audio if exists
   if (audioAssignment.referenceAudio) {
     try {
       const audioMedia = await Media.findById(audioAssignment.referenceAudio);
-      if (audioMedia && audioMedia.filePath && fs.existsSync(audioMedia.filePath)) {
-        fs.unlinkSync(audioMedia.filePath);
-      }
+      if (audioMedia && audioMedia.filePath) await s3Service.deleteByKey(audioMedia.filePath);
       await Media.findByIdAndDelete(audioAssignment.referenceAudio);
     } catch (error) {
       console.error('Error deleting reference audio:', error);
     }
   }
 
-  // Delete instruction video if exists
   if (audioAssignment.instructionVideo) {
     try {
       const videoMedia = await Media.findById(audioAssignment.instructionVideo);
-      if (videoMedia && videoMedia.filePath && fs.existsSync(videoMedia.filePath)) {
-        fs.unlinkSync(videoMedia.filePath);
-      }
+      if (videoMedia && videoMedia.filePath) await s3Service.deleteByKey(videoMedia.filePath);
       await Media.findByIdAndDelete(audioAssignment.instructionVideo);
     } catch (error) {
       console.error('Error deleting instruction video:', error);
     }
   }
 
-  // Delete cover image if exists
-  if (audioAssignment.coverImage && fs.existsSync(path.join(__dirname, '../', audioAssignment.coverImage.replace('/uploads', 'uploads')))) {
+  if (audioAssignment.coverImage) {
     try {
-      fs.unlinkSync(path.join(__dirname, '../', audioAssignment.coverImage.replace('/uploads', 'uploads')));
+      const coverKey = s3Service.getS3KeyFromUrl(audioAssignment.coverImage);
+      if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
       console.error('Error deleting cover image:', error);
     }

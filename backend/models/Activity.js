@@ -39,6 +39,10 @@ const activitySchema = new mongoose.Schema(
       type: Number, // in bytes
       required: true,
     },
+    /** When extracted SCORM is on S3/CloudFront (e.g. https://xxx.cloudfront.net/scorm/activity/xxx). */
+    scormBaseUrl: { type: String, default: null, trim: true },
+    /** Entry point file (e.g. index.html) when using scormBaseUrl. */
+    scormEntryPoint: { type: String, default: 'index.html', trim: true },
     // Estimated completion time (in minutes)
     estimatedTime: {
       type: Number,

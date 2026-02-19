@@ -1,5 +1,5 @@
 import api from '../api/axios';
-
+import { TIMEOUT } from '../constants/timeout';
 /**
  * Content Service
  *
@@ -83,7 +83,7 @@ const contentService = {
         formData instanceof FormData
           ? {
               headers: { 'Content-Type': undefined },
-              timeout: 120000, // 2 min for large ZIP (SCORM/HTML5)
+              timeout: TIMEOUT, // 2 min for large ZIP (SCORM/HTML5)
             }
           : {};
       const response = await api.post(endpoint, formData, config);

@@ -1,5 +1,6 @@
 const scormService = require('../services/scorm.service');
 const courseProgressService = require('../services/courseProgress.services');
+const s3Service = require('../services/s3.service');
 // Content models - only for finding SCORM files (launch operations)
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
@@ -91,32 +92,65 @@ const getLaunchUrl = async (req, res) => {
       });
     }
     
-    if (!content.scormFilePath && !content.scormFileUrl) {
+    if (!content.scormFilePath && !content.scormFileUrl && !content.scormBaseUrl) {
       return res.status(404).json({
         success: false,
         message: 'SCORM file not found for this content',
       });
     }
-    
-    // Determine SCORM package path
-    let scormPath = content.scormFilePath;
-    
-    // If scormFilePath is not set, try to construct from scormFileUrl
-    if (!scormPath && content.scormFileUrl) {
-      // Extract path from URL (remove base URL if present)
-      const urlPath = content.scormFileUrl.replace(/^.*\/uploads\//, '');
-      scormPath = path.join(__dirname, '../uploads', urlPath);
+
+    // When extracted SCORM is on S3/CloudFront, use it (wrapper will fetch from CloudFront)
+    if (content.scormBaseUrl && content.scormEntryPoint) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const authToken = req.headers.authorization?.replace('Bearer ', '') || '';
+      const entryPoint = content.scormEntryPoint.replace(/^\//, '');
+      const launchUrl = `${baseUrl}/api/scorm/${contentId}/wrapper?contentType=${encodeURIComponent(contentType)}&entryPoint=${encodeURIComponent(entryPoint)}&path=scorm/${contentType}/${contentId}&token=${encodeURIComponent(authToken)}&fromS3=1`;
+      return res.json({
+        success: true,
+        data: {
+          launchUrl,
+          entryPoint,
+          extractedPath: `scorm/${contentType}/${contentId}`,
+          contentType,
+          contentId,
+        },
+      });
     }
-    
-    // Check if SCORM file exists
+
+    // Resolve SCORM to a local path (download from S3 when file is stored there)
+    let scormPath = null;
+    if (content.scormFilePath && (await fs.pathExists(content.scormFilePath))) {
+      scormPath = content.scormFilePath;
+    } else if (content.scormFilePath) {
+      const underUploads = path.join(__dirname, '../uploads', content.scormFilePath.replace(/^\/+/, ''));
+      if (await fs.pathExists(underUploads)) {
+        scormPath = underUploads;
+      }
+    }
+    if (!scormPath && content.scormFileUrl && !content.scormFileUrl.startsWith('http')) {
+      const urlPath = content.scormFileUrl.replace(/^.*\/uploads\//, '');
+      const candidate = path.join(__dirname, '../uploads', urlPath);
+      if (await fs.pathExists(candidate)) scormPath = candidate;
+    }
+    if (!scormPath && (content.scormFileUrl?.startsWith('http') || content.scormFilePath) && s3Service.isConfigured()) {
+      const s3Key = content.scormFilePath || s3Service.getS3KeyFromUrl(content.scormFileUrl);
+      if (s3Key) {
+        const tempDir = path.join(__dirname, '../uploads/scorm', contentType, contentId.toString());
+        const tempZip = path.join(tempDir, 'package.zip');
+        await fs.ensureDir(tempDir);
+        const buffer = await s3Service.getObjectBuffer(s3Key);
+        await fs.writeFile(tempZip, buffer);
+        scormPath = tempZip;
+      }
+    }
+
     if (!scormPath || !(await fs.pathExists(scormPath))) {
       return res.status(404).json({
         success: false,
         message: 'SCORM file not found on server',
       });
     }
-    
-    // Determine if file is ZIP (needs extraction) or already extracted
+
     const isZip = path.extname(scormPath).toLowerCase() === '.zip';
     
     let extractedPath;
@@ -413,9 +447,8 @@ const getProgress = async (req, res) => {
 const getWrapper = async (req, res) => {
   try {
     const { contentId } = req.params;
-    const { contentType, entryPoint, path: scormPath, token } = req.query;
+    const { contentType, entryPoint, path: scormPath, token, fromS3 } = req.query;
     
-    // Verify token if provided (optional for now, but recommended)
     let userId = null;
     if (token) {
       try {
@@ -424,7 +457,6 @@ const getWrapper = async (req, res) => {
         userId = decoded.id;
       } catch (err) {
         console.warn('Invalid token in wrapper request:', err.message);
-        // Continue anyway - token will be used for API calls
       }
     }
     
@@ -435,41 +467,58 @@ const getWrapper = async (req, res) => {
       });
     }
     
-    if (!entryPoint || !scormPath) {
+    if (!entryPoint) {
       return res.status(400).json({
         success: false,
-        message: 'entryPoint and path are required',
+        message: 'entryPoint is required',
       });
     }
-    
-    // Instead of loading SCORM in iframe, we'll inject API directly into the HTML
-    // Construct path to SCORM HTML file
-    const cleanPath = scormPath.startsWith('scorm/') ? scormPath.replace(/^scorm\//, '') : scormPath;
-    const scormBasePathForFiles = path.join(__dirname, '../uploads/scorm', cleanPath);
-    const scormHtmlPath = path.join(scormBasePathForFiles, entryPoint);
-    
-    // Check if HTML file exists
-    if (!(await fs.pathExists(scormHtmlPath))) {
-      return res.status(404).json({
-        success: false,
-        message: 'SCORM HTML file not found',
-      });
+
+    let content = null;
+    if (fromS3 === '1' || fromS3 === 'true') {
+      if (contentType === 'audioAssignment') content = await AudioAssignment.findById(contentId);
+      else if (contentType === 'chant') content = await Chant.findById(contentId);
+      else if (contentType === 'book') content = await Book.findById(contentId);
+      else if (contentType === 'video') content = await Media.findById(contentId);
     }
-    
-    // Removed: Last video detection - completion now based on score, progress, and time only
-    
-    // Read the SCORM HTML file
-    let scormHtml = await fs.readFile(scormHtmlPath, 'utf-8');
-    
-    // Use request host so the wrapper + API calls are same-origin with the embedding app.
-    // This is critical for SCORM drivers that probe window.parent during API discovery.
-    const apiBaseUrl = `${req.protocol}://${req.get('host')}`;
-    const authToken = token || '';
-    
-    // Set base URL for relative path resolution.
-    // Use request host so /scorm/* asset requests stay same-origin (and work with dev proxy).
+
+    let scormHtml;
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const scormBasePath = `/scorm/${cleanPath}`;
+    const apiBaseUrl = baseUrl;
+    const authToken = token || '';
+
+    if (content && content.scormBaseUrl && content.scormEntryPoint) {
+      const entryUrl = `${content.scormBaseUrl.replace(/\/$/, '')}/${content.scormEntryPoint.replace(/^\//, '')}`;
+      const resp = await fetch(entryUrl);
+      if (!resp.ok) {
+        return res.status(502).json({
+          success: false,
+          message: 'Failed to load SCORM from CDN',
+        });
+      }
+      scormHtml = await resp.text();
+      var scormBasePath = content.scormBaseUrl.replace(/\/$/, '') + '/';
+    } else {
+      if (!scormPath) {
+        return res.status(400).json({
+          success: false,
+          message: 'path is required when not using S3',
+        });
+      }
+      const cleanPath = scormPath.startsWith('scorm/') ? scormPath.replace(/^scorm\//, '') : scormPath;
+      const scormBasePathForFiles = path.join(__dirname, '../uploads/scorm', cleanPath);
+      const scormHtmlPath = path.join(scormBasePathForFiles, entryPoint);
+      
+      if (!(await fs.pathExists(scormHtmlPath))) {
+        return res.status(404).json({
+          success: false,
+          message: 'SCORM HTML file not found',
+        });
+      }
+      
+      scormHtml = await fs.readFile(scormHtmlPath, 'utf-8');
+      var scormBasePath = `/scorm/${cleanPath}`;
+    }
     
     // Generate API script that will be injected BEFORE any other scripts
     // This follows the guide pattern: API must exist BEFORE SCORM loads
@@ -1866,9 +1915,8 @@ const getWrapper = async (req, res) => {
     </script>
     `;
     
-    // Add <base> tag to fix relative URL resolution
-    // This ensures all relative paths (including those loaded by JavaScript) resolve correctly
-    const baseTag = `<base href="${baseUrl}${scormBasePath}/">`;
+    const baseHref = scormBasePath.startsWith('http') ? scormBasePath : `${baseUrl}${scormBasePath}/`;
+    const baseTag = `<base href="${baseHref}">`;
     
     // Inject base tag and API script at the very beginning of <head> tag (BEFORE any other scripts)
     // This ensures API is available when scormdriver.js loads and relative URLs resolve correctly
@@ -1933,7 +1981,7 @@ const getWrapper = async (req, res) => {
                     }
                     // Rewrite relative URLs to use static file endpoint
                     const cleanUrl = url.replace(/^\.\//, '');
-                    const absoluteUrl = `${baseUrl}${scormBasePath}/${cleanUrl}`;
+                    const absoluteUrl = scormBasePath.startsWith('http') ? `${scormBasePath}${cleanUrl}` : `${baseUrl}${scormBasePath}/${cleanUrl}`;
                     return match.replace(`${attr}=${quote}${url}${quote}`, `${attr}=${quote}${absoluteUrl}${quote}`);
                 }
             );
@@ -1948,7 +1996,7 @@ const getWrapper = async (req, res) => {
                     }
                     // Rewrite relative URLs
                     const cleanUrl = url.replace(/^\.\//, '');
-                    const absoluteUrl = `${baseUrl}${scormBasePath}/${cleanUrl}`;
+                    const absoluteUrl = scormBasePath.startsWith('http') ? `${scormBasePath}${cleanUrl}` : `${baseUrl}${scormBasePath}/${cleanUrl}`;
                     return match.replace(`url(${suffix ? '"' : ''}${url}${suffix ? '"' : ''})`, `url("${absoluteUrl}")`);
                 }
             );
@@ -1967,7 +2015,7 @@ const getWrapper = async (req, res) => {
                             }
                             // Rewrite relative URLs
                             const cleanUrl = url.replace(/^\.\//, '');
-                            const absoluteUrl = `${baseUrl}${scormBasePath}/${cleanUrl}`;
+                            const absoluteUrl = scormBasePath.startsWith('http') ? `${scormBasePath}${cleanUrl}` : `${baseUrl}${scormBasePath}/${cleanUrl}`;
                             return `url("${absoluteUrl}")`;
                         }
                     );

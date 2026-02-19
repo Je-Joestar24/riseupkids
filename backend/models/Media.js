@@ -98,6 +98,9 @@ const mediaSchema = new mongoose.Schema(
       type: Number, // in bytes
       default: null,
     },
+    /** When extracted SCORM is on S3/CloudFront. */
+    scormBaseUrl: { type: String, default: null, trim: true },
+    scormEntryPoint: { type: String, default: 'index.html', trim: true },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

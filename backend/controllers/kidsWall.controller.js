@@ -176,15 +176,7 @@ const createPost = async (req, res) => {
       data: post,
     });
   } catch (error) {
-    // Clean up uploaded file if post creation failed
-    if (req.file && req.file.path) {
-      try {
-        const fs = require('fs-extra');
-        await fs.remove(req.file.path);
-      } catch (cleanupError) {
-        console.error('Error cleaning up uploaded file:', cleanupError);
-      }
-    }
+    // With S3/memory upload, file is not on disk; no local cleanup needed
 
     const statusCode = error.message.includes('required') || 
                       error.message.includes('exceed') ? 400 : 500;
@@ -249,15 +241,7 @@ const updatePost = async (req, res) => {
       data: post,
     });
   } catch (error) {
-    // Clean up uploaded file if update failed
-    if (req.file && req.file.path) {
-      try {
-        const fs = require('fs-extra');
-        await fs.remove(req.file.path);
-      } catch (cleanupError) {
-        console.error('Error cleaning up uploaded file:', cleanupError);
-      }
-    }
+    // With S3/memory upload, no local file to clean up
 
     const statusCode = error.message.includes('not found') ? 404 : 
                       error.message.includes('required') || 

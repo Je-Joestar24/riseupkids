@@ -62,6 +62,9 @@ const audioAssignmentSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    /** When extracted SCORM is on S3/CloudFront. */
+    scormBaseUrl: { type: String, default: null, trim: true },
+    scormEntryPoint: { type: String, default: 'index.html', trim: true },
     // Cover image
     coverImage: {
       type: String, // File path or URL

@@ -29,15 +29,17 @@ const upload = async (req, res) => {
       });
     }
 
-    const { id, entryPoint } = await html5handlerService.extractAndStore(buffer);
+    const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(buffer);
 
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const { launchUrl } = await html5handlerService.getLaunchUrl(id, baseUrl, entryPoint);
+    const backendOrigin = `${req.protocol}://${req.get('host')}`;
+    const launchUrl = baseUrl
+      ? `${baseUrl.replace(/\/$/, '')}/${(entryPoint || 'index.html').replace(/^\//, '')}`
+      : (await html5handlerService.getLaunchUrl(id, backendOrigin, entryPoint)).launchUrl;
 
     res.status(201).json({
       success: true,
       message: 'HTML5 package uploaded and ready to host',
-      data: { id, launchUrl, entryPoint },
+      data: { id, launchUrl, entryPoint: entryPoint || 'index.html' },
     });
   } catch (error) {
     console.error('[html5handler] upload error:', error);

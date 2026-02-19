@@ -1,7 +1,8 @@
 const { Book, Media, Badge } = require('../models');
-const fs = require('fs');
 const path = require('path');
 const html5handlerService = require('./html5handler.service');
+const s3Service = require('./s3.service');
+const scormService = require('./scorm.service');
 
 /**
  * Create Book Service
@@ -43,7 +44,7 @@ const createBook = async (userId, bookData, files = {}) => {
   }
 
   const zipFile = files.scormFile[0];
-  if (!zipFile || typeof zipFile.path !== 'string') {
+  if (!zipFile || !(zipFile.buffer || zipFile.path)) {
     throw new Error('Package file was not uploaded correctly. Please try again.');
   }
 
@@ -72,40 +73,28 @@ const createBook = async (userId, bookData, files = {}) => {
   };
 
   if (packageType === 'html5') {
-    try {
-      const { id, entryPoint } = await html5handlerService.extractAndStore(zipFile.path);
-      bookPayload.html5PackageId = id;
-      bookPayload.html5EntryPoint = entryPoint || 'index.html';
-      bookPayload.scormFile = null;
-      bookPayload.scormFilePath = null;
-      bookPayload.scormFileUrl = null;
-      bookPayload.scormFileSize = null;
-    } catch (err) {
-      const message = err && err.message ? err.message : 'Failed to process HTML5 package.';
-      throw new Error(message);
-    } finally {
-      try {
-        if (zipFile.path && fs.existsSync(zipFile.path)) {
-          fs.unlinkSync(zipFile.path);
-        }
-      } catch (e) {
-        // ignore cleanup failure
-      }
-    }
+    const zipInput = zipFile.buffer || zipFile.path;
+    const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
+    bookPayload.html5PackageId = id;
+    bookPayload.html5EntryPoint = entryPoint || 'index.html';
+    bookPayload.html5BaseUrl = baseUrl || null;
+    bookPayload.scormFile = null;
+    bookPayload.scormFilePath = null;
+    bookPayload.scormFileUrl = null;
+    bookPayload.scormFileSize = null;
   } else {
-    const relativePath = zipFile.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const scormFileUrl = `/uploads${relativePath.startsWith('/') ? relativePath : `/${relativePath}`}`;
+    const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(zipFile, 'activities/scorm');
     const scormMedia = await Media.create({
       type: 'video',
       title: zipFile.originalname,
-      filePath: zipFile.path,
+      filePath: scormS3Key,
       url: scormFileUrl,
       mimeType: zipFile.mimetype,
       size: zipFile.size,
       uploadedBy: userId,
     });
     bookPayload.scormFile = scormMedia._id;
-    bookPayload.scormFilePath = zipFile.path;
+    bookPayload.scormFilePath = scormS3Key;
     bookPayload.scormFileUrl = scormFileUrl;
     bookPayload.scormFileSize = zipFile.size;
     bookPayload.html5PackageId = null;
@@ -123,11 +112,20 @@ const createBook = async (userId, bookData, files = {}) => {
 
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    bookPayload.coverImage = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    bookPayload.coverImage = coverUrl;
   }
 
   const book = await Book.create(bookPayload);
+
+  if (packageType === 'scorm' && zipFile.buffer) {
+    const extracted = await scormService.uploadExtractedScormToS3(zipFile.buffer, 'book', book._id);
+    if (extracted) {
+      book.scormBaseUrl = extracted.baseUrl;
+      book.scormEntryPoint = extracted.entryPoint;
+      await book.save();
+    }
+  }
 
   const createdBook = await Book.findById(book._id)
     .populate({ path: 'scormFile', select: 'type title url mimeType size', strictPopulate: false })
@@ -336,9 +334,8 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
-    const coverRelativePath = coverImage.path.replace(path.join(__dirname, '../uploads'), '').replace(/\\/g, '/');
-    const coverImagePath = `/uploads${coverRelativePath.startsWith('/') ? coverRelativePath : `/${coverRelativePath}`}`;
-    book.coverImage = coverImagePath;
+    const { url: coverUrl } = await s3Service.uploadFileFromMulter(coverImage, 'media/images');
+    book.coverImage = coverUrl;
   }
 
   await book.save();
@@ -369,12 +366,12 @@ const deleteBook = async (bookId) => {
     throw new Error('Book not found');
   }
 
-  // Delete SCORM file if exists
+  // Delete SCORM file from S3 if exists
   if (book.scormFile) {
     try {
       const scormMedia = await Media.findById(book.scormFile);
-      if (scormMedia && scormMedia.filePath && fs.existsSync(scormMedia.filePath)) {
-        fs.unlinkSync(scormMedia.filePath);
+      if (scormMedia && scormMedia.filePath) {
+        await s3Service.deleteByKey(scormMedia.filePath);
       }
       await Media.findByIdAndDelete(book.scormFile);
     } catch (error) {
