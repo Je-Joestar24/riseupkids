@@ -68,7 +68,7 @@ const ContactSupportFooter = () => {
                 color: themeColors.secondary,
               }}
             >
-              support@kidslearn.com
+              contact@riseup.kids
             </Typography>
           </Box>
         </Box>

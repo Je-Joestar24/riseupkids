@@ -186,6 +186,7 @@ RiseUpKids/
 ├── backend/          # Express API (shared by web + app)
 ├── frontend/         # React/Vite web app — Admin, Teacher, Parent, Child
 ├── app/              # React Native (Expo) app — Parent + Child only
+├── riseupkidssales/  # Sales & enrollment frontend (git submodule)
 ├── README.md
 ├── APP_PLAN.md       # App scope, layout, theming
 ├── GOOGLE_MEETING_INTEGRATION.md
@@ -198,6 +199,19 @@ RiseUpKids/
 
 - **Uploads:** `backend/uploads/` (books, videos, activities, assignments, etc.)
 - **SCORM:** Served under `/scorm` from `uploads/scorm`
+
+---
+
+## 🌐 Sales Frontend (`riseupkidssales/`)
+
+The `riseupkidssales/` directory is a **separate frontend submodule** that powers the **public marketing and enrollment experience** for Rise Up Kids:
+
+- Presents the **methodology, learning journey, and Founding Families offer** in Brazilian Portuguese.
+- Captures **leads and enrollment data** (e.g., guardian name, email, WhatsApp, child age).
+- Guides parents through **plan selection and checkout** (annual subscription, optional physical box in Brazil).
+- Connects to the **same backend LMS** for authentication, parent account creation, and subscription status.
+
+See `riseupkidssales/README.md` for detailed documentation of the sales flows and integration expectations.
 
 ---
 

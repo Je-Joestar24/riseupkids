@@ -1,36 +1,40 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 3000,
-    open: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
-      '/uploads': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
-      },
-      '/html5': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  const devPort = parseInt(env.VITE_DEV_SERVER_PORT || '3000', 10);
+  const apiUrl = env.VITE_API_URL || 'http://localhost:5000';
+  const proxyTarget = apiUrl.replace(/\/api\/?$/, '').replace(/\/+$/, '') || apiUrl;
+
+  return {
+    plugins: [react()],
+    server: {
+      port: devPort,
+      open: true,
+      proxy: {
+        '/api': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/uploads': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        '/html5': {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
       },
     },
-  },
-  build: {
-    // Ensure proper asset handling
-    assetsDir: 'assets',
-    // Generate source maps for debugging (optional, remove in production)
-    sourcemap: false,
-  },
-  // Preview server for testing production build
-  preview: {
-    port: 3000,
-    open: true,
-  },
+    build: {
+      assetsDir: 'assets',
+      sourcemap: false,
+    },
+    preview: {
+      port: devPort,
+      open: true,
+    },
+  };
 });
 
