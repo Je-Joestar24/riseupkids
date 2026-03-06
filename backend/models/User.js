@@ -84,6 +84,12 @@ const userSchema = new mongoose.Schema(
       enum: ['active', 'inactive', 'canceled', 'past_due'],
       default: 'inactive',
     },
+    /** Billing interval. Only yearly is offered (subscription + Family Plan). */
+    subscriptionPlan: {
+      type: String,
+      enum: ['yearly'],
+      default: null,
+    },
     subscriptionStartDate: {
       type: Date,
       // When subscription was first created (for 1-year commitment check)
@@ -106,6 +112,20 @@ const userSchema = new mongoose.Schema(
     termsVersion: {
       type: String,
       // e.g. "terms_v1_2026-02-09"
+    },
+    // Family Plan (one-time purchase): max children allowed; enforced when creating ChildProfile
+    planKidsLimit: {
+      type: Number,
+      min: 1,
+      max: 10,
+      default: null,
+      // null = no plan / not purchased; 1-10 = purchased plan slot count
+    },
+    planRegion: {
+      type: String,
+      enum: ['br', 'us', 'eu'],
+      default: null,
+      // Region at purchase (br/us/eu) for display/analytics
     },
   },
   {

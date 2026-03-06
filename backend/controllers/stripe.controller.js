@@ -6,6 +6,7 @@ const {
   getSubscription,
 } = require('../services/stripe.services');
 const { generateToken } = require('../services/auth.services');
+const { hasProcessedEvent, recordProcessedEvent } = require('../services/stripeWebhookIdempotency.service');
 
 /**
  * Phase 1 Stripe controller
@@ -302,7 +303,17 @@ exports.handleWebhook = async (req, res, next) => {
       });
     }
 
+    if (await hasProcessedEvent(event.id)) {
+      console.log(`[Stripe Webhook] Already processed event ${event.id}, acknowledging`);
+      return res.json({ received: true });
+    }
+
     console.log(`[Stripe Webhook] Received event: ${event.type} (ID: ${event.id})`);
+
+    const acknowledge = async () => {
+      await recordProcessedEvent(event.id, event.type);
+      return res.json({ received: true });
+    };
 
     // Handle different event types
     switch (event.type) {
@@ -311,14 +322,41 @@ exports.handleWebhook = async (req, res, next) => {
         
         // Debug: Log FULL checkout session object
         console.log(`[Stripe Webhook] Full checkout.session.completed object:`, JSON.stringify(session, null, 2));
-        
-        // Only process subscription checkouts
+
+        const userId = session.metadata?.userId;
+
+        // Family Plan: one-time payment (mode === 'payment') – set same fields as proper signup
+        if (session.mode === 'payment' && session.metadata?.familyPlan === '1') {
+          if (!userId) {
+            console.error('[Stripe Webhook] Family Plan: missing userId in metadata');
+            return res.status(400).json({ success: false, message: 'Missing userId in session metadata' });
+          }
+          const user = await User.findById(userId).select('+stripeCustomerId +stripeSubscriptionId');
+          if (!user) {
+            console.error(`[Stripe Webhook] Family Plan: user not found: ${userId}`);
+            return res.status(404).json({ success: false, message: 'User not found' });
+          }
+          const childCount = parseInt(session.metadata.childCount, 10) || 1;
+          const region = session.metadata.region || 'us';
+          user.planKidsLimit = Math.min(10, Math.max(1, childCount));
+          user.planRegion = ['br', 'us', 'eu'].includes(region) ? region : 'us';
+          user.subscriptionStatus = 'active';
+          user.subscriptionPlan = 'yearly'; // Family Plan is annual program
+          user.stripeCustomerId = typeof session.customer === 'string' ? session.customer : session.customer?.id || user.stripeCustomerId;
+          user.stripeSubscriptionId = session.id; // Checkout Session ID (no subscription for one-time payment; keep for reference)
+          user.termsAcceptedAt = new Date();
+          user.termsVersion = session.metadata?.terms_version || 'unknown';
+          // termsAcceptedIp set when parent hits success page (GET checkout/session/:sessionId)
+          await user.save();
+          console.log(`[Stripe Webhook] Family Plan activated for user ${userId}: planKidsLimit=${user.planKidsLimit}, planRegion=${user.planRegion}`);
+          return await acknowledge();
+        }
+
+        // Only process subscription checkouts (legacy parent signup flow)
         if (session.mode !== 'subscription') {
           console.log('[Stripe Webhook] Ignoring non-subscription checkout session');
           return res.json({ received: true });
         }
-
-        const userId = session.metadata?.userId;
         if (!userId) {
           console.error('[Stripe Webhook] No userId in checkout session metadata');
           return res.status(400).json({
@@ -362,7 +400,8 @@ exports.handleWebhook = async (req, res, next) => {
           user.stripeCustomerId = session.customer;
           user.stripeSubscriptionId = subscriptionId;
           user.subscriptionStatus = subscription.status === 'active' || subscription.status === 'trialing' ? 'active' : 'inactive';
-          
+          user.subscriptionPlan = 'yearly'; // Only yearly subscription exists
+
           // Set subscription start date (when subscription was created) - only set once
           if (!user.subscriptionStartDate && subscription.created) {
             user.subscriptionStartDate = new Date(subscription.created * 1000);

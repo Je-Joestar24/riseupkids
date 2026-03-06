@@ -1,0 +1,41 @@
+{
+  "productId": "prod_U66aaZYdsiTbIs",
+  "prices": {
+    "br": {
+      "1": "price_1T7uOLC5y43EeE9TgzteRz2J",
+      "2": "price_1T7uOLC5y43EeE9Tyw0X3DGS",
+      "3": "price_1T7uOMC5y43EeE9TgNBGP74t",
+      "4": "price_1T7uOMC5y43EeE9T4btbESk4",
+      "5": "price_1T7uONC5y43EeE9T30UXzZvy",
+      "6": "price_1T7uONC5y43EeE9TwxfH9fdA",
+      "7": "price_1T7uONC5y43EeE9TBeqqp57t",
+      "8": "price_1T7uOOC5y43EeE9TyBsdQoZN",
+      "9": "price_1T7uOOC5y43EeE9TJI0dCks4",
+      "10": "price_1T7uOPC5y43EeE9T6XjGw8Sz"
+    },
+    "us": {
+      "1": "price_1T7uOPC5y43EeE9TLyGsIEPJ",
+      "2": "price_1T7uOQC5y43EeE9Ty6lBUc0Y",
+      "3": "price_1T7uOQC5y43EeE9T42ygVuLB",
+      "4": "price_1T7uORC5y43EeE9TjfJf7j5y",
+      "5": "price_1T7uORC5y43EeE9TxtFPxr6a",
+      "6": "price_1T7uORC5y43EeE9TjpP58icz",
+      "7": "price_1T7uOSC5y43EeE9TclYrCIRf",
+      "8": "price_1T7uOSC5y43EeE9THvIxVMtq",
+      "9": "price_1T7uOTC5y43EeE9TEb7TSP1O",
+      "10": "price_1T7uOTC5y43EeE9TFLLkNfLh"
+    },
+    "eu": {
+      "1": "price_1T7uOUC5y43EeE9TZCkradIM",
+      "2": "price_1T7uOUC5y43EeE9T28BD08tI",
+      "3": "price_1T7uOVC5y43EeE9TsXhLoE2M",
+      "4": "price_1T7uOVC5y43EeE9TGPlkp9H7",
+      "5": "price_1T7uOWC5y43EeE9TA8qdxuaK",
+      "6": "price_1T7uOWC5y43EeE9TYuhij4QC",
+      "7": "price_1T7uOXC5y43EeE9TXBpiGzIu",
+      "8": "price_1T7uOXC5y43EeE9TBRWau3fb",
+      "9": "price_1T7uOXC5y43EeE9TbT02RPyu",
+      "10": "price_1T7uOYC5y43EeE9TYc4VgUv6"
+    }
+  }
+}

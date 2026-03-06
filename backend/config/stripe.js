@@ -21,9 +21,27 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 const STRIPE_PRODUCT_ID = process.env.STRIPE_PRODUCT_ID || '';
 const STRIPE_PRICE_ID_YEARLY = process.env.STRIPE_PRICE_ID_YEARLY || '';
 
+/** Family Plan: product ID + price IDs by region (br/us/eu) and kids (1–10). Populated by scripts/createStripePrices.js */
+let STRIPE_FAMILY_PLAN_PRODUCT_ID = '';
+let STRIPE_FAMILY_PLAN_PRICES = { br: {}, us: {}, eu: {} };
+try {
+  const path = require('path');
+  const fs = require('fs');
+  const configPath = path.join(__dirname, 'stripeFamilyPlanPrices.json');
+  if (fs.existsSync(configPath)) {
+    const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    STRIPE_FAMILY_PLAN_PRODUCT_ID = data.productId || '';
+    STRIPE_FAMILY_PLAN_PRICES = data.prices || STRIPE_FAMILY_PLAN_PRICES;
+  }
+} catch (err) {
+  console.warn('[Stripe] Could not load stripeFamilyPlanPrices.json:', err.message);
+}
+
 module.exports = {
   stripe,
   STRIPE_WEBHOOK_SECRET,
   STRIPE_PRODUCT_ID,
   STRIPE_PRICE_ID_YEARLY,
+  STRIPE_FAMILY_PLAN_PRODUCT_ID,
+  STRIPE_FAMILY_PLAN_PRICES,
 };

@@ -32,6 +32,7 @@ const exploreVideoWatchRoutes = require('./routes/exploreVideoWatch.routes');
 const parentDashboardRoutes = require('./routes/parentDashboard.routes');
 const contactSupportRoutes = require('./routes/contactSupport.routes');
 const stripeRoutes = require('./routes/stripe.routes');
+const checkoutRoutes = require('./routes/checkout.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 const badgeRoutes = require('./routes/badge.routes');
 const googleMeetRoutes = require('./routes/googleMeet.routes');
@@ -136,6 +137,7 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/youtube', youtubeLiveRoutes);
 app.use('/api/cloudfront', cloudfrontRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/checkout', checkoutRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Root route
