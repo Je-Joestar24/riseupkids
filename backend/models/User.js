@@ -70,6 +70,12 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    /** Which payment provider the user's current subscription/purchase is with. */
+    paymentProvider: {
+      type: String,
+      enum: ['stripe', 'paypal'],
+      default: null,
+    },
     // Stripe subscription fields (Phase 1)
     stripeCustomerId: {
       type: String,
@@ -78,6 +84,22 @@ const userSchema = new mongoose.Schema(
     stripeSubscriptionId: {
       type: String,
       select: false,
+    },
+    // PayPal subscription/checkout fields (Phase 2)
+    paypalPayerId: {
+      type: String,
+      select: false,
+      // PayPal payer ID from checkout or OAuth (Payer ID / payer_id)
+    },
+    paypalSubscriptionId: {
+      type: String,
+      select: false,
+      // PayPal subscription ID when user subscribes via our billing plans
+    },
+    paypalCaptureId: {
+      type: String,
+      select: false,
+      // One-time order capture ID (for refunds/support)
     },
     subscriptionStatus: {
       type: String,

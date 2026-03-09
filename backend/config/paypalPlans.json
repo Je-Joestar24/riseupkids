@@ -1,0 +1,20 @@
+{
+  "productId": "PROD-4T669054JE352302A",
+  "plans": {
+    "USD": {
+      "1_child": "P-2JV58086AV0950315NGXH23A",
+      "2_children": "P-2YA959452G891280ANGXH23I",
+      "3_children": "P-1AL56441562274207NGXH23I"
+    },
+    "BRL": {
+      "1_child": "P-7GG90249010751935NGXH23Q",
+      "2_children": "P-5SJ39429X73070448NGXH23Q",
+      "3_children": "P-7G251937P6566544ANGXH23Y"
+    },
+    "EUR": {
+      "1_child": "P-7SE06011DT968070DNGXH23Y",
+      "2_children": "P-3PN06584PJ0539640NGXH24A",
+      "3_children": "P-3CJ77610M95896712NGXH24A"
+    }
+  }
+}

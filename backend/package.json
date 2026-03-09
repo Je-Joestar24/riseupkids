@@ -8,7 +8,9 @@
     "dev": "nodemon server.js",
     "seed": "node seeders/userSeeder.js",
     "seed:badges": "node scripts/seedBadges.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "seed:paypal": "node scripts/createPayPalPlans.js",
+    "test": "jest --runInBand",
+    "test:watch": "jest --watch --runInBand"
   },
   "keywords": [
     "lms",
@@ -21,6 +23,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.993.0",
     "adm-zip": "^0.5.16",
+    "axios": "^1.13.6",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -38,6 +41,15 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
     "nodemon": "^3.0.2"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.test.js", "**/*.test.js"],
+    "testPathIgnorePatterns": ["/node_modules/"],
+    "collectCoverageFrom": ["services/**/*.js", "!**/*.test.js"],
+    "coverageDirectory": "coverage",
+    "verbose": true
   }
 }
