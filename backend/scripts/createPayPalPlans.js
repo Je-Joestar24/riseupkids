@@ -1,5 +1,7 @@
 /**
  * Seeds PayPal product + yearly subscription plans (by currency + tier).
+ * Total: 18 plans = 3 currencies × 6 tiers (1_child, 2_children, 3_children + yearly variants).
+ * One-time checkout uses paypalFamilyPlanPrices.json (18 prices); this script writes plan IDs to paypalPlans.json.
  *
  * Run from backend:
  *   node scripts/createPayPalPlans.js
@@ -11,7 +13,7 @@
  *   PAYPAL_ENV=sandbox
  *
  * Reads pricing tiers from:
- *   config/paypalFamilyPlanPrices.json
+ *   config/paypalFamilyPlanPrices.json  (18 prices: base + yearly per currency)
  *
  * Writes resulting productId + planIds mapping to:
  *   config/paypalPlans.json

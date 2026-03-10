@@ -5,11 +5,32 @@
  * Tests pure helpers and async flows with proper data assertions.
  */
 
-// Pricing fixture matching config/paypalFamilyPlanPrices.json structure
+// Pricing fixture matching config/paypalFamilyPlanPrices.json (18 prices: base + yearly)
 const PRICES_FIXTURE = {
-  USD: { '1_child': 151, '2_children': 239, '3_children': 319 },
-  BRL: { '1_child': 799, '2_children': 1299, '3_children': 1799 },
-  EUR: { '1_child': 130, '2_children': 205, '3_children': 274 },
+  USD: {
+    '1_child': 151,
+    '2_children': 239,
+    '3_children': 319,
+    '1_child_yearly': 151,
+    '2_children_yearly': 239,
+    '3_children_yearly': 319,
+  },
+  BRL: {
+    '1_child': 799,
+    '2_children': 1299,
+    '3_children': 1799,
+    '1_child_yearly': 799,
+    '2_children_yearly': 1299,
+    '3_children_yearly': 1799,
+  },
+  EUR: {
+    '1_child': 130,
+    '2_children': 205,
+    '3_children': 274,
+    '1_child_yearly': 130,
+    '2_children_yearly': 205,
+    '3_children_yearly': 274,
+  },
 };
 
 const mockPricesJson = JSON.stringify(PRICES_FIXTURE);
@@ -33,6 +54,8 @@ process.env.PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || 'test-sec
 const {
   parseTier,
   getValidTiers,
+  getValidPlanTypes,
+  buildTier,
   currencyToPlanRegion,
   tierKeyToPlanKidsLimit,
   getAccessToken,
@@ -77,10 +100,16 @@ describe('paypalService', () => {
       expect(parseTier('1_child_XXX')).toBeNull(); // unknown currency
       expect(parseTier('5_children_USD')).toBeNull(); // not in prices
     });
+
+    it('parses yearly tier strings', () => {
+      expect(parseTier('1_child_yearly_USD')).toEqual({ tierKey: '1_child_yearly', currency: 'USD' });
+      expect(parseTier('2_children_yearly_BRL')).toEqual({ tierKey: '2_children_yearly', currency: 'BRL' });
+      expect(parseTier('3_children_yearly_EUR')).toEqual({ tierKey: '3_children_yearly', currency: 'EUR' });
+    });
   });
 
   describe('getValidTiers', () => {
-    it('returns all valid tier strings from pricing config', () => {
+    it('returns all valid tier strings from pricing config (18: base + yearly)', () => {
       const tiers = getValidTiers();
       expect(tiers).toContain('1_child_USD');
       expect(tiers).toContain('2_children_USD');
@@ -91,7 +120,49 @@ describe('paypalService', () => {
       expect(tiers).toContain('1_child_EUR');
       expect(tiers).toContain('2_children_EUR');
       expect(tiers).toContain('3_children_EUR');
-      expect(tiers).toHaveLength(9);
+      expect(tiers).toContain('1_child_yearly_USD');
+      expect(tiers).toContain('2_children_yearly_USD');
+      expect(tiers).toContain('3_children_yearly_USD');
+      expect(tiers).toContain('1_child_yearly_BRL');
+      expect(tiers).toContain('2_children_yearly_BRL');
+      expect(tiers).toContain('3_children_yearly_BRL');
+      expect(tiers).toContain('1_child_yearly_EUR');
+      expect(tiers).toContain('2_children_yearly_EUR');
+      expect(tiers).toContain('3_children_yearly_EUR');
+      expect(tiers).toHaveLength(18);
+    });
+  });
+
+  describe('getValidPlanTypes', () => {
+    it('returns yearly and pay_in_4', () => {
+      expect(getValidPlanTypes()).toEqual(['yearly', 'pay_in_4']);
+    });
+  });
+
+  describe('buildTier', () => {
+    it('builds pay_in_4 tier (base keys)', () => {
+      expect(buildTier(1, 'USD', 'pay_in_4')).toBe('1_child_USD');
+      expect(buildTier(2, 'BRL', 'pay_in_4')).toBe('2_children_BRL');
+      expect(buildTier(3, 'EUR', 'pay_in_4')).toBe('3_children_EUR');
+    });
+
+    it('builds yearly tier (yearly suffix)', () => {
+      expect(buildTier(1, 'USD', 'yearly')).toBe('1_child_yearly_USD');
+      expect(buildTier(2, 'BRL', 'yearly')).toBe('2_children_yearly_BRL');
+      expect(buildTier(3, 'EUR', 'yearly')).toBe('3_children_yearly_EUR');
+    });
+
+    it('normalizes planType case', () => {
+      expect(buildTier(1, 'USD', 'YEARLY')).toBe('1_child_yearly_USD');
+      expect(buildTier(1, 'USD', 'Pay_In_4')).toBe('1_child_USD');
+    });
+
+    it('clamps childCount to 1 when below 1', () => {
+      expect(buildTier(0, 'USD', 'pay_in_4')).toBe('1_child_USD');
+    });
+
+    it('throws for invalid currency (not in prices)', () => {
+      expect(() => buildTier(1, 'GBP', 'pay_in_4')).toThrow(/Invalid tier built/);
     });
   });
 
@@ -119,6 +190,12 @@ describe('paypalService', () => {
       expect(tierKeyToPlanKidsLimit('1_child')).toBe(1);
       expect(tierKeyToPlanKidsLimit('2_children')).toBe(2);
       expect(tierKeyToPlanKidsLimit('3_children')).toBe(3);
+    });
+
+    it('maps yearly tier keys to same limit (strips _yearly)', () => {
+      expect(tierKeyToPlanKidsLimit('1_child_yearly')).toBe(1);
+      expect(tierKeyToPlanKidsLimit('2_children_yearly')).toBe(2);
+      expect(tierKeyToPlanKidsLimit('3_children_yearly')).toBe(3);
     });
 
     it('returns 1 for unknown tier key', () => {
@@ -217,6 +294,23 @@ describe('paypalService', () => {
       expect(orderPayload.purchase_units[0].description).toContain('2 children');
     });
 
+    it('creates order with correct amount for yearly tier', async () => {
+      const result = await createPaypalOrder('1_child_yearly_BRL', 'user-xyz');
+      expect(result).toEqual({ orderID: 'ORDER-123' });
+      const orderPayload = axios.post.mock.calls[1][1];
+      expect(orderPayload).toMatchObject({
+        intent: 'CAPTURE',
+        purchase_units: [
+          {
+            amount: { currency_code: 'BRL', value: '799.00' },
+            custom_id: 'user-xyz|1_child_yearly_BRL',
+          },
+        ],
+      });
+      expect(orderPayload.purchase_units[0].description).toContain('1 child');
+      expect(orderPayload.purchase_units[0].description).toContain('BRL');
+    });
+
     it('throws for invalid tier with valid options in message', async () => {
       await expect(createPaypalOrder('1_child_GBP', 'u1')).rejects.toThrow(/Invalid tier/);
       await expect(createPaypalOrder('1_child_GBP', 'u1')).rejects.toThrow(/1_child_USD/);
@@ -231,7 +325,10 @@ describe('paypalService', () => {
       process.env.PAYPAL_API_BASE = 'https://api.paypal.com';
       process.env.PAYPAL_CLIENT_ID = 'c';
       process.env.PAYPAL_CLIENT_SECRET = 's';
-      axios.post.mockResolvedValueOnce({ data: { access_token: 'tok' } });
+      // Default: token for any post (getAccessToken). Tests that need capture override.
+      axios.post.mockImplementation(() =>
+        Promise.resolve({ data: { access_token: 'tok' } })
+      );
     });
 
     it('throws when orderID or userId missing', async () => {
@@ -248,22 +345,26 @@ describe('paypalService', () => {
           purchase_units: [{ custom_id: `${userId}|1_child_USD` }],
         },
       });
-      axios.post
-        .mockImplementationOnce(() => Promise.resolve({ data: { access_token: 'tok' } }))
-        .mockImplementationOnce(() =>
-          Promise.resolve({
-            data: {
-              payer: { payer_id: 'PAYER-123' },
-              purchase_units: [
-                {
-                  payments: {
-                    captures: [{ id: 'CAPTURE-789' }],
-                  },
+      // First post = token, second = capture
+      let postCallCount = 0;
+      axios.post.mockImplementation((url) => {
+        postCallCount += 1;
+        if (postCallCount === 1) {
+          return Promise.resolve({ data: { access_token: 'tok' } });
+        }
+        return Promise.resolve({
+          data: {
+            payer: { payer_id: 'PAYER-123' },
+            purchase_units: [
+              {
+                payments: {
+                  captures: [{ id: 'CAPTURE-789' }],
                 },
-              ],
-            },
-          })
-        );
+              },
+            ],
+          },
+        });
+      });
 
       const result = await capturePaypalOrder(orderId, userId);
       expect(result).toMatchObject({
@@ -308,6 +409,29 @@ describe('paypalService', () => {
       expect(axios.post).toHaveBeenCalledTimes(1); // only token, no capture call
     });
 
+    it('returns tier from custom_id for yearly tier when COMPLETED', async () => {
+      axios.get.mockResolvedValueOnce({
+        data: {
+          status: 'COMPLETED',
+          payer: { payer_id: 'PAYER-Y' },
+          purchase_units: [
+            {
+              custom_id: `${userId}|2_children_yearly_EUR`,
+              payments: { captures: [{ id: 'CAP-EUR' }] },
+            },
+          ],
+        },
+      });
+
+      const result = await capturePaypalOrder(orderId, userId);
+      expect(result).toEqual({
+        payerId: 'PAYER-Y',
+        captureId: 'CAP-EUR',
+        tier: '2_children_yearly_EUR',
+        alreadyCaptured: true,
+      });
+    });
+
     it('throws when order belongs to another user', async () => {
       axios.get.mockResolvedValueOnce({
         data: {
@@ -320,7 +444,6 @@ describe('paypalService', () => {
     });
 
     it('throws when order status is not APPROVED or COMPLETED', async () => {
-      axios.post.mockResolvedValueOnce({ data: { access_token: 'tok' } });
       axios.get.mockResolvedValueOnce({
         data: {
           status: 'CREATED',

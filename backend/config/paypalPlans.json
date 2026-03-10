@@ -4,17 +4,26 @@
     "USD": {
       "1_child": "P-2JV58086AV0950315NGXH23A",
       "2_children": "P-2YA959452G891280ANGXH23I",
-      "3_children": "P-1AL56441562274207NGXH23I"
+      "3_children": "P-1AL56441562274207NGXH23I",
+      "1_child_yearly": "P-1AN582258R251744MNGYB2HY",
+      "2_children_yearly": "P-06X71307D4580845ANGYB2IA",
+      "3_children_yearly": "P-9V638440B1408310VNGYB2IA"
     },
     "BRL": {
       "1_child": "P-7GG90249010751935NGXH23Q",
       "2_children": "P-5SJ39429X73070448NGXH23Q",
-      "3_children": "P-7G251937P6566544ANGXH23Y"
+      "3_children": "P-7G251937P6566544ANGXH23Y",
+      "1_child_yearly": "P-12W14270EC501403SNGYB2II",
+      "2_children_yearly": "P-65X878574R833853YNGYB2II",
+      "3_children_yearly": "P-7CN50346VM460313KNGYB2IQ"
     },
     "EUR": {
       "1_child": "P-7SE06011DT968070DNGXH23Y",
       "2_children": "P-3PN06584PJ0539640NGXH24A",
-      "3_children": "P-3CJ77610M95896712NGXH24A"
+      "3_children": "P-3CJ77610M95896712NGXH24A",
+      "1_child_yearly": "P-6V0138877S660113HNGYB2IQ",
+      "2_children_yearly": "P-9AX11613VM618381FNGYB2IY",
+      "3_children_yearly": "P-8KG80690U68051150NGYB2JA"
     }
   }
 }

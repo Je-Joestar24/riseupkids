@@ -13,6 +13,8 @@ const {
   createPaypalOrder,
   capturePaypalOrder,
   getValidTiers,
+  getValidPlanTypes,
+  buildTier,
   parseTier,
   currencyToPlanRegion,
   tierKeyToPlanKidsLimit,
@@ -20,7 +22,8 @@ const {
 
 /**
  * POST /api/paypal/create-order
- * Body: { tier: "1_child_USD" }
+ * Body (option A): { tier: "1_child_USD" }
+ * Body (option B): { childCount: 1, currency: "USD", planType: "yearly" | "pay_in_4" }
  * Returns: { success: true, orderID } or { success: false, message }
  */
 exports.createOrder = async (req, res, next) => {
@@ -33,14 +36,46 @@ exports.createOrder = async (req, res, next) => {
       });
     }
 
-    const { tier } = req.body || {};
-    const validTiers = getValidTiers();
-    const trimmed = tier?.trim();
-    const canonical = validTiers.find((t) => t.toLowerCase() === trimmed?.toLowerCase());
-    if (!trimmed || !canonical) {
+    const body = req.body || {};
+    const { tier: tierFromBody, childCount, currency, planType } = body;
+
+    let canonical;
+
+    if (tierFromBody?.trim()) {
+      const validTiers = getValidTiers();
+      const trimmed = tierFromBody.trim();
+      canonical = validTiers.find((t) => t.toLowerCase() === trimmed?.toLowerCase());
+      if (!canonical) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid tier. Valid values: ' + getValidTiers().join(', '),
+        });
+      }
+    } else if (
+      childCount != null &&
+      currency?.trim() &&
+      planType?.trim()
+    ) {
+      const validPlanTypes = getValidPlanTypes();
+      const planTypeLower = planType.trim().toLowerCase();
+      if (!validPlanTypes.includes(planTypeLower)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid planType. Use one of: ${validPlanTypes.join(', ')}`,
+        });
+      }
+      try {
+        canonical = buildTier(childCount, currency.trim(), planTypeLower);
+      } catch (err) {
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'Invalid childCount or currency.',
+        });
+      }
+    } else {
       return res.status(400).json({
         success: false,
-        message: 'Invalid tier. Valid values: ' + validTiers.join(', '),
+        message: 'Provide either tier or (childCount, currency, planType). planType must be "yearly" or "pay_in_4".',
       });
     }
 

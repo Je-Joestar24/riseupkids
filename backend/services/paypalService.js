@@ -68,6 +68,34 @@ function getValidTiers() {
   return list;
 }
 
+/** Plan type for create-order: yearly (one-time when Pay in 4 not available) or pay_in_4 */
+const PLAN_TYPE_YEARLY = 'yearly';
+const PLAN_TYPE_PAY_IN_4 = 'pay_in_4';
+
+function getValidPlanTypes() {
+  return [PLAN_TYPE_YEARLY, PLAN_TYPE_PAY_IN_4];
+}
+
+/**
+ * Build tier string from childCount, currency, and planType.
+ * Use when client sends planType instead of pre-built tier.
+ * @param {number} childCount - 1–10
+ * @param {string} currency - USD, BRL, EUR
+ * @param {string} planType - 'yearly' | 'pay_in_4'
+ * @returns {string} e.g. "1_child_USD", "2_children_yearly_BRL"
+ */
+function buildTier(childCount, currency, planType) {
+  const n = Math.min(10, Math.max(1, Number(childCount) || 1));
+  const tierKey = n === 1 ? '1_child' : `${n}_children`;
+  const useYearly = String(planType).toLowerCase() === PLAN_TYPE_YEARLY;
+  const key = useYearly ? `${tierKey}_yearly` : tierKey;
+  const cur = (currency || 'USD').toUpperCase();
+  const tier = `${key}_${cur}`;
+  const parsed = parseTier(tier);
+  if (!parsed) throw new Error(`Invalid tier built: ${tier}. Check childCount (1–10) and currency (USD, BRL, EUR).`);
+  return tier;
+}
+
 /**
  * Map currency code to planRegion (User.planRegion: br | us | eu).
  */
@@ -78,12 +106,14 @@ function currencyToPlanRegion(currency) {
 
 /**
  * Map tier key to planKidsLimit (1_child → 1, 2_children → 2, 3_children → 3).
+ * Supports yearly variants: 1_child_yearly, 2_children_yearly, 3_children_yearly.
  */
 function tierKeyToPlanKidsLimit(tierKey) {
-  if (tierKey === '1_child') return 1;
-  if (tierKey === '2_children') return 2;
-  if (tierKey === '3_children') return 3;
-  const n = parseInt(tierKey, 10);
+  const base = (tierKey || '').replace(/_yearly$/, '');
+  if (base === '1_child') return 1;
+  if (base === '2_children') return 2;
+  if (base === '3_children') return 3;
+  const n = parseInt(base, 10);
   return Number.isFinite(n) && n >= 1 && n <= 10 ? n : 1;
 }
 
@@ -261,6 +291,10 @@ module.exports = {
   capturePaypalOrder,
   parseTier,
   getValidTiers,
+  getValidPlanTypes,
+  buildTier,
+  PLAN_TYPE_YEARLY,
+  PLAN_TYPE_PAY_IN_4,
   currencyToPlanRegion,
   tierKeyToPlanKidsLimit,
 };

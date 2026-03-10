@@ -2,16 +2,25 @@
   "USD": {
     "1_child": 151.0,
     "2_children": 239.0,
-    "3_children": 319.0
+    "3_children": 319.0,
+    "1_child_yearly": 151.0,
+    "2_children_yearly": 239.0,
+    "3_children_yearly": 319.0
   },
   "BRL": {
     "1_child": 799.0,
     "2_children": 1299.0,
-    "3_children": 1799.0
+    "3_children": 1799.0,
+    "1_child_yearly": 799.0,
+    "2_children_yearly": 1299.0,
+    "3_children_yearly": 1799.0
   },
   "EUR": {
     "1_child": 130.0,
     "2_children": 205.0,
-    "3_children": 274.0
+    "3_children": 274.0,
+    "1_child_yearly": 130.0,
+    "2_children_yearly": 205.0,
+    "3_children_yearly": 274.0
   }
 }

@@ -37,7 +37,7 @@ describe('paypal.controller', () => {
 
   describe('createOrder', () => {
     beforeEach(() => {
-      paypalService.getValidTiers.mockReturnValue(['1_child_USD', '2_children_BRL']);
+      paypalService.getValidTiers.mockReturnValue(['1_child_USD', '2_children_BRL', '2_children_yearly_BRL']);
     });
 
     it('returns 401 when req.user is missing', async () => {
@@ -77,9 +77,8 @@ describe('paypal.controller', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: expect.stringContaining('Invalid tier'),
+        message: expect.stringMatching(/Provide either tier or|Invalid tier/),
       });
-      expect(res.json.mock.calls[0][0].message).toContain('1_child_USD');
       expect(paypalService.createPaypalOrder).not.toHaveBeenCalled();
     });
 
@@ -137,6 +136,108 @@ describe('paypal.controller', () => {
         success: false,
         message: 'PayPal API error',
       });
+    });
+
+    it('returns 201 with orderID when tier is a valid yearly tier (option A)', async () => {
+      req = { user: { _id: 'user-123' }, body: { tier: '2_children_yearly_BRL' } };
+      res = mockResWithStatusChain();
+      paypalService.createPaypalOrder.mockResolvedValue({ orderID: 'ORDER-YEARLY' });
+
+      await createOrder(req, res);
+
+      expect(paypalService.createPaypalOrder).toHaveBeenCalledWith('2_children_yearly_BRL', 'user-123');
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        orderID: 'ORDER-YEARLY',
+      });
+    });
+
+    it('returns 201 with orderID when using planType option B (yearly)', async () => {
+      req = {
+        user: { _id: 'user-456' },
+        body: { childCount: 2, currency: 'BRL', planType: 'yearly' },
+      };
+      res = mockResWithStatusChain();
+      paypalService.getValidPlanTypes.mockReturnValue(['yearly', 'pay_in_4']);
+      paypalService.buildTier.mockReturnValue('2_children_yearly_BRL');
+      paypalService.createPaypalOrder.mockResolvedValue({ orderID: 'ORDER-OPT-B' });
+
+      await createOrder(req, res);
+
+      expect(paypalService.buildTier).toHaveBeenCalledWith(2, 'BRL', 'yearly');
+      expect(paypalService.createPaypalOrder).toHaveBeenCalledWith('2_children_yearly_BRL', 'user-456');
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({ success: true, orderID: 'ORDER-OPT-B' });
+    });
+
+    it('returns 201 with orderID when using planType option B (pay_in_4)', async () => {
+      req = {
+        user: { _id: 'user-789' },
+        body: { childCount: 1, currency: 'USD', planType: 'pay_in_4' },
+      };
+      res = mockResWithStatusChain();
+      paypalService.getValidPlanTypes.mockReturnValue(['yearly', 'pay_in_4']);
+      paypalService.buildTier.mockReturnValue('1_child_USD');
+      paypalService.createPaypalOrder.mockResolvedValue({ orderID: 'ORDER-P4' });
+
+      await createOrder(req, res);
+
+      expect(paypalService.buildTier).toHaveBeenCalledWith(1, 'USD', 'pay_in_4');
+      expect(paypalService.createPaypalOrder).toHaveBeenCalledWith('1_child_USD', 'user-789');
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({ success: true, orderID: 'ORDER-P4' });
+    });
+
+    it('returns 400 when planType is invalid (option B)', async () => {
+      req = {
+        user: { _id: 'user-123' },
+        body: { childCount: 1, currency: 'USD', planType: 'monthly' },
+      };
+      res = mockResWithStatusChain();
+      paypalService.getValidPlanTypes.mockReturnValue(['yearly', 'pay_in_4']);
+
+      await createOrder(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: expect.stringContaining('Invalid planType'),
+      });
+      expect(paypalService.buildTier).not.toHaveBeenCalled();
+      expect(paypalService.createPaypalOrder).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when option B has missing childCount, currency, or planType', async () => {
+      req = { user: { _id: 'user-123' }, body: { currency: 'USD', planType: 'yearly' } };
+      res = mockResWithStatusChain();
+
+      await createOrder(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json.mock.calls[0][0].message).toMatch(/Provide either tier|childCount|planType/);
+      expect(paypalService.createPaypalOrder).not.toHaveBeenCalled();
+    });
+
+    it('returns 400 when buildTier throws (e.g. invalid currency)', async () => {
+      req = {
+        user: { _id: 'user-123' },
+        body: { childCount: 1, currency: 'GBP', planType: 'yearly' },
+      };
+      res = mockResWithStatusChain();
+      paypalService.getValidPlanTypes.mockReturnValue(['yearly', 'pay_in_4']);
+      paypalService.buildTier.mockImplementation(() => {
+        throw new Error('Invalid tier built: 1_child_yearly_GBP.');
+      });
+
+      await createOrder(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: expect.stringMatching(/Invalid tier built|Invalid childCount or currency/),
+      });
+      expect(paypalService.createPaypalOrder).not.toHaveBeenCalled();
     });
   });
 
@@ -313,6 +414,46 @@ describe('paypal.controller', () => {
         success: true,
         message: 'Order was already captured; subscription updated.',
       });
+    });
+
+    it('updates user correctly when capture has yearly tier', async () => {
+      req = { user: { _id: 'user-123' }, body: { orderID: 'ORDER-123' } };
+      res = mockResWithStatusChain();
+      paypalService.capturePaypalOrder.mockResolvedValue({
+        payerId: 'PAYER-Y',
+        captureId: 'CAP-Y',
+        tier: '3_children_yearly_EUR',
+        alreadyCaptured: false,
+      });
+      paypalService.parseTier.mockReturnValue({ tierKey: '3_children_yearly', currency: 'EUR' });
+      paypalService.tierKeyToPlanKidsLimit.mockReturnValue(3);
+      paypalService.currencyToPlanRegion.mockReturnValue('eu');
+
+      const mockUser = {
+        paypalPayerId: null,
+        paypalCaptureId: null,
+        subscriptionStatus: null,
+        subscriptionStartDate: null,
+        subscriptionCurrentPeriodEnd: null,
+        planKidsLimit: null,
+        planRegion: null,
+        paymentProvider: null,
+        subscriptionPlan: null,
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+      User.findById.mockReturnValue({
+        select: jest.fn().mockResolvedValue(mockUser),
+      });
+
+      await captureOrder(req, res);
+
+      expect(paypalService.parseTier).toHaveBeenCalledWith('3_children_yearly_EUR');
+      expect(paypalService.tierKeyToPlanKidsLimit).toHaveBeenCalledWith('3_children_yearly');
+      expect(mockUser.planKidsLimit).toBe(3);
+      expect(mockUser.planRegion).toBe('eu');
+      expect(mockUser.paymentProvider).toBe('paypal');
+      expect(mockUser.subscriptionPlan).toBe('yearly');
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('trims orderID before calling service', async () => {

@@ -1,10 +1,16 @@
 /**
  * PayPal one-time checkout routes (Phase 2).
  *
- * POST /api/paypal/create-order – create order (body: { tier })
- * POST /api/paypal/capture-order – capture order and activate subscription (body: { orderID })
+ * POST /api/paypal/create-order
+ *   Body (option A): { tier: "1_child_USD" | "2_children_yearly_BRL" | ... }
+ *   Body (option B): { childCount: 1–10, currency: "USD"|"BRL"|"EUR", planType: "yearly"|"pay_in_4" }
+ *   Returns: { success, orderID }
  *
- * Both require authentication (protect) and parent role (authorize) for Family Plan purchase.
+ * POST /api/paypal/capture-order
+ *   Body: { orderID }
+ *   Captures order and activates subscription.
+ *
+ * Both require authentication (protect) and parent role (authorize).
  */
 
 const express = require('express');
