@@ -1,4 +1,53 @@
 const authService = require('../services/auth.services');
+const { subscribeToFlodesk } = require('../services/flodeskService');
+
+/**
+ * @desc    Register a new user (admin or parent only) and subscribe to Flodesk
+ * @route   POST /api/auth/register
+ * @access  Public
+ *
+ * Saves user to MongoDB, then calls Flodesk subscribe. Registration succeeds even if Flodesk fails.
+ *
+ * Request body:
+ * { "name": "John Doe", "email": "john@example.com", "password": "password123", "role": "parent" }
+ */
+const registerUser = async (req, res) => {
+  try {
+    const { name, email, password, role, linkedParent } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide name, email, and password',
+      });
+    }
+
+    const result = await authService.register({
+      name,
+      email,
+      password,
+      role: role || 'parent',
+      linkedParent,
+    });
+
+    try {
+      await subscribeToFlodesk(result.user.email);
+    } catch (flodeskError) {
+      console.error('[Auth] Flodesk subscription failed after registration:', flodeskError.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Registration failed',
+    });
+  }
+};
 
 /**
  * @desc    Register a new user (admin or parent only)
@@ -19,36 +68,36 @@ const authService = require('../services/auth.services');
  *   "role": "parent" // or "admin" only. Teachers must be created by an admin. (children cannot be registered here)
  * }
  */
-const register = async (req, res) => {
-  try {
-    const { name, email, password, role, linkedParent } = req.body;
+const register = registerUser;
 
-    // Validate input
-    if (!name || !email || !password) {
+/**
+ * @desc    Subscribe email to Flodesk only (no user registration). Use for testing or standalone signup.
+ * @route   POST /api/auth/subscribe-flodesk
+ * @access  Public (no Bearer)
+ * Body: { "email": "user@example.com" }
+ */
+const subscribeFlodesk = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, and password',
+        message: 'Please provide a valid email',
       });
     }
 
-    // Call service
-    const result = await authService.register({
-      name,
-      email,
-      password,
-      role: role || 'parent',
-      linkedParent,
-    });
-
-    res.status(201).json({
+    const result = await subscribeToFlodesk(email.trim());
+    res.status(200).json({
       success: true,
-      message: 'User registered successfully',
+      message: 'Subscribed to Flodesk successfully',
       data: result,
     });
   } catch (error) {
+    console.error('[Auth] subscribe-flodesk error:', error.message);
     res.status(400).json({
       success: false,
-      message: error.message || 'Registration failed',
+      message: error.message || 'Flodesk subscription failed',
     });
   }
 };
@@ -298,6 +347,8 @@ const getTerms = async (req, res) => {
 
 module.exports = {
   register,
+  registerUser,
+  subscribeFlodesk,
   login,
   getMe,
   logout,

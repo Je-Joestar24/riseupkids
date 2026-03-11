@@ -40,6 +40,7 @@ const googleMeetRoutes = require('./routes/googleMeet.routes');
 const meetingRoutes = require('./routes/meeting.routes');
 const youtubeLiveRoutes = require('./routes/youtubeLive.routes');
 const cloudfrontRoutes = require('./routes/cloudfront.routes');
+const invitationRoutes = require('./routes/invitationRoutes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -137,6 +138,7 @@ app.use('/api/google', googleMeetRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/youtube', youtubeLiveRoutes);
 app.use('/api/cloudfront', cloudfrontRoutes);
+app.use('/api/invitation', invitationRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);

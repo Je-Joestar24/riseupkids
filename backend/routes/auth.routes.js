@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const {
   register,
+  registerUser,
+  subscribeFlodesk,
   login,
   getMe,
   logout,
@@ -28,7 +30,8 @@ const { protect } = require('../middleware/auth');
  */
 
 // Public routes
-router.post('/register', register);
+router.post('/register', registerUser);
+router.post('/subscribe-flodesk', subscribeFlodesk);
 router.post('/login', login);
 router.get('/terms', getTerms);
 
