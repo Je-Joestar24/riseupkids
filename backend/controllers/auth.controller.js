@@ -345,6 +345,63 @@ const getTerms = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Forgot password – request a 6-digit reset code by email.
+ * @route   POST /api/auth/forgot-password
+ * @access  Public
+ * Body: { "email": "user@example.com" }
+ * Returns same message whether the user exists or not (avoids email enumeration).
+ */
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address',
+      });
+    }
+    await authService.forgotPassword(email.trim());
+    res.status(200).json({
+      success: true,
+      message: 'If an account exists for this email, you will receive a reset code shortly.',
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Invalid request',
+    });
+  }
+};
+
+/**
+ * @desc    Reset password with email + 6-digit code + new password.
+ * @route   POST /api/auth/reset-password
+ * @access  Public
+ * Body: { "email": "user@example.com", "code": "123456", "newPassword": "newSecurePassword" }
+ */
+const resetPassword = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email, reset code, and new password',
+      });
+    }
+    await authService.resetPassword(email, code, newPassword);
+    res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully.',
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Invalid or expired reset code',
+    });
+  }
+};
+
 module.exports = {
   register,
   registerUser,
@@ -355,5 +412,7 @@ module.exports = {
   updateProfile,
   changePassword,
   getTerms,
+  forgotPassword,
+  resetPassword,
 };
 

@@ -1,6 +1,8 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, PasswordResetToken } = require('../models');
 const { ChildProfile, ChildStats } = require('../models');
+const mailService = require('./mail');
 
 /**
  * Generate JWT Token
@@ -248,6 +250,79 @@ Proin vitae suscipit libero. Aliquam erat volutpat. Duis sollicitudin nunc nec e
   return { content: placeholder };
 };
 
+/** Expiry for reset code: 1 minute */
+const RESET_CODE_EXPIRY_MS = 60 * 1000;
+
+/**
+ * Forgot password: if user exists, generate 6-digit code, store with 1-min expiry, send email.
+ * Always returns success (same message whether user exists or not) to avoid email enumeration.
+ * @param {string} email - User's email
+ * @returns {Promise<{ sent: boolean }>} sent true only when email was actually sent
+ */
+const forgotPassword = async (email) => {
+  const normalized = (email || '').toString().trim().toLowerCase();
+  if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+    throw new Error('Please provide a valid email address');
+  }
+
+  const user = await User.findOne({ email: normalized });
+  if (!user) {
+    return { sent: false };
+  }
+
+  const code = String(crypto.randomInt(100000, 1000000));
+  const expiresAt = new Date(Date.now() + RESET_CODE_EXPIRY_MS);
+
+  await PasswordResetToken.deleteMany({ userId: user._id });
+  await PasswordResetToken.create({
+    userId: user._id,
+    code,
+    expiresAt,
+  });
+
+  await mailService.sendResetCode({ to: user.email, code });
+  return { sent: true };
+};
+
+/**
+ * Reset password with email + code + newPassword. Validates code (match + not expired), updates password, deletes token.
+ * @param {string} email
+ * @param {string} code - 6-digit code
+ * @param {string} newPassword
+ */
+const resetPassword = async (email, code, newPassword) => {
+  const normalized = (email || '').toString().trim().toLowerCase();
+  const codeStr = (code || '').toString().trim().replace(/\D/g, '').slice(0, 6);
+  if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+    throw new Error('Please provide a valid email address');
+  }
+  if (codeStr.length !== 6) {
+    throw new Error('Invalid or expired reset code');
+  }
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+    throw new Error('Password must be at least 6 characters');
+  }
+
+  const user = await User.findOne({ email: normalized }).select('+password');
+  if (!user) {
+    throw new Error('Invalid or expired reset code');
+  }
+
+  const token = await PasswordResetToken.findOne({
+    userId: user._id,
+    code: codeStr,
+    expiresAt: { $gt: new Date() },
+  });
+  if (!token) {
+    throw new Error('Invalid or expired reset code');
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  await PasswordResetToken.deleteOne({ _id: token._id });
+};
+
 module.exports = {
   register,
   login,
@@ -255,5 +330,7 @@ module.exports = {
   logout,
   generateToken,
   getTermsContent,
+  forgotPassword,
+  resetPassword,
 };
 

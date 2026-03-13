@@ -41,6 +41,7 @@ const meetingRoutes = require('./routes/meeting.routes');
 const youtubeLiveRoutes = require('./routes/youtubeLive.routes');
 const cloudfrontRoutes = require('./routes/cloudfront.routes');
 const invitationRoutes = require('./routes/invitationRoutes');
+const mailRoutes = require('./routes/mail.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -101,6 +102,8 @@ app.get('/favicon.ico', (req, res) => {
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Email assets (logo for emails – must be at public URL for email clients)
+app.use('/email-assets', express.static(path.join(__dirname, 'assets', 'email')));
 
 // Serve extracted SCORM packages
 app.use('/scorm', express.static(path.join(__dirname, 'uploads/scorm')));
@@ -139,6 +142,7 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/youtube', youtubeLiveRoutes);
 app.use('/api/cloudfront', cloudfrontRoutes);
 app.use('/api/invitation', invitationRoutes);
+app.use('/api/mail', mailRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);

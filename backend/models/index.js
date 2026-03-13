@@ -27,6 +27,7 @@ const ContactSupport = require('./ContactSupport');
 const GoogleIntegration = require('./GoogleIntegration');
 const Meeting = require('./Meeting');
 const YouTubeLive = require('./YouTubeLive');
+const PasswordResetToken = require('./PasswordResetToken');
 
 module.exports = {
   User,
@@ -57,5 +58,6 @@ module.exports = {
   GoogleIntegration,
   Meeting,
   YouTubeLive,
+  PasswordResetToken,
 };
 
