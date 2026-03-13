@@ -198,10 +198,14 @@ const AuthLoginForm = () => {
       </Button>
 
       {/* Forgot Password Link */}
-      <Box className="auth-links-container"
-        sx={{margin: 'auto'}}>
-        <Link href="#" className="auth-link" 
-        sx={{borderRadius: '0px', fontSize: '18px', fontWeight: '600', marginY: '10px', textDecoration: 'none'}}>
+      <Box className="auth-links-container" sx={{ margin: 'auto' }}>
+        <Link
+          component="button"
+          type="button"
+          className="auth-link"
+          sx={{ borderRadius: '0px', fontSize: '18px', fontWeight: '600', marginY: '10px', textDecoration: 'none', cursor: 'pointer' }}
+          onClick={() => navigate('/forget/password')}
+        >
           Forgot Password?
         </Link>
       </Box>

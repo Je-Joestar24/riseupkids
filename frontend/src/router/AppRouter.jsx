@@ -1,6 +1,9 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
+import ForgetPassword from '../pages/auth/ForgetPassword';
+import SendCode from '../pages/auth/SendCode';
+import ResetPassword from '../pages/auth/ResetPassword';
 import ParentSignup from '../pages/auth/ParentSignup';
 import ParentSignupSuccess from '../pages/auth/ParentSignupSuccess';
 import ParentSignupCancel from '../pages/auth/ParentSignupCancel';
@@ -95,6 +98,9 @@ const AppRouter = () => {
             </AuthedAccess>
           }
         />
+        <Route path="/forget/password" element={<UnAuthed><ForgetPassword /></UnAuthed>} />
+        <Route path="/sendcode" element={<UnAuthed><SendCode /></UnAuthed>} />
+        <Route path="/reset-password" element={<UnAuthed><ResetPassword /></UnAuthed>} />
 
         {/* Protected Routes */}
         {/* Parent Routes */}
