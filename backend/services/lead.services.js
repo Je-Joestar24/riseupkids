@@ -89,7 +89,93 @@ async function submitInvitationLead(data) {
 
 module.exports = {
   submitInvitationLead,
+  listLeads,
   normalizeLanguage,
   normalizeBoolean,
 };
+
+function clampInt(value, { min, max, fallback }) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function buildLeadFilter({ q, email, language, consent }) {
+  const filter = {};
+
+  const normalizedLanguage =
+    typeof language === 'string' && ['pt', 'en', 'es'].includes(language.trim().toLowerCase())
+      ? language.trim().toLowerCase()
+      : null;
+  if (normalizedLanguage) filter.language = normalizedLanguage;
+
+  if (typeof consent !== 'undefined') {
+    const normalizedConsent = normalizeBoolean(consent);
+    filter.consent = normalizedConsent;
+  }
+
+  const emailQuery = typeof email === 'string' ? email.trim() : '';
+  const qQuery = typeof q === 'string' ? q.trim() : '';
+
+  if (emailQuery) {
+    filter.email = { $regex: emailQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' };
+  } else if (qQuery) {
+    const escaped = qQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { email: { $regex: escaped, $options: 'i' } },
+      { parentName: { $regex: escaped, $options: 'i' } },
+      { whatsapp: { $regex: escaped, $options: 'i' } },
+    ];
+  }
+
+  return filter;
+}
+
+/**
+ * List leads for admin dashboard with pagination + search.
+ *
+ * @param {Object} params
+ * @param {number|string} params.page
+ * @param {number|string} params.limit
+ * @param {string} [params.q] - generic search over email/parentName/whatsapp
+ * @param {string} [params.email] - email-specific search
+ * @param {string} [params.language] - pt|en|es
+ * @param {boolean|string} [params.consent] - filter by consent
+ * @returns {Promise<{ items: any[], meta: any }>}
+ */
+async function listLeads(params = {}) {
+  const page = clampInt(params.page, { min: 1, max: 1000000, fallback: 1 });
+  const limit = clampInt(params.limit, { min: 1, max: 100, fallback: 20 });
+  const skip = (page - 1) * limit;
+
+  const filter = buildLeadFilter({
+    q: params.q,
+    email: params.email,
+    language: params.language,
+    consent: params.consent,
+  });
+
+  const [items, total] = await Promise.all([
+    Lead.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Lead.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    items,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    },
+  };
+}
 

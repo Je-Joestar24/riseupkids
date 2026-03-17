@@ -1,9 +1,19 @@
 const express = require('express');
 
-// Phase 2 admin lead routes will be added here.
-// For Phase 1 we only need the model + services wired into /api/invitation.
-
 const router = express.Router();
+
+const { getLeads } = require('../controllers/leads.controller');
+const { protect, authorize } = require('../middleware/auth');
+
+/**
+ * Admin Lead Routes
+ *
+ * Base path (mounted): /api/admin/leads
+ *
+ * Protected routes (require admin authentication):
+ * - GET / - List leads (pagination + search)
+ */
+router.get('/', protect, authorize('admin'), getLeads);
 
 module.exports = router;
 

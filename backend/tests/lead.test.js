@@ -1,5 +1,7 @@
 jest.mock('../models/Leads', () => ({
   create: jest.fn(),
+  find: jest.fn(),
+  countDocuments: jest.fn(),
 }));
 
 jest.mock('../services/flodeskService', () => ({
@@ -10,6 +12,7 @@ const Lead = require('../models/Leads');
 const { submitInvitationToFlodesk } = require('../services/flodeskService');
 const {
   submitInvitationLead,
+  listLeads,
   normalizeLanguage,
   normalizeBoolean,
 } = require('../services/lead.services');
@@ -113,6 +116,85 @@ describe('lead.services – submitInvitationLead (Phase 1)', () => {
       lead: mockLead,
       flodesk: flodeskResponse,
     });
+  });
+});
+
+describe('lead.services – listLeads (Phase 2)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  function mockFindChain(items) {
+    const chain = {
+      sort: jest.fn(() => chain),
+      skip: jest.fn(() => chain),
+      limit: jest.fn(() => chain),
+      lean: jest.fn(() => Promise.resolve(items)),
+    };
+    Lead.find.mockReturnValue(chain);
+    return chain;
+  }
+
+  it('returns paginated results with meta', async () => {
+    mockFindChain([{ _id: '1' }, { _id: '2' }]);
+    Lead.countDocuments.mockResolvedValueOnce(42);
+
+    const result = await listLeads({ page: 2, limit: 2 });
+
+    expect(Lead.find).toHaveBeenCalledWith({});
+    expect(result.items).toHaveLength(2);
+    expect(result.meta).toEqual({
+      page: 2,
+      limit: 2,
+      total: 42,
+      totalPages: 21,
+      hasNext: true,
+      hasPrev: true,
+    });
+  });
+
+  it('applies q search across email/parentName/whatsapp', async () => {
+    mockFindChain([]);
+    Lead.countDocuments.mockResolvedValueOnce(0);
+
+    await listLeads({ q: 'maria' });
+
+    const filter = Lead.find.mock.calls[0][0];
+    expect(filter.$or).toBeDefined();
+    expect(filter.$or).toHaveLength(3);
+  });
+
+  it('applies language filter (pt/en/es)', async () => {
+    mockFindChain([]);
+    Lead.countDocuments.mockResolvedValueOnce(0);
+
+    await listLeads({ language: 'PT' });
+
+    expect(Lead.find).toHaveBeenCalledWith({ language: 'pt' });
+  });
+
+  it('applies consent filter when provided', async () => {
+    mockFindChain([]);
+    Lead.countDocuments.mockResolvedValueOnce(0);
+
+    await listLeads({ consent: 'true' });
+
+    expect(Lead.find).toHaveBeenCalledWith({ consent: true });
+  });
+});
+
+describe('lead.routes – admin protection', () => {
+  it('GET / is protected by protect + authorize(admin)', () => {
+    const router = require('../routes/lead.routes');
+
+    const layer = router.stack.find((l) => l.route && l.route.path === '/' && l.route.methods.get);
+    expect(layer).toBeTruthy();
+
+    // Express stores middlewares in order. authorize('admin') returns an anonymous function.
+    expect(layer.route.stack).toHaveLength(3);
+    expect(layer.route.stack[0].handle.name).toBe('protect');
+    expect(layer.route.stack[1].handle.name).toBe(''); // authorize('admin') anonymous middleware
+    expect(layer.route.stack[2].handle.name).toBe('getLeads');
   });
 });
 
