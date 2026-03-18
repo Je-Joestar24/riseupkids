@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import ChildModuleCards from './ChildModuleCards';
 import { useCourseProgress } from '../../../hooks/courseProgressHook';
 import { useParams } from 'react-router-dom';
+import Html5Player from '../common/html5Player';
 
 /**
  * ChildModuleLibrary Component
@@ -11,10 +12,44 @@ import { useParams } from 'react-router-dom';
  * Library section displaying books from the course in a 3-column grid
  */
 const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) => {
-  const { id: childId } = useParams();
+  const { id: childId, courseId } = useParams();
   const { getChildBookReadings } = useCourseProgress(childId);
   const [bookReadings, setBookReadings] = useState({}); // Map of bookId -> reading status
   const [loadingReadings, setLoadingReadings] = useState(false);
+
+  const [html5Open, setHtml5Open] = useState(false);
+  const [selectedHtml5Book, setSelectedHtml5Book] = useState(null);
+
+  const selectedBookId = useMemo(() => {
+    if (!selectedHtml5Book) return null;
+    return (
+      selectedHtml5Book._contentId ||
+      selectedHtml5Book._id ||
+      selectedHtml5Book.contentId ||
+      selectedHtml5Book.id ||
+      null
+    );
+  }, [selectedHtml5Book]);
+
+  const canOpenHtml5 = useCallback((book) => {
+    if (!book) return false;
+    // Only HTML5 books are supported on frontend now; SCORM is ignored.
+    return book.packageType === 'html5' && !!book.html5PackageId;
+  }, []);
+
+  const handleOpenHtml5 = useCallback(
+    (book) => {
+      if (!canOpenHtml5(book)) return;
+      setSelectedHtml5Book(book);
+      setHtml5Open(true);
+    },
+    [canOpenHtml5]
+  );
+
+  const handleCloseHtml5 = useCallback(() => {
+    setHtml5Open(false);
+    setSelectedHtml5Book(null);
+  }, []);
 
   // Fetch book reading statuses for all books
   const fetchBookReadings = async () => {
@@ -139,56 +174,78 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
   }
 
   return (
-    <Box
-      sx={{
-        width: '100%',
-        marginTop: '32px',
-      }}
-    >
-      {/* Section Title */}
-      <Typography
-        sx={{
-          fontSize: '24px',
-          fontWeight: 600,
-          color: themeColors.textInverse,
-          marginBottom: '24px',
-        }}
-      >
-        Library
-      </Typography>
-
-      {/* Books Grid - 3 columns */}
+    <>
       <Box
         sx={{
-          display: 'grid',
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            md: 'repeat(3, 1fr)',
-          },
-          gap: '24px',
+          width: '100%',
+          marginTop: '32px',
         }}
       >
-        {books.map((book, index) => {
-          // Book is already populated with full data from API
-          const bookId = book._id || book._contentId || book.contentId || book.id;
-          
-          return (
-            <ChildModuleCards
-              key={bookId || index}
-              book={book}
-              isCompleted={isBookCompleted(book)}
-              progressCircles={getBookProgress(book)}
-              onCardClick={() => {
-                if (onBookClick) {
-                  onBookClick(book);
-                }
-              }}
-            />
-          );
-        })}
+        {/* Section Title */}
+        <Typography
+          sx={{
+            fontSize: '24px',
+            fontWeight: 600,
+            color: themeColors.textInverse,
+            marginBottom: '24px',
+          }}
+        >
+          Library
+        </Typography>
+
+        {/* Books Grid - 3 columns */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
+            },
+            gap: '24px',
+          }}
+        >
+          {books.map((book, index) => {
+            // Book is already populated with full data from API
+            const bookId = book._id || book._contentId || book.contentId || book.id;
+
+            return (
+              <ChildModuleCards
+                key={bookId || index}
+                book={book}
+                isCompleted={isBookCompleted(book)}
+                progressCircles={getBookProgress(book)}
+                onCardClick={() => {
+                  // HTML5-only: open player here, ignore SCORM books.
+                  if (canOpenHtml5(book)) {
+                    handleOpenHtml5(book);
+                  }
+                  // Keep external hook if parent still needs it (optional)
+                  if (onBookClick) {
+                    onBookClick(book);
+                  }
+                }}
+              />
+            );
+          })}
+        </Box>
       </Box>
-    </Box>
+
+      <Html5Player
+        open={html5Open}
+        onClose={handleCloseHtml5}
+        courseId={courseId || null}
+        childId={childId || null}
+        bookId={selectedBookId}
+        contentTitle={selectedHtml5Book?.title || 'Book'}
+        html5PackageId={selectedHtml5Book?.html5PackageId || null}
+        html5EntryPoint={selectedHtml5Book?.html5EntryPoint || 'index.html'}
+        onComplete={() => {
+          // Refresh reading progress UI after completion attempt
+          fetchBookReadings();
+        }}
+      />
+    </>
   );
 };
 

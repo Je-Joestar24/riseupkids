@@ -9,7 +9,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const html5handlerController = require('../controllers/html5handler.controller');
 
 const router = express.Router();
@@ -40,5 +40,7 @@ router.post('/upload', protect, (req, res, next) => {
 }, html5handlerController.upload);
 
 router.get('/:id/launch', html5handlerController.getLaunchUrl);
+router.get('/:id/bridge-status', html5handlerController.getBridgeStatus);
+router.post('/:id/reinject-bridge', protect, authorize('admin'), html5handlerController.reinjectBridge);
 
 module.exports = router;

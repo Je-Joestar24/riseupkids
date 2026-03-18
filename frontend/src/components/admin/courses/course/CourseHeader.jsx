@@ -37,7 +37,7 @@ const CourseHeader = ({ onAddClick, onReorderClick }) => {
                 color: theme.palette.text.primary,
               }}
             >
-              Course Collections
+              Modules
             </Typography>
             <Typography
               variant="body2"
@@ -47,7 +47,7 @@ const CourseHeader = ({ onAddClick, onReorderClick }) => {
                 marginTop: 0.5,
               }}
             >
-              Manage course collections with mixed content types (Activities, Books, Videos, Audio)
+              Manage modules with mixed content types (Activities, Books, Videos, Audio)
             </Typography>
           </Box>
           <Stack direction="row" spacing={2}>
@@ -70,7 +70,7 @@ const CourseHeader = ({ onAddClick, onReorderClick }) => {
                 },
               }}
             >
-              Reorder Courses
+              Reorder Modules
             </Button>
             <Button
               variant="contained"
@@ -92,7 +92,7 @@ const CourseHeader = ({ onAddClick, onReorderClick }) => {
                 },
               }}
             >
-              Create Course
+              Create Module
             </Button>
           </Stack>
         </Box>
@@ -105,7 +105,7 @@ const CourseHeader = ({ onAddClick, onReorderClick }) => {
               fontSize: '0.875rem',
             }}
           >
-            Total: {pagination.total} {pagination.total === 1 ? 'course' : 'courses'}
+            Total: {pagination.total} {pagination.total === 1 ? 'module' : 'modules'}
           </Typography>
         )}
       </Stack>

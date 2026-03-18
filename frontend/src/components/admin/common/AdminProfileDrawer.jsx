@@ -20,9 +20,7 @@ import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import LogoutIcon from '@mui/icons-material/Logout';
 import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
-import { useDispatch, useSelector } from 'react-redux';
 import { useTheme } from '@mui/material/styles';
-import { showNotification } from '../../../store/slices/uiSlice';
 import { useAuth } from '../../../hooks/userHook';
 import themeColors from '../../../config/themeColors';
 
@@ -36,7 +34,6 @@ const drawerWidth = 360;
  * Displays user role and allows profile editing
  */
 const AdminProfileDrawer = ({ open, onClose, onLogout }) => {
-  const dispatch = useDispatch();
   const theme = useTheme();
   const { user, loading, updateUserProfile, changeUserPassword } = useAuth();
   const [form, setForm] = useState({

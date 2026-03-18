@@ -93,6 +93,29 @@ const uploadBuffer = async (buffer, s3Folder, originalname, contentType) => {
 };
 
 /**
+ * Upload a buffer to an exact S3 key (overwrites).
+ * @param {Buffer} buffer
+ * @param {string} key - full S3 key (e.g. 'html5/abc/index.html')
+ * @param {string} contentType
+ * @returns {Promise<{ url: string, s3Key: string }>}
+ */
+const putObjectBuffer = async (buffer, key, contentType) => {
+  if (!key) throw new Error('S3 key is required');
+  const client = getClient();
+  const bucket = getConfig().bucket;
+  const normalizedKey = key.startsWith('/') ? key.slice(1) : key;
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: normalizedKey,
+      Body: buffer,
+      ContentType: contentType || 'application/octet-stream',
+    })
+  );
+  return { url: getPublicUrl(normalizedKey), s3Key: normalizedKey };
+};
+
+/**
  * Upload from a Multer file object (must have .buffer, .originalname, .mimetype).
  * @param {Object} file - Multer file (memory storage: file.buffer, file.originalname, file.mimetype)
  * @param {string} s3Folder - S3 prefix (e.g. 'media/images')
@@ -264,6 +287,7 @@ module.exports = {
   getConfig,
   getPublicUrl,
   uploadBuffer,
+  putObjectBuffer,
   uploadFileFromMulter,
   getObjectBuffer,
   uploadDirectory,

@@ -1,0 +1,22 @@
+{
+  "admin": {
+    "dashboard": {
+      "leadsTitle": "Leads",
+      "leadsSubtitle": "Convites da página de vendas (salvos no banco)",
+      "searchPlaceholder": "Buscar por nome, e-mail ou WhatsApp…",
+      "whatsappCta": "WhatsApp",
+      "noWhatsapp": "Sem WhatsApp",
+      "language": "Idioma",
+      "createdAt": "Criado em",
+      "email": "E-mail",
+      "parentName": "Nome do responsável"
+    },
+    "language": {
+      "label": "Idioma",
+      "pt": "Português",
+      "en": "English",
+      "es": "Español"
+    }
+  }
+}
+

@@ -1,0 +1,22 @@
+{
+  "admin": {
+    "dashboard": {
+      "leadsTitle": "Leads",
+      "leadsSubtitle": "Invitaciones de la página de ventas (guardadas en la base de datos)",
+      "searchPlaceholder": "Buscar por nombre, correo o WhatsApp…",
+      "whatsappCta": "WhatsApp",
+      "noWhatsapp": "Sin WhatsApp",
+      "language": "Idioma",
+      "createdAt": "Creado",
+      "email": "Correo",
+      "parentName": "Nombre del responsable"
+    },
+    "language": {
+      "label": "Idioma",
+      "pt": "Português",
+      "en": "English",
+      "es": "Español"
+    }
+  }
+}
+

@@ -385,7 +385,7 @@ const CourseAddModal = ({
     try {
       // Validate required fields
       if (!formData.title || !formData.title.trim()) {
-        alert('Please provide a course title');
+        alert('Please provide a module title');
         return;
       }
 
@@ -474,7 +474,7 @@ const CourseAddModal = ({
             fontSize: '1.5rem',
           }}
         >
-          {isEditMode ? 'Edit Course' : 'Create New Course'}
+          {isEditMode ? 'Edit Module' : 'Create New Module'}
         </Typography>
         <IconButton onClick={handleClose} size="small">
           <CloseIcon />
@@ -510,7 +510,7 @@ const CourseAddModal = ({
             <Stack spacing={2.5}>
               {/* Title */}
               <TextField
-                label="Course Title"
+                label="Module Title"
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 required
@@ -688,7 +688,7 @@ const CourseAddModal = ({
                 marginBottom: 2,
               }}
             >
-              Select existing content items to include in this course. You can add Activities, Books, Videos, and Audio Assignments.
+              Select existing content items to include in this module. You can add Activities, Books, Videos, and Audio Assignments.
             </Typography>
 
             {/* Selected Contents Area - Display above selector */}
@@ -744,7 +744,7 @@ const CourseAddModal = ({
         >
           {loading 
             ? (isEditMode ? 'Updating...' : 'Creating...') 
-            : (isEditMode ? 'Update Course' : 'Create Course')}
+            : (isEditMode ? 'Update Module' : 'Create Module')}
         </Button>
       </DialogActions>
 

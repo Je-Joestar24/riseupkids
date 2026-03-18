@@ -61,7 +61,7 @@ const AdminCourses = () => {
     >
       <CourseList onAddClick={handleAddClick} onReorderClick={handleReorderClick} />
       
-      {/* Add Course Modal */}
+      {/* Add Module Modal */}
       <CourseAddModal
         open={addModalOpen}
         onClose={handleAddModalClose}
@@ -71,7 +71,7 @@ const AdminCourses = () => {
         onCreatedContentProcessed={() => setCreatedContentData(null)}
       />
 
-      {/* Reorder Courses Modal */}
+      {/* Reorder Modules Modal */}
       <CourseOrganizerModal
         open={reorderModalOpen}
         onClose={handleReorderModalClose}

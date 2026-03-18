@@ -16,6 +16,7 @@ const {
   normalizeLanguage,
   normalizeBoolean,
 } = require('../services/lead.services');
+const { buildWhatsAppLink } = require('../services/whatsappLinkService');
 
 describe('lead.services – submitInvitationLead (Phase 1)', () => {
   beforeEach(() => {
@@ -180,6 +181,26 @@ describe('lead.services – listLeads (Phase 2)', () => {
     await listLeads({ consent: 'true' });
 
     expect(Lead.find).toHaveBeenCalledWith({ consent: true });
+  });
+
+  it('adds whatsappLink based on lead language + phone', async () => {
+    const items = [
+      { _id: '1', parentName: 'Maria Silva', whatsapp: '+55 11 99999-9999', language: 'pt' },
+      { _id: '2', parentName: 'John Doe', whatsapp: '1 (555) 123-4567', language: 'en' },
+      { _id: '3', parentName: 'Ana', whatsapp: '', language: 'es' },
+    ];
+    mockFindChain(items);
+    Lead.countDocuments.mockResolvedValueOnce(3);
+
+    const result = await listLeads({ page: 1, limit: 10 });
+
+    expect(result.items[0].whatsappLink).toBe(
+      buildWhatsAppLink({ whatsapp: items[0].whatsapp, parentName: items[0].parentName, language: 'pt' })
+    );
+    expect(result.items[1].whatsappLink).toBe(
+      buildWhatsAppLink({ whatsapp: items[1].whatsapp, parentName: items[1].parentName, language: 'en' })
+    );
+    expect(result.items[2].whatsappLink).toBeNull();
   });
 });
 

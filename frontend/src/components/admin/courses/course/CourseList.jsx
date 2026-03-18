@@ -95,7 +95,7 @@ const CourseList = ({ onAddClick, onReorderClick }) => {
               color: theme.palette.text.secondary,
             }}
           >
-            No courses found
+            No modules found
           </Typography>
           <Typography
             variant="body2"
@@ -107,7 +107,7 @@ const CourseList = ({ onAddClick, onReorderClick }) => {
           >
             {filters.search || filters.isPublished !== undefined
               ? 'Try adjusting your filters'
-              : 'Create your first course collection to get started'}
+              : 'Create your first Module to get started'}
           </Typography>
         </Paper>
       ) : (

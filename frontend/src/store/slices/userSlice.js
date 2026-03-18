@@ -26,7 +26,8 @@ export const registerUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await authService.register(userData);
-      return response.data;
+      // Normalize to { user, token, ... } shape
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message || 'Registration failed');
     }
@@ -41,7 +42,8 @@ export const getCurrentUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.getCurrentUser();
-      return response.data;
+      // API returns { success, message, data: { user, childProfiles, ... } }
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to get user data');
     }
@@ -72,7 +74,8 @@ export const updateProfile = createAsyncThunk(
   async (profileData, { rejectWithValue }) => {
     try {
       const response = await authService.updateProfile(profileData);
-      return response.data;
+      // Normalize to { user, ... } shape
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to update profile');
     }
@@ -87,7 +90,7 @@ export const changePassword = createAsyncThunk(
   async ({ currentPassword, newPassword }, { rejectWithValue }) => {
     try {
       const response = await authService.changePassword(currentPassword, newPassword);
-      return response.data;
+      return response?.data ?? response;
     } catch (error) {
       return rejectWithValue(error.message || 'Failed to change password');
     }
@@ -209,11 +212,12 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(getCurrentUser.fulfilled, (state, action) => {
+        const payload = action.payload?.data ?? action.payload;
         state.loading = false;
-        state.user = action.payload.user;
-        state.childProfiles = action.payload.childProfiles || null;
-        state.childProfile = action.payload.childProfile || null;
-        state.parent = action.payload.parent || null;
+        state.user = payload?.user ?? null;
+        state.childProfiles = payload?.childProfiles || null;
+        state.childProfile = payload?.childProfile || null;
+        state.parent = payload?.parent || null;
         state.error = null;
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
@@ -255,8 +259,9 @@ const userSlice = createSlice({
         state.error = null;
       })
       .addCase(updateProfile.fulfilled, (state, action) => {
+        const payload = action.payload?.data ?? action.payload;
         state.loading = false;
-        state.user = action.payload.user;
+        state.user = payload?.user ?? state.user;
         state.error = null;
       })
       .addCase(updateProfile.rejected, (state, action) => {

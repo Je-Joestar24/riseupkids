@@ -17,6 +17,169 @@ const UPLOADS_DIR = path.join(__dirname, '../uploads');
 const HTML5_BASE = path.join(UPLOADS_DIR, 'html5');
 const HTML5_TEMP_BASE = path.join(UPLOADS_DIR, 'temp', 'html5');
 const ENTRY_CANDIDATES = ['index.html', 'index.htm', 'story.html', 'story.htm'];
+const HTML5_BRIDGE_FILENAME = 'ruk-html5-bridge.js';
+
+function escapeForHtmlAttribute(value) {
+  return String(value || '').replace(/"/g, '&quot;');
+}
+
+/**
+ * Inject a small bridge script into the HTML5 entry file so the package can report quiz score/maxScore
+ * back to the parent app via postMessage (works on CloudFront / cross-origin).
+ */
+async function injectScoreBridge(extractedPath, entryPoint) {
+  const entry = (entryPoint || detectEntryPoint(extractedPath) || 'index.html').replace(/^\//, '');
+  const entryPath = path.join(extractedPath, entry.split('/').join(path.sep));
+  if (!(await fs.pathExists(entryPath))) {
+    return { entryPoint: entry };
+  }
+
+  // Write the bridge JS file next to the entry HTML (ensures relative <script src="./..."> works even when nested)
+  const entryDir = path.dirname(entryPath);
+  const bridgePath = path.join(entryDir, HTML5_BRIDGE_FILENAME);
+  const bridgeJs = `
+(function () {
+  function safeNumber(x) {
+    var n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function readCaptivateQuiz() {
+    var score = null, maxScore = null, pass = null;
+    try {
+      if (window.cpAPIInterface && typeof window.cpAPIInterface.getVariableValue === 'function') {
+        score = safeNumber(window.cpAPIInterface.getVariableValue("cpQuizInfoPointsscored"));
+        maxScore = safeNumber(window.cpAPIInterface.getVariableValue("cpQuizInfoTotalQuizPoints"));
+        var p = window.cpAPIInterface.getVariableValue("cpQuizInfoPassFail");
+        if (p != null && p !== "") {
+          pass = String(p).toLowerCase().indexOf("pass") !== -1;
+        }
+      }
+    } catch (e) {}
+    return { score: score, maxScore: maxScore, pass: pass };
+  }
+
+  window.addEventListener("message", function (event) {
+    try {
+      var data = event && event.data;
+      if (!data || (data.type !== "GET_HTML5_SCORE" && data.type !== "GET_HTML5_SCORE_V1")) return;
+      var result = readCaptivateQuiz();
+      event.source && event.source.postMessage({
+        type: "HTML5_SCORE_RESULT",
+        score: result.score,
+        maxScore: result.maxScore,
+        pass: result.pass
+      }, "*");
+    } catch (e) {}
+  });
+})();
+`;
+  await fs.writeFile(bridgePath, bridgeJs, 'utf8');
+
+  // Inject <script src="..."> into entry HTML (best-effort, idempotent)
+  let html = await fs.readFile(entryPath, 'utf8');
+  if (html.includes(HTML5_BRIDGE_FILENAME)) {
+    return { entryPoint: entry };
+  }
+
+  const scriptTag = `\n<script src="./${escapeForHtmlAttribute(HTML5_BRIDGE_FILENAME)}"></script>\n`;
+  if (html.includes('</body>')) {
+    html = html.replace('</body>', `${scriptTag}</body>`);
+  } else if (html.includes('</head>')) {
+    html = html.replace('</head>', `${scriptTag}</head>`);
+  } else {
+    html = `${html}\n${scriptTag}`;
+  }
+
+  await fs.writeFile(entryPath, html, 'utf8');
+  return { entryPoint: entry };
+}
+
+/**
+ * Re-inject the score bridge into an existing S3/CloudFront-hosted package.
+ * This is used for packages uploaded before the bridge injection existed.
+ * It overwrites the entry HTML and uploads the bridge JS alongside it.
+ *
+ * @param {string} id - html5PackageId
+ * @param {string} baseUrl - backend origin (for resolving launch url)
+ * @returns {Promise<{ launchUrl: string, entryPoint: string, updated: boolean }>}
+ */
+async function reinjectBridgeToS3(id, baseUrl) {
+  if (!s3Service.isConfigured()) {
+    throw new Error('S3 not configured');
+  }
+
+  const { launchUrl, entryPoint } = await getLaunchUrl(id, baseUrl);
+  const entryKey = s3Service.getS3KeyFromUrl(launchUrl);
+  if (!entryKey) {
+    throw new Error('Could not resolve S3 key from launchUrl');
+  }
+
+  const htmlBuf = await s3Service.getObjectBuffer(entryKey);
+  let html = htmlBuf.toString('utf8');
+  const hadBridgeBefore = html.includes(HTML5_BRIDGE_FILENAME);
+  if (hadBridgeBefore) {
+    return { launchUrl, entryPoint, updated: false, entryKey, hadBridgeBefore, hasBridgeAfter: true };
+  }
+
+  const bridgeDirKey = entryKey.split('/').slice(0, -1).join('/');
+  const bridgeKey = `${bridgeDirKey}/${HTML5_BRIDGE_FILENAME}`;
+  const bridgeJs = Buffer.from(
+    `
+(function () {
+  function safeNumber(x) {
+    var n = Number(x);
+    return Number.isFinite(n) ? n : null;
+  }
+  function readCaptivateQuiz() {
+    var score = null, maxScore = null, pass = null;
+    try {
+      if (window.cpAPIInterface && typeof window.cpAPIInterface.getVariableValue === 'function') {
+        score = safeNumber(window.cpAPIInterface.getVariableValue("cpQuizInfoPointsscored"));
+        maxScore = safeNumber(window.cpAPIInterface.getVariableValue("cpQuizInfoTotalQuizPoints"));
+        var p = window.cpAPIInterface.getVariableValue("cpQuizInfoPassFail");
+        if (p != null && p !== "") pass = String(p).toLowerCase().indexOf("pass") !== -1;
+      }
+    } catch (e) {}
+    return { score: score, maxScore: maxScore, pass: pass };
+  }
+  window.addEventListener("message", function (event) {
+    try {
+      var data = event && event.data;
+      if (!data || (data.type !== "GET_HTML5_SCORE" && data.type !== "GET_HTML5_SCORE_V1")) return;
+      var result = readCaptivateQuiz();
+      event.source && event.source.postMessage({ type: "HTML5_SCORE_RESULT", score: result.score, maxScore: result.maxScore, pass: result.pass }, "*");
+    } catch (e) {}
+  });
+})();
+`,
+    'utf8'
+  );
+
+  await s3Service.putObjectBuffer(bridgeJs, bridgeKey, 'application/javascript');
+
+  const scriptTag = `\n<script src="./${escapeForHtmlAttribute(HTML5_BRIDGE_FILENAME)}"></script>\n`;
+  if (html.includes('</body>')) html = html.replace('</body>', `${scriptTag}</body>`);
+  else if (html.includes('</head>')) html = html.replace('</head>', `${scriptTag}</head>`);
+  else html = `${html}\n${scriptTag}`;
+
+  await s3Service.putObjectBuffer(Buffer.from(html, 'utf8'), entryKey, 'text/html');
+
+  // Verify after write (read S3 again)
+  const afterBuf = await s3Service.getObjectBuffer(entryKey);
+  const afterHtml = afterBuf.toString('utf8');
+  const hasBridgeAfter = afterHtml.includes(HTML5_BRIDGE_FILENAME);
+
+  return {
+    launchUrl,
+    entryPoint,
+    updated: true,
+    entryKey,
+    bridgeKey,
+    hadBridgeBefore,
+    hasBridgeAfter,
+  };
+}
 
 /**
  * Generate a unique id for the package folder (safe for filesystem).
@@ -27,17 +190,55 @@ function generatePackageId() {
 }
 
 /**
- * Detect entry point (first existing of index.html, story.html, etc.) in the extracted root.
+ * Detect entry point (first existing of index.html, story.html, etc.) in the extracted folder.
+ * Captivate exports commonly nest the entry inside a subfolder, so we search recursively and return
+ * a relative path (POSIX-style) like "MyBook/index.html".
  * @param {string} extractedPath - Full path to extracted folder
- * @returns {string} Entry filename (e.g. 'index.html')
+ * @returns {string} Relative entry path (e.g. 'index.html' or 'MyBook/index.html')
  */
 function detectEntryPoint(extractedPath) {
-  for (const name of ENTRY_CANDIDATES) {
-    const fullPath = path.join(extractedPath, name);
-    if (fs.existsSync(fullPath)) {
-      return name;
+  const root = extractedPath;
+  if (!root || !fs.existsSync(root)) return 'index.html';
+
+  const isDirectory = (p) => {
+    try {
+      return fs.statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  const safeList = (dir) => {
+    try {
+      return fs.readdirSync(dir);
+    } catch {
+      return [];
+    }
+  };
+
+  const toRelPosix = (absFile) => {
+    const rel = path.relative(root, absFile);
+    return rel.split(path.sep).join('/');
+  };
+
+  // For each candidate name in priority order, BFS-search the tree and return first match.
+  for (const candidate of ENTRY_CANDIDATES) {
+    const queue = [root];
+    while (queue.length) {
+      const dir = queue.shift();
+      const entries = safeList(dir);
+      for (const entry of entries) {
+        const full = path.join(dir, entry);
+        if (entry === candidate) {
+          return toRelPosix(full);
+        }
+        if (isDirectory(full)) {
+          queue.push(full);
+        }
+      }
     }
   }
+
   return 'index.html';
 }
 
@@ -75,6 +276,8 @@ async function extractAndUploadToS3Only(zipInput) {
   }
 
   const entryPoint = detectEntryPoint(tempDir);
+  // Inject score bridge for CloudFront-hosted packages (also fine for local legacy)
+  await injectScoreBridge(tempDir, entryPoint);
   let baseUrl = null;
 
   if (s3Service.isConfigured()) {
@@ -140,6 +343,7 @@ async function extractAndStore(zipInput) {
   }
 
   const entryPoint = detectEntryPoint(extractDir);
+  await injectScoreBridge(extractDir, entryPoint);
 
   return { id, entryPoint };
 }
@@ -209,5 +413,6 @@ module.exports = {
   uploadExtractedToS3,
   packageExists,
   detectEntryPoint,
+  reinjectBridgeToS3,
   HTML5_BASE,
 };

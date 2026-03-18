@@ -562,7 +562,7 @@ const ContentReorderModal = ({ open, onClose, contents: initialContents = [], on
             fontSize: '1.5rem',
           }}
         >
-          Reorder Course Contents
+          Reorder Module Contents
         </Typography>
         <IconButton onClick={handleCancel} size="small">
           <CloseIcon />

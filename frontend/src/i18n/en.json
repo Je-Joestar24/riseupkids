@@ -1,0 +1,22 @@
+{
+  "admin": {
+    "dashboard": {
+      "leadsTitle": "Leads",
+      "leadsSubtitle": "Sales page invitations (stored in database)",
+      "searchPlaceholder": "Search name, email, or WhatsApp…",
+      "whatsappCta": "WhatsApp",
+      "noWhatsapp": "No WhatsApp",
+      "language": "Language",
+      "createdAt": "Created",
+      "email": "Email",
+      "parentName": "Parent name"
+    },
+    "language": {
+      "label": "Language",
+      "pt": "Português",
+      "en": "English",
+      "es": "Español"
+    }
+  }
+}
+

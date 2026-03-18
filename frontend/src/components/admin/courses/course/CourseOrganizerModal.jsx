@@ -254,7 +254,7 @@ const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) =
             fontSize: '1.5rem',
           }}
         >
-          Reorder Courses
+          Reorder Modules
         </Typography>
         <IconButton
           onClick={handleCancel}

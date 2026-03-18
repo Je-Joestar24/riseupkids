@@ -10,6 +10,7 @@ import {
   WallpaperOutlined,
 } from '@mui/icons-material';
 import DashboardList from '../../components/admin/dashboard/DashboardList';
+import DashboardLeadsList from '../../components/admin/dashboard/DashboardLeadsList';
 
 /**
  * AdminDashboard Page
@@ -125,7 +126,24 @@ const AdminDashboard = () => {
         ))}
       </Grid>
 
-      <DashboardList />
+      <Box
+        sx={{
+          mt: 3,
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'stretch',
+          gap: 2.5,
+          flexDirection: { xs: 'column', md: 'row' },
+        }}
+      >
+        <Box sx={{ flex: 1.6, minWidth: 0 }}>
+          <DashboardLeadsList sx={{ height: '100%' }} />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <DashboardList sx={{ height: '100%' }} />
+        </Box>
+      </Box>
     </Box>
   );
 };

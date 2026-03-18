@@ -18,6 +18,19 @@ const adminDashboardService = {
       throw error.response?.data || error.message;
     }
   },
+
+  /**
+   * Get stored leads (admin-only)
+   * @param {Object} params - { page, limit, q, email, language, consent }
+   */
+  getLeads: async (params = {}) => {
+    try {
+      const response = await api.get('/admin/leads', { params });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
 };
 
 export default adminDashboardService;

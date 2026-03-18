@@ -72,7 +72,7 @@ const CourseFilters = () => {
         {/* Search Field */}
         <div style={{ flex: 1, minWidth: 250 }}>
           <TextField
-            placeholder="Search courses by title or description..."
+            placeholder="Search modules by title or description..."
             value={filters.search || ''}
             onChange={handleSearchChange}
             size="small"

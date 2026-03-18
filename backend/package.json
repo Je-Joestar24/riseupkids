@@ -21,6 +21,7 @@
   "author": "Jejomar Parrilla",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-cloudfront": "^3.1010.0",
     "@aws-sdk/client-s3": "^3.993.0",
     "adm-zip": "^0.5.16",
     "axios": "^1.13.6",

@@ -196,10 +196,16 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
     return `${BACKEND_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
   };
 
+  const resolveMediaUrl = (maybeUrl) => {
+    if (!maybeUrl || typeof maybeUrl !== 'string') return null;
+    if (/^https?:\/\//i.test(maybeUrl)) return maybeUrl;
+    return `${BACKEND_BASE_URL}${maybeUrl}`;
+  };
+
   const displayCoverImage = selectedCoverImage && imagePreviewUrl
     ? imagePreviewUrl
     : currentCoverImage
-    ? `${BACKEND_BASE_URL}${currentCoverImage}`
+    ? resolveMediaUrl(currentCoverImage)
     : null;
 
   const displayInstructionVideo = selectedInstructionVideo && instructionVideoPreviewUrl
@@ -338,17 +344,29 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
             
             {displayCoverImage && (
               <Box
-                component="img"
-                src={displayCoverImage}
-                alt="Cover preview"
                 sx={{
+                  position: 'relative',
                   width: '100%',
-                  maxHeight: 200,
-                  objectFit: 'cover',
+                  paddingTop: '100%',
+                  overflow: 'hidden',
                   borderRadius: '8px',
                   marginBottom: 2,
+                  backgroundColor: theme.palette.custom?.bgSecondary || theme.palette.grey[100],
                 }}
-              />
+              >
+                <Box
+                  component="img"
+                  src={displayCoverImage}
+                  alt="Cover preview"
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              </Box>
             )}
 
             <input

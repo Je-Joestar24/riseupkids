@@ -269,6 +269,7 @@ const submitBookCompletion = async (req, res) => {
   try {
     const { courseId, childId, bookId } = req.params;
     const { score, maxScore, status, timeSpent, progress: progressPercentage } = req.body;
+    const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
 
     console.log(`\n========== [Book Completion] Request ${requestId} - STARTED ==========`);
     console.log(`[Book Completion] Request ${requestId} - Timestamp:`, new Date().toISOString());
@@ -290,11 +291,20 @@ const submitBookCompletion = async (req, res) => {
       }
     }
 
-    // Validate required fields
-    if (score === undefined || maxScore === undefined || !status || timeSpent === undefined || progressPercentage === undefined) {
+    // Validate required fields (score/maxScore are optional for HTML5 books hosted on CloudFront)
+    if (!status || timeSpent === undefined || progressPercentage === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide score, maxScore, status, timeSpent, and progress',
+        message: 'Please provide status, timeSpent, and progress',
+      });
+    }
+
+    // Get book and course (needed to determine validation rules based on packageType)
+    const book = await Book.findById(bookId);
+    if (!book) {
+      return res.status(404).json({
+        success: false,
+        message: 'Book not found',
       });
     }
 
@@ -311,11 +321,17 @@ const submitBookCompletion = async (req, res) => {
       timeSpent: parsedTimeSpent,
       progress: parsedProgress,
       status: statusLower,
+      packageType: book.packageType,
     });
 
     // Validation: Check if completion requirements are met
-    const estimatedMinTime = 60; // 60 seconds minimum
+    // SCORM books: keep stricter validation (score/time).
+    // HTML5 books (CloudFront hosted): frontend may not reliably read score/time due to cross-origin restrictions.
+    // For HTML5 we require "passed" OR a passing score ratio (score/maxScore >= 0.75) when score is provided.
+    const isHtml5Book = (book.packageType || 'scorm') === 'html5';
+    const estimatedMinTime = isHtml5Book ? 0 : 60; // seconds
     const minProgressRequired = 80; // 80% minimum progress
+    const passThreshold = 0.75;
 
     const scoreValid = parsedScore !== null && parsedScore > 0;
     const statusValid = statusLower === 'passed' || statusLower === 'completed';
@@ -323,11 +339,26 @@ const submitBookCompletion = async (req, res) => {
     const timeValid = parsedTimeSpent >= estimatedMinTime || maxScoreReached;
     const progressValid = parsedProgress >= minProgressRequired || maxScoreReached;
 
-    const canComplete = (scoreValid || statusValid) && timeValid && progressValid;
+    const hasScoreRatio =
+      parsedScore !== null &&
+      parsedMaxScore !== null &&
+      parsedMaxScore > 0 &&
+      typeof parsedScore === 'number' &&
+      typeof parsedMaxScore === 'number';
+    const scoreRatio = hasScoreRatio ? parsedScore / parsedMaxScore : null;
+    const passedByScore = hasScoreRatio ? scoreRatio >= passThreshold : false;
+
+    // HTML5: must be "passed" OR meet score threshold (when score is available).
+    // If client sends a score, we will not accept 0 / failing scores via status "completed".
+    const html5PassedValid = statusLower === 'passed' || passedByScore;
+    const canComplete = (isHtml5Book ? html5PassedValid : (scoreValid || statusValid)) && timeValid && progressValid;
 
     console.log(`[Book Completion] Request ${requestId} - Validation:`, {
+      isHtml5Book,
       scoreValid,
       statusValid,
+      passedByScore,
+      scoreRatio,
       maxScoreReached,
       timeValid,
       progressValid,
@@ -341,8 +372,8 @@ const submitBookCompletion = async (req, res) => {
         message: 'Completion requirements not met. Please spend more time reading the book and ensure you have a valid score or status.',
         data: {
           requirements: {
-            score: scoreValid ? '✓' : '✗ Score must be > 0',
-            status: statusValid ? '✓' : '✗ Status must be "passed" or "completed"',
+            score: scoreValid ? '✓' : (isHtml5Book ? `✗ Score must be >= ${Math.round(passThreshold * 100)}% (or status "passed")` : '✗ Score must be > 0'),
+            status: (isHtml5Book ? html5PassedValid : statusValid) ? '✓' : (isHtml5Book ? '✗ Status must be "passed" (or provide a passing score)' : '✗ Status must be "passed" or "completed"'),
             time: timeValid ? '✓' : `✗ Time must be >= ${estimatedMinTime}s (or max score reached)`,
             progress: progressValid ? '✓' : `✗ Progress must be >= ${minProgressRequired}% (or max score reached)`,
           },
@@ -352,17 +383,10 @@ const submitBookCompletion = async (req, res) => {
             status: statusLower,
             timeSpent: parsedTimeSpent,
             progress: parsedProgress,
+            packageType: book.packageType,
+            scoreRatio,
           },
         },
-      });
-    }
-
-    // Get book and course
-    const book = await Book.findById(bookId);
-    if (!book) {
-      return res.status(404).json({
-        success: false,
-        message: 'Book not found',
       });
     }
 
@@ -376,6 +400,26 @@ const submitBookCompletion = async (req, res) => {
 
     console.log(`[Book Completion] Request ${requestId} - Book found:`, book.title);
     console.log(`[Book Completion] Request ${requestId} - Course found:`, course.title);
+
+    // Debug-only: dry-run mode to verify score tracking without mutating anything.
+    // Call: POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete?dryRun=1
+    if (dryRun) {
+      return res.status(200).json({
+        success: true,
+        canComplete: true,
+        message: 'Dry-run: completion tracking is disabled; returning score diagnostics only.',
+        data: {
+          packageType: book.packageType,
+          score: parsedScore,
+          maxScore: parsedMaxScore,
+          scoreRatio,
+          passedByScore,
+          status: statusLower,
+          timeSpent: parsedTimeSpent,
+          progress: parsedProgress,
+        },
+      });
+    }
 
     // Verify book exists in course contents
     const courseContentItem = course.contents.find(

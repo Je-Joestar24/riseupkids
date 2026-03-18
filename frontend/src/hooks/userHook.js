@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,6 +23,22 @@ export const useAuth = () => {
   const { user, token, isAuthenticated, loading, error, childProfiles, childProfile, parent } = useSelector(
     (state) => state.user
   );
+  const didBootstrapUserRef = useRef(false);
+
+  // Bootstrap user data whenever we have a token but no user in state yet.
+  // This fixes cases where login stores token but UI mounts before user is available,
+  // and also supports refreshing with a token present.
+  useEffect(() => {
+    if (!token || !isAuthenticated) {
+      didBootstrapUserRef.current = false;
+      return;
+    }
+    if (user || loading) return;
+    if (didBootstrapUserRef.current) return;
+
+    didBootstrapUserRef.current = true;
+    dispatch(getCurrentUser());
+  }, [dispatch, token, isAuthenticated, user, loading]);
 
   /**
    * Login user

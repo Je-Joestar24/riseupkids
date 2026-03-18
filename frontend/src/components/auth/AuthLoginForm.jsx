@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box,
   TextField,
@@ -23,7 +22,6 @@ import useAuth from '../../hooks/userHook';
  * Connected to authentication service via useAuth hook
  */
 const AuthLoginForm = () => {
-  const navigate = useNavigate();
   const { login, loading, isAuthenticated, user } = useAuth();
   
   const [email, setEmail] = useState('');
@@ -31,22 +29,19 @@ const AuthLoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [formErrors, setFormErrors] = useState({});
 
-  // Navigate after successful login
+  const getRoleRedirectPath = (role) => {
+    if (role === 'parent') return '/parents/child';
+    if (role === 'admin') return '/admin/dashboard';
+    if (role === 'teacher') return '/teacher/dashboard';
+    return '/';
+  };
+
+  // If already authenticated, hard-reload into the correct dashboard.
   useEffect(() => {
     if (isAuthenticated && user) {
-      // Navigate based on user role
-      if (user.role === 'parent') {
-        navigate('/parents/child');
-      } else if (user.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (user.role === 'teacher') {
-        navigate('/teacher/dashboard');
-      } else if (user.role === 'child') {
-        // TODO: Navigate to child dashboard when ready
-        console.log('Child logged in - dashboard coming soon');
-      }
+      window.location.assign(getRoleRedirectPath(user.role));
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user]);
 
   const validateForm = () => {
     const errors = {};
@@ -80,14 +75,9 @@ const AuthLoginForm = () => {
     
     try {
       const result = await login(email, password);
-      // Navigate immediately after successful login (deterministic; avoids useEffect timing issues)
-      if (result?.data?.user?.role === 'parent') {
-        navigate('/parents/child');
-      } else if (result?.data?.user?.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (result?.data?.user?.role === 'teacher') {
-        navigate('/teacher/dashboard');
-      }
+      // Intentionally do a full reload after login so all user-dependent UI hydrates reliably.
+      const role = result?.user?.role || result?.data?.user?.role || user?.role;
+      window.location.assign(getRoleRedirectPath(role));
     } catch (error) {
       // Error notification is already shown by the hook
       console.error('Login error:', error);
@@ -204,7 +194,7 @@ const AuthLoginForm = () => {
           type="button"
           className="auth-link"
           sx={{ borderRadius: '0px', fontSize: '18px', fontWeight: '600', marginY: '10px', textDecoration: 'none', cursor: 'pointer' }}
-          onClick={() => navigate('/forget/password')}
+          onClick={() => window.location.assign('/forget/password')}
         >
           Forgot Password?
         </Link>
@@ -215,7 +205,7 @@ const AuthLoginForm = () => {
       {/* Create Account Link */}
       <Box className="auth-create-account-container" 
         sx={{marginTop: '5px'}}>
-        <Link onClick={() => navigate('/parent/signup')} className="auth-create-account-link"
+        <Link onClick={() => window.location.assign('/parent/signup')} className="auth-create-account-link"
         sx={{borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none'}}>
           New here? Create Account
         </Link>

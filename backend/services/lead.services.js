@@ -1,5 +1,6 @@
 const Lead = require('../models/Leads');
 const { submitInvitationToFlodesk } = require('./flodeskService');
+const { buildWhatsAppLink } = require('./whatsappLinkService');
 
 function normalizeLanguage(language) {
   if (!language || typeof language !== 'string') return 'en';
@@ -155,7 +156,7 @@ async function listLeads(params = {}) {
     consent: params.consent,
   });
 
-  const [items, total] = await Promise.all([
+  const [rawItems, total] = await Promise.all([
     Lead.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -165,6 +166,15 @@ async function listLeads(params = {}) {
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const items = (rawItems || []).map((lead) => ({
+    ...lead,
+    whatsappLink: buildWhatsAppLink({
+      whatsapp: lead.whatsapp,
+      parentName: lead.parentName,
+      language: lead.language,
+    }),
+  }));
 
   return {
     items,

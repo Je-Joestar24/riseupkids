@@ -27,9 +27,7 @@ import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
-import AdminTestScormModal from '../../common/AdminTestScormModal';
 import AdminTestHtmlModal from '../../common/AdminTestHtmlModal';
-import useAdminScormHook from '../../../../hooks/adminScormHook';
 import useHtml5 from '../../../../hooks/html5Hook';
 
 /**
@@ -52,29 +50,44 @@ const ContentItems = ({ loading, onRefresh }) => {
   const [selectedContentType, setSelectedContentType] = useState(CONTENT_TYPES.ACTIVITY);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
-  const { openTest, modalProps, canTestScormByType } = useAdminScormHook();
   const { openTestHtml5, modalProps: html5ModalProps, canTestHtml5 } = useHtml5();
+
+  const resolveMediaUrl = useCallback((maybeUrl) => {
+    if (!maybeUrl) return '';
+    if (typeof maybeUrl !== 'string') return '';
+    // Full transition to S3/CloudFront: accept absolute URLs as-is.
+    if (/^https?:\/\//i.test(maybeUrl)) return maybeUrl;
+    // Backward compatibility: older records store relative paths from backend.
+    return `${BACKEND_BASE_URL}${maybeUrl}`;
+  }, []);
 
   const resolvedMenuType = useMemo(() => {
     if (!selectedItem) return null;
     return selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
   }, [selectedItem, filters.contentType]);
 
+  const isScormItem = useCallback((type, item) => {
+    // Content types that are inherently SCORM-based in this admin UI.
+    if (type === CONTENT_TYPES.ACTIVITY) return true;
+    // Books may be SCORM or HTML5 (packageType). When SCORM, we ignore clicks/testing.
+    if (type === CONTENT_TYPES.BOOK && item?.packageType === 'scorm') return true;
+    return false;
+  }, []);
+
   const canShowTest = useCallback(
-    (type, item) => canTestHtml5(type, item) || canTestScormByType(type, item),
-    [canTestHtml5, canTestScormByType]
+    (type, item) => !isScormItem(type, item) && canTestHtml5(type, item),
+    [canTestHtml5, isScormItem]
   );
 
   const handleTestClick = useCallback(
     (item) => {
       const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      if (isScormItem(type, item)) return;
       if (canTestHtml5(type, item)) {
         openTestHtml5(item, type);
-      } else if (canTestScormByType(type, item)) {
-        openTest(item, type);
       }
     },
-    [filters.contentType, canTestHtml5, canTestScormByType, openTest, openTestHtml5]
+    [filters.contentType, canTestHtml5, openTestHtml5, isScormItem]
   );
 
   const handleMenuOpen = (event, item) => {
@@ -92,14 +105,6 @@ const ContentItems = ({ loading, onRefresh }) => {
       setSelectedContentId(selectedItem._id);
       setSelectedContentType(selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY);
       setEditModalOpen(true);
-    }
-    handleMenuClose();
-  };
-
-  const handleTestScorm = () => {
-    if (selectedItem) {
-      const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
-      openTest(selectedItem, type);
     }
     handleMenuClose();
   };
@@ -275,7 +280,7 @@ const ContentItems = ({ loading, onRefresh }) => {
               }}
               aria-label={
                 canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
-                  ? `Test ${item?.packageType === 'html5' ? 'HTML5' : 'SCORM'} for ${item.title}`
+                  ? `Test HTML5 for ${item.title}`
                   : `${item.title}`
               }
             >
@@ -291,7 +296,7 @@ const ContentItems = ({ loading, onRefresh }) => {
                 >
                   <Box
                     component="img"
-                    src={`${BACKEND_BASE_URL}${item.coverImage}`}
+                    src={resolveMediaUrl(item.coverImage)}
                     alt={item.title}
                     sx={{
                       position: 'absolute',
@@ -542,18 +547,6 @@ const ContentItems = ({ loading, onRefresh }) => {
             Test HTML5
           </MenuItem>
         )}
-        {selectedItem && resolvedMenuType && canTestScormByType(resolvedMenuType, selectedItem) && (
-          <MenuItem
-            onClick={handleTestScorm}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              color: theme.palette.success.main,
-            }}
-          >
-            <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Test SCORM
-          </MenuItem>
-        )}
         <MenuItem
           onClick={handleEdit}
           sx={{
@@ -597,8 +590,6 @@ const ContentItems = ({ loading, onRefresh }) => {
         onSuccess={handleEditModalClose}
       />
 
-      {/* SCORM Test Modal (admin/teacher) */}
-      <AdminTestScormModal {...modalProps} />
       {/* HTML5 Test Modal (admin/teacher, books with packageType html5) */}
       <AdminTestHtmlModal {...html5ModalProps} />
     </Grid>

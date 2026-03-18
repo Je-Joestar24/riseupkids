@@ -42,6 +42,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
   const theme = useTheme();
   const { createNewContent, loading, filters } = useContent();
 
+  const BOOK_DEFAULT_PACKAGE_TYPE = 'html5';
+
   // Initialize with initialContentType prop, or current content type from filters, or default
   const [contentType, setContentType] = useState(
     initialContentType || filters.contentType || CONTENT_TYPES.ACTIVITY
@@ -65,12 +67,11 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     tags: [],
     starsAwarded: 15,
     // book-specific
-    packageType: 'scorm', // 'scorm' | 'html5' — admin chooses; one book = one type
+    packageType: BOOK_DEFAULT_PACKAGE_TYPE, // frontend defaults to HTML5; SCORM is concealed for now
     language: 'en',
     readingLevel: 'beginner',
     estimatedReadingTime: '',
     requiredReadingCount: 5,
-    starsPerReading: 10,
     totalStarsAwarded: 50,
     // video-specific
     duration: '',
@@ -108,12 +109,11 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       isPublished: renderAsDrawer ? true : false,
       tags: [],
       starsAwarded: 15,
-      packageType: 'scorm',
+      packageType: BOOK_DEFAULT_PACKAGE_TYPE,
       language: 'en',
       readingLevel: 'beginner',
       estimatedReadingTime: '',
       requiredReadingCount: 5,
-      starsPerReading: 10,
       totalStarsAwarded: 50,
       duration: '',
       instructions: '',
@@ -169,7 +169,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           fd.append('estimatedReadingTime', String(formData.estimatedReadingTime));
         }
         fd.append('requiredReadingCount', String(formData.requiredReadingCount ?? 5));
-        fd.append('starsPerReading', String(formData.starsPerReading ?? 10));
         fd.append('totalStarsAwarded', String(formData.totalStarsAwarded ?? 50));
         fd.append('scormFile', selectedFiles.scormFile);
         if (selectedFiles.coverImage) {
@@ -280,21 +279,11 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               >
                 Package type
               </FormLabel>
-              <RadioGroup
-                row
-                value={formData.packageType || 'scorm'}
-                onChange={(e) => handleInputChange('packageType', e.target.value)}
-                sx={{
-                  '& .MuiFormControlLabel-label': {
-                    fontFamily: 'Quicksand, sans-serif',
-                  },
-                }}
-              >
-                <FormControlLabel value="scorm" control={<Radio />} label="SCORM" />
+              <RadioGroup row value="html5">
                 <FormControlLabel value="html5" control={<Radio />} label="HTML5 (Captivate)" />
               </RadioGroup>
               <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
-                One book = one type. Upload the matching ZIP below.
+                Books are created as HTML5 packages. Upload the HTML5 (Captivate) export ZIP below.
               </Typography>
             </FormControl>
             <FormControl fullWidth>
@@ -348,20 +337,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               value={formData.requiredReadingCount}
               onChange={(e) => handleInputChange('requiredReadingCount', parseInt(e.target.value) || 1)}
               inputProps={{ min: 1 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Stars per Reading"
-              type="number"
-              value={formData.starsPerReading}
-              onChange={(e) => handleInputChange('starsPerReading', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
               fullWidth
               sx={{
                 '& .MuiOutlinedInput-root': {
@@ -616,9 +591,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                 Package file (ZIP) <span style={{ color: 'red' }}>*</span>
               </Typography>
               <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
-                {formData.packageType === 'html5'
-                  ? 'Upload an HTML5 (Captivate) export ZIP.'
-                  : 'Upload a SCORM package ZIP.'}
+                Upload an HTML5 (Captivate) export ZIP.
               </Typography>
               <input
                 accept=".zip,application/zip,application/x-zip-compressed"
@@ -638,9 +611,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     fontFamily: 'Quicksand, sans-serif',
                   }}
                 >
-                  {formData.packageType === 'html5'
-                    ? 'Upload HTML5 package (ZIP)'
-                    : 'Upload SCORM package (ZIP)'}
+                  Upload HTML5 package (ZIP)
                 </Button>
               </label>
               {selectedFiles.scormFile && (
@@ -1058,14 +1029,20 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           <Select
             value={contentType}
             label="Content Type"
-            onChange={(e) => setContentType(e.target.value)}
+            onChange={(e) => {
+              const nextType = e.target.value;
+              setContentType(nextType);
+              if (nextType === CONTENT_TYPES.BOOK) {
+                handleInputChange('packageType', BOOK_DEFAULT_PACKAGE_TYPE);
+              }
+            }}
             sx={{
               borderRadius: '10px',
               fontFamily: 'Quicksand, sans-serif',
             }}
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
-            <MenuItem value={CONTENT_TYPES.BOOK}>Book (SCORM or HTML5)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5)</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
             <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>

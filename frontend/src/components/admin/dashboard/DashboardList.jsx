@@ -10,7 +10,7 @@ import adminDashboardService from '../../../services/adminDashboardService';
  * Simple, professional list showing recent signups
  * Minimalist design matching the admin dashboard
  */
-const DashboardList = () => {
+const DashboardList = ({ sx }) => {
   const theme = useTheme();
   const [recentSignups, setRecentSignups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,11 +44,11 @@ const DashboardList = () => {
     return (
       <Paper
         sx={{
-          mt: 3,
           borderRadius: '16px',
           backgroundColor: theme.palette.background.paper,
           border: `1px solid ${theme.palette.border.main}`,
           overflow: 'hidden',
+          ...(sx || {}),
         }}
       >
         <Box sx={{ p: 3 }}>
@@ -81,11 +81,11 @@ const DashboardList = () => {
   return (
     <Paper
       sx={{
-        mt: 3,
         borderRadius: '16px',
         backgroundColor: theme.palette.background.paper,
         border: `1px solid ${theme.palette.border.main}`,
         overflow: 'hidden',
+        ...(sx || {}),
       }}
     >
       <Box sx={{ p: 3, pb: 2 }}>

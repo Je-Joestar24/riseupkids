@@ -1,6 +1,6 @@
 import React from 'react';
 import ActivityEditModal from './ActivityEditModal';
-import VideoEditModal from './VideoEditModal';
+import * as VideoEditModalModule from './VideoEditModal';
 import BookEditModal from './BooksEditModa';
 import AudioEditModal from './AudioEditModal';
 import ChantEditModal from './ChantEditModal';
@@ -13,6 +13,7 @@ import { CONTENT_TYPES } from '../../../../services/contentService';
  * Supports: Activities, Books, Videos, Audio Assignments, Chants
  */
 const ContentEditModal = ({ open, onClose, contentId, contentType = CONTENT_TYPES.ACTIVITY, onSuccess }) => {
+  const VideoEditModal = VideoEditModalModule.default || VideoEditModalModule.VideoEditModal;
   // Route to the appropriate edit modal based on content type
   switch (contentType) {
     case CONTENT_TYPES.ACTIVITY:

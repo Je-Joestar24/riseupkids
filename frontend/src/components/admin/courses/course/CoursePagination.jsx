@@ -109,7 +109,7 @@ const CoursePagination = () => {
           fontSize: '0.875rem',
         }}
       >
-        Showing {startItem} to {endItem} of {totalItems} {totalItems === 1 ? 'course' : 'courses'}
+        Showing {startItem} to {endItem} of {totalItems} {totalItems === 1 ? 'module' : 'modules'}
       </Typography>
 
       {/* Pagination Controls */}
