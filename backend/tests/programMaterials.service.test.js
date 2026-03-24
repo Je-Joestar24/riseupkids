@@ -21,7 +21,8 @@ describe('programMaterials.service', () => {
     process.env.PROGRAM_MATERIALS_COURSE_ID = process.env.PROGRAM_MATERIALS_COURSE_ID || 'course-123';
     process.env.PROGRAM_MATERIALS_MAX_STEP = '4';
     process.env.PROGRAM_MATERIALS_BASE_URL = 'https://cdn.example.com/program-materials/v1';
-    process.env.PROGRAM_MATERIALS_AHEAD_STEPS = '4';
+    process.env.PROGRAM_MATERIALS_AHEAD_STEPS = '1';
+    process.env.PROGRAM_MATERIALS_PAGES_PER_STEP = '3';
   });
 
   afterAll(() => {
@@ -80,10 +81,10 @@ describe('programMaterials.service', () => {
 
     const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
     expect(result.unlocking.currentStep).toBe(1);
-    expect(result.unlocking.unlockThrough).toBe(4);
+    expect(result.unlocking.unlockThrough).toBe(2);
 
     const unlocked = result.materialsByStep.filter((s) => s.isUnlocked).map((s) => s.stepNumber);
-    expect(unlocked).toEqual([1, 2, 3, 4]);
+    expect(unlocked).toEqual([1, 2]);
   });
 
   it('unlocks current and next steps from CourseProgress.currentStep', async () => {
@@ -113,7 +114,32 @@ describe('programMaterials.service', () => {
     const unlocked = result.materialsByStep.filter((s) => s.isUnlocked).map((s) => s.stepNumber);
     expect(unlocked).toEqual([3, 4]);
     expect(result.materialsByStep.find((s) => s.stepNumber === 2).fileUrl).toBeNull();
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).fileUrl).toContain('/steps/step-03.pdf');
+    expect(result.materialsByStep.find((s) => s.stepNumber === 3).fileUrl).toContain('/steps/step-03/page-01.pdf');
+    expect(result.materialsByStep.find((s) => s.stepNumber === 3).printables).toEqual([
+      expect.objectContaining({
+        label: 'Page 1',
+        pageNumber: 1,
+        isUnlocked: true,
+        fileUrl: expect.stringContaining('/steps/step-03/page-01.pdf'),
+      }),
+      expect.objectContaining({
+        label: 'Page 2',
+        pageNumber: 2,
+        isUnlocked: true,
+        fileUrl: expect.stringContaining('/steps/step-03/page-02.pdf'),
+      }),
+      expect.objectContaining({
+        label: 'Page 3',
+        pageNumber: 3,
+        isUnlocked: true,
+        fileUrl: expect.stringContaining('/steps/step-03/page-03.pdf'),
+      }),
+    ]);
+    expect(result.materialsByStep.find((s) => s.stepNumber === 2).printables).toEqual([
+      expect.objectContaining({ pageNumber: 1, isUnlocked: false, fileUrl: null }),
+      expect.objectContaining({ pageNumber: 2, isUnlocked: false, fileUrl: null }),
+      expect.objectContaining({ pageNumber: 3, isUnlocked: false, fileUrl: null }),
+    ]);
     expect(result.materialsByStep.find((s) => s.stepNumber === 3).contents).toEqual([
       {
         contentId: 'x1',
@@ -167,7 +193,7 @@ describe('programMaterials.service', () => {
     const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
     const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
     expect(result.unlocking.currentStep).toBe(2);
-    expect(result.unlocking.unlockThrough).toBe(4);
+    expect(result.unlocking.unlockThrough).toBe(3);
     expect(result.materialsByStep.find((s) => s.stepNumber === 2).contents[0].progressStatus).toBe('in_progress');
   });
 });

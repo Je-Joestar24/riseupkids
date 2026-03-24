@@ -11,6 +11,7 @@ import AccountSettingsBox from '../../components/parents/dashboard/AccountSettin
 import SupportProjectTeam from '../../components/parents/dashboard/SupportProjectTeam';
 import AccountSettingsModal from '../../components/parents/settings/AccountSettingsModal';
 import PeopleIcon from '@mui/icons-material/People';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { Card, CardContent, Typography } from '@mui/material';
 
 /**
@@ -60,6 +61,10 @@ const ParentDashboard = () => {
     // Placeholder for Support functionality
     console.log('Open support');
     // TODO: Navigate to support page when implemented
+  };
+
+  const handleGoToPrintables = () => {
+    navigate('/parent/dashboard/printables');
   };
 
   if (!isAuthenticated || !user || user.role !== 'parent') {
@@ -170,6 +175,76 @@ const ParentDashboard = () => {
           onSelectChild={handleSelectChild}
           onViewProgress={handleViewProgress}
         />
+
+        {/* Printable Materials CTA */}
+        <Card
+          sx={{
+            marginTop: { xs: 3, sm: 4 },
+            borderRadius: { xs: '16px', sm: '20px' },
+            backgroundColor: themeColors.bgCard,
+            border: `1px solid ${themeColors.borderAccent}`,
+            boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
+          }}
+        >
+          <CardContent
+            sx={{
+              display: 'flex',
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              justifyContent: 'space-between',
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: 2,
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <DescriptionIcon sx={{ color: themeColors.warning, fontSize: '1.8rem' }} />
+              <Box>
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                    fontWeight: 700,
+                    color: themeColors.text,
+                  }}
+                >
+                  Printable Materials
+                </Typography>
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: { xs: '0.85rem', sm: '0.95rem' },
+                    color: themeColors.textSecondary,
+                  }}
+                >
+                  Download step-by-step pages for your child.
+                </Typography>
+              </Box>
+            </Box>
+            <Box
+              component="button"
+              type="button"
+              onClick={handleGoToPrintables}
+              aria-label="Open printable materials tab"
+              sx={{
+                border: 'none',
+                cursor: 'pointer',
+                borderRadius: '10px',
+                padding: '10px 16px',
+                backgroundColor: themeColors.btnYellow,
+                color: '#1f2937',
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '0.9rem',
+                fontWeight: 700,
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: '#d99b00',
+                  transform: 'translateY(-1px)',
+                },
+              }}
+            >
+              Open Materials
+            </Box>
+          </CardContent>
+        </Card>
       </Container>
 
       {/* Account Settings Modal */}

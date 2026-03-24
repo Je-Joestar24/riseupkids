@@ -12,6 +12,7 @@ function parsePositiveInt(value, fallback) {
 }
 
 const MAX_STEP = parsePositiveInt(process.env.PROGRAM_MATERIALS_MAX_STEP, 4);
+const PAGES_PER_STEP = parsePositiveInt(process.env.PROGRAM_MATERIALS_PAGES_PER_STEP, 3);
 
 /**
  * Base URL for program materials files.
@@ -34,6 +35,29 @@ function joinUrl(base, path) {
 function buildStepPdfUrl(stepNumber) {
   if (!stepNumber || Number(stepNumber) < 1) return null;
   return joinUrl(BASE_URL, `steps/step-${String(stepNumber).padStart(2, '0')}.pdf`);
+}
+
+function buildStepPrintablePageUrl(stepNumber, pageNumber) {
+  if (!stepNumber || Number(stepNumber) < 1) return null;
+  if (!pageNumber || Number(pageNumber) < 1) return null;
+  return joinUrl(
+    BASE_URL,
+    `steps/step-${String(stepNumber).padStart(2, '0')}/page-${String(pageNumber).padStart(2, '0')}.pdf`
+  );
+}
+
+function buildStepPrintables(stepNumber) {
+  if (!stepNumber || Number(stepNumber) < 1) return [];
+  const printables = [];
+  for (let page = 1; page <= PAGES_PER_STEP; page += 1) {
+    printables.push({
+      id: `step-${Number(stepNumber)}-page-${page}`,
+      label: `Page ${page}`,
+      pageNumber: page,
+      fileUrl: buildStepPrintablePageUrl(stepNumber, page),
+    });
+  }
+  return printables;
 }
 
 function buildFullBundleUrl() {
@@ -61,8 +85,11 @@ const recipesUrl = buildRecipesUrl();
 module.exports = {
   MAX_STEP,
   AHEAD_STEPS,
+  PAGES_PER_STEP,
   BASE_URL,
   buildStepPdfUrl,
+  buildStepPrintablePageUrl,
+  buildStepPrintables,
   buildFullBundleUrl,
   buildRecipesUrl,
   stepPdfUrls,

@@ -4,6 +4,7 @@ const {
   MAX_STEP,
   AHEAD_STEPS,
   buildStepPdfUrl,
+  buildStepPrintables,
   buildFullBundleUrl,
   buildRecipesUrl,
 } = require('../config/programMaterials.config');
@@ -126,6 +127,11 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
     const contents = stepToContents.get(step) || [];
     const totalCount = contents.length;
     const completedCount = contents.filter((c) => c.progressStatus === 'completed').length;
+    const stepPrintables = buildStepPrintables(step).map((printable) => ({
+      ...printable,
+      fileUrl: isUnlocked ? printable.fileUrl : null,
+      isUnlocked,
+    }));
 
     const contentsByType = {
       library: [], // books
@@ -147,7 +153,10 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
       title: null, // step titles are not modeled today; keep nullable
       description: null,
       isUnlocked,
-      fileUrl: isUnlocked ? buildStepPdfUrl(step) : null,
+      // Back-compat for any consumer still expecting a single fileUrl.
+      // We expose the first page URL when unlocked.
+      fileUrl: isUnlocked ? stepPrintables[0]?.fileUrl || buildStepPdfUrl(step) : null,
+      printables: stepPrintables,
       progress: {
         totalCount,
         completedCount,

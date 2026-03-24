@@ -14,9 +14,11 @@ import {
   Logout,
   Settings,
   ArrowBack,
+  Description,
+  Dashboard,
 } from '@mui/icons-material';
 import { useTheme } from '@mui/material/styles';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import smallLogo from '../../../assets/images/small-logo.png';
 import { themeColors } from '../../../config/themeColors';
 import useAuth from '../../../hooks/userHook';
@@ -30,8 +32,11 @@ import useAuth from '../../../hooks/userHook';
 const ParentsNav = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, user } = useAuth();
   const [anchorEl, setAnchorEl] = useState(null);
+  const isDashboardRoute = location.pathname === '/parent/dashboard';
+  const isPrintablesRoute = location.pathname.startsWith('/parent/dashboard/printables');
 
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -66,6 +71,14 @@ const ParentsNav = () => {
     navigate('/parents/child');
   };
 
+  const handleGoToPrintables = () => {
+    navigate('/parent/dashboard/printables');
+  };
+
+  const handleGoToDashboard = () => {
+    navigate('/parent/dashboard');
+  };
+
   return (
     <AppBar
       position="sticky"
@@ -89,59 +102,145 @@ const ParentsNav = () => {
             />
           </Box>
 
-          {/* Right Side - Profile */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.25,
-              cursor: 'pointer',
-              padding: '6px 12px',
-              borderRadius: '12px',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                backgroundColor: themeColors.bgTertiary,
-                transform: 'translateY(-1px)',
-              },
-            }}
-            onClick={handleProfileMenuOpen}
-          >
-            <Avatar
-              sx={{
-                width: 36,
-                height: 36,
-                background: `linear-gradient(135deg, ${themeColors.secondary} 0%, ${themeColors.primary} 100%)`,
-                fontSize: '1rem',
-                boxShadow: `0 2px 6px ${themeColors.secondary}40`,
-              }}
-            >
-              <AccountCircle />
-            </Avatar>
-            <Typography
-              variant="body2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 600,
-                color: themeColors.text,
-                fontSize: '0.875rem',
-                display: { xs: 'none', sm: 'block' },
-              }}
-            >
-              {user?.name || 'Parent'}
-            </Typography>
+          {/* Right Side - Actions + Profile */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
             <Box
-              component="span"
+              onClick={handleGoToDashboard}
               sx={{
-                width: 0,
-                height: 0,
-                borderLeft: '5px solid transparent',
-                borderRight: '5px solid transparent',
-                borderTop: `5px solid ${themeColors.textSecondary}`,
-                marginLeft: 0.5,
-                transition: 'transform 0.2s ease',
-                transform: anchorEl ? 'rotate(180deg)' : 'rotate(0deg)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                padding: '6px 2px',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  '& .nav-label, & .nav-icon': {
+                    color: themeColors.secondary,
+                  },
+                },
               }}
-            />
+              role="button"
+              aria-label="Open parent dashboard"
+            >
+              <Dashboard
+                className="nav-icon"
+                sx={{
+                  fontSize: '1rem',
+                  color: isDashboardRoute ? themeColors.secondary : themeColors.textSecondary,
+                  transition: 'color 0.2s ease',
+                }}
+              />
+              <Typography
+                className="nav-label"
+                variant="body2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: isDashboardRoute ? 700 : 600,
+                  color: isDashboardRoute ? themeColors.secondary : themeColors.textSecondary,
+                  fontSize: '0.82rem',
+                  display: { xs: 'none', md: 'block' },
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                Dashboard
+              </Typography>
+            </Box>
+
+            <Box
+              onClick={handleGoToPrintables}
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                padding: '6px 2px',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  '& .nav-label, & .nav-icon': {
+                    color: themeColors.warning,
+                  },
+                },
+              }}
+              role="button"
+              aria-label="Open materials"
+            >
+              <Description
+                className="nav-icon"
+                sx={{
+                  fontSize: '1rem',
+                  color: isPrintablesRoute ? themeColors.warning : themeColors.textSecondary,
+                  transition: 'color 0.2s ease',
+                }}
+              />
+              <Typography
+                className="nav-label"
+                variant="body2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: isPrintablesRoute ? 700 : 600,
+                  color: isPrintablesRoute ? themeColors.warning : themeColors.textSecondary,
+                  fontSize: '0.82rem',
+                  display: { xs: 'none', md: 'block' },
+                  transition: 'color 0.2s ease',
+                }}
+              >
+                Materials
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.25,
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  backgroundColor: themeColors.bgTertiary,
+                  transform: 'translateY(-1px)',
+                },
+              }}
+              onClick={handleProfileMenuOpen}
+            >
+              <Avatar
+                sx={{
+                  width: 36,
+                  height: 36,
+                  background: `linear-gradient(135deg, ${themeColors.secondary} 0%, ${themeColors.primary} 100%)`,
+                  fontSize: '1rem',
+                  boxShadow: `0 2px 6px ${themeColors.secondary}40`,
+                }}
+              >
+                <AccountCircle />
+              </Avatar>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  color: themeColors.text,
+                  fontSize: '0.875rem',
+                  display: { xs: 'none', sm: 'block' },
+                }}
+              >
+                {user?.name || 'Parent'}
+              </Typography>
+              <Box
+                component="span"
+                sx={{
+                  width: 0,
+                  height: 0,
+                  borderLeft: '5px solid transparent',
+                  borderRight: '5px solid transparent',
+                  borderTop: `5px solid ${themeColors.textSecondary}`,
+                  marginLeft: 0.5,
+                  transition: 'transform 0.2s ease',
+                  transform: anchorEl ? 'rotate(180deg)' : 'rotate(0deg)',
+                }}
+              />
+            </Box>
           </Box>
 
           {/* Profile Menu */}

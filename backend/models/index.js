@@ -29,6 +29,7 @@ const Meeting = require('./Meeting');
 const YouTubeLive = require('./YouTubeLive');
 const PasswordResetToken = require('./PasswordResetToken');
 const Lead = require('./Leads');
+const StarCamEvent = require('./StarCamEvent');
 
 module.exports = {
   User,
@@ -61,5 +62,6 @@ module.exports = {
   YouTubeLive,
   PasswordResetToken,
   Lead,
+  StarCamEvent,
 };
 

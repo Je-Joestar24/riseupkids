@@ -10,6 +10,7 @@ import ParentSignupCancel from '../pages/auth/ParentSignupCancel';
 import ParentsChild from '../pages/parents/ParentsChild';
 import ParentsLogin from '../pages/parents/ParentsLogin';
 import ParentDashboard from '../pages/parents/ParentDashboard';
+import ParentsDashboardPrintableTab from '../pages/parents/ParentsDashboardPrintableTab';
 import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
@@ -118,6 +119,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['parent']}>
               <ParentsLayout>
                 <ParentDashboard />
+              </ParentsLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/parent/dashboard/printables"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ParentsLayout>
+                <ParentsDashboardPrintableTab />
               </ParentsLayout>
             </AuthedAccess>
           }
