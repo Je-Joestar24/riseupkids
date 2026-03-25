@@ -44,6 +44,7 @@ const invitationRoutes = require('./routes/invitationRoutes');
 const leadRoutes = require('./routes/lead.routes');
 const mailRoutes = require('./routes/mail.routes');
 const programMaterialsRoutes = require('./routes/programMaterials.routes');
+const programMaterialsAdminRoutes = require('./routes/programMaterialsAdmin.routes');
 const starCamRoutes = require('./routes/starCam.routes');
 
 // Import middleware
@@ -148,6 +149,7 @@ app.use('/api/invitation', invitationRoutes);
 app.use('/api/admin/leads', leadRoutes);
 app.use('/api/mail', mailRoutes);
 app.use('/api/parent/program-materials', programMaterialsRoutes);
+app.use('/api/admin/program-materials', programMaterialsAdminRoutes);
 app.use('/api/star-cam', starCamRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);

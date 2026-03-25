@@ -1,14 +1,6 @@
-const ChildProfile = require('../models/ChildProfile');
-const CourseProgress = require('../models/CourseProgress');
-const {
-  MAX_STEP,
-  AHEAD_STEPS,
-  buildStepPdfUrl,
-  buildStepPrintables,
-  buildFullBundleUrl,
-  buildRecipesUrl,
-} = require('../config/programMaterials.config');
-const Course = require('../models/Course');
+const { ChildProfile, Course, CourseProgress, ProgramPrintable } = require('../models');
+const { checkCourseAccess } = require('./courseProgress.services');
+const { MAX_STEP, AHEAD_STEPS } = require('../config/programMaterials.config');
 
 function parseObjectIdish(value) {
   if (!value) return null;
@@ -16,11 +8,16 @@ function parseObjectIdish(value) {
   return s ? s : null;
 }
 
-function clampStep(step, maxStep) {
-  const n = Number(step);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  if (n > maxStep) return maxStep;
-  return Math.floor(n);
+function orderCoursesForModules(courses) {
+  // Match existing CourseProgress ordering: stepOrder first, then createdAt
+  return courses.sort((a, b) => {
+    const aOrder = a.stepOrder !== null && a.stepOrder !== undefined;
+    const bOrder = b.stepOrder !== null && b.stepOrder !== undefined;
+    if (aOrder && bOrder) return a.stepOrder - b.stepOrder;
+    if (aOrder && !bOrder) return -1;
+    if (!aOrder && bOrder) return 1;
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
 }
 
 /**
@@ -55,118 +52,144 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
     throw err;
   }
 
-  const configuredCourseId = parseObjectIdish(process.env.PROGRAM_MATERIALS_COURSE_ID);
+  const [fullBundlePrintable, recipesPrintable] = await Promise.all([
+    ProgramPrintable.findOne({ type: 'full_bundle', isActive: true }).select('pdfUrl title description coverImage'),
+    ProgramPrintable.findOne({ type: 'recipes', isActive: true }).select('pdfUrl title description coverImage'),
+  ]);
 
-  // If PROGRAM_MATERIALS_COURSE_ID is not set, fall back to the child's most recent
-  // CourseProgress record. This keeps MVP unblocked while still using existing data.
-  const courseProgressQuery = configuredCourseId
-    ? await CourseProgress.findOne({
-        child: child._id,
-        course: configuredCourseId,
-      }).select('course currentStep status progressPercentage contentProgress completedSteps')
-    : await CourseProgress.findOne({ child: child._id }).sort({ updatedAt: -1 }).select('course currentStep');
+  // Modules = Courses (the “step” in our terms)
+  const courses = await Course.find({ isPublished: true, isArchived: false }).select(
+    '_id title description coverImage stepOrder contents createdAt'
+  );
+  const orderedCourses = orderCoursesForModules(courses);
 
-  const courseId = configuredCourseId || (courseProgressQuery?.course ? String(courseProgressQuery.course) : null);
+  const maxStep = Math.max(1, Math.min(orderedCourses.length, Number(MAX_STEP || orderedCourses.length)));
+  const modules = orderedCourses.slice(0, maxStep);
 
-  const course = courseId
-    ? await Course.findById(courseId).select('title description contents isPublished isArchived')
-    : null;
+  const courseProgresses = await CourseProgress.find({
+    child: child._id,
+    course: { $in: modules.map((c) => c._id) },
+  }).select('course status progressPercentage contentProgress');
 
-  const derivedMaxStepFromCourse =
-    course?.contents?.length > 0 ? Math.max(...course.contents.map((c) => Number(c.step) || 1)) : null;
-  // Prefer the larger of:
-  // - configured MAX_STEP (program definition)
-  // - derived step count from existing course contents
-  // This allows future steps to exist even if the course content is not fully populated yet.
-  const maxStep = clampStep(Math.max(MAX_STEP, derivedMaxStepFromCourse || 0), Number.MAX_SAFE_INTEGER);
+  const courseProgressByCourseId = new Map();
+  for (const cp of courseProgresses) courseProgressByCourseId.set(String(cp.course), cp);
 
-  const currentStep = clampStep(courseProgressQuery?.currentStep ?? 1, maxStep);
-  const unlockThrough = clampStep(currentStep + Math.max(0, AHEAD_STEPS), maxStep);
+  const activeModulePrintables = await ProgramPrintable.find({
+    type: 'module',
+    isActive: true,
+    course: { $in: modules.map((c) => c._id) },
+  }).select('course title description coverImage pdfUrl updatedAt');
 
-  // Build a progress lookup map: `${contentType}:${contentId}:${step}` -> { status, completedAt }
-  const progressByKey = new Map();
-  const contentProgress = courseProgressQuery?.contentProgress || [];
-  for (const p of contentProgress) {
-    if (!p?.contentId || !p?.contentType || !p?.step) continue;
-    const key = `${p.contentType}:${String(p.contentId)}:${Number(p.step)}`;
-    progressByKey.set(key, {
-      status: p.status || 'not_started',
-      completedAt: p.completedAt || null,
-    });
+  const printableByCourseId = new Map();
+  for (const p of activeModulePrintables) {
+    const key = String(p.course);
+    // If multiple active records exist, prefer the latest updatedAt
+    const existing = printableByCourseId.get(key);
+    if (!existing || (p.updatedAt && existing.updatedAt && p.updatedAt > existing.updatedAt)) {
+      printableByCourseId.set(key, p);
+    }
   }
 
-  // Build step -> contents mapping (from Course.contents), now including progress.
-  const stepToContents = new Map();
-  if (course?.contents?.length) {
-    for (const item of course.contents) {
-      const step = clampStep(item.step ?? 1, maxStep);
-      if (!stepToContents.has(step)) stepToContents.set(step, []);
-      const contentId = item.contentId ? String(item.contentId) : null;
-      const contentType = item.contentType;
-      const progressKey = contentId ? `${contentType}:${contentId}:${step}` : null;
-      const progress = progressKey ? progressByKey.get(progressKey) : null;
-      stepToContents.get(step).push({
-        contentId,
-        contentType,
-        order: item.order ?? 0,
-        progressStatus: progress?.status || 'not_started',
-        completedAt: progress?.completedAt || null,
+  // Determine status for each course to find current module index.
+  const moduleStates = await Promise.all(
+    modules.map(async (course) => {
+      const cp = courseProgressByCourseId.get(String(course._id));
+      if (cp) return { course, status: cp.status, progress: cp };
+
+      const accessCheck = await checkCourseAccess(child._id, course._id);
+      const status = accessCheck.accessible ? 'not_started' : 'locked';
+      return { course, status, progress: null };
+    })
+  );
+
+  let currentIndex = moduleStates.findIndex((m) => m.status === 'in_progress');
+  if (currentIndex === -1) currentIndex = moduleStates.findIndex((m) => m.status === 'not_started');
+  if (currentIndex === -1) currentIndex = 0;
+
+  const unlockThroughIndex = Math.min(maxStep - 1, currentIndex + Math.max(0, AHEAD_STEPS));
+  const currentStep = currentIndex + 1;
+  const unlockThrough = unlockThroughIndex + 1;
+
+  const modulesPayload = moduleStates.map((m, idx) => {
+    const isUnlocked = idx >= currentIndex && idx <= unlockThroughIndex;
+
+    const printable = printableByCourseId.get(String(m.course._id)) || null;
+
+    const contentProgress = m.progress?.contentProgress || [];
+    const progressByContentKey = new Map();
+    for (const p of contentProgress) {
+      if (!p?.contentId || !p?.contentType) continue;
+      const key = `${p.contentType}:${String(p.contentId)}`;
+      progressByContentKey.set(key, {
+        status: p.status || 'not_started',
+        completedAt: p.completedAt || null,
       });
     }
-    // sort each step's items by order then type (stable for UI)
-    for (const [step, items] of stepToContents.entries()) {
-      items.sort((a, b) => (a.order - b.order) || String(a.contentType).localeCompare(String(b.contentType)));
-      stepToContents.set(step, items);
-    }
-  }
 
-  // Return a list of all steps, but only "unlock" current..current+ahead
-  const steps = [];
-  for (let step = 1; step <= maxStep; step += 1) {
-    const isUnlocked = step >= currentStep && step <= unlockThrough;
-    const contents = stepToContents.get(step) || [];
-    const totalCount = contents.length;
-    const completedCount = contents.filter((c) => c.progressStatus === 'completed').length;
-    const stepPrintables = buildStepPrintables(step).map((printable) => ({
-      ...printable,
-      fileUrl: isUnlocked ? printable.fileUrl : null,
-      isUnlocked,
-    }));
-
+    const contents = m.course.contents || [];
     const contentsByType = {
-      library: [], // books
+      library: [],
       videos: [],
       activities: [],
       audioAssignments: [],
       chants: [],
     };
+
     for (const item of contents) {
-      if (item.contentType === 'book') contentsByType.library.push(item);
-      else if (item.contentType === 'video') contentsByType.videos.push(item);
-      else if (item.contentType === 'activity') contentsByType.activities.push(item);
-      else if (item.contentType === 'audioAssignment') contentsByType.audioAssignments.push(item);
-      else if (item.contentType === 'chant') contentsByType.chants.push(item);
+      const contentId = item.contentId ? String(item.contentId) : null;
+      const contentType = item.contentType;
+      const key = contentId ? `${contentType}:${contentId}` : null;
+      const prog = key ? progressByContentKey.get(key) : null;
+
+      const payload = {
+        contentId,
+        contentType,
+        order: item.order ?? 0,
+        progressStatus: prog?.status || 'not_started',
+        completedAt: prog?.completedAt || null,
+      };
+
+      if (contentType === 'book') contentsByType.library.push(payload);
+      else if (contentType === 'video') contentsByType.videos.push(payload);
+      else if (contentType === 'activity') contentsByType.activities.push(payload);
+      else if (contentType === 'audioAssignment') contentsByType.audioAssignments.push(payload);
+      else if (contentType === 'chant') contentsByType.chants.push(payload);
     }
 
-    steps.push({
-      stepNumber: step,
-      title: null, // step titles are not modeled today; keep nullable
-      description: null,
+    const allItems = [
+      ...contentsByType.library,
+      ...contentsByType.videos,
+      ...contentsByType.activities,
+      ...contentsByType.audioAssignments,
+      ...contentsByType.chants,
+    ];
+    const totalCount = allItems.length;
+    const completedCount = allItems.filter((c) => c.progressStatus === 'completed').length;
+    const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+    return {
+      stepNumber: idx + 1,
       isUnlocked,
-      // Back-compat for any consumer still expecting a single fileUrl.
-      // We expose the first page URL when unlocked.
-      fileUrl: isUnlocked ? stepPrintables[0]?.fileUrl || buildStepPdfUrl(step) : null,
-      printables: stepPrintables,
+      module: {
+        id: String(m.course._id),
+        title: printable?.title || m.course.title,
+        description: printable?.description || m.course.description || null,
+        coverImage: printable?.coverImage || m.course.coverImage || null,
+      },
+      printable: printable
+        ? {
+            id: String(printable._id),
+            pdfUrl: isUnlocked ? printable.pdfUrl : null,
+          }
+        : { id: null, pdfUrl: null },
       progress: {
         totalCount,
         completedCount,
-        percent: totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0,
+        percent,
       },
       contentsByType,
-      // Keep the flat list for flexibility/debugging (UI can ignore this)
-      contents,
-    });
-  }
+    };
+  });
 
   return {
     child: {
@@ -180,35 +203,26 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
       unlockThrough,
       aheadSteps: AHEAD_STEPS,
       maxStep,
-      modules: course
-        ? [
-            {
-              id: String(course._id),
-              title: course.title,
-              description: course.description || null,
-              steps,
-            },
-          ]
-        : [],
+      modules: modulesPayload.map((m) => ({
+        id: m.module.id,
+        stepNumber: m.stepNumber,
+        isUnlocked: m.isUnlocked,
+        title: m.module.title,
+        description: m.module.description,
+        coverImage: m.module.coverImage,
+        contents: m.contentsByType,
+        progress: m.progress,
+        printablePdfUrl: m.printable.pdfUrl,
+      })),
     },
-    // Back-compat: keep top-level list (frontend can use unlocking.modules[0].steps instead)
-    materialsByStep: steps,
-    fullBundle: { fileUrl: buildFullBundleUrl() },
-    recipes: { fileUrl: buildRecipesUrl() },
-    courseProgress: courseProgressQuery
-      ? {
-          status: courseProgressQuery.status || null,
-          progressPercentage: Number.isFinite(courseProgressQuery.progressPercentage)
-            ? courseProgressQuery.progressPercentage
-            : null,
-        }
-      : null,
+    // Back-compat for older FE
+    materialsByStep: modulesPayload,
+    fullBundle: fullBundlePrintable ? { fileUrl: fullBundlePrintable.pdfUrl, title: fullBundlePrintable.title } : { fileUrl: null, title: null },
+    recipes: recipesPrintable ? { fileUrl: recipesPrintable.pdfUrl, title: recipesPrintable.title } : { fileUrl: null, title: null },
   };
 }
 
 module.exports = {
   getProgramMaterialsForChild,
-  // export helpers for unit tests (optional)
-  _internal: { clampStep },
 };
 

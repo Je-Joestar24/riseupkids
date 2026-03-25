@@ -29,6 +29,7 @@ import ChildLayout from '../layouts/ChildLayout';
 import ChildHome from '../pages/child/ChildHome';
 import ChildJourney from '../pages/child/ChildJourney';
 import ChildJourneyModule from '../pages/child/ChildJourneyModule';
+import ChildModulePrintables from '../pages/child/ChildModulePrintables';
 import ChildKidsWall from '../pages/child/ChildKidsWall';
 import ChildShareSomething from '../pages/child/ChildShareSomething';
 import AuthedAccess from './access/AuthedAccess';
@@ -161,6 +162,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['parent']}>
               <ChildRouteWrapper>
                 <ChildJourneyModule />
+              </ChildRouteWrapper>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/child/:id/journey/:courseId/printables"
+          element={
+            <AuthedAccess allowedRoles={['parent']}>
+              <ChildRouteWrapper>
+                <ChildModulePrintables />
               </ChildRouteWrapper>
             </AuthedAccess>
           }

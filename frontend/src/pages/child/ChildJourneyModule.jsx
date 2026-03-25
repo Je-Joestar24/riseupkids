@@ -17,6 +17,7 @@ import ScormPlayer from '../../components/child/common/ScormPlayer';
 import VideoPlayerModal from '../../components/child/common/VideoPlayerModal';
 import AudioAssignmentRecordingModal from '../../components/child/module/AudioAssignmentRecordingModal';
 import ChantRecordingModal from '../../components/child/module/ChantRecordingModal';
+import ChildModulePrintables from '../../components/child/module/ChildModulePrintables';
 
 /**
  * ChildJourneyModule Page
@@ -410,6 +411,8 @@ const ChildJourneyModule = ({ childId }) => {
             courseProgress={courseDetails}
             onAudioClick={handleAudioClick}
           />
+
+          <ChildModulePrintables/> 
 
           {/* Footer Component */}
           <ChildModuleFooter />

@@ -30,6 +30,7 @@ const YouTubeLive = require('./YouTubeLive');
 const PasswordResetToken = require('./PasswordResetToken');
 const Lead = require('./Leads');
 const StarCamEvent = require('./StarCamEvent');
+const ProgramPrintable = require('./ProgramPrintable');
 
 module.exports = {
   User,
@@ -63,5 +64,6 @@ module.exports = {
   PasswordResetToken,
   Lead,
   StarCamEvent,
+  ProgramPrintable,
 };
 

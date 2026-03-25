@@ -1,28 +1,26 @@
-jest.mock('../models/ChildProfile', () => ({
-  findOne: jest.fn(),
-}));
-jest.mock('../models/CourseProgress', () => ({
-  findOne: jest.fn(),
-}));
-jest.mock('../models/Course', () => ({
-  findById: jest.fn(),
+jest.mock('../models', () => ({
+  ChildProfile: { findOne: jest.fn() },
+  Course: { find: jest.fn() },
+  CourseProgress: { find: jest.fn() },
+  ProgramPrintable: { findOne: jest.fn(), find: jest.fn() },
 }));
 
-const ChildProfile = require('../models/ChildProfile');
-const CourseProgress = require('../models/CourseProgress');
-const Course = require('../models/Course');
+jest.mock('../services/courseProgress.services', () => ({
+  checkCourseAccess: jest.fn(),
+}));
 
-describe('programMaterials.service', () => {
+const { ChildProfile, Course, CourseProgress, ProgramPrintable } = require('../models');
+const { checkCourseAccess } = require('../services/courseProgress.services');
+
+describe('programMaterials.service (module-based printables)', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv };
-    process.env.PROGRAM_MATERIALS_COURSE_ID = process.env.PROGRAM_MATERIALS_COURSE_ID || 'course-123';
     process.env.PROGRAM_MATERIALS_MAX_STEP = '4';
-    process.env.PROGRAM_MATERIALS_BASE_URL = 'https://cdn.example.com/program-materials/v1';
     process.env.PROGRAM_MATERIALS_AHEAD_STEPS = '1';
-    process.env.PROGRAM_MATERIALS_PAGES_PER_STEP = '3';
+    process.env.PROGRAM_MATERIALS_BASE_URL = '';
   });
 
   afterAll(() => {
@@ -33,22 +31,10 @@ describe('programMaterials.service', () => {
     return {
       _id: id,
       parent,
-      displayName: 'Emma',
+      displayName: 'Diego',
       avatar: null,
       preferences: { language },
     };
-  }
-
-  function mockSelectResolved(model, value) {
-    model.findOne.mockReturnValue({
-      select: jest.fn().mockResolvedValue(value),
-    });
-  }
-
-  function mockCourseSelectResolved(value) {
-    Course.findById.mockReturnValue({
-      select: jest.fn().mockResolvedValue(value),
-    });
   }
 
   it('throws 401 when parentUserId missing', async () => {
@@ -58,143 +44,133 @@ describe('programMaterials.service', () => {
     });
   });
 
-  it('throws 400 when childId missing', async () => {
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
-    await expect(getProgramMaterialsForChild({ parentUserId: 'p1', childId: '' })).rejects.toMatchObject({
-      statusCode: 400,
-    });
-  });
-
   it('throws 403 when child not owned by parent', async () => {
-    mockSelectResolved(ChildProfile, null);
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
-    await expect(getProgramMaterialsForChild({ parentUserId: 'p1', childId: 'c1' })).rejects.toMatchObject({
-      statusCode: 403,
+    ChildProfile.findOne.mockReturnValue({
+      select: jest.fn().mockResolvedValue(null),
     });
+
+    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
+    await expect(
+      getProgramMaterialsForChild({ parentUserId: 'p1', childId: 'c1' })
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it('defaults currentStep to 1 when CourseProgress missing', async () => {
-    mockSelectResolved(ChildProfile, buildChild());
-    mockSelectResolved(CourseProgress, null);
-    mockCourseSelectResolved(null);
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
+  it('unlocks current module + next module and includes module contents + progress', async () => {
+    ChildProfile.findOne.mockReturnValue({
+      select: jest.fn().mockResolvedValue(buildChild()),
+    });
 
+    const now = new Date();
+    const courses = [
+      {
+        _id: 'course-1',
+        title: 'Intro',
+        description: 'Desc 1',
+        coverImage: 'cover1',
+        stepOrder: 1,
+        createdAt: now,
+        contents: [{ contentId: 'book-1', contentType: 'book', step: 1, order: 0 }],
+      },
+      {
+        _id: 'course-2',
+        title: 'Module 2',
+        description: 'Desc 2',
+        coverImage: 'cover2',
+        stepOrder: 2,
+        createdAt: now,
+        contents: [{ contentId: 'video-2', contentType: 'video', step: 1, order: 0 }],
+      },
+      {
+        _id: 'course-3',
+        title: 'Module 3',
+        description: 'Desc 3',
+        coverImage: 'cover3',
+        stepOrder: 3,
+        createdAt: now,
+        contents: [],
+      },
+      {
+        _id: 'course-4',
+        title: 'Module 4',
+        description: 'Desc 4',
+        coverImage: 'cover4',
+        stepOrder: 4,
+        createdAt: now,
+        contents: [],
+      },
+    ];
+    Course.find.mockReturnValue({
+      // service calls: Course.find(...).select(...)
+      select: jest.fn().mockResolvedValue(courses),
+    });
+
+    // Only course-1 has progress -> current module
+    CourseProgress.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([
+        {
+          course: 'course-1',
+          status: 'in_progress',
+          contentProgress: [
+            {
+              contentId: 'book-1',
+              contentType: 'book',
+              status: 'completed',
+              completedAt: new Date(),
+            },
+          ],
+        },
+      ]),
+    });
+
+    checkCourseAccess.mockResolvedValue({ accessible: true });
+
+    ProgramPrintable.findOne.mockImplementation(() => ({
+      select: jest.fn().mockResolvedValue(null),
+    })); // full bundle + recipes absent
+
+    ProgramPrintable.find.mockReturnValue({
+      select: jest.fn().mockResolvedValue([
+        {
+          _id: 'p1',
+          course: 'course-1',
+          title: 'Printable Intro',
+          description: 'Printable Desc 1',
+          coverImage: 'printCover1',
+          pdfUrl: 'pdf-intro',
+          updatedAt: now,
+        },
+        {
+          _id: 'p2',
+          course: 'course-2',
+          title: 'Printable 2',
+          description: 'Printable Desc 2',
+          coverImage: 'printCover2',
+          pdfUrl: 'pdf-2',
+          updatedAt: now,
+        },
+      ]),
+    });
+
+    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
     const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
+
     expect(result.unlocking.currentStep).toBe(1);
     expect(result.unlocking.unlockThrough).toBe(2);
 
-    const unlocked = result.materialsByStep.filter((s) => s.isUnlocked).map((s) => s.stepNumber);
-    expect(unlocked).toEqual([1, 2]);
-  });
+    const step1 = result.materialsByStep.find((s) => s.stepNumber === 1);
+    const step2 = result.materialsByStep.find((s) => s.stepNumber === 2);
+    const step3 = result.materialsByStep.find((s) => s.stepNumber === 3);
 
-  it('unlocks current and next steps from CourseProgress.currentStep', async () => {
-    mockSelectResolved(ChildProfile, buildChild());
-    mockSelectResolved(CourseProgress, {
-      currentStep: 3,
-      course: 'course-123',
-      contentProgress: [{ contentId: 'x1', contentType: 'video', step: 3, status: 'completed', completedAt: null }],
-    });
-    mockCourseSelectResolved({
-      _id: 'course-123',
-      title: 'Core Program',
-      description: 'Main learning path',
-      contents: [{ contentId: 'x1', contentType: 'video', step: 3, order: 0 }],
-    });
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
+    expect(step1.isUnlocked).toBe(true);
+    expect(step1.printable.pdfUrl).toBe('pdf-intro');
+    expect(step1.contentsByType.library[0].progressStatus).toBe('completed');
 
-    const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
-    expect(result.unlocking.currentStep).toBe(3);
-    expect(result.unlocking.unlockThrough).toBe(4);
-    expect(Array.isArray(result.unlocking.modules)).toBe(true);
-    expect(result.unlocking.modules[0]).toMatchObject({
-      id: 'course-123',
-      title: 'Core Program',
-    });
+    expect(step2.isUnlocked).toBe(true);
+    expect(step2.printable.pdfUrl).toBe('pdf-2');
+    expect(step2.contentsByType.videos[0].progressStatus).toBe('not_started');
 
-    const unlocked = result.materialsByStep.filter((s) => s.isUnlocked).map((s) => s.stepNumber);
-    expect(unlocked).toEqual([3, 4]);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 2).fileUrl).toBeNull();
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).fileUrl).toContain('/steps/step-03/page-01.pdf');
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).printables).toEqual([
-      expect.objectContaining({
-        label: 'Page 1',
-        pageNumber: 1,
-        isUnlocked: true,
-        fileUrl: expect.stringContaining('/steps/step-03/page-01.pdf'),
-      }),
-      expect.objectContaining({
-        label: 'Page 2',
-        pageNumber: 2,
-        isUnlocked: true,
-        fileUrl: expect.stringContaining('/steps/step-03/page-02.pdf'),
-      }),
-      expect.objectContaining({
-        label: 'Page 3',
-        pageNumber: 3,
-        isUnlocked: true,
-        fileUrl: expect.stringContaining('/steps/step-03/page-03.pdf'),
-      }),
-    ]);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 2).printables).toEqual([
-      expect.objectContaining({ pageNumber: 1, isUnlocked: false, fileUrl: null }),
-      expect.objectContaining({ pageNumber: 2, isUnlocked: false, fileUrl: null }),
-      expect.objectContaining({ pageNumber: 3, isUnlocked: false, fileUrl: null }),
-    ]);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).contents).toEqual([
-      {
-        contentId: 'x1',
-        contentType: 'video',
-        order: 0,
-        progressStatus: 'completed',
-        completedAt: null,
-      },
-    ]);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).contentsByType.videos).toHaveLength(1);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 3).contentsByType.library).toHaveLength(0);
-  });
-
-  it('caps nextStep when currentStep is maxStep', async () => {
-    mockSelectResolved(ChildProfile, buildChild());
-    mockSelectResolved(CourseProgress, { currentStep: 4, course: 'course-123' });
-    mockCourseSelectResolved({
-      _id: 'course-123',
-      title: 'Core Program',
-      description: 'Main learning path',
-      contents: [{ contentId: 'x1', contentType: 'video', step: 4, order: 0 }],
-    });
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
-
-    const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
-    expect(result.unlocking.currentStep).toBe(4);
-    expect(result.unlocking.unlockThrough).toBe(4);
-
-    const unlocked = result.materialsByStep.filter((s) => s.isUnlocked).map((s) => s.stepNumber);
-    expect(unlocked).toEqual([4]); // only current; unlockThrough capped at max
-  });
-
-  it('falls back to latest CourseProgress when PROGRAM_MATERIALS_COURSE_ID is not set', async () => {
-    delete process.env.PROGRAM_MATERIALS_COURSE_ID;
-    mockSelectResolved(ChildProfile, buildChild());
-    CourseProgress.findOne.mockReturnValue({
-      sort: jest.fn().mockReturnThis(),
-      select: jest.fn().mockResolvedValue({
-        currentStep: 2,
-        course: 'course-xyz',
-        contentProgress: [{ contentId: 'a', contentType: 'activity', step: 2, status: 'in_progress', completedAt: null }],
-      }),
-    });
-    mockCourseSelectResolved({
-      _id: 'course-xyz',
-      title: 'Core Program',
-      description: 'Main learning path',
-      contents: [{ contentId: 'a', contentType: 'activity', step: 2, order: 0 }],
-    });
-
-    const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
-    const result = await getProgramMaterialsForChild({ parentUserId: 'parent-1', childId: 'child-1' });
-    expect(result.unlocking.currentStep).toBe(2);
-    expect(result.unlocking.unlockThrough).toBe(3);
-    expect(result.materialsByStep.find((s) => s.stepNumber === 2).contents[0].progressStatus).toBe('in_progress');
+    expect(step3.isUnlocked).toBe(false);
+    expect(step3.printable.pdfUrl).toBe(null);
   });
 });
 

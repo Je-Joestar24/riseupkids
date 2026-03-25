@@ -549,6 +549,33 @@ const uploadKidsWallImage = multer({
   },
 });
 
+// Middleware for program printable uploads (PDF + optional cover image)
+// - Field: pdfFile (application/pdf)
+// - Field: coverImage (image/*)
+const uploadProgramPrintable = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'pdfFile') {
+      if (file.mimetype === 'application/pdf') return cb(null, true);
+      return cb(new Error('Printable must be a PDF file'), false);
+    }
+
+    if (file.fieldname === 'coverImage') {
+      if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+      return cb(new Error('Cover image must be an image file'), false);
+    }
+
+    return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+  },
+  limits: {
+    // PDFs tend to be small; allow up to 50MB
+    fileSize: 50 * 1024 * 1024,
+  },
+}).fields([
+  { name: 'pdfFile', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -568,5 +595,6 @@ module.exports = {
   uploadExplore,
   uploadExploreUpdate,
   uploadKidsWallImage,
+  uploadProgramPrintable,
 };
 

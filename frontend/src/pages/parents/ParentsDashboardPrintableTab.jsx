@@ -48,7 +48,10 @@ const ParentsDashboardPrintableTab = () => {
       setLoadingMaterials(true);
       try {
         const data = await programMaterilialsService.getByChildId(selectedChildId);
-        setMaterials(Array.isArray(data?.materialsByStep) ? data.materialsByStep : []);
+        const modules = Array.isArray(data?.unlocking?.modules)
+          ? data.unlocking.modules
+          : (Array.isArray(data?.materialsByStep) ? data.materialsByStep : []);
+        setMaterials(modules);
       } catch (err) {
         setMaterials([]);
         setError(typeof err === 'string' ? err : 'Failed to load printable materials');
