@@ -13,6 +13,7 @@ import teacherReducer from './slices/teacherSlice';
 import meetingReducer from './slices/meetingSlice';
 import youtubeReducer from './slices/youtubeSlice';
 import languageReducer from './slices/languageSlice';
+import printableManagementReducer from './slices/printableManagementSlice';
 
 export const store = configureStore({
   reducer: {
@@ -30,6 +31,7 @@ export const store = configureStore({
     meeting: meetingReducer, // Meeting management
     youtube: youtubeReducer, // YouTube Live list/detail/archive/delete
     language: languageReducer, // App language (pt/en/es)
+    printableManagement: printableManagementReducer, // Admin printable materials state
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

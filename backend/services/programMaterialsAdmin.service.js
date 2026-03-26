@@ -1,16 +1,10 @@
 const { Course, ProgramPrintable } = require('../models');
 const s3Service = require('./s3.service');
 
-function parseString(value) {
-  if (value === undefined || value === null) return null;
-  const s = String(value).trim();
-  return s ? s : null;
-}
-
-function parseBoolean(value, fallback = true) {
-  if (value === undefined || value === null) return fallback;
-  if (value === true || value === false) return value;
-  return String(value).toLowerCase() === 'true';
+function parsePositiveInt(value, fallback) {
+  const n = Number.parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return n;
 }
 
 const orderCoursesForModules = (courses) => {
@@ -25,45 +19,66 @@ const orderCoursesForModules = (courses) => {
   });
 };
 
-const listModulesWithPrintables = async () => {
-  const courses = await Course.find({ isPublished: true, isArchived: false }).lean();
-  const orderedCourses = orderCoursesForModules(courses);
+const listModulesWithPrintables = async ({ page = 1, limit = 10, search = '' } = {}) => {
+  const safePage = parsePositiveInt(page, 1);
+  const safeLimit = Math.min(parsePositiveInt(limit, 10), 100);
+  const skip = (safePage - 1) * safeLimit;
+  const safeSearch = String(search || '').trim();
 
+  const query = { isPublished: true, isArchived: false };
+  if (safeSearch) {
+    query.$or = [
+      { title: { $regex: safeSearch, $options: 'i' } },
+      { description: { $regex: safeSearch, $options: 'i' } },
+    ];
+  }
+
+  const total = await Course.countDocuments(query);
+  const courses = await Course.find(query)
+    .select('_id title description coverImage stepOrder contents createdAt')
+    .sort({ stepOrder: 1, createdAt: 1 })
+    .skip(skip)
+    .limit(safeLimit)
+    .lean();
+
+  const orderedCourses = orderCoursesForModules(courses);
   const courseIds = orderedCourses.map((c) => c._id);
+
   const activePrintables = await ProgramPrintable.find({
     type: 'module',
     isActive: true,
     course: { $in: courseIds },
   })
-    .sort({ course: 1, updatedAt: -1 })
+    .sort({ course: 1, createdAt: 1 })
     .lean();
 
-  const printableByCourseId = new Map();
+  const printablesByCourseId = new Map();
   for (const p of activePrintables) {
     const key = String(p.course);
-    if (!printableByCourseId.has(key)) printableByCourseId.set(key, p);
+    if (!printablesByCourseId.has(key)) printablesByCourseId.set(key, []);
+    printablesByCourseId.get(key).push(p);
   }
 
   return {
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
+      hasNextPage: safePage * safeLimit < total,
+      hasPrevPage: safePage > 1,
+    },
     courses: orderedCourses.map((c, idx) => {
-      const printable = printableByCourseId.get(String(c._id)) || null;
+      const printables = printablesByCourseId.get(String(c._id)) || [];
       return {
-        stepNumber: idx + 1,
+        stepNumber: skip + idx + 1,
         id: String(c._id),
         title: c.title,
         description: c.description || null,
         coverImage: c.coverImage || null,
-        printable: printable
-          ? {
-              id: String(printable._id),
-              title: printable.title,
-              description: printable.description,
-              coverImage: printable.coverImage,
-              pdfUrl: printable.pdfUrl,
-              isActive: printable.isActive,
-              updatedAt: printable.updatedAt,
-            }
-          : null,
+        contentCount: Array.isArray(c.contents) ? c.contents.length : 0,
+        printableCount: printables.length,
+        latestPrintableAt: printables.length ? printables[printables.length - 1].updatedAt : null,
       };
     }),
   };
@@ -73,17 +88,13 @@ const uploadModulePrintable = async ({ courseId, userId, title, description, cov
   if (!courseId) throw new Error('courseId is required');
   if (!pdfFile) throw new Error('pdfFile is required');
   if (!title) throw new Error('title is required');
+  const course = await Course.findOne({ _id: courseId, isPublished: true, isArchived: false }).select('_id');
+  if (!course) throw new Error('Course not found');
 
   // Upload files to S3 first
   const { url: pdfUrl } = await s3Service.uploadFileFromMulter(pdfFile, 'program-materials/printables/pdfs');
   const coverUpload = coverImageFile ? await s3Service.uploadFileFromMulter(coverImageFile, 'program-materials/printables/covers') : null;
   const coverImage = coverUpload ? coverUpload.url : null;
-
-  // Deactivate previous active printable for this course
-  await ProgramPrintable.updateMany(
-    { type: 'module', course: courseId, isActive: true },
-    { $set: { isActive: false } }
-  );
 
   const printable = await ProgramPrintable.create({
     type: 'module',
@@ -96,6 +107,62 @@ const uploadModulePrintable = async ({ courseId, userId, title, description, cov
   });
 
   return printable;
+};
+
+const listCoursePrintables = async ({ courseId, page = 1, limit = 10, search = '' }) => {
+  if (!courseId) throw new Error('courseId is required');
+  const course = await Course.findOne({ _id: courseId, isPublished: true, isArchived: false })
+    .select('_id title description coverImage stepOrder')
+    .lean();
+  if (!course) throw new Error('Course not found');
+
+  const safePage = parsePositiveInt(page, 1);
+  const safeLimit = Math.min(parsePositiveInt(limit, 10), 100);
+  const skip = (safePage - 1) * safeLimit;
+  const safeSearch = String(search || '').trim();
+
+  const query = { type: 'module', isActive: true, course: courseId };
+  if (safeSearch) {
+    query.$or = [
+      { title: { $regex: safeSearch, $options: 'i' } },
+      { description: { $regex: safeSearch, $options: 'i' } },
+    ];
+  }
+
+  const total = await ProgramPrintable.countDocuments(query);
+  const printables = await ProgramPrintable.find(query)
+    .sort({ createdAt: 1 })
+    .skip(skip)
+    .limit(safeLimit)
+    .lean();
+
+  return {
+    course: {
+      id: String(course._id),
+      title: course.title,
+      description: course.description || null,
+      coverImage: course.coverImage || null,
+      stepOrder: course.stepOrder || null,
+    },
+    pagination: {
+      page: safePage,
+      limit: safeLimit,
+      total,
+      totalPages: Math.ceil(total / safeLimit),
+      hasNextPage: safePage * safeLimit < total,
+      hasPrevPage: safePage > 1,
+    },
+    printables: printables.map((p) => ({
+      id: String(p._id),
+      title: p.title,
+      description: p.description || null,
+      coverImage: p.coverImage || null,
+      pdfUrl: p.pdfUrl,
+      isActive: p.isActive,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    })),
+  };
 };
 
 const uploadSinglePrintableAsset = async ({ type, userId, title, description, coverImageFile, pdfFile }) => {
@@ -136,6 +203,7 @@ const getPrintableAsset = async (type) => {
 
 module.exports = {
   listModulesWithPrintables,
+  listCoursePrintables,
   uploadModulePrintable,
   uploadSinglePrintableAsset,
   getPrintableAsset,

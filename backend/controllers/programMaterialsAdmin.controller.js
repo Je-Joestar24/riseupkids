@@ -2,10 +2,31 @@ const programMaterialsAdminService = require('../services/programMaterialsAdmin.
 
 const listModules = async (req, res) => {
   try {
-    const data = await programMaterialsAdminService.listModulesWithPrintables();
+    const { page, limit, search } = req.query;
+    const data = await programMaterialsAdminService.listModulesWithPrintables({ page, limit, search });
     return res.status(200).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || 'Failed to list modules' });
+  }
+};
+
+const listCoursePrintables = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const { page, limit, search } = req.query;
+    const data = await programMaterialsAdminService.listCoursePrintables({
+      courseId,
+      page,
+      limit,
+      search,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.message === 'Course not found' ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to list printable materials',
+    });
   }
 };
 
@@ -78,6 +99,7 @@ const uploadRecipes = async (req, res) => {
 
 module.exports = {
   listModules,
+  listCoursePrintables,
   uploadModulePrintable,
   uploadFullBundle,
   uploadRecipes,
