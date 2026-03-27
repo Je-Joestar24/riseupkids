@@ -22,6 +22,7 @@ import AdminKidsWall from '../pages/admin/AdminKidsWall';
 import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
 import AdminMeetings from '../pages/admin/AdminMeetings';
 import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
+import AdminPrintables from '../pages/admin/AdminPrintables';
 import AdminLayout from '../layouts/AdminLayout';
 import TeacherLayout from '../layouts/TeacherLayout';
 import TeacherDashboard from '../pages/teacher/TeacherDashboard';
@@ -334,6 +335,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <AdminLayout>
                 <AdminYoutubeLive />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/printables"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminPrintables />
               </AdminLayout>
             </AuthedAccess>
           }
