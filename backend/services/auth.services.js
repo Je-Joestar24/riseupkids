@@ -267,6 +267,7 @@ const forgotPassword = async (email) => {
 
   const user = await User.findOne({ email: normalized });
   if (!user) {
+    console.warn(`[Auth:forgotPassword] No user found for email=${normalized}`);
     return { sent: false };
   }
 
@@ -280,7 +281,16 @@ const forgotPassword = async (email) => {
     expiresAt,
   });
 
-  await mailService.sendResetCode({ to: user.email, code });
+  try {
+    await mailService.sendResetCode({ to: user.email, code });
+  } catch (error) {
+    console.error(
+      `[Auth:forgotPassword] Failed to send reset code email to ${user.email}: ${error.message}`
+    );
+    throw error;
+  }
+
+  console.log(`[Auth:forgotPassword] Reset code email sent to ${user.email}`);
   return { sent: true };
 };
 

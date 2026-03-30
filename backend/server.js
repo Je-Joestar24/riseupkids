@@ -4,6 +4,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
+const mailConfig = require('./config/mail');
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +47,7 @@ const mailRoutes = require('./routes/mail.routes');
 const programMaterialsRoutes = require('./routes/programMaterials.routes');
 const programMaterialsAdminRoutes = require('./routes/programMaterialsAdmin.routes');
 const starCamRoutes = require('./routes/starCam.routes');
+//const starCamMissionsAdminRoutes = require('./routes/starCamMissionsAdmin.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -151,6 +153,7 @@ app.use('/api/mail', mailRoutes);
 app.use('/api/parent/program-materials', programMaterialsRoutes);
 app.use('/api/admin/program-materials', programMaterialsAdminRoutes);
 app.use('/api/star-cam', starCamRoutes);
+//app.use('/api/admin/star-cam/missions', starCamMissionsAdminRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);
@@ -213,6 +216,14 @@ const startServer = async () => {
     console.log(`  Local:   http://localhost:${PORT}/api`);
     console.log(`  Network: http://0.0.0.0:${PORT}/api`);
     console.log(`  Env:     ${process.env.NODE_ENV || 'development'}\n`);
+    console.log('[Mail] Driver:', mailConfig.driver);
+    console.log('[Mail] From:', mailConfig.from.address);
+    if (mailConfig.driver === 'smtp') {
+      console.log('[Mail] SMTP Host:', mailConfig.smtp.host);
+      console.log('[Mail] SMTP Port:', mailConfig.smtp.port);
+      console.log('[Mail] SMTP User configured:', Boolean(mailConfig.smtp.user));
+      console.log('[Mail] SMTP Password configured:', Boolean(mailConfig.smtp.password));
+    }
   });
 };
 
