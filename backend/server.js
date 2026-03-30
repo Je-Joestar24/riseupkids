@@ -4,10 +4,10 @@ const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const path = require('path');
-const mailConfig = require('./config/mail');
 
 // Load environment variables
 dotenv.config();
+const mailConfig = require('./config/mail');
 
 // Import routes
 const apiRoutes = require('./routes/api');
