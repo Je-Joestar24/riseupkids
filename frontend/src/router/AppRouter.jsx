@@ -23,6 +23,7 @@ import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
 import AdminMeetings from '../pages/admin/AdminMeetings';
 import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
 import AdminPrintables from '../pages/admin/AdminPrintables';
+import AdminStarCamMissions from '../pages/admin/AdminStarCamMissions';
 import AdminLayout from '../layouts/AdminLayout';
 import TeacherLayout from '../layouts/TeacherLayout';
 import TeacherDashboard from '../pages/teacher/TeacherDashboard';
@@ -350,6 +351,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/admin/star-cam-missions"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminStarCamMissions />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/admin/*"
           element={
             <AuthedAccess allowedRoles={['admin']}>
@@ -438,6 +449,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <TeacherLayout>
                 <AdminYoutubeLive />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/star-cam-missions"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <TeacherLayout>
+                <AdminStarCamMissions />
               </TeacherLayout>
             </AuthedAccess>
           }

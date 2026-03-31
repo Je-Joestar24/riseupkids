@@ -576,6 +576,28 @@ const uploadProgramPrintable = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
+// Middleware for Star Cam vocab uploads (one image + one audio)
+const uploadStarCamVocab = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'image') {
+      if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+      return cb(new Error('image must be an image file'), false);
+    }
+    if (file.fieldname === 'audio') {
+      if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
+      return cb(new Error('audio must be an audio file'), false);
+    }
+    return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+  },
+  limits: {
+    fileSize: 50 * 1024 * 1024,
+  },
+}).fields([
+  { name: 'image', maxCount: 1 },
+  { name: 'audio', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -596,5 +618,6 @@ module.exports = {
   uploadExploreUpdate,
   uploadKidsWallImage,
   uploadProgramPrintable,
+  uploadStarCamVocab,
 };
 

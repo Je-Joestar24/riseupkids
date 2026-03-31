@@ -25,6 +25,7 @@ import {
   AudiotrackOutlined,
   VideocamOutlined,
   LiveTvOutlined,
+  AutoAwesomeOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -58,6 +59,7 @@ const TeacherSidebar = () => {
     },/* 
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/teacher/kids-wall' },
+    { text: 'Star Cam Missions', icon: <AutoAwesomeOutlined />, path: '/teacher/star-cam-missions' },
     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/teacher/checking-audio' },
     { text: 'Live Classes', icon: <VideocamOutlined />, path: '/teacher/meetings' },
     { text: 'YouTube Live', icon: <LiveTvOutlined />, path: '/teacher/youtube-live' },

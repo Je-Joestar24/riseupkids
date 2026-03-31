@@ -12,6 +12,8 @@ describe('starCamMissionsAdmin.routes – protection + endpoints', () => {
 
     const hasList = router.stack.some((l) => l.route && l.route.path === '/' && l.route.methods.get);
     const hasCreate = router.stack.some((l) => l.route && l.route.path === '/' && l.route.methods.post);
+    const hasCategoryList = router.stack.some((l) => l.route && l.route.path === '/categories' && l.route.methods.get);
+    const hasCategoryCreate = router.stack.some((l) => l.route && l.route.path === '/categories' && l.route.methods.post);
     const hasGet = router.stack.some((l) => l.route && l.route.path === '/:id' && l.route.methods.get);
     const hasPatch = router.stack.some((l) => l.route && l.route.path === '/:id' && l.route.methods.patch);
     const hasPublish = router.stack.some((l) => l.route && l.route.path === '/:id/publish' && l.route.methods.post);
@@ -20,6 +22,8 @@ describe('starCamMissionsAdmin.routes – protection + endpoints', () => {
 
     expect(hasList).toBe(true);
     expect(hasCreate).toBe(true);
+    expect(hasCategoryList).toBe(true);
+    expect(hasCategoryCreate).toBe(true);
     expect(hasGet).toBe(true);
     expect(hasPatch).toBe(true);
     expect(hasPublish).toBe(true);

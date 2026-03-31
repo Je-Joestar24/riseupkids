@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { StarCamMission, Media } = require('../models');
+const { StarCamMission, Media, StarCamCategory } = require('../models');
+const s3Service = require('./s3.service');
 
 function parsePositiveInt(value, fallback) {
   const n = Number.parseInt(String(value ?? ''), 10);
@@ -11,6 +12,30 @@ function asTrimmedString(value) {
   if (value == null) return null;
   const s = String(value).trim();
   return s || null;
+}
+
+function slugify(value) {
+  return String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
+function generateMissionId({ title, categoryKey }) {
+  const safeTitle = slugify(title).slice(0, 30);
+  const safeCategory = slugify(categoryKey).slice(0, 20);
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const s = String(now.getSeconds()).padStart(2, '0');
+  const suffix = `${y}${m}${d}${h}${min}${s}`;
+  const base = safeCategory || safeTitle || 'mission';
+  return `${base}_${suffix}`;
 }
 
 function ensureObjectId(value, fieldName) {
@@ -59,6 +84,7 @@ async function assertMediaExists(mediaId, { type, fieldName }) {
 
 function buildPopulate() {
   return [
+    { path: 'category', select: 'key name description isActive sortOrder' },
     { path: 'introImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
@@ -67,13 +93,17 @@ function buildPopulate() {
   ];
 }
 
-async function listMissions({ page = 1, limit = 20, status, search } = {}) {
+async function listMissions({ page = 1, limit = 20, status, search, categoryId } = {}) {
   const safePage = parsePositiveInt(page, 1);
   const safeLimit = Math.min(parsePositiveInt(limit, 20), 100);
   const skip = (safePage - 1) * safeLimit;
 
   const query = {};
   if (status && ['draft', 'published', 'archived'].includes(String(status))) query.status = String(status);
+  const cId = ensureObjectId(categoryId, 'categoryId');
+  if (cId) {
+    query.category = cId;
+  }
 
   const safeSearch = asTrimmedString(search);
   if (safeSearch) {
@@ -86,12 +116,18 @@ async function listMissions({ page = 1, limit = 20, status, search } = {}) {
       .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select('missionId title status publishedAt updatedAt createdAt')
+      .select('missionId title status category vocab publishedAt updatedAt createdAt')
+      .populate({ path: 'category', select: 'key name sortOrder isActive' })
       .lean(),
   ]);
 
+  const mappedItems = items.map((item) => ({
+    ...item,
+    vocabCount: Array.isArray(item.vocab) ? item.vocab.length : 0,
+  }));
+
   return {
-    items,
+    items: mappedItems,
     pagination: {
       page: safePage,
       limit: safeLimit,
@@ -103,15 +139,27 @@ async function listMissions({ page = 1, limit = 20, status, search } = {}) {
   };
 }
 
-async function createMission({ userId, missionId, title } = {}) {
+async function createMission({ userId, missionId, title, categoryId } = {}) {
   const mId = asTrimmedString(missionId);
   const t = asTrimmedString(title);
-  if (!mId) throw new Error('missionId is required');
+  const cId = ensureObjectId(categoryId, 'categoryId');
   if (!t) throw new Error('title is required');
+  let categoryKey = null;
+  if (cId) {
+    const category = await StarCamCategory.findOne({ _id: cId, isActive: true }).select('_id key').lean();
+    if (!category) {
+      const err = new Error('categoryId not found');
+      err.statusCode = 404;
+      throw err;
+    }
+    categoryKey = category.key || null;
+  }
+  const finalMissionId = mId || generateMissionId({ title: t, categoryKey });
 
   const doc = await StarCamMission.create({
-    missionId: mId,
+    missionId: finalMissionId,
     title: t,
+    category: cId || null,
     status: 'draft',
     createdBy: userId,
     updatedBy: userId,
@@ -156,6 +204,18 @@ async function updateMission({ id, userId, patch } = {}) {
   if (patch.rewardSubtitle !== undefined) doc.rewardSubtitle = asTrimmedString(patch.rewardSubtitle) ?? doc.rewardSubtitle;
 
   if (patch.videoEnabled !== undefined) doc.videoEnabled = Boolean(patch.videoEnabled);
+  if (patch.category !== undefined || patch.categoryId !== undefined) {
+    const cId = ensureObjectId(patch.categoryId ?? patch.category, 'categoryId');
+    if (cId) {
+      const category = await StarCamCategory.findOne({ _id: cId, isActive: true }).select('_id').lean();
+      if (!category) {
+        const err = new Error('categoryId not found');
+        err.statusCode = 404;
+        throw err;
+      }
+    }
+    doc.category = cId;
+  }
 
   if (patch.introImage !== undefined) doc.introImage = ensureObjectId(patch.introImage, 'introImage');
   if (patch.introVideo !== undefined) doc.introVideo = ensureObjectId(patch.introVideo, 'introVideo');
@@ -168,7 +228,9 @@ async function updateMission({ id, userId, patch } = {}) {
       throw err;
     }
     doc.vocab = patch.vocab.map((v) => ({
-      word: asTrimmedString(v.word),
+      word: asTrimmedString(v.word) || asTrimmedString(v.displayText),
+      displayText: asTrimmedString(v.displayText) || asTrimmedString(v.word),
+      target: asTrimmedString(v.target)?.toLowerCase() || asTrimmedString(v.word)?.toLowerCase(),
       image: ensureObjectId(v.image, 'vocab.image'),
       audio: ensureObjectId(v.audio, 'vocab.audio'),
       sortOrder: Number(v.sortOrder),
@@ -222,6 +284,21 @@ async function publishMission({ id, userId } = {}) {
   }
   assertUniqueSortOrders(doc.vocab, 7, 'vocab');
   assertUniqueSortOrders(doc.items, 7, 'items');
+  for (let i = 0; i < doc.vocab.length; i += 1) {
+    const v = doc.vocab[i];
+    const displayText = asTrimmedString(v.displayText || v.word);
+    const target = asTrimmedString(v.target);
+    if (!displayText) {
+      const err = new Error(`vocab[${i}].displayText is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!target) {
+      const err = new Error(`vocab[${i}].target is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
 
   if (!doc.introText || !String(doc.introText).trim()) {
     const err = new Error('introText is required before publishing');
@@ -240,6 +317,17 @@ async function publishMission({ id, userId } = {}) {
   }
   if (doc.videoEnabled && !doc.introVideo) {
     const err = new Error('introVideo is required when videoEnabled is true');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!doc.category) {
+    const err = new Error('category is required before publishing');
+    err.statusCode = 400;
+    throw err;
+  }
+  const category = await StarCamCategory.findOne({ _id: doc.category, isActive: true }).select('_id').lean();
+  if (!category) {
+    const err = new Error('category is not found or inactive');
     err.statusCode = 400;
     throw err;
   }
@@ -293,13 +381,121 @@ async function archiveMission({ id, userId } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
+async function listCategories({ includeInactive = false } = {}) {
+  const query = includeInactive ? {} : { isActive: true };
+  const items = await StarCamCategory.find(query).sort({ sortOrder: 1, name: 1, _id: 1 }).lean();
+  return { items };
+}
+
+async function createCategory({ key, name, description, sortOrder, isActive } = {}) {
+  const categoryKey = asTrimmedString(key);
+  const categoryName = asTrimmedString(name);
+  if (!categoryKey) throw new Error('key is required');
+  if (!categoryName) throw new Error('name is required');
+  const data = await StarCamCategory.create({
+    key: categoryKey,
+    name: categoryName,
+    description: asTrimmedString(description),
+    sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : 0,
+    isActive: isActive == null ? true : Boolean(isActive),
+  });
+  return data.toObject();
+}
+
+async function addMissionVocabularyEntry({ id, userId, displayText, target, imageFile, audioFile } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const safeDisplay = asTrimmedString(displayText);
+  const safeTarget = asTrimmedString(target)?.toLowerCase();
+  if (!safeDisplay) {
+    const err = new Error('displayText is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!safeTarget) {
+    const err = new Error('target is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!imageFile) {
+    const err = new Error('image file is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!audioFile) {
+    const err = new Error('audio file is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if ((doc.vocab || []).length >= 7) {
+    const err = new Error('Mission already has 7 vocabulary entries');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const [{ url: imageUrl, s3Key: imageS3Key }, { url: audioUrl, s3Key: audioS3Key }] = await Promise.all([
+    s3Service.uploadFileFromMulter(imageFile, 'media/images'),
+    s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
+  ]);
+
+  const [imageMedia, audioMedia] = await Promise.all([
+    Media.create({
+      type: 'image',
+      title: imageFile.originalname,
+      filePath: imageS3Key,
+      url: imageUrl,
+      mimeType: imageFile.mimetype,
+      size: imageFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    }),
+    Media.create({
+      type: 'audio',
+      title: audioFile.originalname,
+      filePath: audioS3Key,
+      url: audioUrl,
+      mimeType: audioFile.mimetype,
+      size: audioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    }),
+  ]);
+
+  const nextSort = doc.vocab.length;
+  doc.vocab.push({
+    word: safeDisplay,
+    displayText: safeDisplay,
+    target: safeTarget,
+    image: imageMedia._id,
+    audio: audioMedia._id,
+    sortOrder: nextSort,
+  });
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
 module.exports = {
   listMissions,
+  listCategories,
+  createCategory,
   createMission,
   getMissionById,
   updateMission,
   publishMission,
   unpublishMission,
   archiveMission,
+  addMissionVocabularyEntry,
 };
 

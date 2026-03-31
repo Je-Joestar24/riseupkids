@@ -8,11 +8,18 @@ jest.mock('../models', () => ({
   Media: {
     findOne: jest.fn(),
   },
+  StarCamCategory: {
+    find: jest.fn(),
+    findOne: jest.fn(),
+    create: jest.fn(),
+  },
 }));
 
-const { StarCamMission, Media } = require('../models');
+const { StarCamMission, Media, StarCamCategory } = require('../models');
 const {
   listMissions,
+  listCategories,
+  createCategory,
   createMission,
   publishMission,
   unpublishMission,
@@ -39,6 +46,7 @@ function makeDoc(overrides = {}) {
     vocab: [],
     items: [],
     rewardImage: null,
+    category: null,
     updatedBy: null,
     publishedAt: null,
     archivedAt: null,
@@ -49,7 +57,11 @@ function makeDoc(overrides = {}) {
 
 describe('starCamMissionsAdmin.service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    StarCamCategory.findOne.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
+    });
   });
 
   it('lists missions with pagination', async () => {
@@ -59,6 +71,7 @@ describe('starCamMissionsAdmin.service', () => {
       skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
+      populate: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue([{ missionId: 'nature_01' }]),
     });
 
@@ -77,6 +90,42 @@ describe('starCamMissionsAdmin.service', () => {
     expect(StarCamMission.create).toHaveBeenCalledWith(expect.objectContaining({ createdBy: 'u1', updatedBy: 'u1' }));
   });
 
+  it('auto-generates missionId when not provided', async () => {
+    const categoryId = '507f1f77bcf86cd799439011';
+    StarCamMission.create.mockResolvedValue({
+      toObject: () => ({ missionId: 'reading_20260101010101', status: 'draft' }),
+    });
+    StarCamCategory.findOne.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: categoryId, key: 'reading', isActive: true }),
+    });
+
+    const result = await createMission({ userId: 'u1', title: 'Reading Mission', categoryId });
+    expect(result.status).toBe('draft');
+    expect(StarCamMission.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        missionId: expect.stringMatching(/^reading_\d{14}$/),
+      })
+    );
+  });
+
+  it('lists active categories', async () => {
+    StarCamCategory.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([{ key: 'reading' }, { key: 'nature' }]),
+    });
+    const result = await listCategories();
+    expect(result.items).toHaveLength(2);
+  });
+
+  it('creates category', async () => {
+    StarCamCategory.create.mockResolvedValue({
+      toObject: () => ({ key: 'reading', name: 'Reading' }),
+    });
+    const result = await createCategory({ key: 'reading', name: 'Reading' });
+    expect(result).toMatchObject({ key: 'reading' });
+  });
+
   it('rejects publish if vocab/items are not exactly 7', async () => {
     StarCamMission.findById.mockResolvedValue(makeDoc({ vocab: [], items: [] }));
 
@@ -84,13 +133,21 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish if videoEnabled is true but introVideo missing', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i }));
+    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i,
+    }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        category: 'cat-1',
         videoEnabled: true,
         introVideo: null,
         vocab: vocab7,
@@ -102,13 +159,21 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when referenced media type mismatches', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i }));
+    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i,
+    }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,
         items: items7,
@@ -129,16 +194,29 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('publishes mission when valid', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i }));
+    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i,
+    }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     const doc = makeDoc({
       introText: 'Hello',
       introImage: 'intro-img',
       rewardImage: 'reward-img',
+      category: 'cat-1',
       videoEnabled: false,
       vocab: vocab7,
       items: items7,
     });
+    StarCamCategory.findOne.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
+    });
+
     StarCamMission.findById
       .mockResolvedValueOnce(doc) // initial fetch
       .mockReturnValueOnce({
@@ -192,13 +270,21 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when referenced media is missing', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i }));
+    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i,
+    }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,
         items: items7,
@@ -222,13 +308,21 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when sortOrder is not 0..6 unique', async () => {
-    const vocabBad = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i === 6 ? 5 : i }));
+    const vocabBad = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i === 6 ? 5 : i,
+    }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        category: 'cat-1',
         videoEnabled: false,
         vocab: vocabBad,
         items: items7,
@@ -239,13 +333,21 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when items sortOrder is not 0..6 unique', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({ word: `w${i}`, image: `img${i}`, audio: `aud${i}`, sortOrder: i }));
+    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
+      word: `w${i}`,
+      displayText: `Word ${i}`,
+      target: `target_${i}`,
+      image: `img${i}`,
+      audio: `aud${i}`,
+      sortOrder: i,
+    }));
     const itemsBad = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i === 0 ? 1 : i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,
         items: itemsBad,

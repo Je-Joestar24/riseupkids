@@ -14,6 +14,7 @@ import meetingReducer from './slices/meetingSlice';
 import youtubeReducer from './slices/youtubeSlice';
 import languageReducer from './slices/languageSlice';
 import printableManagementReducer from './slices/printableManagementSlice';
+import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 
 export const store = configureStore({
   reducer: {
@@ -32,6 +33,7 @@ export const store = configureStore({
     youtube: youtubeReducer, // YouTube Live list/detail/archive/delete
     language: languageReducer, // App language (pt/en/es)
     printableManagement: printableManagementReducer, // Admin printable materials state
+    starCamMissionAdmin: starCamMissionAdminReducer, // Star Cam mission/category admin state
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

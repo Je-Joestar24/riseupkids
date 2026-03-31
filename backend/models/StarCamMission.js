@@ -8,7 +8,12 @@ function isPublishingRequired() {
 
 const missionVocabSchema = new mongoose.Schema(
   {
-    word: { type: String, trim: true, required: [isPublishingRequired, 'Vocab word is required'] },
+    // Backward-compatible legacy field
+    word: { type: String, trim: true, required: false },
+    // Display text shown to child
+    displayText: { type: String, trim: true, required: [isPublishingRequired, 'Vocab displayText is required'] },
+    // Object label used for AI detection target mapping
+    target: { type: String, trim: true, lowercase: true, required: [isPublishingRequired, 'Vocab target is required'] },
     image: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab image is required'] },
     audio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab audio is required'] },
     sortOrder: { type: Number, min: 0, max: 6, required: true },
@@ -49,6 +54,13 @@ const starCamMissionSchema = new mongoose.Schema(
       enum: STAR_CAM_MISSION_STATUS,
       default: 'draft',
       index: true,
+    },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'StarCamCategory',
+      required: [isPublishingRequired, 'Mission category is required'],
+      index: true,
+      default: null,
     },
 
     introText: {
@@ -114,6 +126,7 @@ const starCamMissionSchema = new mongoose.Schema(
 );
 
 starCamMissionSchema.index({ status: 1, updatedAt: -1 });
+starCamMissionSchema.index({ category: 1, status: 1, updatedAt: -1 });
 
 starCamMissionSchema.pre('save', function setPublishedAt(next) {
   if (this.isModified('status')) {

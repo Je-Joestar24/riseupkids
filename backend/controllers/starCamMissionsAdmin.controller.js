@@ -2,8 +2,8 @@ const starCamMissionsAdminService = require('../services/starCamMissionsAdmin.se
 
 const listMissions = async (req, res) => {
   try {
-    const { page, limit, status, search } = req.query || {};
-    const data = await starCamMissionsAdminService.listMissions({ page, limit, status, search });
+    const { page, limit, status, search, categoryId } = req.query || {};
+    const data = await starCamMissionsAdminService.listMissions({ page, limit, status, search, categoryId });
     return res.status(200).json({ success: true, data });
   } catch (error) {
     const statusCode = error.statusCode || 500;
@@ -13,12 +13,34 @@ const listMissions = async (req, res) => {
 
 const createMission = async (req, res) => {
   try {
-    const { missionId, title } = req.body || {};
-    const data = await starCamMissionsAdminService.createMission({ userId: req.user?._id, missionId, title });
+    const { missionId, title, categoryId } = req.body || {};
+    const data = await starCamMissionsAdminService.createMission({ userId: req.user?._id, missionId, title, categoryId });
     return res.status(201).json({ success: true, data });
   } catch (error) {
     const statusCode = error.statusCode || (String(error.message || '').toLowerCase().includes('required') ? 400 : 500);
     return res.status(statusCode).json({ success: false, message: error.message || 'Failed to create mission' });
+  }
+};
+
+const listCategories = async (req, res) => {
+  try {
+    const includeInactive = String(req.query?.includeInactive || '').toLowerCase() === 'true';
+    const data = await starCamMissionsAdminService.listCategories({ includeInactive });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to list categories' });
+  }
+};
+
+const createCategory = async (req, res) => {
+  try {
+    const { key, name, description, sortOrder, isActive } = req.body || {};
+    const data = await starCamMissionsAdminService.createCategory({ key, name, description, sortOrder, isActive });
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || (String(error.message || '').toLowerCase().includes('required') ? 400 : 500);
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to create category' });
   }
 };
 
@@ -77,13 +99,38 @@ const archiveMission = async (req, res) => {
   }
 };
 
+const addMissionVocabulary = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const displayText = req.body?.displayText;
+    const target = req.body?.target;
+    const imageFile = req.files?.image?.[0] || null;
+    const audioFile = req.files?.audio?.[0] || null;
+    const data = await starCamMissionsAdminService.addMissionVocabularyEntry({
+      id,
+      userId: req.user?._id,
+      displayText,
+      target,
+      imageFile,
+      audioFile,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to add vocabulary' });
+  }
+};
+
 module.exports = {
   listMissions,
+  listCategories,
+  createCategory,
   createMission,
   getMission,
   updateMission,
   publishMission,
   unpublishMission,
   archiveMission,
+  addMissionVocabulary,
 };
 

@@ -31,6 +31,7 @@ const PasswordResetToken = require('./PasswordResetToken');
 const Lead = require('./Leads');
 const StarCamEvent = require('./StarCamEvent');
 const StarCamMission = require('./StarCamMission');
+const StarCamCategory = require('./StarCamCategory');
 const ProgramPrintable = require('./ProgramPrintable');
 
 module.exports = {
@@ -66,6 +67,7 @@ module.exports = {
   Lead,
   StarCamEvent,
   StarCamMission,
+  StarCamCategory,
   ProgramPrintable,
 };
 
