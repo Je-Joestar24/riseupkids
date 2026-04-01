@@ -78,16 +78,15 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
     type: 'module',
     isActive: true,
     course: { $in: modules.map((c) => c._id) },
-  }).select('course title description coverImage pdfUrl updatedAt');
+  })
+    .sort({ course: 1, createdAt: 1, updatedAt: 1 })
+    .select('course title description coverImage pdfUrl createdAt updatedAt');
 
-  const printableByCourseId = new Map();
+  const printablesByCourseId = new Map();
   for (const p of activeModulePrintables) {
     const key = String(p.course);
-    // If multiple active records exist, prefer the latest updatedAt
-    const existing = printableByCourseId.get(key);
-    if (!existing || (p.updatedAt && existing.updatedAt && p.updatedAt > existing.updatedAt)) {
-      printableByCourseId.set(key, p);
-    }
+    if (!printablesByCourseId.has(key)) printablesByCourseId.set(key, []);
+    printablesByCourseId.get(key).push(p);
   }
 
   // Determine status for each course to find current module index.
@@ -113,7 +112,10 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
   const modulesPayload = moduleStates.map((m, idx) => {
     const isUnlocked = idx >= currentIndex && idx <= unlockThroughIndex;
 
-    const printable = printableByCourseId.get(String(m.course._id)) || null;
+    const coursePrintables = printablesByCourseId.get(String(m.course._id)) || [];
+    const latestPrintable = coursePrintables.length
+      ? coursePrintables[coursePrintables.length - 1]
+      : null;
 
     const contentProgress = m.progress?.contentProgress || [];
     const progressByContentKey = new Map();
@@ -172,16 +174,29 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
       isUnlocked,
       module: {
         id: String(m.course._id),
-        title: printable?.title || m.course.title,
-        description: printable?.description || m.course.description || null,
-        coverImage: printable?.coverImage || m.course.coverImage || null,
+        title: latestPrintable?.title || m.course.title,
+        description: latestPrintable?.description || m.course.description || null,
+        coverImage: latestPrintable?.coverImage || m.course.coverImage || null,
       },
-      printable: printable
+      printable: latestPrintable
         ? {
-            id: String(printable._id),
-            pdfUrl: isUnlocked ? printable.pdfUrl : null,
+            id: String(latestPrintable._id),
+            title: latestPrintable.title,
+            description: latestPrintable.description || null,
+            coverImage: latestPrintable.coverImage || null,
+            pdfUrl: isUnlocked ? latestPrintable.pdfUrl : null,
           }
         : { id: null, pdfUrl: null },
+      printables: coursePrintables.map((printable, printableIdx) => ({
+        id: String(printable._id),
+        pageNumber: printableIdx + 1,
+        label: printable.title || `Page ${printableIdx + 1}`,
+        title: printable.title,
+        description: printable.description || null,
+        coverImage: printable.coverImage || null,
+        fileUrl: isUnlocked ? printable.pdfUrl : null,
+        pdfUrl: isUnlocked ? printable.pdfUrl : null,
+      })),
       progress: {
         totalCount,
         completedCount,
@@ -210,6 +225,7 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
         title: m.module.title,
         description: m.module.description,
         coverImage: m.module.coverImage,
+        printables: m.printables,
         contents: m.contentsByType,
         progress: m.progress,
         printablePdfUrl: m.printable.pdfUrl,
@@ -217,8 +233,24 @@ async function getProgramMaterialsForChild({ parentUserId, childId }) {
     },
     // Back-compat for older FE
     materialsByStep: modulesPayload,
-    fullBundle: fullBundlePrintable ? { fileUrl: fullBundlePrintable.pdfUrl, title: fullBundlePrintable.title } : { fileUrl: null, title: null },
-    recipes: recipesPrintable ? { fileUrl: recipesPrintable.pdfUrl, title: recipesPrintable.title } : { fileUrl: null, title: null },
+    fullBundle: fullBundlePrintable
+      ? {
+          fileUrl: fullBundlePrintable.pdfUrl,
+          pdfUrl: fullBundlePrintable.pdfUrl,
+          title: fullBundlePrintable.title,
+          description: fullBundlePrintable.description || null,
+          coverImage: fullBundlePrintable.coverImage || null,
+        }
+      : { fileUrl: null, pdfUrl: null, title: null, description: null, coverImage: null },
+    recipes: recipesPrintable
+      ? {
+          fileUrl: recipesPrintable.pdfUrl,
+          pdfUrl: recipesPrintable.pdfUrl,
+          title: recipesPrintable.title,
+          description: recipesPrintable.description || null,
+          coverImage: recipesPrintable.coverImage || null,
+        }
+      : { fileUrl: null, pdfUrl: null, title: null, description: null, coverImage: null },
   };
 }
 

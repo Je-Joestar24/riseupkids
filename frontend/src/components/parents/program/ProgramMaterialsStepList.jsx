@@ -5,6 +5,8 @@ import { themeColors } from '../../../config/themeColors';
 import ProgramMaterialsStepCard from './ProgramMaterialsStepCard';
 
 const ProgramMaterialsStepList = ({ materials, onDownload }) => {
+  const sortedMaterials = [...materials].sort((a, b) => (a?.stepNumber || 0) - (b?.stepNumber || 0));
+
   if (!materials.length) {
     return (
       <Typography
@@ -23,9 +25,15 @@ const ProgramMaterialsStepList = ({ materials, onDownload }) => {
   }
 
   return (
-    <Grid container spacing={2}>
-      {materials.map((step) => (
-        <Grid key={step.stepNumber} item xs={12} md={6}>
+    <Grid
+      container
+      spacing={{ xs: 1.5, sm: 2, md: 2.5 }}
+      role="list"
+      aria-label="Program material steps"
+      alignItems="stretch"
+    >
+      {sortedMaterials.map((step) => (
+        <Grid key={step.id || step.stepNumber} item xs={12} md={6} role="listitem" sx={{ display: 'flex' }}>
           <ProgramMaterialsStepCard step={step} onDownload={onDownload} />
         </Grid>
       ))}

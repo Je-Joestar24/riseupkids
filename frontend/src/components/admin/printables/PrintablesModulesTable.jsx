@@ -1,9 +1,9 @@
 import React from 'react';
 import {
   Box,
-  Button,
   CircularProgress,
   Paper,
+  Radio,
   Table,
   TableBody,
   TableCell,
@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
-const PrintablesModulesTable = ({ modules, loading, onViewModule }) => {
+const PrintablesModulesTable = ({ modules, loading, selectedModuleId, onSelectModule }) => {
   const theme = useTheme();
 
   if (loading && (!modules || modules.length === 0)) {
@@ -49,12 +49,18 @@ const PrintablesModulesTable = ({ modules, loading, onViewModule }) => {
             <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Module</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Printables</TableCell>
-            <TableCell sx={{ fontWeight: 700 }} align="right">Action</TableCell>
+            <TableCell sx={{ fontWeight: 700 }} align="center">Select</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
           {modules.map((module) => (
-            <TableRow key={module.id} hover>
+            <TableRow
+              key={module.id}
+              hover
+              selected={selectedModuleId === module.id}
+              onClick={() => onSelectModule(module)}
+              sx={{ cursor: 'pointer' }}
+            >
               <TableCell>{module.stepNumber}</TableCell>
               <TableCell>
                 <Box>
@@ -65,19 +71,13 @@ const PrintablesModulesTable = ({ modules, loading, onViewModule }) => {
                 </Box>
               </TableCell>
               <TableCell>{module.printableCount || 0}</TableCell>
-              <TableCell align="right">
-                <Button
-                  variant="contained"
-                  onClick={() => onViewModule(module)}
-                  sx={{
-                    textTransform: 'none',
-                    borderRadius: '10px',
-                    fontWeight: 700,
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  View
-                </Button>
+              <TableCell align="center">
+                <Radio
+                  checked={selectedModuleId === module.id}
+                  onChange={() => onSelectModule(module)}
+                  value={module.id}
+                  inputProps={{ 'aria-label': `Select module ${module.title}` }}
+                />
               </TableCell>
             </TableRow>
           ))}

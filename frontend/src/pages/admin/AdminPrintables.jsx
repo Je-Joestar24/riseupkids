@@ -92,7 +92,12 @@ const AdminPrintables = () => {
 
       {!isDetailsMode ? (
         <Box>
-          <PrintablesModulesTable modules={modules} loading={loadingModules} onViewModule={handleSelectCourse} />
+          <PrintablesModulesTable
+            modules={modules}
+            loading={loadingModules}
+            selectedModuleId={selectedCourse?.id || null}
+            onSelectModule={handleSelectCourse}
+          />
           <PrintablesPagination
             pagination={modulesPagination}
             onPageChange={(page) => setModuleQuery((prev) => ({ ...prev, page }))}
@@ -103,7 +108,12 @@ const AdminPrintables = () => {
       ) : (
         <Grid container spacing={2}>
           <Grid item xs={12} md={7}>
-            <PrintablesModulesTable modules={modules} loading={loadingModules} onViewModule={handleSelectCourse} />
+            <PrintablesModulesTable
+              modules={modules}
+              loading={loadingModules}
+              selectedModuleId={selectedCourse?.id || null}
+              onSelectModule={handleSelectCourse}
+            />
             <PrintablesPagination
               pagination={modulesPagination}
               onPageChange={(page) => setModuleQuery((prev) => ({ ...prev, page }))}

@@ -4,8 +4,11 @@ import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material
 import { themeColors } from '../../../config/themeColors';
 
 function buildStepTitle(step) {
-  // Backend now treats "modules" as the parent-facing "steps".
-  return step?.title || `Module ${step?.stepNumber || ''}`.trim();
+  return `Step ${step?.stepNumber || ''}`.trim();
+}
+
+function buildStepSubtitle(step) {
+  return step?.title || step?.module?.title || `Module ${step?.stepNumber || ''}`.trim();
 }
 
 const ProgramMaterialsStepCard = ({ step, onDownload }) => {
@@ -21,6 +24,7 @@ const ProgramMaterialsStepCard = ({ step, onDownload }) => {
   return (
     <Card
       sx={{
+        width: '100%',
         borderRadius: '16px',
         border: `1px solid ${themeColors.border}`,
         boxShadow: 'none',
@@ -29,76 +33,145 @@ const ProgramMaterialsStepCard = ({ step, onDownload }) => {
     >
       <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
         <Stack spacing={1.5}>
-          <Typography
-            variant="h6"
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 700,
-              color: themeColors.text,
-              fontSize: { xs: '1.05rem', sm: '1.15rem' },
-            }}
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+            spacing={1}
           >
-            {buildStepTitle(step)}
-          </Typography>
+            <Typography
+              variant="h6"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 700,
+                color: themeColors.text,
+                fontSize: { xs: '1.05rem', sm: '1.15rem' },
+              }}
+            >
+              {buildStepSubtitle(step)}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 700,
+                color: themeColors.textMuted,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {buildStepTitle(step)}
+            </Typography>
+          </Stack>
+          {!!step?.description ? (
+            <Typography
+              variant="body2"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: themeColors.textMuted,
+                fontWeight: 600,
+              }}
+            >
+              {step.description}
+            </Typography>
+          ) : null}
 
           {/* Backward compatibility: old API returned step.printables[] */}
           {!!step?.printables?.length ? (
-            step.printables.map((printable) => (
-              <Box
-                key={printable.id || `${step.stepNumber}-${printable.pageNumber}`}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 2,
-                  py: 0.75,
-                  borderBottom: `1px solid ${themeColors.border}40`,
-                  '&:last-of-type': {
-                    borderBottom: 'none',
-                  },
-                }}
-              >
-                <Typography
-                  variant="body1"
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: {
+                  xs: '1fr',
+                  sm: 'repeat(2, minmax(0, 1fr))',
+                },
+                gap: 1.25,
+              }}
+            >
+              {step.printables.map((printable) => (
+                <Box
+                  key={printable.id || `${step.stepNumber}-${printable.pageNumber}`}
                   sx={{
-                    fontFamily: 'Quicksand, sans-serif',
-                    color: themeColors.text,
-                    fontWeight: 600,
-                    fontSize: { xs: '0.95rem', sm: '1rem' },
+                    border: `1px solid ${themeColors.border}55`,
+                    borderRadius: '12px',
+                    p: 1.25,
+                    backgroundColor: themeColors.bg,
+                    display: 'flex',
                   }}
                 >
-                  {printable.label || `Page ${printable.pageNumber}`}
-                </Typography>
+                  <Stack spacing={1} sx={{ width: '100%', minHeight: '100%' }}>
+                  {!!printable?.coverImage ? (
+                    <Box
+                      component="img"
+                      src={printable.coverImage}
+                      alt={`${printable.title || printable.label || `Page ${printable.pageNumber}`} cover`}
+                      sx={{
+                        width: '100%',
+                        aspectRatio: '1 / 1',
+                        objectFit: 'cover',
+                        borderRadius: '10px',
+                        border: `1px solid ${themeColors.border}66`,
+                      }}
+                    />
+                  ) : null}
 
-                <Button
-                  variant="contained"
-                  size="small"
-                  onClick={() => onDownload(printable.fileUrl)}
-                  disabled={!printable.fileUrl}
-                  aria-label={`Download ${buildStepTitle(step)} ${printable.label || ''}`.trim()}
-                  sx={{
-                    textTransform: 'none',
-                    fontWeight: 700,
-                    fontFamily: 'Quicksand, sans-serif',
-                    backgroundColor: themeColors.btnYellow,
-                    color: '#1f2937',
-                    minWidth: 116,
-                    borderRadius: '10px',
-                    boxShadow: 'none',
-                    '&:hover': {
-                      backgroundColor: '#d99b00',
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      color: themeColors.text,
+                      fontWeight: 700,
+                      fontSize: { xs: '0.95rem', sm: '1rem' },
+                    }}
+                  >
+                    {printable.title || printable.label || `Page ${printable.pageNumber}`}
+                  </Typography>
+
+                  {!!printable?.description ? (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        color: themeColors.textMuted,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {printable.description}
+                    </Typography>
+                  ) : null}
+
+                  <Button
+                    variant="contained"
+                    size="small"
+                    onClick={() => onDownload(printable.fileUrl || printable.pdfUrl)}
+                    disabled={!(printable.fileUrl || printable.pdfUrl)}
+                    aria-label={`Download ${buildStepSubtitle(step)} ${printable.label || ''}`.trim()}
+                    sx={{
+                      mt: 'auto',
+                      alignSelf: 'flex-start',
+                      textTransform: 'none',
+                      fontWeight: 700,
+                      fontFamily: 'Quicksand, sans-serif',
+                      backgroundColor: themeColors.btnYellow,
+                      color: '#1f2937',
+                      minWidth: 116,
+                      borderRadius: '10px',
                       boxShadow: 'none',
-                    },
-                    '&.Mui-disabled': {
-                      backgroundColor: themeColors.bgTertiary,
-                      color: themeColors.textMuted,
-                    },
-                  }}
-                >
-                  Download
-                </Button>
-              </Box>
-            ))
+                      '&:hover': {
+                        backgroundColor: '#d99b00',
+                        boxShadow: 'none',
+                      },
+                      '&.Mui-disabled': {
+                        backgroundColor: themeColors.bgTertiary,
+                        color: themeColors.textMuted,
+                      },
+                    }}
+                  >
+                    Download
+                  </Button>
+                  </Stack>
+                </Box>
+              ))}
+            </Box>
           ) : (
             <Box>
               <Typography
@@ -117,7 +190,7 @@ const ProgramMaterialsStepCard = ({ step, onDownload }) => {
                 size="small"
                 onClick={() => onDownload(downloadUrl)}
                 disabled={!downloadUrl}
-                aria-label={`Download ${buildStepTitle(step)}`.trim()}
+                aria-label={`Download ${buildStepSubtitle(step)}`.trim()}
                 sx={{
                   mt: 1,
                   textTransform: 'none',

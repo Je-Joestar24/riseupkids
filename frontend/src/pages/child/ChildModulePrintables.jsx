@@ -1,50 +1,71 @@
-import React, { useMemo } from 'react';
-import { Box } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Box, Button, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
-import { themeColors } from '../../config/themeColors';
 import PrintablesHeader from '../../components/child/printables/PrintablesHeader';
 import PrintablesCards from '../../components/child/printables/PrintablesCards';
 import PrintablesFooter from '../../components/child/printables/PrintablesFooter';
+import programMaterilialsService from '../../services/programMaterilialsService';
 
 /**
- * Child printable materials page (static layout for now).
+ * Child printable materials page.
  * Route: /child/:id/journey/:courseId/printables
  */
 const ChildModulePrintables = () => {
     const navigate = useNavigate();
     const { id: childId, courseId } = useParams();
+    const [materials, setMaterials] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-    const stepNumber = 3; // TODO: derive from backend/config when available
+    const numericCourseId = Number(courseId);
 
-    const printables = useMemo(
-        () => [
-            {
-                id: 'page-1',
-                pageNumber: 1,
-                label: 'ABC Tracing Worksheet',
-                imageUrl:
-                    'https://images.unsplash.com/photo-1580974928064-f0aeef70895a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400',
-                fileUrl: 'https://example.com/printables/page-1.pdf',
-            },
-            {
-                id: 'page-2',
-                pageNumber: 2,
-                label: 'Letter Recognition Practice',
-                imageUrl:
-                    'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400',
-                fileUrl: 'https://example.com/printables/page-2.pdf',
-            },
-            {
-                id: 'page-3',
-                pageNumber: 3,
-                label: 'Coloring Activity',
-                imageUrl:
-                    'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=400',
-                fileUrl: 'https://example.com/printables/page-3.pdf',
-            },
-        ],
-        []
-    );
+    const fetchMaterials = async () => {
+        if (!childId) {
+            setError('Child ID is missing.');
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        try {
+            const response = await programMaterilialsService.getByChildId(childId);
+            setMaterials(response);
+        } catch (err) {
+            setError(typeof err === 'string' ? err : 'Failed to load printables.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchMaterials();
+    }, [childId]);
+
+    const selectedModule = useMemo(() => {
+        const modules = Array.isArray(materials?.modules) ? materials.modules : [];
+        if (!modules.length) return null;
+
+        return (
+            modules.find((module) => String(module?.id) === String(courseId)) ||
+            (Number.isFinite(numericCourseId) ? modules.find((module) => module?.stepNumber === numericCourseId) : null) ||
+            modules[0]
+        );
+    }, [materials, courseId, numericCourseId]);
+
+    const stepNumber = selectedModule?.stepNumber || (Number.isFinite(numericCourseId) ? numericCourseId : 1);
+
+    const printables = useMemo(() => {
+        const source = Array.isArray(selectedModule?.printables) ? selectedModule.printables : [];
+        return source.map((item, index) => ({
+            id: item?.id || `page-${index + 1}`,
+            pageNumber: item?.pageNumber || index + 1,
+            title: item?.title || item?.label || `Printable ${index + 1}`,
+            description: item?.description || item?.details || '',
+            imageUrl: item?.coverImage || null,
+            fileUrl: item?.fileUrl || item?.pdfUrl || null,
+        }));
+    }, [selectedModule]);
 
     const handleBack = () => {
         navigate(`/child/${childId}/journey/${courseId}`);
@@ -74,7 +95,40 @@ const ChildModulePrintables = () => {
                     <PrintablesHeader onBack={handleBack} stepNumber={stepNumber} />
                 </Box>
 
-                <PrintablesCards cards={printables} onDownload={handleDownload} />
+                {loading ? (
+                    <Typography
+                        role="status"
+                        aria-label="Loading printables"
+                        sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
+                    >
+                        Loading printables...
+                    </Typography>
+                ) : error ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                        <Typography
+                            role="alert"
+                            aria-label="Printable loading error"
+                            sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, color: '#b91c1c' }}
+                        >
+                            {error}
+                        </Typography>
+                        <Button
+                            variant="contained"
+                            onClick={fetchMaterials}
+                            aria-label="Retry loading printables"
+                            sx={{
+                                alignSelf: 'flex-start',
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                fontFamily: 'Quicksand, sans-serif',
+                            }}
+                        >
+                            Retry
+                        </Button>
+                    </Box>
+                ) : (
+                    <PrintablesCards cards={printables} onDownload={handleDownload} />
+                )}
 
                 <Box sx={{ mt: 4 }}>
                     <PrintablesFooter />

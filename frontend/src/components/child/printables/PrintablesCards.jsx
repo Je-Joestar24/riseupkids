@@ -59,7 +59,7 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
                 <Box
                   component="img"
                   src={card.imageUrl}
-                  alt={card?.label ? `${card.label} thumbnail` : `Page ${card?.pageNumber} thumbnail`}
+                  alt={card?.title ? `${card.title} thumbnail` : `Page ${card?.pageNumber} thumbnail`}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 />
               ) : null}
@@ -75,25 +75,27 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
                   mb: 0.5,
                 }}
               >
-                {`Page ${card?.pageNumber ?? ''}`.trim()}
+                {`Page ${card?.pageNumber ?? ''}: ${card?.title || ''}`.trim()}
               </Typography>
 
-              <Typography
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  color: themeColors.primary,
-                  fontSize: { xs: '1.05rem', sm: '1.15rem' },
-                }}
-              >
-                {card?.label || ''}
-              </Typography>
+              {card?.description ? (
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 600,
+                    color: themeColors.primary,
+                    fontSize: { xs: '1.05rem', sm: '1.15rem' },
+                  }}
+                >
+                  {card.description}
+                </Typography>
+              ) : null}
             </Box>
 
             <ButtonBase
               disabled={isDisabled}
               onClick={() => onDownload?.(card?.fileUrl)}
-              aria-label={`Download ${card?.label || `Page ${card?.pageNumber}`}`}
+              aria-label={`Download ${card?.title || `Page ${card?.pageNumber}`}`}
               sx={{
                 flexShrink: 0,
                 borderRadius: 0,

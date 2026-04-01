@@ -129,26 +129,28 @@ describe('programMaterials.service (module-based printables)', () => {
     })); // full bundle + recipes absent
 
     ProgramPrintable.find.mockReturnValue({
-      select: jest.fn().mockResolvedValue([
-        {
-          _id: 'p1',
-          course: 'course-1',
-          title: 'Printable Intro',
-          description: 'Printable Desc 1',
-          coverImage: 'printCover1',
-          pdfUrl: 'pdf-intro',
-          updatedAt: now,
-        },
-        {
-          _id: 'p2',
-          course: 'course-2',
-          title: 'Printable 2',
-          description: 'Printable Desc 2',
-          coverImage: 'printCover2',
-          pdfUrl: 'pdf-2',
-          updatedAt: now,
-        },
-      ]),
+      sort: jest.fn().mockReturnValue({
+        select: jest.fn().mockResolvedValue([
+          {
+            _id: 'p1',
+            course: 'course-1',
+            title: 'Printable Intro',
+            description: 'Printable Desc 1',
+            coverImage: 'printCover1',
+            pdfUrl: 'pdf-intro',
+            updatedAt: now,
+          },
+          {
+            _id: 'p2',
+            course: 'course-2',
+            title: 'Printable 2',
+            description: 'Printable Desc 2',
+            coverImage: 'printCover2',
+            pdfUrl: 'pdf-2',
+            updatedAt: now,
+          },
+        ]),
+      }),
     });
 
     const { getProgramMaterialsForChild } = require('../services/programMaterials.service');
@@ -163,14 +165,31 @@ describe('programMaterials.service (module-based printables)', () => {
 
     expect(step1.isUnlocked).toBe(true);
     expect(step1.printable.pdfUrl).toBe('pdf-intro');
+    expect(step1.printables).toEqual([
+      expect.objectContaining({
+        id: 'p1',
+        pageNumber: 1,
+        label: 'Printable Intro',
+        fileUrl: 'pdf-intro',
+      }),
+    ]);
     expect(step1.contentsByType.library[0].progressStatus).toBe('completed');
 
     expect(step2.isUnlocked).toBe(true);
     expect(step2.printable.pdfUrl).toBe('pdf-2');
+    expect(step2.printables).toEqual([
+      expect.objectContaining({
+        id: 'p2',
+        pageNumber: 1,
+        label: 'Printable 2',
+        fileUrl: 'pdf-2',
+      }),
+    ]);
     expect(step2.contentsByType.videos[0].progressStatus).toBe('not_started');
 
     expect(step3.isUnlocked).toBe(false);
     expect(step3.printable.pdfUrl).toBe(null);
+    expect(step3.printables).toEqual([]);
   });
 });
 
