@@ -20,6 +20,7 @@ export type {
 export { journeyService } from './journeyService';
 export { moduleService } from './moduleService';
 export { parentChildService } from './parentChildService';
+export { childStarCamService } from './childStarCamService';
 export type {
   ChildProfile,
   ChildPreferences,
@@ -28,6 +29,15 @@ export type {
   GetAllChildrenParams,
   ApiResponse,
 } from './parentChildService';
+export type {
+  StarCamCategoryListItem,
+  StarCamCategoryListPayload,
+  StarCamMissionListItem,
+  StarCamMissionListByCategoryPayload,
+  StarCamChildMissionStartPayload,
+  StarCamPracticeItem,
+  StarCamHuntItem,
+} from './childStarCamService';
 export type {
   ChildCourseWithProgress,
   GetChildCoursesParams,

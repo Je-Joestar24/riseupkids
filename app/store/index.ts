@@ -17,3 +17,5 @@ export { useExploreStore, exploreCacheKey } from './exploreStore';
 export type { ExploreState, ExploreActions } from './exploreStore';
 export { useKidsWallStore } from './kidswallStore';
 export type { KidsWallState, KidsWallActions, KidsWallFetchContext } from './kidswallStore';
+export { useStarCamStore } from './starCamStore';
+export type { StarCamState, StarCamActions } from './starCamStore';
