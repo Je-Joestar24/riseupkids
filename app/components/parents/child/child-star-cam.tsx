@@ -6,7 +6,6 @@ import {
   Image,
   Pressable,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   View,
   type ImageSourcePropType,
@@ -174,11 +173,13 @@ export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
           <ThemedText style={styles.headerTitle}>LET&apos;S EXPLORE</ThemedText>
         </View>
 
-        <ScrollView
-          style={styles.mapScroll}
-          contentContainerStyle={styles.mapScrollContent}
-          showsVerticalScrollIndicator={false}>
-          <Image source={STARCAM_BACKGROUND} style={styles.mapBackground} resizeMode="cover" />
+        <View style={styles.mapSection}>
+          <Image
+            source={STARCAM_BACKGROUND}
+            style={styles.mapBackground}
+            resizeMode="cover"
+            accessibilityIgnoresInvertColors
+          />
           <View style={styles.bubbleArea}>
             {bubbleItems.map((item) => (
               <Pressable
@@ -228,7 +229,7 @@ export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
           </View>
 
           {isLoadingCategories ? (
-            <View style={styles.statusWrap}>
+            <View style={styles.statusWrap} pointerEvents="box-none">
               <ActivityIndicator size="small" color={colors.accent} />
               <ThemedText style={styles.statusText}>Loading categories...</ThemedText>
             </View>
@@ -243,7 +244,7 @@ export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
               <ThemedText style={styles.errorText}>{error}</ThemedText>
             </Pressable>
           ) : null}
-        </ScrollView>
+        </View>
 
         <View style={styles.footer}>
           <ThemedText style={styles.footerText}>
@@ -260,21 +261,20 @@ export default ChildStarCam;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: colors.accent,
     padding: spacing[3],
+    paddingLeft: 0,
+    paddingRight: 0
   },
   phoneFrame: {
     flex: 1,
+    flexDirection: 'column',
     borderRadius: 0,
     overflow: 'hidden',
     borderWidth: 8,
     borderColor: colors.accent,
     backgroundColor: '#fff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 10,
   },
   header: {
     height: 80,
@@ -292,13 +292,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  mapScroll: {
+  /** Fills space between header and footer so the cover image can span full height. */
+  mapSection: {
     flex: 1,
+    minHeight: 0,
+    position: 'relative',
     backgroundColor: colors.bgSecondary,
-  },
-  mapScrollContent: {
-    flexGrow: 1,
-    paddingBottom: spacing[8],
   },
   mapBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -306,10 +305,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   bubbleArea: {
-    width: '100%',
-    flex: 1,
-    minHeight: 600,
-    position: 'relative',
+    ...StyleSheet.absoluteFillObject,
   },
   bubblePressable: {
     position: 'absolute',
@@ -356,11 +352,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   statusWrap: {
-    marginTop: spacing[2],
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing[4],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing[2],
+    zIndex: 20,
   },
   statusText: {
     fontSize: typography.sizes.sm,
@@ -368,12 +368,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorWrap: {
+    position: 'absolute',
+    left: spacing[4],
+    right: spacing[4],
+    bottom: spacing[12],
     alignSelf: 'center',
-    marginTop: spacing[2],
     backgroundColor: '#fee2e2',
     borderRadius: radii.md,
     paddingVertical: spacing[2],
     paddingHorizontal: spacing[3],
+    zIndex: 20,
   },
   errorText: {
     color: colors.error,

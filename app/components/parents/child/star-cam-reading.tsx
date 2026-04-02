@@ -12,13 +12,13 @@ import {
   Animated,
   Easing,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   View,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
@@ -299,7 +299,7 @@ function ReadingMissionMap({
   }, [mapSize]);
 
   return (
-    <View style={[mapStyles.root, { borderColor: colors.orange }]}>
+    <View style={mapStyles.root}>
       <LinearGradient
         colors={[...READING_GRADIENT]}
         locations={[0, 0.5, 1]}
@@ -398,8 +398,8 @@ export function StarCamReading({ childId, onBack, onMissionPress }: StarCamReadi
       : 'Tap a story to begin reading';
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.pad}>
+    <SafeAreaView style={styles.safeRoot} edges={['top', 'right', 'bottom', 'left']}>
+      <View style={styles.phoneFrame}>
         <ReadingMissionMap
           onBack={onBack}
           missions={displayMissions}
@@ -412,22 +412,31 @@ export function StarCamReading({ childId, onBack, onMissionPress }: StarCamReadi
 }
 
 const styles = StyleSheet.create({
-  safe: {
+  /** Matches `ChildStarCam`: inset from device safe areas, then yellow “display” frame. */
+  safeRoot: {
     flex: 1,
-    backgroundColor: colors.bgSecondary,
+    backgroundColor: colors.orange,
+    padding: spacing[3],
+    paddingLeft: 0,
+    paddingRight: 0,
   },
-  pad: {
+  phoneFrame: {
     flex: 1,
+    borderRadius: 0,
+    overflow: 'hidden',
+    borderWidth: 8,
+    borderColor: colors.orange,
+    backgroundColor: colors.bgLogin,
   },
 });
 
 const mapStyles = StyleSheet.create({
+  /** Fills the yellow phone frame; border is on the parent `phoneFrame`. */
   root: {
     flex: 1,
     borderRadius: 0,
-    borderWidth: 8,
     overflow: 'hidden',
-    backgroundColor: colors.bgLogin,
+    backgroundColor: 'transparent',
   },
   screenGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -458,6 +467,7 @@ const mapStyles = StyleSheet.create({
   decorEmojiText: {
     fontSize: 56,
     fontWeight: '600',
+    lineHeight: 60,
   },
   topFade: {
     position: 'absolute',
@@ -499,6 +509,7 @@ const mapStyles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 4 },
     textShadowRadius: 12,
+    lineHeight: 60,
   },
   mapArea: {
     flex: 1,
@@ -526,6 +537,7 @@ const mapStyles = StyleSheet.create({
   },
   missionEmoji: {
     fontWeight: '700',
+    lineHeight: 80,
   },
   footerWrap: {
     position: 'absolute',
