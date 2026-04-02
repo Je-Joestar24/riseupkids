@@ -121,6 +121,8 @@ export function Html5Modal({
 }: Html5ModalProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [result, setResult] = useState<Html5Result | null>(null);
+    const [submitOnResult, setSubmitOnResult] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [closeConfirmActive, setCloseConfirmActive] = useState(false);
     const webViewRef = useRef<WebView>(null);
     const scoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -141,26 +143,6 @@ export function Html5Modal({
                     const { passed, progress } = computePassAndProgress(score, maxScore);
                     const next: Html5Result = { score, maxScore, passed, progress };
                     setResult(next);
-
-                    if (passed && courseId && childId && bookId) {
-                        const numScore = score ?? 0;
-                        const numMax = maxScore ?? 0;
-                        moduleService
-                            .submitBookCompletion(courseId, childId, bookId, {
-                                score: numScore,
-                                maxScore: numMax,
-                                status: 'passed',
-                                timeSpent: 0,
-                                progress,
-                            })
-                            .then((res) => {
-                                const payload = res?.data as { data?: BookCompletionData } | undefined;
-                                const bookReading = payload?.data ?? null;
-                                setResult((prev) => (prev ? { ...prev, bookReading } : null));
-                                onAfterComplete?.();
-                            })
-                            .catch(() => {});
-                    }
                 }
             } catch {
                 // ignore
@@ -171,6 +153,7 @@ export function Html5Modal({
 
     const handleDone = useCallback(() => {
         setResult(null);
+        setSubmitOnResult(true);
         try {
             webViewRef.current?.injectJavaScript(GET_QUIZ_SCORE_SCRIPT);
         } catch {
@@ -183,6 +166,36 @@ export function Html5Modal({
             );
         }, 1800);
     }, []);
+
+    // Only submit completion after the child taps Done (submitOnResult === true)
+    useEffect(() => {
+        if (!submitOnResult || submitting) return;
+        if (!result || result.passed !== true) return;
+        if (!courseId || !childId || !bookId) return;
+
+        setSubmitting(true);
+        const numScore = result.score ?? 0;
+        const numMax = result.maxScore ?? 0;
+        moduleService
+            .submitBookCompletion(courseId, childId, bookId, {
+                score: numScore,
+                maxScore: numMax,
+                status: 'passed',
+                timeSpent: 0,
+                progress: result.progress ?? 100,
+            })
+            .then((res) => {
+                const payload = res?.data as { data?: BookCompletionData } | undefined;
+                const bookReading = payload?.data ?? null;
+                setResult((prev) => (prev ? { ...prev, bookReading } : prev));
+                onAfterComplete?.();
+            })
+            .catch(() => {})
+            .finally(() => {
+                setSubmitting(false);
+                setSubmitOnResult(false);
+            });
+    }, [submitOnResult, result, courseId, childId, bookId, submitting, onAfterComplete]);
 
     const PORTRAIT = ScreenOrientation.OrientationLock.PORTRAIT_UP;
     const LANDSCAPE = ScreenOrientation.OrientationLock.LANDSCAPE;
@@ -256,6 +269,7 @@ export function Html5Modal({
             scoreTimeoutRef.current = null;
         }
         setResult(null);
+        setSubmitOnResult(false);
     }, []);
 
     /** When passed: show global dialog (star / more readings message) then close modal. */
@@ -291,6 +305,7 @@ export function Html5Modal({
             scoreTimeoutRef.current = null;
         }
         setResult(null);
+        setSubmitOnResult(false);
         try {
             webViewRef.current?.reload();
         } catch {

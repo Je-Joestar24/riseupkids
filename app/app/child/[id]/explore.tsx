@@ -29,6 +29,11 @@ export default function ChildExploreScreen() {
     [childId, router]
   );
 
+  const handleStarCamPress = useCallback(() => {
+    if (!childId) return;
+    router.push(`/child/${childId}/star-cam` as never);
+  }, [childId, router]);
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -41,7 +46,7 @@ export default function ChildExploreScreen() {
           childId={childId}
           onVideoTypePress={handleVideoTypePress}
         />
-        <ExploreStarCam />
+        <ExploreStarCam onPress={handleStarCamPress} />
       </ScrollView>
     </View>
   );

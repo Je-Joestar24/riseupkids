@@ -65,6 +65,14 @@ export interface StarCamMissionListByCategoryPayload {
   limitApplied: number; // should be 3
 }
 
+/** One floating node on the category mission map (UI projection of `StarCamMissionListItem`). */
+export interface StarCamMissionMapBubble {
+  id: string;
+  missionId: string;
+  title: string;
+  emoji: string;
+}
+
 // ---------------------------------------------------------------------------
 // Mission start flow payload (what the child UI consumes)
 // ---------------------------------------------------------------------------

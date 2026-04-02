@@ -14,10 +14,15 @@ import { spacing } from '@/config/theme/spacing';
 const STAR_SIZE = 96;
 const CAMERA_SIZE = 40;
 
-export function ExploreStarCam() {
+interface ExploreStarCamProps {
+  onPress?: () => void;
+}
+
+export function ExploreStarCam({ onPress }: ExploreStarCamProps) {
   return (
     <View style={styles.card}>
       <Pressable
+        onPress={onPress}
         style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
         accessibilityRole="button"
         accessibilityLabel="Star Cam">
