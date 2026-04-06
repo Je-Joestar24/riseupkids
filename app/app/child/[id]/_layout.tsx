@@ -23,7 +23,7 @@ export default function ChildLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'fade_from_bottom',
+          animation: 'fade',
           contentStyle: { backgroundColor: colors.secondary },
         }}>
         <Stack.Screen name="home" />

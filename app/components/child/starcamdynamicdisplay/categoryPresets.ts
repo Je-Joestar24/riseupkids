@@ -106,7 +106,7 @@ export const STAR_CAM_CATEGORY_PRESETS: Record<StarCamCategoryKey, StarCamCatego
     ],
     header: {
       kind: 'text',
-      title: '🎒✏️📐\nSchool Time',
+      title: '\n🎒School Time',
     },
     footerHint: 'Tap a lesson to begin',
     sampleMissions: [

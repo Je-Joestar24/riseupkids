@@ -22,16 +22,19 @@ export const StarCamCategoryHeaderTitle = memo(function StarCamCategoryHeaderTit
 
   if (preset.header.kind === 'image') {
     const showDecorEmojiStrip = preset.header.showDecorEmojiStrip !== false;
-    const reservedTitleHeight = Math.round(titleLineHeight * 2.1);
-    const maxLogoWidth = Math.min(width - spacing[4] * 2, 340);
-    const logoHeight = Math.max(56, reservedTitleHeight - (showDecorEmojiStrip ? Math.round(titleLineHeight * 0.9) : 0));
+    // Keep image headers compact so bubbles retain map space on smaller phones.
+    const maxLogoWidth = Math.min(width - spacing[4] * 2, 320);
+    const baseLogoHeight = Math.round(Math.min(92, Math.max(56, width * 0.2)));
+    const emojiStripHeight = showDecorEmojiStrip ? Math.round(titleLineHeight * 0.85) : 0;
+    const logoHeight = Math.max(48, baseLogoHeight - Math.round(emojiStripHeight * 0.25));
     const logoWidth = Math.min(maxLogoWidth, Math.round(logoHeight * preset.header.aspectRatio));
+    const reservedTitleHeight = logoHeight + emojiStripHeight + spacing[1];
     return (
       <View
         style={[
           mapStyles.headerTitleImageWrap,
           {
-            minHeight: reservedTitleHeight,
+            height: reservedTitleHeight,
             justifyContent: 'center',
           },
         ]}
@@ -48,9 +51,8 @@ export const StarCamCategoryHeaderTitle = memo(function StarCamCategoryHeaderTit
           importantForAccessibility="yes"
           style={{
             width: logoWidth,
-            aspectRatio: preset.header.aspectRatio,
+            height: logoHeight,
             alignSelf: 'center',
-            maxHeight: logoHeight,
           }}
           resizeMode="contain"
         />
