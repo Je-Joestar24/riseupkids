@@ -156,34 +156,45 @@ export default useStarCam;
 
 const READING_MAP_EMOJI_CYCLE = ['📖', '📚', '🎧'] as const;
 
-function mapMissionListToMapBubbles(missions: StarCamMissionListItem[]): StarCamMissionMapBubble[] {
+function mapMissionListToMapBubblesWithCycle(
+  missions: StarCamMissionListItem[],
+  emojiCycle: readonly string[]
+): StarCamMissionMapBubble[] {
   return missions.map((m, i) => ({
     id: m.id,
     missionId: m.missionId,
     title: m.title,
-    emoji: READING_MAP_EMOJI_CYCLE[i % READING_MAP_EMOJI_CYCLE.length],
+    emoji: emojiCycle[i % emojiCycle.length],
   }));
 }
 
 /**
- * Reading category: load latest missions + prefetch flow on selection.
+ * Latest missions for any Star Cam category (map bubbles + prefetch flow on tap).
  */
-export function useStarCamReadingMissions(childId: string | null) {
+export function useStarCamCategoryMissions(
+  childId: string | null,
+  categoryKey: string,
+  emojiCycle: readonly string[]
+) {
   const missions = useStarCamStore((s) => s.missions);
+  const selectedCategoryKey = useStarCamStore((s) => s.selectedCategoryKey);
   const isLoadingMissions = useStarCamStore((s) => s.isLoadingMissions);
   const fetchLatestMissionsByCategory = useStarCamStore((s) => s.fetchLatestMissionsByCategory);
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
 
   const refresh = useCallback(() => {
-    if (!childId) return Promise.resolve([] as StarCamMissionListItem[]);
-    return fetchLatestMissionsByCategory(childId, 'reading');
-  }, [childId, fetchLatestMissionsByCategory]);
+    if (!childId || !categoryKey) return Promise.resolve([] as StarCamMissionListItem[]);
+    return fetchLatestMissionsByCategory(childId, categoryKey);
+  }, [childId, categoryKey, fetchLatestMissionsByCategory]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  const mapBubbles = useMemo(() => mapMissionListToMapBubbles(missions), [missions]);
+  const mapBubbles = useMemo(() => {
+    if (selectedCategoryKey !== categoryKey) return [];
+    return mapMissionListToMapBubblesWithCycle(missions, emojiCycle);
+  }, [missions, selectedCategoryKey, categoryKey, emojiCycle]);
 
   const selectMissionForFlow = useCallback(
     async (missionIdSlug: string) => {
@@ -202,5 +213,9 @@ export function useStarCamReadingMissions(childId: string | null) {
     }),
     [mapBubbles, childId, isLoadingMissions, refresh, selectMissionForFlow]
   );
+}
+
+export function useStarCamReadingMissions(childId: string | null) {
+  return useStarCamCategoryMissions(childId, 'reading', READING_MAP_EMOJI_CYCLE);
 }
 
