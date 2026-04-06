@@ -26,10 +26,12 @@ export const mapStyles = StyleSheet.create({
   },
   decorEmoji: {
     position: 'absolute',
+    lineHeight: 72,
   },
   decorEmojiText: {
     fontSize: 56,
     fontWeight: '600',
+    lineHeight: 72,
   },
   backBtn: {
     position: 'absolute',
@@ -69,6 +71,7 @@ export const mapStyles = StyleSheet.create({
   },
   headerImageEmojiRow: {
     marginBottom: spacing[1],
+    lineHeight: 72,
   },
   headerImageEmojiStrip: {
     fontSize: typography.sizes.lg,
@@ -78,6 +81,7 @@ export const mapStyles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
+    lineHeight: 72,
   },
   headerTitle: {
     fontWeight: '700',
@@ -113,6 +117,7 @@ export const mapStyles = StyleSheet.create({
   },
   missionEmoji: {
     fontWeight: '700',
+    lineHeight: 72,
   },
   footerBlock: {
     alignSelf: 'stretch',

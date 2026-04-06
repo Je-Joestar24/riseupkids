@@ -18,7 +18,7 @@ export type MissionSlotTemplate = {
 export const MISSION_SLOT_TEMPLATES: MissionSlotTemplate[] = [
   {
     leftPct: 50,
-    topPct: 24,
+    topPct: 34,
     size: 140,
     delayMs: 0,
     gradientColors: ['#f4a28c', '#f5a98a', '#e98a68'],
@@ -26,7 +26,7 @@ export const MISSION_SLOT_TEMPLATES: MissionSlotTemplate[] = [
   },
   {
     leftPct: 42.31,
-    topPct: 54,
+    topPct: 59,
     size: 130,
     delayMs: 400,
     gradientColors: ['#ffd4b8', '#ffc5a1', '#ffb090'],
