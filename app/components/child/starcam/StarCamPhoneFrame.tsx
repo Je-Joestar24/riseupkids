@@ -19,11 +19,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 8,
     borderColor: colors.accent,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 10,
+    backgroundColor: colors.accent,
   },
 });

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import { SafeAreaView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/config/theme/colors';
 import { useStarCamCategoryMissions } from '@/hooks/starCamHook';
@@ -38,7 +39,7 @@ export function StarCamDynamicDisplay({
   );
 
   return (
-    <SafeAreaView style={screenStyles.safe}>
+    <SafeAreaView style={screenStyles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <View style={screenStyles.pad}>
         <StarCamCategoryMissionMap
           preset={preset}

@@ -4,7 +4,6 @@ import {
   Animated,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
@@ -39,10 +38,7 @@ export const StarCamExplorerMap = memo(function StarCamExplorerMap({
   onDismissError,
 }: StarCamExplorerMapProps) {
   return (
-    <ScrollView
-      style={styles.mapScroll}
-      contentContainerStyle={styles.mapScrollContent}
-      showsVerticalScrollIndicator={false}>
+    <View style={styles.mapSection}>
       <Image source={STARCAM_BACKGROUND} style={styles.mapBackground} resizeMode="cover" />
       <View style={styles.bubbleArea}>
         {bubbleItems.map((item) => (
@@ -57,7 +53,7 @@ export const StarCamExplorerMap = memo(function StarCamExplorerMap({
       </View>
 
       {isLoadingCategories ? (
-        <View style={styles.statusWrap}>
+        <View style={styles.statusWrap} pointerEvents="box-none">
           <ActivityIndicator size="small" color={colors.accent} />
           <ThemedText style={styles.statusText}>Loading categories...</ThemedText>
         </View>
@@ -72,18 +68,16 @@ export const StarCamExplorerMap = memo(function StarCamExplorerMap({
           <ThemedText style={styles.errorText}>{error}</ThemedText>
         </Pressable>
       ) : null}
-    </ScrollView>
+    </View>
   );
 });
 
 const styles = StyleSheet.create({
-  mapScroll: {
+  mapSection: {
     flex: 1,
+    minHeight: 0,
+    position: 'relative',
     backgroundColor: colors.bgSecondary,
-  },
-  mapScrollContent: {
-    flexGrow: 1,
-    paddingBottom: spacing[8],
   },
   mapBackground: {
     ...StyleSheet.absoluteFillObject,
@@ -91,17 +85,18 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   bubbleArea: {
-    width: '100%',
-    flex: 1,
-    minHeight: 720,
-    position: 'relative',
+    ...StyleSheet.absoluteFillObject,
   },
   statusWrap: {
-    marginTop: spacing[2],
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: spacing[4],
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing[2],
+    zIndex: 20,
   },
   statusText: {
     fontSize: typography.sizes.sm,
@@ -109,12 +104,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorWrap: {
+    position: 'absolute',
+    left: spacing[4],
+    right: spacing[4],
+    bottom: spacing[12],
     alignSelf: 'center',
-    marginTop: spacing[2],
     backgroundColor: '#fee2e2',
     borderRadius: radii.md,
     paddingVertical: spacing[2],
     paddingHorizontal: spacing[3],
+    zIndex: 20,
   },
   errorText: {
     color: colors.error,

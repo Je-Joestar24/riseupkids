@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect } from 'react';
-import { SafeAreaView, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -40,7 +41,7 @@ export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
   );
 
   return (
-    <SafeAreaView style={styles.root}>
+    <SafeAreaView style={styles.root} edges={['top', 'right', 'bottom', 'left']}>
       <StarCamPhoneFrame>
         <StarCamHeader />
         <StarCamExplorerMap
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bgSecondary,
-    padding: spacing[3],
+    padding: 0,
   },
 });
 

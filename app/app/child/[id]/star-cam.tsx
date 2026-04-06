@@ -12,12 +12,8 @@ export default function ChildStarCamScreen() {
     (categoryKey: string) => {
       if (!id) return;
       const key = categoryKey === 'adventure' ? 'nature' : categoryKey;
-      if (key === 'reading') {
-        router.push(`/child/${id}/star-cam-reading` as never);
-        return;
-      }
       const mapKeys = new Set(['recipes', 'nature', 'sing', 'school']);
-      if (mapKeys.has(key)) {
+      if (key === 'reading' || mapKeys.has(key)) {
         router.push(`/child/${id}/star-cam-category?category=${encodeURIComponent(key)}` as never);
       }
     },
