@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const { StarCamCategory, StarCamMission, Media } = require('../models');
+const { StarCamCategory, StarCamMission, Media, User } = require('../models');
 
 dotenv.config();
 
@@ -83,42 +83,61 @@ function getSeedFileStats(filePath) {
   };
 }
 
+function ensureDir(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function copySeedFileToUploads({ sourcePath, destinationPath }) {
+  ensureDir(path.dirname(destinationPath));
+  fs.copyFileSync(sourcePath, destinationPath);
+}
+
 async function ensureSeedMedia({
   type,
   title,
-  filePath,
+  sourceFilePath,
+  destinationRelativeUrl,
   mimeType,
   uploadedBy,
   isPublished = true,
   isActive = true,
 }) {
-  const existing = await Media.findOne({
-    type,
-    title,
-    filePath,
-    uploadedBy,
-  })
-    .select('_id')
-    .lean();
+  const backendRoot = path.resolve(__dirname, '..');
+  const destinationAbsolutePath = path.join(backendRoot, destinationRelativeUrl.replace(/^\//, ''));
+  copySeedFileToUploads({ sourcePath: sourceFilePath, destinationPath: destinationAbsolutePath });
+  const stat = getSeedFileStats(destinationAbsolutePath);
 
-  if (existing?._id) {
-    return existing._id;
-  }
-
-  const stat = getSeedFileStats(filePath);
-  const media = await Media.create({
-    type,
-    title,
-    filePath: stat.filePath,
-    url: `/assets/seeds/${path.basename(filePath)}`,
-    mimeType,
-    size: stat.size,
-    uploadedBy,
-    isPublished,
-    isActive,
-  });
+  const media = await Media.findOneAndUpdate(
+    { title },
+    {
+      $set: {
+        type,
+        filePath: stat.filePath,
+        url: destinationRelativeUrl,
+        mimeType,
+        size: stat.size,
+        uploadedBy,
+        isPublished,
+        isActive,
+      },
+      $setOnInsert: {
+        title,
+      },
+    },
+    { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+  );
 
   return media._id;
+}
+
+async function resolveSeederUserId() {
+  const existingUser = await User.findOne({ isActive: true }).select('_id').lean();
+  if (!existingUser?._id) {
+    throw new Error('No active user found for uploadedBy. Seed users first (npm run seed).');
+  }
+  return existingUser._id;
 }
 
 function buildMissionPayload({
@@ -204,26 +223,29 @@ async function seedStarCamMissions() {
       throw new Error('No active StarCam categories found. Run seed:starcam-categories first.');
     }
 
-    const seederUserId = new mongoose.Types.ObjectId();
+    const seederUserId = await resolveSeederUserId();
     const [missionImageId, vocabImageId, vocabAudioId] = await Promise.all([
       ensureSeedMedia({
         type: 'image',
         title: 'starcam_seed_mission_image_temp',
-        filePath: seedFiles.missionImage,
+        sourceFilePath: seedFiles.missionImage,
+        destinationRelativeUrl: '/uploads/media/images/starcam_seed_mission_image_temp.png',
         mimeType: 'image/png',
         uploadedBy: seederUserId,
       }),
       ensureSeedMedia({
         type: 'image',
         title: 'starcam_seed_vocabulary_image_temp',
-        filePath: seedFiles.vocabImage,
+        sourceFilePath: seedFiles.vocabImage,
+        destinationRelativeUrl: '/uploads/media/images/starcam_seed_vocabulary_image_temp.png',
         mimeType: 'image/png',
         uploadedBy: seederUserId,
       }),
       ensureSeedMedia({
         type: 'audio',
         title: 'starcam_seed_vocabulary_audio_temp',
-        filePath: seedFiles.vocabAudio,
+        sourceFilePath: seedFiles.vocabAudio,
+        destinationRelativeUrl: '/uploads/media/audio/starcam_seed_vocabulary_audio_temp.mp3',
         mimeType: 'audio/mpeg',
         uploadedBy: seederUserId,
       }),
