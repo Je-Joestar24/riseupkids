@@ -598,6 +598,21 @@ const uploadStarCamVocab = multer({
   { name: 'audio', maxCount: 1 },
 ]);
 
+// Middleware for Star Cam mission image upload (one image)
+const uploadStarCamMissionImage = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname !== 'image') return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    return cb(new Error('image must be an image file'), false);
+  },
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+  },
+}).fields([
+  { name: 'image', maxCount: 1 },
+]);
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -619,5 +634,6 @@ module.exports = {
   uploadKidsWallImage,
   uploadProgramPrintable,
   uploadStarCamVocab,
+  uploadStarCamMissionImage,
 };
 

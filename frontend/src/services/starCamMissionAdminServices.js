@@ -107,6 +107,25 @@ const starCamMissionAdminServices = {
     }
   },
 
+  uploadMissionImage: async (id, imageFile) => {
+    const formData = new FormData();
+    if (imageFile) formData.append('image', imageFile);
+
+    try {
+      const response = await api.post(`${BASE_PATH}/${id}/mission-image`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to upload mission image');
+    }
+  },
+
   publishMission: async (id) => {
     try {
       const response = await api.post(`${BASE_PATH}/${id}/publish`);

@@ -85,6 +85,18 @@ export const addStarCamMissionVocabulary = createAsyncThunk(
   }
 );
 
+export const uploadStarCamMissionImage = createAsyncThunk(
+  'starCamMissionAdmin/uploadMissionImage',
+  async ({ missionId, imageFile }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.uploadMissionImage(missionId, imageFile);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to upload mission image');
+    }
+  }
+);
+
 export const publishStarCamMission = createAsyncThunk(
   'starCamMissionAdmin/publishMission',
   async (missionId, { rejectWithValue }) => {
@@ -297,6 +309,24 @@ const starCamMissionAdminSlice = createSlice({
         state.lastAction = 'addMissionVocabulary';
       })
       .addCase(addStarCamMissionVocabulary.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(uploadStarCamMissionImage.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(uploadStarCamMissionImage.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'uploadMissionImage';
+      })
+      .addCase(uploadStarCamMissionImage.rejected, (state, action) => {
         state.loading.mutating = false;
         setError(state, action);
       })

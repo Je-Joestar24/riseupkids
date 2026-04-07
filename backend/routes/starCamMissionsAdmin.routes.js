@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { uploadStarCamVocab } = require('../middleware/upload');
+const { uploadStarCamVocab, uploadStarCamMissionImage } = require('../middleware/upload');
 const {
   listMissions,
   listCategories,
@@ -14,6 +14,7 @@ const {
   unpublishMission,
   archiveMission,
   addMissionVocabulary,
+  uploadMissionImage,
 } = require('../controllers/starCamMissionsAdmin.controller');
 
 /**
@@ -32,6 +33,7 @@ const {
  * - POST   /:id/unpublish  Unpublish to draft
  * - POST   /:id/archive    Archive mission (read-only)
  * - POST   /:id/vocab      Add one vocabulary entry (displayText, target, image file, audio file)
+ * - POST   /:id/mission-image Upload/replace mission cover image (optional)
  */
 
 router.use(protect);
@@ -48,6 +50,7 @@ router.post('/:id/publish', publishMission);
 router.post('/:id/unpublish', unpublishMission);
 router.post('/:id/archive', archiveMission);
 router.post('/:id/vocab', uploadStarCamVocab, addMissionVocabulary);
+router.post('/:id/mission-image', uploadStarCamMissionImage, uploadMissionImage);
 
 module.exports = router;
 

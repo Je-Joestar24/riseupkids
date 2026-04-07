@@ -19,6 +19,7 @@ const AdminStarCamMissions = () => {
     loadCategories,
     loadMissions,
     addMission,
+    uploadMissionImage,
     loadMissionById,
     addMissionVocabulary,
     publishMission,
@@ -76,6 +77,21 @@ const AdminStarCamMissions = () => {
     setNewVocab({ displayText: '', target: '', imageFile: null, audioFile: null });
   };
 
+  const handleCreateMission = async ({ title, categoryId, missionImageFile }) => {
+    const created = await addMission({ title, categoryId });
+    const createdMissionId = created?.data?._id;
+    if (createdMissionId && missionImageFile) {
+      await uploadMissionImage(createdMissionId, missionImageFile);
+    }
+    await loadMissions({
+      page: filters.page,
+      limit: filters.limit,
+      status: filters.status || undefined,
+      search: filters.search || undefined,
+      categoryId: filters.categoryId || undefined,
+    });
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh' }}>
       <StarCamMissionHeader />
@@ -100,7 +116,7 @@ const AdminStarCamMissions = () => {
         <Grid item xs={12} md={4} lg={3}>
           <StarCamMissionCreatePanel
             categories={categories}
-            onCreateMission={addMission}
+            onCreateMission={handleCreateMission}
             creating={loading.mutating}
           />
         </Grid>

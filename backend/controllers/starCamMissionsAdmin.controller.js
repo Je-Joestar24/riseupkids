@@ -121,6 +121,22 @@ const addMissionVocabulary = async (req, res) => {
   }
 };
 
+const uploadMissionImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const imageFile = req.files?.image?.[0] || null;
+    const data = await starCamMissionsAdminService.uploadMissionImage({
+      id,
+      userId: req.user?._id,
+      imageFile,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to upload mission image' });
+  }
+};
+
 module.exports = {
   listMissions,
   listCategories,
@@ -132,5 +148,6 @@ module.exports = {
   unpublishMission,
   archiveMission,
   addMissionVocabulary,
+  uploadMissionImage,
 };
 

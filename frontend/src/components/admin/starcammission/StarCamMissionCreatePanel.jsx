@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Box, Button, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Avatar, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
 const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating = false }) => {
@@ -7,7 +7,9 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
   const [form, setForm] = useState({
     title: '',
     categoryId: '',
+    missionImageFile: null,
   });
+  const [previewUrl, setPreviewUrl] = useState('');
 
   const isValid = useMemo(
     () => Boolean(form.title.trim() && form.categoryId),
@@ -19,9 +21,20 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
     await onCreateMission({
       title: form.title.trim(),
       categoryId: form.categoryId,
+      missionImageFile: form.missionImageFile,
     });
-    setForm((prev) => ({ ...prev, title: '' }));
+    setForm((prev) => ({ ...prev, title: '', missionImageFile: null }));
   };
+
+  useEffect(() => {
+    if (!form.missionImageFile) {
+      setPreviewUrl('');
+      return undefined;
+    }
+    const objectUrl = URL.createObjectURL(form.missionImageFile);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [form.missionImageFile]);
 
   return (
     <Paper
@@ -57,6 +70,44 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
             </MenuItem>
           ))}
         </TextField>
+        <Stack direction="row" spacing={1.2} alignItems="center">
+          <Avatar
+            variant="rounded"
+            src={previewUrl}
+            alt="Mission image preview"
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: '10px',
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          />
+          <Button component="label" variant="outlined" sx={{ textTransform: 'none' }}>
+            {form.missionImageFile ? 'Change Mission Image' : 'Upload Mission Image (Optional)'}
+            <input
+              hidden
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const selected = e.target.files?.[0] || null;
+                setForm((prev) => ({ ...prev, missionImageFile: selected }));
+              }}
+            />
+          </Button>
+          {form.missionImageFile ? (
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => setForm((prev) => ({ ...prev, missionImageFile: null }))}
+              sx={{ textTransform: 'none' }}
+            >
+              Remove
+            </Button>
+          ) : null}
+        </Stack>
+        <Typography variant="caption" color="text.secondary">
+          Recommended: perfectly cropped 1:1 square image to avoid stretching.
+        </Typography>
         <Button
           variant="contained"
           onClick={onSubmit}

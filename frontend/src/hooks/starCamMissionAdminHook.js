@@ -10,6 +10,7 @@ import {
   fetchStarCamMissionById,
   fetchStarCamMissions,
   addStarCamMissionVocabulary,
+  uploadStarCamMissionImage,
   publishStarCamMission,
   resetStarCamMissionAdminState,
   selectStarCamMissionAdmin,
@@ -93,6 +94,16 @@ export const useStarCamMissionAdmin = () => {
     [runThunk]
   );
 
+  const uploadMissionImage = useCallback(
+    (missionId, imageFile) =>
+      runThunk(
+        uploadStarCamMissionImage({ missionId, imageFile }),
+        'Failed to upload mission image',
+        'Mission image uploaded successfully'
+      ),
+    [runThunk]
+  );
+
   const publishMission = useCallback(
     (missionId) =>
       runThunk(publishStarCamMission(missionId), 'Failed to publish Star Cam mission', 'Mission published successfully'),
@@ -140,6 +151,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       updateMissionImage,
+      uploadMissionImage,
       addMissionVocabulary,
       publishMission,
       unpublishMission,
@@ -158,6 +170,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       updateMissionImage,
+      uploadMissionImage,
       addMissionVocabulary,
       publishMission,
       unpublishMission,

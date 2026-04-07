@@ -491,6 +491,43 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
+async function uploadMissionImage({ id, userId, imageFile } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!imageFile) {
+    const err = new Error('image file is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const { url, s3Key } = await s3Service.uploadFileFromMulter(imageFile, 'media/images');
+  const imageMedia = await Media.create({
+    type: 'image',
+    title: imageFile.originalname,
+    filePath: s3Key,
+    url,
+    mimeType: imageFile.mimetype,
+    size: imageFile.size,
+    uploadedBy: userId,
+    isPublished: true,
+  });
+
+  doc.missionImage = imageMedia._id;
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
 module.exports = {
   listMissions,
   listCategories,
@@ -502,5 +539,6 @@ module.exports = {
   unpublishMission,
   archiveMission,
   addMissionVocabularyEntry,
+  uploadMissionImage,
 };
 
