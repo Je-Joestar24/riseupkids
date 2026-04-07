@@ -1,8 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { memo, useEffect, useRef } from 'react';
-import { Animated, Pressable } from 'react-native';
+import { Animated, Image, Pressable } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { BACKEND_ORIGIN } from '@/config';
 
 import { mapStyles } from './mapStyles';
 import type { StarCamMapMissionItem } from './types';
@@ -27,6 +28,12 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
 }: StarCamMissionBubbleProps) {
   const floatY = useFloater(delayMs);
   const pulse = useRef(new Animated.Value(1)).current;
+  const firstLetter = String(item.title || '?').trim().charAt(0).toUpperCase() || '?';
+  const resolvedImageUrl = item.imageUrl
+    ? /^https?:\/\//i.test(item.imageUrl)
+      ? item.imageUrl
+      : `${BACKEND_ORIGIN}${item.imageUrl.startsWith('/') ? item.imageUrl : `/${item.imageUrl}`}`
+    : null;
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -77,10 +84,23 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
               borderRadius: (size - 16) / 2,
               alignItems: 'center',
               justifyContent: 'center',
+              overflow: 'hidden',
             }}>
-            <ThemedText style={[mapStyles.missionEmoji, { fontSize: size * 0.5, lineHeight: size * 0.58 }]}>
-              {item.emoji}
-            </ThemedText>
+            {resolvedImageUrl ? (
+              <Image
+                source={{ uri: resolvedImageUrl }}
+                accessibilityIgnoresInvertColors
+                style={{
+                  width: '100%',
+                  height: '100%',
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <ThemedText style={[mapStyles.missionFallbackLetter, { fontSize: size * 0.45 }]}>
+                {firstLetter}
+              </ThemedText>
+            )}
           </LinearGradient>
         </Animated.View>
       </Pressable>

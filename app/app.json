@@ -30,6 +30,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Rise Up Kids needs camera access to run Star Cam practice mode."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/lms-logo.png",

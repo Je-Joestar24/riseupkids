@@ -54,9 +54,30 @@ async function getChildMissionStartFlow(req, res) {
   }
 }
 
+async function getChildMissionPracticeMaterial(req, res) {
+  try {
+    const { childId, missionId } = req.params;
+    const { index } = req.query;
+    const data = await starCamChildService.getMissionPracticeMaterialForChild({
+      parentUserId: req.user?._id,
+      childId,
+      missionId,
+      index,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to load mission practice material',
+    });
+  }
+}
+
 module.exports = {
   getChildStarCamCategories,
   getChildStarCamMissionsByCategory,
   getChildMissionStartFlow,
+  getChildMissionPracticeMaterial,
 };
 

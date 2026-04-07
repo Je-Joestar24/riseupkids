@@ -6,6 +6,7 @@ const {
   getChildStarCamCategories,
   getChildStarCamMissionsByCategory,
   getChildMissionStartFlow,
+  getChildMissionPracticeMaterial,
 } = require('../controllers/starCamChild.controller');
 
 /**
@@ -24,6 +25,7 @@ router.use(authorize('parent', 'admin'));
 router.get('/child/:childId/categories', getChildStarCamCategories);
 router.get('/child/:childId/categories/:categoryKey/missions', getChildStarCamMissionsByCategory);
 router.get('/child/:childId/missions/:missionId/start', getChildMissionStartFlow);
+router.get('/child/:childId/missions/:missionId/practice-material', getChildMissionPracticeMaterial);
 
 module.exports = router;
 

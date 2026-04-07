@@ -119,6 +119,14 @@ export const mapStyles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 72,
   },
+  missionFallbackLetter: {
+    fontWeight: '800',
+    color: colors.textInverse,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 5,
+  },
   footerBlock: {
     alignSelf: 'stretch',
     alignItems: 'center',

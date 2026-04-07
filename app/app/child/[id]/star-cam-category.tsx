@@ -28,5 +28,12 @@ export default function StarCamCategoryScreen() {
     router.replace(`/child/${id}/star-cam` as never);
   };
 
-  return <StarCamDynamicDisplay categoryKey={categoryKey} childId={childId} onBack={onBack} />;
+  const onMissionPress = (item: { missionId: string; title: string; imageUrl?: string | null }) => {
+    if (!id) return;
+    router.push(
+      `/child/${id}/star-cam-mission-start?category=${encodeURIComponent(categoryKey)}&missionId=${encodeURIComponent(item.missionId)}&title=${encodeURIComponent(item.title || '')}&imageUrl=${encodeURIComponent(item.imageUrl || '')}` as never
+    );
+  };
+
+  return <StarCamDynamicDisplay categoryKey={categoryKey} childId={childId} onBack={onBack} onMissionPress={onMissionPress} />;
 }

@@ -6,6 +6,44 @@ function asTrimmed(value) {
   return str || null;
 }
 
+function asSafeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+/** Only treat as Mongo _id when it is a 24-char hex string; avoids CastError on mission slugs like `recipes_seed_3`. */
+function isMongoObjectIdString(value) {
+  return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
+}
+
+function publishedMissionLookupQuery(safeMissionId) {
+  if (isMongoObjectIdString(safeMissionId)) {
+    return {
+      status: 'published',
+      $or: [{ _id: safeMissionId }, { missionId: safeMissionId }],
+    };
+  }
+  return { status: 'published', missionId: safeMissionId };
+}
+
+function mapMissionVocabToPracticeItems(vocab = []) {
+  return (vocab || [])
+    .slice()
+    .sort((a, b) => asSafeNumber(a.order ?? a.sortOrder, 0) - asSafeNumber(b.order ?? b.sortOrder, 0))
+    .map((v, idx) => ({
+      order: idx + 1,
+      displayText: v.displayText || v.word || '',
+      target: v.target || '',
+      imageUrl: v.image?.url || null,
+      audioUrl: v.audio?.url || null,
+      audioPrompt: `I see a ${String(v.displayText || v.word || '').toLowerCase()}.`,
+      aiDetection: {
+        enabled: false,
+        status: 'pending_integration',
+      },
+    }));
+}
+
 async function assertChildOwnership(parentUserId, childId) {
   const parentId = asTrimmed(parentUserId);
   const cId = asTrimmed(childId);
@@ -81,6 +119,7 @@ async function getLatestMissionsByCategoryForChild({
     status: 'published',
     category: category._id,
   })
+    .populate({ path: 'missionImage', select: 'url type' })
     .populate({ path: 'introImage', select: 'url type' })
     .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
     .limit(safeLimit)
@@ -98,7 +137,8 @@ async function getLatestMissionsByCategoryForChild({
       missionId: m.missionId,
       title: m.title,
       introText: m.introText || '',
-      introImageUrl: m.introImage?.url || null,
+      introImageUrl: m.introImage?.url || m.missionImage?.url || null,
+      missionImageUrl: m.missionImage?.url || null,
       vocabCount: Array.isArray(m.vocab) ? m.vocab.length : 0,
       itemCount: Array.isArray(m.items) ? m.items.length : 0,
     })),
@@ -115,11 +155,9 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     throw err;
   }
 
-  const mission = await StarCamMission.findOne({
-    $or: [{ _id: safeMissionId }, { missionId: safeMissionId }],
-    status: 'published',
-  })
+  const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
     .populate({ path: 'category', select: 'key name' })
+    .populate({ path: 'missionImage', select: 'url type' })
     .populate({ path: 'introImage', select: 'url type' })
     .populate({ path: 'introVideo', select: 'url type duration' })
     .populate({ path: 'rewardImage', select: 'url type' })
@@ -133,25 +171,13 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     throw err;
   }
 
-  const practiceItems = (mission.vocab || [])
-    .slice()
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-    .map((v, idx) => ({
-      order: idx + 1,
-      displayText: v.displayText || v.word || '',
-      target: v.target || '',
-      imageUrl: v.image?.url || null,
-      audioUrl: v.audio?.url || null,
-      audioPrompt: `I see a ${String(v.displayText || v.word || '').toLowerCase()}.`,
-      aiDetection: {
-        enabled: false,
-        status: 'pending_integration',
-      },
-    }));
+  const practiceItems = mapMissionVocabToPracticeItems(mission.vocab || []);
+  const featuredPracticeItem =
+    practiceItems.length > 0 ? practiceItems[practiceItems.length - 1] : null;
 
   const huntItems = (mission.items || [])
     .slice()
-    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .sort((a, b) => asSafeNumber(a.order ?? a.sortOrder, 0) - asSafeNumber(b.order ?? b.sortOrder, 0))
     .map((it, idx) => ({
       order: idx + 1,
       target: it.target,
@@ -175,11 +201,12 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       start: {
         promptTitle: 'Start Mission',
         introText: mission.introText || '',
-        introImageUrl: mission.introImage?.url || null,
+        introImageUrl: mission.introImage?.url || mission.missionImage?.url || null,
       },
       practice: {
         promptTitle: 'Practice',
         items: practiceItems,
+        featuredItem: featuredPracticeItem,
       },
       starCam: {
         promptTitle: 'Find the object',
@@ -200,9 +227,53 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
   };
 }
 
+async function getMissionPracticeMaterialForChild({ parentUserId, childId, missionId, index = 6 }) {
+  await assertChildOwnership(parentUserId, childId);
+  const safeMissionId = asTrimmed(missionId);
+  if (!safeMissionId) {
+    const err = new Error('missionId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
+    .populate({ path: 'vocab.image', select: 'url type' })
+    .populate({ path: 'vocab.audio', select: 'url type duration' })
+    .lean();
+
+  if (!mission) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const practiceItems = mapMissionVocabToPracticeItems(mission.vocab || []);
+  if (practiceItems.length === 0) {
+    const err = new Error('Mission has no practice vocabulary');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const requestedIndex = Math.max(0, Math.floor(asSafeNumber(index, 6)));
+  const resolvedIndex = Math.min(requestedIndex, practiceItems.length - 1);
+
+  return {
+    mission: {
+      id: String(mission._id),
+      missionId: mission.missionId,
+      title: mission.title,
+    },
+    totalItems: practiceItems.length,
+    requestedIndex,
+    resolvedIndex,
+    item: practiceItems[resolvedIndex],
+  };
+}
+
 module.exports = {
   getAvailableCategoriesForChild,
   getLatestMissionsByCategoryForChild,
   getMissionStartFlowForChild,
+  getMissionPracticeMaterialForChild,
 };
 

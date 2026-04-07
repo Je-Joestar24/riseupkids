@@ -71,6 +71,7 @@ export interface StarCamMissionMapBubble {
   missionId: string;
   title: string;
   emoji: string;
+  imageUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +121,7 @@ export interface StarCamChildMissionStartPayload {
     practice: {
       promptTitle: string;
       items: StarCamPracticeItem[];
+      featuredItem: StarCamPracticeItem | null;
     };
     starCam: {
       promptTitle: string;
@@ -133,6 +135,18 @@ export interface StarCamChildMissionStartPayload {
       rewardImageUrl: string | null;
     };
   };
+}
+
+export interface StarCamPracticeMaterialPayload {
+  mission: {
+    id: string;
+    missionId: string;
+    title: string;
+  };
+  totalItems: number;
+  requestedIndex: number;
+  resolvedIndex: number;
+  item: StarCamPracticeItem;
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +187,19 @@ export const childStarCamService = {
   ): Promise<ApiResponse<StarCamChildMissionStartPayload>> =>
     api.get<ApiResponse<StarCamChildMissionStartPayload>>(
       `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/start`
+    ),
+
+  /**
+   * Dedicated practice sample material endpoint (independent from mission start flow).
+   * Default app usage targets index 6 (7th vocabulary item).
+   */
+  getMissionPracticeMaterial: (
+    childId: string,
+    missionIdOrSlug: string,
+    index = 6
+  ): Promise<ApiResponse<StarCamPracticeMaterialPayload>> =>
+    api.get<ApiResponse<StarCamPracticeMaterialPayload>>(
+      `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/practice-material?index=${encodeURIComponent(String(index))}`
     ),
 };
 

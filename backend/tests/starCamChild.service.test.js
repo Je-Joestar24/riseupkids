@@ -18,6 +18,7 @@ const {
   getAvailableCategoriesForChild,
   getLatestMissionsByCategoryForChild,
   getMissionStartFlowForChild,
+  getMissionPracticeMaterialForChild,
 } = require('../services/starCamChild.service');
 
 describe('starCamChild.service', () => {
@@ -51,7 +52,14 @@ describe('starCamChild.service', () => {
       sort: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue([
-        { _id: 'm1', missionId: 'reading_1', title: 'Mission 1', vocab: [], items: [] },
+        {
+          _id: 'm1',
+          missionId: 'reading_1',
+          title: 'Mission 1',
+          missionImage: { url: '/mission.png' },
+          vocab: [],
+          items: [],
+        },
       ]),
     });
 
@@ -62,6 +70,7 @@ describe('starCamChild.service', () => {
     });
     expect(result.limitApplied).toBe(3);
     expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ introImageUrl: '/mission.png', missionImageUrl: '/mission.png' });
   });
 
   it('returns mission start flow payload with practice + hunt + completion', async () => {
@@ -73,7 +82,8 @@ describe('starCamChild.service', () => {
         title: 'Reading Mission',
         category: { key: 'reading', name: 'Reading' },
         introText: 'Start mission',
-        introImage: { url: '/intro.png' },
+        missionImage: { url: '/mission.png' },
+        introImage: null,
         rewardTitle: 'Mission Accomplished!',
         rewardSubtitle: 'Great job, Explorer!',
         rewardImage: { url: '/reward.png' },
@@ -83,7 +93,14 @@ describe('starCamChild.service', () => {
             target: 'book',
             image: { url: '/book.png' },
             audio: { url: '/book.mp3' },
-            sortOrder: 0,
+            order: 1,
+          },
+          {
+            displayText: 'Leaf',
+            target: 'leaf',
+            image: { url: '/leaf.png' },
+            audio: { url: '/leaf.mp3' },
+            order: 2,
           },
         ],
         items: [
@@ -109,8 +126,51 @@ describe('starCamChild.service', () => {
       target: 'book',
       aiDetection: { enabled: false, status: 'pending_integration' },
     });
+    expect(result.flow.practice.featuredItem).toMatchObject({
+      displayText: 'Leaf',
+      target: 'leaf',
+      imageUrl: '/leaf.png',
+      order: 2,
+    });
     expect(result.flow.starCam.items[0]).toMatchObject({ prompt: 'Find a book' });
     expect(result.flow.completion.title).toBe('Mission Accomplished!');
+    expect(result.flow.start.introImageUrl).toBe('/mission.png');
+  });
+
+  it('returns practice material by requested index (default app target index: 6)', async () => {
+    StarCamMission.findOne.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({
+        _id: 'm2',
+        missionId: 'nature_3',
+        title: 'Nature Mission',
+        vocab: [
+          { displayText: 'One', target: 'one', image: { url: '/1.png' }, audio: { url: '/1.mp3' }, order: 1 },
+          { displayText: 'Two', target: 'two', image: { url: '/2.png' }, audio: { url: '/2.mp3' }, order: 2 },
+          { displayText: 'Three', target: 'three', image: { url: '/3.png' }, audio: { url: '/3.mp3' }, order: 3 },
+          { displayText: 'Four', target: 'four', image: { url: '/4.png' }, audio: { url: '/4.mp3' }, order: 4 },
+          { displayText: 'Five', target: 'five', image: { url: '/5.png' }, audio: { url: '/5.mp3' }, order: 5 },
+          { displayText: 'Six', target: 'six', image: { url: '/6.png' }, audio: { url: '/6.mp3' }, order: 6 },
+          { displayText: 'Spoon', target: 'spoon', image: { url: '/spoon.png' }, audio: { url: '/spoon.mp3' }, order: 7 },
+        ],
+      }),
+    });
+
+    const result = await getMissionPracticeMaterialForChild({
+      parentUserId: 'parent-1',
+      childId: 'child-1',
+      missionId: 'nature_3',
+      index: 6,
+    });
+
+    expect(result.totalItems).toBe(7);
+    expect(result.resolvedIndex).toBe(6);
+    expect(result.item).toMatchObject({
+      displayText: 'Spoon',
+      target: 'spoon',
+      imageUrl: '/spoon.png',
+      order: 7,
+    });
   });
 });
 
