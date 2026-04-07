@@ -75,6 +75,14 @@ export const useStarCamMissionAdmin = () => {
     [runThunk]
   );
 
+  const updateMissionImage = useCallback(
+    (missionId, missionImage) =>
+      editMission(missionId, {
+        missionImage: missionImage || null,
+      }),
+    [editMission]
+  );
+
   const addMissionVocabulary = useCallback(
     (missionId, payload) =>
       runThunk(
@@ -131,6 +139,7 @@ export const useStarCamMissionAdmin = () => {
       addMission,
       loadMissionById,
       editMission,
+      updateMissionImage,
       addMissionVocabulary,
       publishMission,
       unpublishMission,
@@ -148,6 +157,7 @@ export const useStarCamMissionAdmin = () => {
       addMission,
       loadMissionById,
       editMission,
+      updateMissionImage,
       addMissionVocabulary,
       publishMission,
       unpublishMission,

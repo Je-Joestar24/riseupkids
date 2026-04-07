@@ -7,10 +7,13 @@ jest.mock('../models', () => ({
     find: jest.fn(),
     countDocuments: jest.fn(),
   },
+  StarCamMission: {
+    find: jest.fn(),
+  },
 }));
 
-const { ChildProfile, StarCamEvent } = require('../models');
-const { trackStarCamEvent, listStarCamEvents } = require('../services/starCam.service');
+const { ChildProfile, StarCamEvent, StarCamMission } = require('../models');
+const { trackStarCamEvent, listStarCamEvents, listStarCamMissions } = require('../services/starCam.service');
 
 describe('starCam.service', () => {
   beforeEach(() => {
@@ -95,5 +98,38 @@ describe('starCam.service', () => {
     expect(result.items).toHaveLength(1);
     expect(result.meta.total).toBe(1);
     expect(StarCamEvent.countDocuments).toHaveBeenCalled();
+  });
+
+  it('lists published missions with mission image url', async () => {
+    mockChildFound();
+    StarCamMission.find.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'mission-1',
+          missionId: 'nature_01',
+          title: 'Nature Mission',
+          status: 'published',
+          category: { _id: 'cat-1', key: 'nature', name: 'Nature' },
+          missionImage: { url: '/mission.png' },
+          vocab: [{}, {}],
+          items: [{}, {}],
+        },
+      ]),
+    });
+
+    const result = await listStarCamMissions({
+      parentUserId: 'parent-1',
+      childId: 'child-1',
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      missionId: 'nature_01',
+      missionImageUrl: '/mission.png',
+      vocabCount: 2,
+      itemCount: 2,
+    });
   });
 });

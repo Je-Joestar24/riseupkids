@@ -154,13 +154,21 @@ const setError = (state, action) => {
   state.error = action.payload || action.error?.message || 'Request failed';
 };
 
+const normalizeMission = (mission) => {
+  if (!mission || typeof mission !== 'object') return mission;
+  return {
+    ...mission,
+    missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
+  };
+};
+
 const upsertMission = (state, mission) => {
   if (!mission || !mission._id) return;
   const idx = state.missions.findIndex((m) => m._id === mission._id);
   if (idx >= 0) {
-    state.missions[idx] = mission;
+    state.missions[idx] = normalizeMission(mission);
   } else {
-    state.missions.unshift(mission);
+    state.missions.unshift(normalizeMission(mission));
   }
 };
 
@@ -216,7 +224,7 @@ const starCamMissionAdminSlice = createSlice({
       })
       .addCase(fetchStarCamMissions.fulfilled, (state, action) => {
         state.loading.missions = false;
-        state.missions = action.payload?.data?.items || [];
+        state.missions = (action.payload?.data?.items || []).map(normalizeMission);
         state.pagination = action.payload?.data?.pagination || initialState.pagination;
         state.lastAction = 'fetchMissions';
       })
@@ -247,7 +255,7 @@ const starCamMissionAdminSlice = createSlice({
       })
       .addCase(fetchStarCamMissionById.fulfilled, (state, action) => {
         state.loading.missionDetails = false;
-        const mission = action.payload?.data || null;
+        const mission = normalizeMission(action.payload?.data) || null;
         state.currentMission = mission;
         if (mission) upsertMission(state, mission);
         state.lastAction = 'fetchMissionById';
@@ -263,7 +271,7 @@ const starCamMissionAdminSlice = createSlice({
       })
       .addCase(updateStarCamMission.fulfilled, (state, action) => {
         state.loading.mutating = false;
-        const mission = action.payload?.data;
+        const mission = normalizeMission(action.payload?.data);
         if (mission) {
           state.currentMission = mission;
           upsertMission(state, mission);

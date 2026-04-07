@@ -1,4 +1,4 @@
-const { ChildProfile, StarCamEvent } = require('../models');
+const { ChildProfile, StarCamEvent, StarCamMission } = require('../models');
 
 const ALLOWED_EVENTS = ['ispy_round_started', 'ispy_target_found', 'ispy_game_completed'];
 const ALLOWED_MODES = ['single_target', 'three_item', 'category', 'color'];
@@ -187,9 +187,39 @@ async function listStarCamEvents({
   };
 }
 
+async function listStarCamMissions({ parentUserId, childId } = {}) {
+  await assertChildOwnership(parentUserId, childId);
+
+  const missions = await StarCamMission.find({ status: 'published' })
+    .populate({ path: 'category', select: 'key name sortOrder' })
+    .populate({ path: 'missionImage', select: 'url type' })
+    .sort({ publishedAt: -1, updatedAt: -1, _id: -1 })
+    .lean();
+
+  return {
+    items: missions.map((mission) => ({
+      id: String(mission._id),
+      missionId: mission.missionId,
+      title: mission.title,
+      status: mission.status,
+      category: mission.category
+        ? {
+            id: String(mission.category._id),
+            key: mission.category.key || null,
+            name: mission.category.name || null,
+          }
+        : null,
+      missionImageUrl: mission.missionImage?.url || null,
+      vocabCount: Array.isArray(mission.vocab) ? mission.vocab.length : 0,
+      itemCount: Array.isArray(mission.items) ? mission.items.length : 0,
+    })),
+  };
+}
+
 module.exports = {
   trackStarCamEvent,
   listStarCamEvents,
+  listStarCamMissions,
   _internal: {
     sanitizeWord,
     parseTimestamp,

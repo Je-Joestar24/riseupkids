@@ -40,6 +40,7 @@ function makeDoc(overrides = {}) {
     missionId: 'nature_01',
     title: 'Nature Hunt 1',
     introText: null,
+    missionImage: null,
     introImage: null,
     videoEnabled: false,
     introVideo: null,
@@ -145,6 +146,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
+        missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         category: 'cat-1',
@@ -171,6 +173,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
+        missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         category: 'cat-1',
@@ -205,6 +208,7 @@ describe('starCamMissionsAdmin.service', () => {
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
     const doc = makeDoc({
       introText: 'Hello',
+      missionImage: 'mission-img',
       introImage: 'intro-img',
       rewardImage: 'reward-img',
       category: 'cat-1',
@@ -224,8 +228,9 @@ describe('starCamMissionsAdmin.service', () => {
         lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
       });
 
-    // Media checks: intro image, reward image, then vocab images+audios (14)
+    // Media checks: mission image, intro image, reward image, then vocab images+audios (14)
     Media.findOne
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // missionImage
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // introImage
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })); // rewardImage
     for (let i = 0; i < 7; i += 1) {
@@ -282,6 +287,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
+        missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         category: 'cat-1',
@@ -320,6 +326,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
+        missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         category: 'cat-1',
@@ -345,6 +352,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
+        missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         category: 'cat-1',

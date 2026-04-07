@@ -1,6 +1,7 @@
 jest.mock('../services/starCam.service', () => ({
   trackStarCamEvent: jest.fn(),
   listStarCamEvents: jest.fn(),
+  listStarCamMissions: jest.fn(),
 }));
 
 const {
@@ -8,6 +9,7 @@ const {
   trackTargetFound,
   trackGameCompleted,
   getStarCamEvents,
+  getStarCamMissions,
 } = require('../controllers/starCam.controller');
 const starCamService = require('../services/starCam.service');
 
@@ -89,5 +91,26 @@ describe('starCam.controller', () => {
         success: true,
       })
     );
+  });
+
+  it('getStarCamMissions returns mission list payload', async () => {
+    starCamService.listStarCamMissions.mockResolvedValue({
+      items: [{ _id: 'm1', missionId: 'nature_01', missionImageUrl: '/mission.png' }],
+    });
+    const req = {
+      user: { _id: 'parent-1' },
+      query: { childId: 'child-1' },
+    };
+    const res = buildRes();
+    const next = jest.fn();
+
+    await getStarCamMissions(req, res, next);
+
+    expect(starCamService.listStarCamMissions).toHaveBeenCalledWith({
+      parentUserId: 'parent-1',
+      childId: 'child-1',
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(next).not.toHaveBeenCalled();
   });
 });

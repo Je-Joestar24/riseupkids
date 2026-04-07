@@ -69,6 +69,7 @@ const starCamMissionSchema = new mongoose.Schema(
       required: [isPublishingRequired, 'Intro text is required'],
       maxlength: [500, 'Intro text cannot exceed 500 characters'],
     },
+    missionImage: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     introImage: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Intro image is required'] },
 
     videoEnabled: { type: Boolean, default: false },

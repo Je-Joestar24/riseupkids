@@ -6,6 +6,7 @@ import {
   Collapse,
   Chip,
   CircularProgress,
+  Avatar,
   List,
   ListItem,
   ListItemText,
@@ -60,6 +61,7 @@ const StarCamMissionTable = ({
               Select
             </TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Mission ID</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>Image</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Title</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Vocabulary</TableCell>
@@ -72,7 +74,7 @@ const StarCamMissionTable = ({
         <TableBody>
           {missions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7}>
+              <TableCell colSpan={8}>
                 <Typography sx={{ py: 2, textAlign: 'center', color: 'text.secondary' }}>
                   No missions found.
                 </Typography>
@@ -94,6 +96,19 @@ const StarCamMissionTable = ({
                       />
                     </TableCell>
                     <TableCell>{mission.missionId}</TableCell>
+                    <TableCell>
+                      <Avatar
+                        variant="rounded"
+                        src={mission.missionImageUrl || mission.missionImage?.url || ''}
+                        alt={`${mission.title || mission.missionId} mission`}
+                        sx={{
+                          width: 44,
+                          height: 44,
+                          borderRadius: '10px',
+                          border: `1px solid ${theme.palette.divider}`,
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>{mission.title}</TableCell>
                     <TableCell>{mission.category?.name || 'Uncategorized'}</TableCell>
                     <TableCell>{Number(mission.vocabCount ?? vocabList.length ?? 0)}/7</TableCell>
@@ -121,9 +136,12 @@ const StarCamMissionTable = ({
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
+                    <TableCell colSpan={8} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
                       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                         <Box sx={{ px: 2, py: 1.5, backgroundColor: theme.palette.custom?.bgSecondary || '#f8fafc' }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.8 }}>
+                            Mission image tip: use a perfectly cropped 1:1 square image for best display quality.
+                          </Typography>
                           <Typography sx={{ fontWeight: 700, mb: 0.8 }}>Vocabulary List</Typography>
                           {vocabList.length === 0 ? (
                             <Typography variant="body2" color="text.secondary">

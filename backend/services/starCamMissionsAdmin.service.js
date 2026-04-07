@@ -85,6 +85,7 @@ async function assertMediaExists(mediaId, { type, fieldName }) {
 function buildPopulate() {
   return [
     { path: 'category', select: 'key name description isActive sortOrder' },
+    { path: 'missionImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
@@ -116,14 +117,16 @@ async function listMissions({ page = 1, limit = 20, status, search, categoryId }
       .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select('missionId title status category vocab publishedAt updatedAt createdAt')
+      .select('missionId title status category missionImage vocab publishedAt updatedAt createdAt')
       .populate({ path: 'category', select: 'key name sortOrder isActive' })
+      .populate({ path: 'missionImage', select: 'url type width height' })
       .lean(),
   ]);
 
   const mappedItems = items.map((item) => ({
     ...item,
     vocabCount: Array.isArray(item.vocab) ? item.vocab.length : 0,
+    missionImageUrl: item.missionImage?.url || null,
   }));
 
   return {
@@ -217,6 +220,7 @@ async function updateMission({ id, userId, patch } = {}) {
     doc.category = cId;
   }
 
+  if (patch.missionImage !== undefined) doc.missionImage = ensureObjectId(patch.missionImage, 'missionImage');
   if (patch.introImage !== undefined) doc.introImage = ensureObjectId(patch.introImage, 'introImage');
   if (patch.introVideo !== undefined) doc.introVideo = ensureObjectId(patch.introVideo, 'introVideo');
   if (patch.rewardImage !== undefined) doc.rewardImage = ensureObjectId(patch.rewardImage, 'rewardImage');
@@ -334,6 +338,7 @@ async function publishMission({ id, userId } = {}) {
 
   // Validate referenced media exist and match types
   await Promise.all([
+    assertMediaExists(doc.missionImage, { type: 'image', fieldName: 'missionImage' }),
     assertMediaExists(doc.introImage, { type: 'image', fieldName: 'introImage' }),
     assertMediaExists(doc.rewardImage, { type: 'image', fieldName: 'rewardImage' }),
     doc.introVideo ? assertMediaExists(doc.introVideo, { type: 'video', fieldName: 'introVideo' }) : Promise.resolve(),

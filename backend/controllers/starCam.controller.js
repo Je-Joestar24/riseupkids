@@ -134,9 +134,28 @@ async function getStarCamEvents(req, res, next) {
   }
 }
 
+async function getStarCamMissions(req, res, next) {
+  try {
+    const { childId } = req.query || {};
+    const data = await starCamService.listStarCamMissions({
+      parentUserId: req.user?._id,
+      childId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Star Cam missions retrieved successfully',
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   trackRoundStarted,
   trackTargetFound,
   trackGameCompleted,
   getStarCamEvents,
+  getStarCamMissions,
 };

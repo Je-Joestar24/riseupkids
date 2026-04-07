@@ -5,6 +5,14 @@ const BASE_PATH = '/admin/star-cam/missions';
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
 
+const normalizeMission = (mission) => {
+  if (!mission || typeof mission !== 'object') return mission;
+  return {
+    ...mission,
+    missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
+  };
+};
+
 const starCamMissionAdminServices = {
   listCategories: async (params = {}) => {
     try {
@@ -33,7 +41,15 @@ const starCamMissionAdminServices = {
   listMissions: async (params = {}) => {
     try {
       const response = await api.get(BASE_PATH, { params });
-      return response.data;
+      return {
+        ...response.data,
+        data: {
+          ...response.data?.data,
+          items: Array.isArray(response.data?.data?.items)
+            ? response.data.data.items.map(normalizeMission)
+            : [],
+        },
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to load Star Cam missions');
     }
@@ -51,7 +67,10 @@ const starCamMissionAdminServices = {
   getMission: async (id) => {
     try {
       const response = await api.get(`${BASE_PATH}/${id}`);
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to load Star Cam mission');
     }
@@ -60,7 +79,10 @@ const starCamMissionAdminServices = {
   updateMission: async (id, payload = {}) => {
     try {
       const response = await api.patch(`${BASE_PATH}/${id}`, payload);
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to update Star Cam mission');
     }

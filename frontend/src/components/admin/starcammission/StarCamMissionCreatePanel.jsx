@@ -33,6 +33,9 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
       }}
     >
       <Typography sx={{ fontWeight: 700, mb: 1.2 }}>Create Mission</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.2 }}>
+        Reminder: mission image is optional for now. When adding one, crop it as a perfect 1:1 square for clean UI display.
+      </Typography>
       <Box sx={{ display: 'grid', gap: 1.2 }}>
         <TextField
           size="small"
