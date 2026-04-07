@@ -9,6 +9,7 @@
     "seed": "node seeders/userSeeder.js",
     "seed:badges": "node scripts/seedBadges.js",
     "seed:starcam-categories": "node scripts/seedStarCamCategories.js",
+    "seed:starcam-missions": "node scripts/seedStarCamMissions.js",
     "seed:paypal": "node scripts/createPayPalPlans.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand"

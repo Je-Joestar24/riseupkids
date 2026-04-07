@@ -1,0 +1,282 @@
+const fs = require('fs');
+const path = require('path');
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+const { StarCamCategory, StarCamMission, Media } = require('../models');
+
+dotenv.config();
+
+const MISSIONS_PER_CATEGORY = 3;
+const VOCAB_PER_MISSION = 7;
+
+const DEFAULT_WORD_POOL = [
+  'book',
+  'pencil',
+  'notebook',
+  'leaf',
+  'flower',
+  'cup',
+  'plate',
+  'spoon',
+  'guitar',
+  'drum',
+  'microphone',
+  'headphones',
+  'banana',
+  'apple',
+  'ball',
+  'clock',
+  'chair',
+  'table',
+  'bag',
+  'bottle',
+  'toy',
+  'shoe',
+  'hat',
+  'tree',
+  'rock',
+  'cloud',
+  'sun',
+  'star',
+];
+
+function normalizeWord(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function titleCase(value) {
+  return String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function shuffle(input) {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function pickWords(categoryTargets = [], count = VOCAB_PER_MISSION) {
+  const normalizedTargets = categoryTargets.map(normalizeWord).filter(Boolean);
+  const merged = Array.from(new Set([...normalizedTargets, ...DEFAULT_WORD_POOL]));
+  const picked = shuffle(merged).slice(0, count);
+  if (picked.length >= count) return picked;
+  const fallback = DEFAULT_WORD_POOL.filter((w) => !picked.includes(w)).slice(0, count - picked.length);
+  return [...picked, ...fallback];
+}
+
+function getSeedFileStats(filePath) {
+  const stat = fs.statSync(filePath);
+  return {
+    size: stat.size,
+    filePath: filePath.replace(/\\/g, '/'),
+  };
+}
+
+async function ensureSeedMedia({
+  type,
+  title,
+  filePath,
+  mimeType,
+  uploadedBy,
+  isPublished = true,
+  isActive = true,
+}) {
+  const existing = await Media.findOne({
+    type,
+    title,
+    filePath,
+    uploadedBy,
+  })
+    .select('_id')
+    .lean();
+
+  if (existing?._id) {
+    return existing._id;
+  }
+
+  const stat = getSeedFileStats(filePath);
+  const media = await Media.create({
+    type,
+    title,
+    filePath: stat.filePath,
+    url: `/assets/seeds/${path.basename(filePath)}`,
+    mimeType,
+    size: stat.size,
+    uploadedBy,
+    isPublished,
+    isActive,
+  });
+
+  return media._id;
+}
+
+function buildMissionPayload({
+  category,
+  missionNumber,
+  createdBy,
+  missionImageId,
+  vocabImageId,
+  vocabAudioId,
+}) {
+  const words = pickWords(category.targets, VOCAB_PER_MISSION);
+  const vocab = words.map((word, idx) => {
+    const readable = titleCase(word.replace(/_/g, ' '));
+    return {
+      word: readable,
+      displayText: readable,
+      target: normalizeWord(word),
+      image: vocabImageId,
+      audio: vocabAudioId,
+      sortOrder: idx,
+    };
+  });
+
+  const items = words.map((word, idx) => {
+    const readable = titleCase(word.replace(/_/g, ' '));
+    return {
+      target: normalizeWord(word),
+      prompt: `Can you find a ${readable.toLowerCase()}?`,
+      success: `Great! You found the ${readable.toLowerCase()}!`,
+      fail: `Not quite. Try to find the ${readable.toLowerCase()}.`,
+      sortOrder: idx,
+    };
+  });
+
+  return {
+    missionId: `${category.key}_seed_${missionNumber}`,
+    title: `${category.name} Mission ${missionNumber}`,
+    status: 'published',
+    category: category._id,
+    introText: `Welcome to ${category.name} Mission ${missionNumber}. Find all 7 objects and complete your Star Cam challenge!`,
+    missionImage: missionImageId,
+    introImage: missionImageId,
+    videoEnabled: false,
+    introVideo: null,
+    vocab,
+    items,
+    rewardImage: missionImageId,
+    rewardTitle: 'Mission Accomplished!',
+    rewardSubtitle: 'Great job, Explorer!',
+    createdBy,
+    updatedBy: createdBy,
+  };
+}
+
+async function seedStarCamMissions() {
+  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/riseupkids';
+  const backendRoot = path.resolve(__dirname, '..');
+  const seedFiles = {
+    missionImage: path.join(backendRoot, 'assets', 'seeds', 'mission_image_temp.png'),
+    vocabImage: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_image_temp.png'),
+    vocabAudio: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_audio_temp.mp3'),
+  };
+
+  try {
+    for (const file of Object.values(seedFiles)) {
+      if (!fs.existsSync(file)) {
+        throw new Error(`Seed file not found: ${file}`);
+      }
+    }
+
+    const conn = await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log(`[StarCamMissionSeeder] MongoDB Connected: ${conn.connection.host}`);
+
+    const categories = await StarCamCategory.find({ isActive: true })
+      .select('_id key name targets')
+      .sort({ sortOrder: 1, name: 1 })
+      .lean();
+
+    if (!categories.length) {
+      throw new Error('No active StarCam categories found. Run seed:starcam-categories first.');
+    }
+
+    const seederUserId = new mongoose.Types.ObjectId();
+    const [missionImageId, vocabImageId, vocabAudioId] = await Promise.all([
+      ensureSeedMedia({
+        type: 'image',
+        title: 'starcam_seed_mission_image_temp',
+        filePath: seedFiles.missionImage,
+        mimeType: 'image/png',
+        uploadedBy: seederUserId,
+      }),
+      ensureSeedMedia({
+        type: 'image',
+        title: 'starcam_seed_vocabulary_image_temp',
+        filePath: seedFiles.vocabImage,
+        mimeType: 'image/png',
+        uploadedBy: seederUserId,
+      }),
+      ensureSeedMedia({
+        type: 'audio',
+        title: 'starcam_seed_vocabulary_audio_temp',
+        filePath: seedFiles.vocabAudio,
+        mimeType: 'audio/mpeg',
+        uploadedBy: seederUserId,
+      }),
+    ]);
+
+    let created = 0;
+    let updated = 0;
+
+    for (const category of categories) {
+      for (let missionNumber = 1; missionNumber <= MISSIONS_PER_CATEGORY; missionNumber += 1) {
+        const payload = buildMissionPayload({
+          category,
+          missionNumber,
+          createdBy: seederUserId,
+          missionImageId,
+          vocabImageId,
+          vocabAudioId,
+        });
+
+        const existing = await StarCamMission.findOne({ missionId: payload.missionId }).select('_id').lean();
+        await StarCamMission.findOneAndUpdate(
+          { missionId: payload.missionId },
+          { $set: payload },
+          {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true,
+            runValidators: true,
+            context: 'query',
+          }
+        );
+
+        if (existing?._id) {
+          updated += 1;
+          console.log(`[StarCamMissionSeeder] Updated: ${payload.missionId}`);
+        } else {
+          created += 1;
+          console.log(`[StarCamMissionSeeder] Created: ${payload.missionId}`);
+        }
+      }
+    }
+
+    const totalPublished = await StarCamMission.countDocuments({ status: 'published' });
+    console.log(
+      `[StarCamMissionSeeder] Done. Created=${created}, Updated=${updated}, PublishedTotal=${totalPublished}, Categories=${categories.length}`
+    );
+    await mongoose.connection.close();
+    process.exit(0);
+  } catch (error) {
+    console.error('[StarCamMissionSeeder] Failed:', error.message);
+    await mongoose.connection.close();
+    process.exit(1);
+  }
+}
+
+seedStarCamMissions();
