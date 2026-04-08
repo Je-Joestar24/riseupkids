@@ -35,6 +35,7 @@ function mapMissionVocabToPracticeItems(vocab = []) {
       displayText: v.displayText || v.word || '',
       target: v.target || '',
       imageUrl: v.image?.url || null,
+      pronunciationVideoUrl: v.pronunciationVideo?.url || null,
       audioUrl: v.audio?.url || null,
       audioPrompt: `I see a ${String(v.displayText || v.word || '').toLowerCase()}.`,
       aiDetection: {
@@ -162,6 +163,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'introVideo', select: 'url type duration' })
     .populate({ path: 'rewardImage', select: 'url type' })
     .populate({ path: 'vocab.image', select: 'url type' })
+    .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
     .lean();
 
@@ -238,6 +240,7 @@ async function getMissionPracticeMaterialForChild({ parentUserId, childId, missi
 
   const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
     .populate({ path: 'vocab.image', select: 'url type' })
+    .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
     .lean();
 

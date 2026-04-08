@@ -91,6 +91,7 @@ function buildPopulate() {
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.image', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.audio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'vocab.pronunciationVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
   ];
 }
 
@@ -237,6 +238,7 @@ async function updateMission({ id, userId, patch } = {}) {
       target: asTrimmedString(v.target)?.toLowerCase() || asTrimmedString(v.word)?.toLowerCase(),
       image: ensureObjectId(v.image, 'vocab.image'),
       audio: ensureObjectId(v.audio, 'vocab.audio'),
+      pronunciationVideo: ensureObjectId(v.pronunciationVideo, 'vocab.pronunciationVideo'),
       sortOrder: Number(v.sortOrder),
     }));
   }
@@ -345,6 +347,9 @@ async function publishMission({ id, userId } = {}) {
     ...doc.vocab.flatMap((v, idx) => [
       assertMediaExists(v.image, { type: 'image', fieldName: `vocab[${idx}].image` }),
       assertMediaExists(v.audio, { type: 'audio', fieldName: `vocab[${idx}].audio` }),
+      v.pronunciationVideo
+        ? assertMediaExists(v.pronunciationVideo, { type: 'video', fieldName: `vocab[${idx}].pronunciationVideo` })
+        : Promise.resolve(),
     ]),
   ]);
 
@@ -407,7 +412,15 @@ async function createCategory({ key, name, description, sortOrder, isActive } = 
   return data.toObject();
 }
 
-async function addMissionVocabularyEntry({ id, userId, displayText, target, imageFile, audioFile } = {}) {
+async function addMissionVocabularyEntry({
+  id,
+  userId,
+  displayText,
+  target,
+  imageFile,
+  audioFile,
+  pronunciationVideoFile,
+} = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
@@ -448,17 +461,19 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
     throw err;
   }
 
-  const [{ url: imageUrl, s3Key: imageS3Key }, { url: audioUrl, s3Key: audioS3Key }] = await Promise.all([
+  const uploads = await Promise.all([
     s3Service.uploadFileFromMulter(imageFile, 'media/images'),
     s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
+    pronunciationVideoFile ? s3Service.uploadFileFromMulter(pronunciationVideoFile, 'media/videos') : Promise.resolve(null),
   ]);
+  const [imageUpload, audioUpload, videoUpload] = uploads;
 
-  const [imageMedia, audioMedia] = await Promise.all([
+  const [imageMedia, audioMedia, pronunciationVideoMedia] = await Promise.all([
     Media.create({
       type: 'image',
       title: imageFile.originalname,
-      filePath: imageS3Key,
-      url: imageUrl,
+      filePath: imageUpload.s3Key,
+      url: imageUpload.url,
       mimeType: imageFile.mimetype,
       size: imageFile.size,
       uploadedBy: userId,
@@ -467,13 +482,25 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
     Media.create({
       type: 'audio',
       title: audioFile.originalname,
-      filePath: audioS3Key,
-      url: audioUrl,
+      filePath: audioUpload.s3Key,
+      url: audioUpload.url,
       mimeType: audioFile.mimetype,
       size: audioFile.size,
       uploadedBy: userId,
       isPublished: true,
     }),
+    videoUpload
+      ? Media.create({
+          type: 'video',
+          title: pronunciationVideoFile.originalname,
+          filePath: videoUpload.s3Key,
+          url: videoUpload.url,
+          mimeType: pronunciationVideoFile.mimetype,
+          size: pronunciationVideoFile.size,
+          uploadedBy: userId,
+          isPublished: true,
+        })
+      : Promise.resolve(null),
   ]);
 
   const nextSort = doc.vocab.length;
@@ -483,6 +510,7 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
     target: safeTarget,
     image: imageMedia._id,
     audio: audioMedia._id,
+    pronunciationVideo: pronunciationVideoMedia?._id || null,
     sortOrder: nextSort,
   });
   doc.updatedBy = userId;

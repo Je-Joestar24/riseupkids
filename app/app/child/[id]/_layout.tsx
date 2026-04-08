@@ -36,6 +36,8 @@ export default function ChildLayout() {
         <Stack.Screen name="star-cam" />
         <Stack.Screen name="star-cam-category" />
         <Stack.Screen name="star-cam-mission-start" />
+        <Stack.Screen name="star-cam-practice-mode" />
+        <Stack.Screen name="star-cam-mission-cam" />
         <Stack.Screen name="wall" />
       </Stack>
       {!isStarCamRoute ? <FooterNavigation childId={id} /> : null}

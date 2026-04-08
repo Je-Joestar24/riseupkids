@@ -89,6 +89,7 @@ export interface StarCamPracticeItem {
   displayText: string;
   target: string;
   imageUrl: string | null;
+  pronunciationVideoUrl?: string | null;
   audioUrl: string | null;
   /** Default voice line suggestion (can be ignored by UI if audio file already contains it). */
   audioPrompt: string;

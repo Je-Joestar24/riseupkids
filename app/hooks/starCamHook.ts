@@ -15,6 +15,7 @@ import type {
   StarCamMissionListItem,
   StarCamChildMissionStartPayload,
   StarCamMissionMapBubble,
+  StarCamPracticeMaterialPayload,
 } from '@/services/childStarCamService';
 
 export interface UseStarCamReturn {
@@ -24,9 +25,11 @@ export interface UseStarCamReturn {
   selectedCategoryKey: string | null;
   selectedMissionId: string | null;
   missionFlow: StarCamChildMissionStartPayload | null;
+  practiceMaterial: StarCamPracticeMaterialPayload | null;
   isLoadingCategories: boolean;
   isLoadingMissions: boolean;
   isLoadingMissionFlow: boolean;
+  isLoadingPracticeMaterial: boolean;
   error: string | null;
   // Derived
   hasCategories: boolean;
@@ -39,6 +42,11 @@ export interface UseStarCamReturn {
   loadMissionsByCategory: (childId: string, categoryKey: string) => Promise<StarCamMissionListItem[]>;
   chooseMission: (missionId: string | null) => void;
   loadMissionFlow: (childId: string, missionIdOrSlug: string) => Promise<StarCamChildMissionStartPayload | null>;
+  loadPracticeMaterial: (
+    childId: string,
+    missionIdOrSlug: string,
+    index?: number
+  ) => Promise<StarCamPracticeMaterialPayload | null>;
   clearMissionFlow: () => void;
   clearError: () => void;
   reset: () => void;
@@ -50,9 +58,11 @@ export function useStarCam(): UseStarCamReturn {
   const selectedCategoryKey = useStarCamStore((s) => s.selectedCategoryKey);
   const selectedMissionId = useStarCamStore((s) => s.selectedMissionId);
   const missionFlow = useStarCamStore((s) => s.missionFlow);
+  const practiceMaterial = useStarCamStore((s) => s.practiceMaterial);
   const isLoadingCategories = useStarCamStore((s) => s.isLoadingCategories);
   const isLoadingMissions = useStarCamStore((s) => s.isLoadingMissions);
   const isLoadingMissionFlow = useStarCamStore((s) => s.isLoadingMissionFlow);
+  const isLoadingPracticeMaterial = useStarCamStore((s) => s.isLoadingPracticeMaterial);
   const error = useStarCamStore((s) => s.error);
 
   const fetchCategories = useStarCamStore((s) => s.fetchCategories);
@@ -60,6 +70,7 @@ export function useStarCam(): UseStarCamReturn {
   const fetchLatestMissionsByCategory = useStarCamStore((s) => s.fetchLatestMissionsByCategory);
   const selectMission = useStarCamStore((s) => s.selectMission);
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
+  const fetchMissionPracticeMaterial = useStarCamStore((s) => s.fetchMissionPracticeMaterial);
   const clearFlow = useStarCamStore((s) => s.clearMissionFlow);
   const clearStoreError = useStarCamStore((s) => s.clearError);
   const resetStore = useStarCamStore((s) => s.reset);
@@ -94,6 +105,11 @@ export function useStarCam(): UseStarCamReturn {
   const clearMissionFlow = useCallback(() => clearFlow(), [clearFlow]);
   const clearError = useCallback(() => clearStoreError(), [clearStoreError]);
   const reset = useCallback(() => resetStore(), [resetStore]);
+  const loadPracticeMaterial = useCallback(
+    (childId: string, missionIdOrSlug: string, index = 6) =>
+      fetchMissionPracticeMaterial(childId, missionIdOrSlug, index),
+    [fetchMissionPracticeMaterial]
+  );
 
   const practiceItems = useMemo(
     () => missionFlow?.flow?.practice?.items ?? [],
@@ -111,9 +127,11 @@ export function useStarCam(): UseStarCamReturn {
       selectedCategoryKey,
       selectedMissionId,
       missionFlow,
+      practiceMaterial,
       isLoadingCategories,
       isLoadingMissions,
       isLoadingMissionFlow,
+      isLoadingPracticeMaterial,
       error,
       hasCategories: categories.length > 0,
       hasMissions: missions.length > 0,
@@ -124,6 +142,7 @@ export function useStarCam(): UseStarCamReturn {
       loadMissionsByCategory,
       chooseMission,
       loadMissionFlow,
+      loadPracticeMaterial,
       clearMissionFlow,
       clearError,
       reset,
@@ -134,9 +153,11 @@ export function useStarCam(): UseStarCamReturn {
       selectedCategoryKey,
       selectedMissionId,
       missionFlow,
+      practiceMaterial,
       isLoadingCategories,
       isLoadingMissions,
       isLoadingMissionFlow,
+      isLoadingPracticeMaterial,
       error,
       practiceItems,
       huntItems,
@@ -145,6 +166,7 @@ export function useStarCam(): UseStarCamReturn {
       loadMissionsByCategory,
       chooseMission,
       loadMissionFlow,
+      loadPracticeMaterial,
       clearMissionFlow,
       clearError,
       reset,

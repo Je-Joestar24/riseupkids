@@ -576,7 +576,7 @@ const uploadProgramPrintable = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for Star Cam vocab uploads (one image + one audio)
+// Middleware for Star Cam vocab uploads (one image + one audio + optional pronunciation video)
 const uploadStarCamVocab = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
@@ -588,6 +588,10 @@ const uploadStarCamVocab = multer({
       if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
       return cb(new Error('audio must be an audio file'), false);
     }
+    if (file.fieldname === 'pronunciationVideo') {
+      if (file.mimetype && file.mimetype.startsWith('video/')) return cb(null, true);
+      return cb(new Error('pronunciationVideo must be a video file'), false);
+    }
     return cb(new Error(`Unknown field: ${file.fieldname}`), false);
   },
   limits: {
@@ -596,6 +600,7 @@ const uploadStarCamVocab = multer({
 }).fields([
   { name: 'image', maxCount: 1 },
   { name: 'audio', maxCount: 1 },
+  { name: 'pronunciationVideo', maxCount: 1 },
 ]);
 
 // Middleware for Star Cam mission image upload (one image)

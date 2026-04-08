@@ -92,6 +92,7 @@ describe('starCamChild.service', () => {
             displayText: 'Book',
             target: 'book',
             image: { url: '/book.png' },
+            pronunciationVideo: { url: '/book.mp4' },
             audio: { url: '/book.mp3' },
             order: 1,
           },
@@ -124,6 +125,7 @@ describe('starCamChild.service', () => {
     expect(result.flow.practice.items[0]).toMatchObject({
       displayText: 'Book',
       target: 'book',
+      pronunciationVideoUrl: '/book.mp4',
       aiDetection: { enabled: false, status: 'pending_integration' },
     });
     expect(result.flow.practice.featuredItem).toMatchObject({

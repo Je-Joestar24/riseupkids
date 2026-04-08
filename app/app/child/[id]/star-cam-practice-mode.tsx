@@ -1,11 +1,10 @@
-import { useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 
 import { StarCamPracticeModeScreen } from '@/components/child/starcampracticemode';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
-import { childStarCamService, type StarCamPracticeItem } from '@/services/childStarCamService';
+import { useStarCam } from '@/hooks/starCamHook';
 
 function resolveImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -24,46 +23,25 @@ export default function StarCamPracticeModeRoute() {
   }>();
   const router = useRouter();
 
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const childId = id ?? null;
   const missionSlug = missionId ?? null;
   const categoryKey = (category || 'reading').toLowerCase();
-  const hasCameraPermission = cameraPermission?.granted === true;
-  const isLoadingCameraPermission = !cameraPermission;
 
-  const [practiceItem, setPracticeItem] = useState<StarCamPracticeItem | null>(null);
+  const { practiceMaterial, loadPracticeMaterial } = useStarCam();
 
   useEffect(() => {
-    if (!cameraPermission) {
-      void requestCameraPermission();
-    }
-  }, [cameraPermission, requestCameraPermission]);
-
-  useEffect(() => {
-    let active = true;
     if (!childId || !missionSlug) return;
-    const loadPracticeMaterial = async () => {
-      try {
-        const res = await childStarCamService.getMissionPracticeMaterial(childId, missionSlug, 6);
-        if (!active) return;
-        setPracticeItem(res?.success ? res.data?.item ?? null : null);
-      } catch {
-        if (!active) return;
-        setPracticeItem(null);
-      }
-    };
-    void loadPracticeMaterial();
-    return () => {
-      active = false;
-    };
-  }, [childId, missionSlug]);
+    void loadPracticeMaterial(childId, missionSlug, 6);
+  }, [childId, missionSlug, loadPracticeMaterial]);
 
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
   }, [categoryKey]);
 
+  const practiceItem = practiceMaterial?.item ?? null;
   const targetLabel = practiceItem?.target || practiceItem?.displayText || '...';
+  const pronunciationVideo = resolveImageUrl(practiceItem?.pronunciationVideoUrl);
   const sampleImage = resolveImageUrl(practiceItem?.imageUrl);
 
   const onBack = () => {
@@ -76,20 +54,24 @@ export default function StarCamPracticeModeRoute() {
     );
   };
 
+  const onContinue = () => {
+    if (!id) return;
+    router.push(
+      `/child/${id}/star-cam-mission-cam?category=${encodeURIComponent(categoryKey)}&missionId=${encodeURIComponent(missionSlug || '')}` as never
+    );
+  };
+
   return (
     <StarCamPracticeModeScreen
       title="Let's practice"
       targetLabel={targetLabel}
+      pronunciationVideoUrl={pronunciationVideo}
       sampleImageUrl={sampleImage}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}
-      isLoadingCameraPermission={isLoadingCameraPermission}
-      hasCameraPermission={hasCameraPermission}
       onBack={onBack}
-      onRequestCameraPermission={() => {
-        void requestCameraPermission();
-      }}
+      onContinue={onContinue}
     />
   );
 }
