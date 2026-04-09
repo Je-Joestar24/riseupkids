@@ -101,14 +101,14 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
               </View>
             </View>
           </View>
-
+{/* 
           <Pressable
             onPress={onContinue}
             accessibilityRole="button"
             accessibilityLabel="Continue to star cam"
             style={({ pressed }) => [styles.continueButton, { backgroundColor: accentColor }, pressed && styles.continueButtonPressed]}>
             <ThemedText style={styles.continueButtonText}>START STARCAM</ThemedText>
-          </Pressable>
+          </Pressable> */}
         </View>
       </View>
     </SafeAreaView>
@@ -186,6 +186,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 20,
   },
   sampleImage: {
     width: '100%',

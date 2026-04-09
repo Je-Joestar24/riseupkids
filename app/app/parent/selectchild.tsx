@@ -139,7 +139,7 @@ export default function SelectChildScreen() {
             <ThemedText style={styles.addButtonText}>Add New Kid</ThemedText>
           </Pressable>
 
-          {/* Parent Login link - navigates back to main login */}
+          {/* Parent Login link - navigates back to main login 
           <Pressable
             onPress={() => router.replace('/')}
             style={styles.parentLink}
@@ -148,7 +148,7 @@ export default function SelectChildScreen() {
             accessibilityLabel="Parent login">
             <MaterialIcons name="lock" size={20} color={colors.accent} />
             <ThemedText style={styles.parentLinkText}>Parent Login</ThemedText>
-          </Pressable>
+          </Pressable>*/}
         </View>
       </ScrollView>
 

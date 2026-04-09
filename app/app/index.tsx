@@ -168,15 +168,14 @@ export default function LoginScreen() {
               )}
             </Pressable>
 
-            {/* Forgot Password */}
+            {/* Forgot Password
             <Pressable style={styles.linkWrap} hitSlop={8}>
               <ThemedText type="link">Forgot Password?</ThemedText>
             </Pressable>
-
-            {/* Divider */}
+            
+            Divider 
             <View style={styles.divider} />
 
-            {/* Create Account */}
             <Pressable
               onPress={() => router.push('/signup')}
               style={styles.linkWrap}
@@ -184,7 +183,7 @@ export default function LoginScreen() {
               <ThemedText style={styles.createAccountText}>
                 New here? Create Account
               </ThemedText>
-            </Pressable>
+            </Pressable>*/}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
