@@ -97,6 +97,21 @@ export const uploadStarCamMissionImage = createAsyncThunk(
   }
 );
 
+export const uploadStarCamMissionMedia = createAsyncThunk(
+  'starCamMissionAdmin/uploadMissionMedia',
+  async ({ missionId, shortVideoFile, rewardAudioFile }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.uploadMissionMedia(missionId, {
+        shortVideoFile,
+        rewardAudioFile,
+      });
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to upload mission media');
+    }
+  }
+);
+
 export const publishStarCamMission = createAsyncThunk(
   'starCamMissionAdmin/publishMission',
   async (missionId, { rejectWithValue }) => {
@@ -168,9 +183,20 @@ const setError = (state, action) => {
 
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
+  const vocabCount = Number(mission.vocabCount ?? mission.vocab?.length ?? 0);
+  const hasMissionShortVideo = Boolean(mission.missionShortVideo?._id || mission.missionShortVideo);
+  const hasRewardAudio = Boolean(mission.rewardAudio?._id || mission.rewardAudio);
   return {
     ...mission,
+    vocabCount,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
+    missionShortVideoUrl: mission.missionShortVideoUrl || mission.missionShortVideo?.url || null,
+    rewardAudioUrl: mission.rewardAudioUrl || mission.rewardAudio?.url || null,
+    mediaCompleteness: {
+      hasMissionShortVideo,
+      hasRewardAudio,
+      hasVocabSet: vocabCount === 7,
+    },
   };
 };
 
@@ -327,6 +353,24 @@ const starCamMissionAdminSlice = createSlice({
         state.lastAction = 'uploadMissionImage';
       })
       .addCase(uploadStarCamMissionImage.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(uploadStarCamMissionMedia.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(uploadStarCamMissionMedia.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'uploadMissionMedia';
+      })
+      .addCase(uploadStarCamMissionMedia.rejected, (state, action) => {
         state.loading.mutating = false;
         setError(state, action);
       })

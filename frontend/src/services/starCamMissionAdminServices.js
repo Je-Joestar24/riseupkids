@@ -10,6 +10,8 @@ const normalizeMission = (mission) => {
   return {
     ...mission,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
+    missionShortVideoUrl: mission.missionShortVideo?.url || null,
+    rewardAudioUrl: mission.rewardAudio?.url || null,
   };
 };
 
@@ -88,12 +90,14 @@ const starCamMissionAdminServices = {
     }
   },
 
-  addVocabulary: async (id, { displayText, target, imageFile, audioFile }) => {
+  addVocabulary: async (id, { displayText, target, imageFile, audioFile, tryAgainAudioFile, successAudioFile }) => {
     const formData = new FormData();
     formData.append('displayText', displayText || '');
     formData.append('target', target || '');
     if (imageFile) formData.append('image', imageFile);
     if (audioFile) formData.append('audio', audioFile);
+    if (tryAgainAudioFile) formData.append('tryAgainAudio', tryAgainAudioFile);
+    if (successAudioFile) formData.append('successAudio', successAudioFile);
 
     try {
       const response = await api.post(`${BASE_PATH}/${id}/vocab`, formData, {
@@ -101,7 +105,10 @@ const starCamMissionAdminServices = {
           'Content-Type': 'multipart/form-data',
         },
       });
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to add vocabulary');
     }
@@ -126,10 +133,32 @@ const starCamMissionAdminServices = {
     }
   },
 
+  uploadMissionMedia: async (id, { shortVideoFile, rewardAudioFile }) => {
+    const formData = new FormData();
+    if (shortVideoFile) formData.append('shortVideo', shortVideoFile);
+    if (rewardAudioFile) formData.append('rewardAudio', rewardAudioFile);
+    try {
+      const response = await api.post(`${BASE_PATH}/${id}/mission-media`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to upload mission media');
+    }
+  },
+
   publishMission: async (id) => {
     try {
       const response = await api.post(`${BASE_PATH}/${id}/publish`);
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to publish Star Cam mission');
     }
@@ -138,7 +167,10 @@ const starCamMissionAdminServices = {
   unpublishMission: async (id) => {
     try {
       const response = await api.post(`${BASE_PATH}/${id}/unpublish`);
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to unpublish Star Cam mission');
     }
@@ -147,7 +179,10 @@ const starCamMissionAdminServices = {
   archiveMission: async (id) => {
     try {
       const response = await api.post(`${BASE_PATH}/${id}/archive`);
-      return response.data;
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to archive Star Cam mission');
     }

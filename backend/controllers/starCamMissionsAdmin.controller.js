@@ -106,6 +106,9 @@ const addMissionVocabulary = async (req, res) => {
     const target = req.body?.target;
     const imageFile = req.files?.image?.[0] || null;
     const audioFile = req.files?.audio?.[0] || null;
+    const introAudioFile = req.files?.introAudio?.[0] || null;
+    const tryAgainAudioFile = req.files?.tryAgainAudio?.[0] || null;
+    const successAudioFile = req.files?.successAudio?.[0] || null;
     const data = await starCamMissionsAdminService.addMissionVocabularyEntry({
       id,
       userId: req.user?._id,
@@ -113,6 +116,9 @@ const addMissionVocabulary = async (req, res) => {
       target,
       imageFile,
       audioFile,
+      introAudioFile,
+      tryAgainAudioFile,
+      successAudioFile,
     });
     return res.status(200).json({ success: true, data });
   } catch (error) {
@@ -137,6 +143,24 @@ const uploadMissionImage = async (req, res) => {
   }
 };
 
+const uploadMissionMedia = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shortVideoFile = req.files?.shortVideo?.[0] || null;
+    const rewardAudioFile = req.files?.rewardAudio?.[0] || null;
+    const data = await starCamMissionsAdminService.uploadMissionMedia({
+      id,
+      userId: req.user?._id,
+      shortVideoFile,
+      rewardAudioFile,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to upload mission media' });
+  }
+};
+
 module.exports = {
   listMissions,
   listCategories,
@@ -149,5 +173,6 @@ module.exports = {
   archiveMission,
   addMissionVocabulary,
   uploadMissionImage,
+  uploadMissionMedia,
 };
 

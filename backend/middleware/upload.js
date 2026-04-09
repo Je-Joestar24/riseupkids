@@ -576,7 +576,7 @@ const uploadProgramPrintable = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for Star Cam vocab uploads (one image + one audio)
+// Middleware for Star Cam vocab uploads (one image + four audio files)
 const uploadStarCamVocab = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
@@ -584,9 +584,9 @@ const uploadStarCamVocab = multer({
       if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
       return cb(new Error('image must be an image file'), false);
     }
-    if (file.fieldname === 'audio') {
+    if (file.fieldname === 'audio' || file.fieldname === 'introAudio' || file.fieldname === 'tryAgainAudio' || file.fieldname === 'successAudio') {
       if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
-      return cb(new Error('audio must be an audio file'), false);
+      return cb(new Error(`${file.fieldname} must be an audio file`), false);
     }
     return cb(new Error(`Unknown field: ${file.fieldname}`), false);
   },
@@ -596,6 +596,9 @@ const uploadStarCamVocab = multer({
 }).fields([
   { name: 'image', maxCount: 1 },
   { name: 'audio', maxCount: 1 },
+  { name: 'introAudio', maxCount: 1 },
+  { name: 'tryAgainAudio', maxCount: 1 },
+  { name: 'successAudio', maxCount: 1 },
 ]);
 
 // Middleware for Star Cam mission image upload (one image)
@@ -611,6 +614,28 @@ const uploadStarCamMissionImage = multer({
   },
 }).fields([
   { name: 'image', maxCount: 1 },
+]);
+
+// Middleware for Star Cam mission-level media (short video + reward audio)
+const uploadStarCamMissionMedia = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname === 'shortVideo') {
+      if (file.mimetype && file.mimetype.startsWith('video/')) return cb(null, true);
+      return cb(new Error('shortVideo must be a video file'), false);
+    }
+    if (file.fieldname === 'rewardAudio') {
+      if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
+      return cb(new Error('rewardAudio must be an audio file'), false);
+    }
+    return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+  },
+  limits: {
+    fileSize: 100 * 1024 * 1024,
+  },
+}).fields([
+  { name: 'shortVideo', maxCount: 1 },
+  { name: 'rewardAudio', maxCount: 1 },
 ]);
 
 module.exports = {
@@ -635,5 +660,6 @@ module.exports = {
   uploadProgramPrintable,
   uploadStarCamVocab,
   uploadStarCamMissionImage,
+  uploadStarCamMissionMedia,
 };
 

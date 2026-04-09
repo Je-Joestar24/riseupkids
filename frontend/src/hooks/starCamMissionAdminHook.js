@@ -11,6 +11,7 @@ import {
   fetchStarCamMissions,
   addStarCamMissionVocabulary,
   uploadStarCamMissionImage,
+  uploadStarCamMissionMedia,
   publishStarCamMission,
   resetStarCamMissionAdminState,
   selectStarCamMissionAdmin,
@@ -84,6 +85,16 @@ export const useStarCamMissionAdmin = () => {
     [editMission]
   );
 
+  const updateMissionMedia = useCallback(
+    (missionId, { shortVideoFile, rewardAudioFile }) =>
+      runThunk(
+        uploadStarCamMissionMedia({ missionId, shortVideoFile, rewardAudioFile }),
+        'Failed to upload mission media',
+        'Mission media updated successfully'
+      ),
+    [runThunk]
+  );
+
   const addMissionVocabulary = useCallback(
     (missionId, payload) =>
       runThunk(
@@ -151,6 +162,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       updateMissionImage,
+      updateMissionMedia,
       uploadMissionImage,
       addMissionVocabulary,
       publishMission,
@@ -170,6 +182,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       updateMissionImage,
+      updateMissionMedia,
       uploadMissionImage,
       addMissionVocabulary,
       publishMission,

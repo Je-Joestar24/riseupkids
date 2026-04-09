@@ -36,6 +36,9 @@ function mapMissionVocabToPracticeItems(vocab = []) {
       target: v.target || '',
       imageUrl: v.image?.url || null,
       audioUrl: v.audio?.url || null,
+      introAudioUrl: v.introAudio?.url || null,
+      tryAgainAudioUrl: v.tryAgainAudio?.url || null,
+      successAudioUrl: v.successAudio?.url || null,
       audioPrompt: `I see a ${String(v.displayText || v.word || '').toLowerCase()}.`,
       aiDetection: {
         enabled: false,
@@ -160,9 +163,14 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'missionImage', select: 'url type' })
     .populate({ path: 'introImage', select: 'url type' })
     .populate({ path: 'introVideo', select: 'url type duration' })
+    .populate({ path: 'missionShortVideo', select: 'url type duration' })
     .populate({ path: 'rewardImage', select: 'url type' })
+    .populate({ path: 'rewardAudio', select: 'url type duration' })
     .populate({ path: 'vocab.image', select: 'url type' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
+    .populate({ path: 'vocab.introAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.successAudio', select: 'url type duration' })
     .lean();
 
   if (!mission) {
@@ -202,6 +210,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
         promptTitle: 'Start Mission',
         introText: mission.introText || '',
         introImageUrl: mission.introImage?.url || mission.missionImage?.url || null,
+        shortVideoUrl: mission.missionShortVideo?.url || null,
       },
       practice: {
         promptTitle: 'Practice',
@@ -222,6 +231,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
         title: mission.rewardTitle || 'Mission Accomplished!',
         subtitle: mission.rewardSubtitle || 'Great job, Explorer!',
         rewardImageUrl: mission.rewardImage?.url || null,
+        rewardAudioUrl: mission.rewardAudio?.url || null,
       },
     },
   };
@@ -239,6 +249,9 @@ async function getMissionPracticeMaterialForChild({ parentUserId, childId, missi
   const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
     .populate({ path: 'vocab.image', select: 'url type' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
+    .populate({ path: 'vocab.introAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.successAudio', select: 'url type duration' })
     .lean();
 
   if (!mission) {

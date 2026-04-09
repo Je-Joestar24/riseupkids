@@ -8,6 +8,8 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
     title: '',
     categoryId: '',
     missionImageFile: null,
+    missionShortVideoFile: null,
+    rewardAudioFile: null,
   });
   const [previewUrl, setPreviewUrl] = useState('');
 
@@ -22,8 +24,16 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
       title: form.title.trim(),
       categoryId: form.categoryId,
       missionImageFile: form.missionImageFile,
+      missionShortVideoFile: form.missionShortVideoFile,
+      rewardAudioFile: form.rewardAudioFile,
     });
-    setForm((prev) => ({ ...prev, title: '', missionImageFile: null }));
+    setForm((prev) => ({
+      ...prev,
+      title: '',
+      missionImageFile: null,
+      missionShortVideoFile: null,
+      rewardAudioFile: null,
+    }));
   };
 
   useEffect(() => {
@@ -108,6 +118,54 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
         <Typography variant="caption" color="text.secondary">
           Recommended: perfectly cropped 1:1 square image to avoid stretching.
         </Typography>
+        <Stack direction="row" spacing={1.2} alignItems="center">
+          <Button component="label" variant="outlined" sx={{ textTransform: 'none' }}>
+            {form.missionShortVideoFile ? 'Short Video Selected' : 'Upload Mission Short Video'}
+            <input
+              hidden
+              type="file"
+              accept="video/*"
+              onChange={(e) => {
+                const selected = e.target.files?.[0] || null;
+                setForm((prev) => ({ ...prev, missionShortVideoFile: selected }));
+              }}
+            />
+          </Button>
+          {form.missionShortVideoFile ? (
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => setForm((prev) => ({ ...prev, missionShortVideoFile: null }))}
+              sx={{ textTransform: 'none' }}
+            >
+              Remove
+            </Button>
+          ) : null}
+        </Stack>
+        <Stack direction="row" spacing={1.2} alignItems="center">
+          <Button component="label" variant="outlined" sx={{ textTransform: 'none' }}>
+            {form.rewardAudioFile ? 'Reward Audio Selected' : 'Upload Reward Audio'}
+            <input
+              hidden
+              type="file"
+              accept="audio/*"
+              onChange={(e) => {
+                const selected = e.target.files?.[0] || null;
+                setForm((prev) => ({ ...prev, rewardAudioFile: selected }));
+              }}
+            />
+          </Button>
+          {form.rewardAudioFile ? (
+            <Button
+              variant="text"
+              color="inherit"
+              onClick={() => setForm((prev) => ({ ...prev, rewardAudioFile: null }))}
+              sx={{ textTransform: 'none' }}
+            >
+              Remove
+            </Button>
+          ) : null}
+        </Stack>
         <Button
           variant="contained"
           onClick={onSubmit}

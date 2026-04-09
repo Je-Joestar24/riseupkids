@@ -88,9 +88,14 @@ function buildPopulate() {
     { path: 'missionImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
+    { path: 'missionShortVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
+    { path: 'rewardAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.image', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.audio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'vocab.introAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'vocab.tryAgainAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'vocab.successAudio', select: 'type url title mimeType size duration isActive isPublished' },
   ];
 }
 
@@ -223,7 +228,9 @@ async function updateMission({ id, userId, patch } = {}) {
   if (patch.missionImage !== undefined) doc.missionImage = ensureObjectId(patch.missionImage, 'missionImage');
   if (patch.introImage !== undefined) doc.introImage = ensureObjectId(patch.introImage, 'introImage');
   if (patch.introVideo !== undefined) doc.introVideo = ensureObjectId(patch.introVideo, 'introVideo');
+  if (patch.missionShortVideo !== undefined) doc.missionShortVideo = ensureObjectId(patch.missionShortVideo, 'missionShortVideo');
   if (patch.rewardImage !== undefined) doc.rewardImage = ensureObjectId(patch.rewardImage, 'rewardImage');
+  if (patch.rewardAudio !== undefined) doc.rewardAudio = ensureObjectId(patch.rewardAudio, 'rewardAudio');
 
   if (patch.vocab !== undefined) {
     if (!Array.isArray(patch.vocab)) {
@@ -237,6 +244,9 @@ async function updateMission({ id, userId, patch } = {}) {
       target: asTrimmedString(v.target)?.toLowerCase() || asTrimmedString(v.word)?.toLowerCase(),
       image: ensureObjectId(v.image, 'vocab.image'),
       audio: ensureObjectId(v.audio, 'vocab.audio'),
+      introAudio: ensureObjectId(v.introAudio, 'vocab.introAudio'),
+      tryAgainAudio: ensureObjectId(v.tryAgainAudio, 'vocab.tryAgainAudio'),
+      successAudio: ensureObjectId(v.successAudio, 'vocab.successAudio'),
       sortOrder: Number(v.sortOrder),
     }));
   }
@@ -319,6 +329,16 @@ async function publishMission({ id, userId } = {}) {
     err.statusCode = 400;
     throw err;
   }
+  if (!doc.rewardAudio) {
+    const err = new Error('rewardAudio is required before publishing');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!doc.missionShortVideo) {
+    const err = new Error('missionShortVideo is required before publishing');
+    err.statusCode = 400;
+    throw err;
+  }
   if (doc.videoEnabled && !doc.introVideo) {
     const err = new Error('introVideo is required when videoEnabled is true');
     err.statusCode = 400;
@@ -341,10 +361,15 @@ async function publishMission({ id, userId } = {}) {
     assertMediaExists(doc.missionImage, { type: 'image', fieldName: 'missionImage' }),
     assertMediaExists(doc.introImage, { type: 'image', fieldName: 'introImage' }),
     assertMediaExists(doc.rewardImage, { type: 'image', fieldName: 'rewardImage' }),
+    assertMediaExists(doc.rewardAudio, { type: 'audio', fieldName: 'rewardAudio' }),
+    assertMediaExists(doc.missionShortVideo, { type: 'video', fieldName: 'missionShortVideo' }),
     doc.introVideo ? assertMediaExists(doc.introVideo, { type: 'video', fieldName: 'introVideo' }) : Promise.resolve(),
     ...doc.vocab.flatMap((v, idx) => [
       assertMediaExists(v.image, { type: 'image', fieldName: `vocab[${idx}].image` }),
       assertMediaExists(v.audio, { type: 'audio', fieldName: `vocab[${idx}].audio` }),
+      v.introAudio ? assertMediaExists(v.introAudio, { type: 'audio', fieldName: `vocab[${idx}].introAudio` }) : Promise.resolve(),
+      assertMediaExists(v.tryAgainAudio, { type: 'audio', fieldName: `vocab[${idx}].tryAgainAudio` }),
+      assertMediaExists(v.successAudio, { type: 'audio', fieldName: `vocab[${idx}].successAudio` }),
     ]),
   ]);
 
@@ -407,7 +432,17 @@ async function createCategory({ key, name, description, sortOrder, isActive } = 
   return data.toObject();
 }
 
-async function addMissionVocabularyEntry({ id, userId, displayText, target, imageFile, audioFile } = {}) {
+async function addMissionVocabularyEntry({
+  id,
+  userId,
+  displayText,
+  target,
+  imageFile,
+  audioFile,
+  introAudioFile,
+  tryAgainAudioFile,
+  successAudioFile,
+} = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
@@ -442,18 +477,31 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
     err.statusCode = 400;
     throw err;
   }
+  if (!tryAgainAudioFile) {
+    const err = new Error('tryAgainAudio file is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!successAudioFile) {
+    const err = new Error('successAudio file is required');
+    err.statusCode = 400;
+    throw err;
+  }
   if ((doc.vocab || []).length >= 7) {
     const err = new Error('Mission already has 7 vocabulary entries');
     err.statusCode = 400;
     throw err;
   }
 
-  const [{ url: imageUrl, s3Key: imageS3Key }, { url: audioUrl, s3Key: audioS3Key }] = await Promise.all([
-    s3Service.uploadFileFromMulter(imageFile, 'media/images'),
-    s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
-  ]);
+  const [{ url: imageUrl, s3Key: imageS3Key }, { url: audioUrl, s3Key: audioS3Key }, { url: tryAgainAudioUrl, s3Key: tryAgainAudioS3Key }, { url: successAudioUrl, s3Key: successAudioS3Key }] =
+    await Promise.all([
+      s3Service.uploadFileFromMulter(imageFile, 'media/images'),
+      s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
+      s3Service.uploadFileFromMulter(tryAgainAudioFile, 'media/audio'),
+      s3Service.uploadFileFromMulter(successAudioFile, 'media/audio'),
+    ]);
 
-  const [imageMedia, audioMedia] = await Promise.all([
+  const [imageMedia, audioMedia, tryAgainAudioMedia, successAudioMedia] = await Promise.all([
     Media.create({
       type: 'image',
       title: imageFile.originalname,
@@ -474,7 +522,42 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
       uploadedBy: userId,
       isPublished: true,
     }),
+    Media.create({
+      type: 'audio',
+      title: tryAgainAudioFile.originalname,
+      filePath: tryAgainAudioS3Key,
+      url: tryAgainAudioUrl,
+      mimeType: tryAgainAudioFile.mimetype,
+      size: tryAgainAudioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    }),
+    Media.create({
+      type: 'audio',
+      title: successAudioFile.originalname,
+      filePath: successAudioS3Key,
+      url: successAudioUrl,
+      mimeType: successAudioFile.mimetype,
+      size: successAudioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    }),
   ]);
+
+  let introAudioMedia = null;
+  if (introAudioFile) {
+    const { url: introAudioUrl, s3Key: introAudioS3Key } = await s3Service.uploadFileFromMulter(introAudioFile, 'media/audio');
+    introAudioMedia = await Media.create({
+      type: 'audio',
+      title: introAudioFile.originalname,
+      filePath: introAudioS3Key,
+      url: introAudioUrl,
+      mimeType: introAudioFile.mimetype,
+      size: introAudioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    });
+  }
 
   const nextSort = doc.vocab.length;
   doc.vocab.push({
@@ -483,6 +566,9 @@ async function addMissionVocabularyEntry({ id, userId, displayText, target, imag
     target: safeTarget,
     image: imageMedia._id,
     audio: audioMedia._id,
+    introAudio: introAudioMedia ? introAudioMedia._id : null,
+    tryAgainAudio: tryAgainAudioMedia._id,
+    successAudio: successAudioMedia._id,
     sortOrder: nextSort,
   });
   doc.updatedBy = userId;
@@ -528,6 +614,66 @@ async function uploadMissionImage({ id, userId, imageFile } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
+async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!shortVideoFile && !rewardAudioFile) {
+    const err = new Error('shortVideo or rewardAudio file is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const uploads = [];
+  if (shortVideoFile) uploads.push(s3Service.uploadFileFromMulter(shortVideoFile, 'media/videos'));
+  if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(rewardAudioFile, 'media/audio'));
+  const uploaded = await Promise.all(uploads);
+  let idx = 0;
+
+  if (shortVideoFile) {
+    const { url, s3Key } = uploaded[idx++];
+    const shortVideoMedia = await Media.create({
+      type: 'video',
+      title: shortVideoFile.originalname,
+      filePath: s3Key,
+      url,
+      mimeType: shortVideoFile.mimetype,
+      size: shortVideoFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    });
+    doc.missionShortVideo = shortVideoMedia._id;
+  }
+
+  if (rewardAudioFile) {
+    const { url, s3Key } = uploaded[idx++];
+    const rewardAudioMedia = await Media.create({
+      type: 'audio',
+      title: rewardAudioFile.originalname,
+      filePath: s3Key,
+      url,
+      mimeType: rewardAudioFile.mimetype,
+      size: rewardAudioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    });
+    doc.rewardAudio = rewardAudioMedia._id;
+  }
+
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
 module.exports = {
   listMissions,
   listCategories,
@@ -540,5 +686,6 @@ module.exports = {
   archiveMission,
   addMissionVocabularyEntry,
   uploadMissionImage,
+  uploadMissionMedia,
 };
 

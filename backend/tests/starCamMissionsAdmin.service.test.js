@@ -44,9 +44,11 @@ function makeDoc(overrides = {}) {
     introImage: null,
     videoEnabled: false,
     introVideo: null,
+    missionShortVideo: null,
     vocab: [],
     items: [],
     rewardImage: null,
+    rewardAudio: null,
     category: null,
     updatedBy: null,
     publishedAt: null,
@@ -140,6 +142,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i,
     }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
@@ -149,6 +154,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: true,
         introVideo: null,
@@ -167,6 +174,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i,
     }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
@@ -176,6 +186,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,
@@ -188,7 +200,10 @@ describe('starCamMissionsAdmin.service', () => {
     Media.findOne.mockImplementation(({ _id }) => {
       if (_id === 'intro-img') return mockMediaFindOneResult({ type: 'audio' }); // wrong on purpose
       const str = String(_id || '');
-      if (str.startsWith('aud')) return mockMediaFindOneResult({ type: 'audio' });
+      if (str === 'short-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud')) {
+        return mockMediaFindOneResult({ type: 'audio' });
+      }
       if (str.startsWith('img')) return mockMediaFindOneResult({ type: 'image' });
       return mockMediaFindOneResult({ type: 'image' });
     });
@@ -203,6 +218,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i,
     }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
@@ -211,6 +229,8 @@ describe('starCamMissionsAdmin.service', () => {
       missionImage: 'mission-img',
       introImage: 'intro-img',
       rewardImage: 'reward-img',
+      rewardAudio: 'reward-aud',
+      missionShortVideo: 'short-vid',
       category: 'cat-1',
       videoEnabled: false,
       vocab: vocab7,
@@ -228,14 +248,18 @@ describe('starCamMissionsAdmin.service', () => {
         lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
       });
 
-    // Media checks: mission image, intro image, reward image, then vocab images+audios (14)
+    // Media checks: mission image, intro image, reward image, reward audio, short video, then vocab media (21)
     Media.findOne
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // missionImage
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // introImage
-      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })); // rewardImage
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // rewardImage
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' })) // rewardAudio
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' })); // missionShortVideo
     for (let i = 0; i < 7; i += 1) {
       Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })); // vocab image
       Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' })); // vocab audio
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' })); // vocab tryAgainAudio
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' })); // vocab successAudio
     }
 
     const result = await publishMission({ id: 'mission-1', userId: 'u1' });
@@ -281,6 +305,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i,
     }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
@@ -290,6 +317,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,
@@ -306,7 +335,10 @@ describe('starCamMissionsAdmin.service', () => {
         };
       }
       const str = String(_id || '');
-      if (str.startsWith('aud')) return mockMediaFindOneResult({ type: 'audio' });
+      if (str === 'short-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud')) {
+        return mockMediaFindOneResult({ type: 'audio' });
+      }
       return mockMediaFindOneResult({ type: 'image' });
     });
 
@@ -320,6 +352,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i === 6 ? 5 : i,
     }));
     const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
@@ -329,6 +364,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
         vocab: vocabBad,
@@ -346,6 +383,9 @@ describe('starCamMissionsAdmin.service', () => {
       target: `target_${i}`,
       image: `img${i}`,
       audio: `aud${i}`,
+      introAudio: null,
+      tryAgainAudio: `tryAud${i}`,
+      successAudio: `successAud${i}`,
       sortOrder: i,
     }));
     const itemsBad = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i === 0 ? 1 : i }));
@@ -355,6 +395,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionImage: 'mission-img',
         introImage: 'intro-img',
         rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
         vocab: vocab7,

@@ -16,6 +16,9 @@ const missionVocabSchema = new mongoose.Schema(
     target: { type: String, trim: true, lowercase: true, required: [isPublishingRequired, 'Vocab target is required'] },
     image: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab image is required'] },
     audio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab audio is required'] },
+    introAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    tryAgainAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab tryAgainAudio is required'] },
+    successAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab successAudio is required'] },
     sortOrder: { type: Number, min: 0, max: 6, required: true },
   },
   { _id: false }
@@ -74,6 +77,7 @@ const starCamMissionSchema = new mongoose.Schema(
 
     videoEnabled: { type: Boolean, default: false },
     introVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    missionShortVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Mission short video is required'] },
 
     vocab: {
       type: [missionVocabSchema],
@@ -100,6 +104,7 @@ const starCamMissionSchema = new mongoose.Schema(
     },
 
     rewardImage: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Reward image is required'] },
+    rewardAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Mission reward audio is required'] },
     rewardTitle: {
       type: String,
       trim: true,

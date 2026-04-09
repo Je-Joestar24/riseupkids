@@ -1,15 +1,11 @@
 import React from 'react';
 import {
   Box,
-  Button,
-  Checkbox,
-  Collapse,
+  Radio,
   Chip,
   CircularProgress,
   Avatar,
-  List,
-  ListItem,
-  ListItemText,
+  IconButton,
   Paper,
   Table,
   TableBody,
@@ -17,9 +13,13 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
+import UnpublishedRoundedIcon from '@mui/icons-material/UnpublishedRounded';
+import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded';
 
 const statusColor = {
   draft: 'warning',
@@ -65,6 +65,7 @@ const StarCamMissionTable = ({
             <TableCell sx={{ fontWeight: 700 }}>Title</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Vocabulary</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>Media Ready</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
             <TableCell sx={{ fontWeight: 700 }} align="right">
               Actions
@@ -74,7 +75,7 @@ const StarCamMissionTable = ({
         <TableBody>
           {missions.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8}>
+              <TableCell colSpan={9}>
                 <Typography sx={{ py: 2, textAlign: 'center', color: 'text.secondary' }}>
                   No missions found.
                 </Typography>
@@ -82,15 +83,13 @@ const StarCamMissionTable = ({
             </TableRow>
           ) : (
             missions.map((mission) => {
-              const isExpanded = selectedMissionId === mission._id;
-              const vocabList = Array.isArray(mission.vocab) ? mission.vocab : [];
+              const isSelected = selectedMissionId === mission._id;
               return (
-                <React.Fragment key={mission._id}>
-                  <TableRow hover>
+                <TableRow key={mission._id} hover selected={isSelected}>
                     <TableCell align="center">
-                      <Checkbox
+                      <Radio
                         size="small"
-                        checked={isExpanded}
+                        checked={isSelected}
                         onChange={(e) => onToggleMission(mission._id, e.target.checked)}
                         inputProps={{ 'aria-label': `select mission ${mission.missionId}` }}
                       />
@@ -111,62 +110,65 @@ const StarCamMissionTable = ({
                     </TableCell>
                     <TableCell>{mission.title}</TableCell>
                     <TableCell>{mission.category?.name || 'Uncategorized'}</TableCell>
-                    <TableCell>{Number(mission.vocabCount ?? vocabList.length ?? 0)}/7</TableCell>
+                    <TableCell>{Number(mission.vocabCount ?? mission.vocab?.length ?? 0)}/7</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'inline-flex', gap: 0.6, flexWrap: 'wrap' }}>
+                        <Chip
+                          size="small"
+                          color={mission.mediaCompleteness?.hasMissionShortVideo ? 'success' : 'default'}
+                          label={mission.mediaCompleteness?.hasMissionShortVideo ? 'Short Video' : 'No Short Video'}
+                        />
+                        <Chip
+                          size="small"
+                          color={mission.mediaCompleteness?.hasRewardAudio ? 'success' : 'default'}
+                          label={mission.mediaCompleteness?.hasRewardAudio ? 'Reward Audio' : 'No Reward Audio'}
+                        />
+                      </Box>
+                    </TableCell>
                     <TableCell>
                       <Chip size="small" label={mission.status} color={statusColor[mission.status] || 'default'} />
                     </TableCell>
                     <TableCell align="right">
-                      <Box sx={{ display: 'inline-flex', gap: 0.6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      <Box sx={{ display: 'inline-flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         {mission.status !== 'published' && mission.status !== 'archived' ? (
-                          <Button size="small" variant="contained" onClick={() => onPublishMission(mission._id)}>
-                            Publish
-                          </Button>
+                          <Tooltip title="Publish mission">
+                            <IconButton
+                              color="success"
+                              onClick={() => onPublishMission(mission._id)}
+                              aria-label={`publish mission ${mission.missionId}`}
+                              sx={{ p: 0.7 }}
+                            >
+                              <PublishRoundedIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
                         ) : null}
                         {mission.status === 'published' ? (
-                          <Button size="small" variant="outlined" color="warning" onClick={() => onUnpublishMission(mission._id)}>
-                            Unpublish
-                          </Button>
+                          <Tooltip title="Unpublish mission">
+                            <IconButton
+                              color="warning"
+                              onClick={() => onUnpublishMission(mission._id)}
+                              aria-label={`unpublish mission ${mission.missionId}`}
+                              sx={{ p: 0.7 }}
+                            >
+                              <UnpublishedRoundedIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
                         ) : null}
                         {mission.status !== 'archived' ? (
-                          <Button size="small" variant="outlined" color="error" onClick={() => onArchiveMission(mission._id)}>
-                            Archive
-                          </Button>
+                          <Tooltip title="Archive mission">
+                            <IconButton
+                              color="error"
+                              onClick={() => onArchiveMission(mission._id)}
+                              aria-label={`archive mission ${mission.missionId}`}
+                              sx={{ p: 0.7 }}
+                            >
+                              <ArchiveRoundedIcon sx={{ fontSize: 24 }} />
+                            </IconButton>
+                          </Tooltip>
                         ) : null}
                       </Box>
                     </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell colSpan={8} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
-                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                        <Box sx={{ px: 2, py: 1.5, backgroundColor: theme.palette.custom?.bgSecondary || '#f8fafc' }}>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.8 }}>
-                            Mission image tip: use a perfectly cropped 1:1 square image for best display quality.
-                          </Typography>
-                          <Typography sx={{ fontWeight: 700, mb: 0.8 }}>Vocabulary List</Typography>
-                          {vocabList.length === 0 ? (
-                            <Typography variant="body2" color="text.secondary">
-                              No vocabulary yet.
-                            </Typography>
-                          ) : (
-                            <List dense sx={{ py: 0 }}>
-                              {vocabList
-                                .slice()
-                                .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-                                .map((vocab, idx) => (
-                                  <ListItem key={`${mission._id}-v-${idx}`} sx={{ px: 0 }}>
-                                    <ListItemText
-                                      primary={`${vocab.displayText || vocab.word || '-'} (${vocab.target || '-'})`}
-                                      secondary={`Order: ${vocab.sortOrder ?? idx}`}
-                                    />
-                                  </ListItem>
-                                ))}
-                            </List>
-                          )}
-                        </Box>
-                      </Collapse>
-                    </TableCell>
-                  </TableRow>
-                </React.Fragment>
               );
             })
           )}

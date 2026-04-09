@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { uploadStarCamVocab, uploadStarCamMissionImage } = require('../middleware/upload');
+const { uploadStarCamVocab, uploadStarCamMissionImage, uploadStarCamMissionMedia } = require('../middleware/upload');
 const {
   listMissions,
   listCategories,
@@ -15,6 +15,7 @@ const {
   archiveMission,
   addMissionVocabulary,
   uploadMissionImage,
+  uploadMissionMedia,
 } = require('../controllers/starCamMissionsAdmin.controller');
 
 /**
@@ -51,6 +52,7 @@ router.post('/:id/unpublish', unpublishMission);
 router.post('/:id/archive', archiveMission);
 router.post('/:id/vocab', uploadStarCamVocab, addMissionVocabulary);
 router.post('/:id/mission-image', uploadStarCamMissionImage, uploadMissionImage);
+router.post('/:id/mission-media', uploadStarCamMissionMedia, uploadMissionMedia);
 
 module.exports = router;
 
