@@ -33,7 +33,7 @@ const {
  * - POST   /:id/publish    Publish mission (validates strict requirements)
  * - POST   /:id/unpublish  Unpublish to draft
  * - POST   /:id/archive    Archive mission (read-only)
- * - POST   /:id/vocab      Add one vocabulary entry (displayText, target, image file, audio file)
+ * - POST   /:id/vocab      Add vocabulary (image, main audio, tryAgain + success audio; optional introAudio, optional pronunciationVideo)
  * - POST   /:id/mission-image Upload/replace mission cover image (optional)
  */
 

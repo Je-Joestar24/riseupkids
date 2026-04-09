@@ -90,7 +90,7 @@ const starCamMissionAdminServices = {
     }
   },
 
-  addVocabulary: async (id, { displayText, target, imageFile, audioFile, tryAgainAudioFile, successAudioFile }) => {
+  addVocabulary: async (id, { displayText, target, imageFile, audioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
     const formData = new FormData();
     formData.append('displayText', displayText || '');
     formData.append('target', target || '');
@@ -98,6 +98,7 @@ const starCamMissionAdminServices = {
     if (audioFile) formData.append('audio', audioFile);
     if (tryAgainAudioFile) formData.append('tryAgainAudio', tryAgainAudioFile);
     if (successAudioFile) formData.append('successAudio', successAudioFile);
+    if (pronunciationVideoFile) formData.append('pronunciationVideo', pronunciationVideoFile);
 
     try {
       const response = await api.post(`${BASE_PATH}/${id}/vocab`, formData, {

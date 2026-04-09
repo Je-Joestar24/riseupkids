@@ -17,6 +17,7 @@ const {
  * - GET /child/:childId/categories
  * - GET /child/:childId/categories/:categoryKey/missions
  * - GET /child/:childId/missions/:missionId/start
+ * - GET /child/:childId/missions/:missionId/practice-material (returns vocab item with optional pronunciationVideoUrl)
  */
 
 router.use(protect);

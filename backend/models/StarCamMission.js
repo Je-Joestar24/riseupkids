@@ -19,6 +19,8 @@ const missionVocabSchema = new mongoose.Schema(
     introAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     tryAgainAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab tryAgainAudio is required'] },
     successAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab successAudio is required'] },
+    // Optional pronunciation video shown in child practice mode.
+    pronunciationVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     sortOrder: { type: Number, min: 0, max: 6, required: true },
   },
   { _id: false }

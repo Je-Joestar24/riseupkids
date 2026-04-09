@@ -35,6 +35,7 @@ function mapMissionVocabToPracticeItems(vocab = []) {
       displayText: v.displayText || v.word || '',
       target: v.target || '',
       imageUrl: v.image?.url || null,
+      pronunciationVideoUrl: v.pronunciationVideo?.url || null,
       audioUrl: v.audio?.url || null,
       introAudioUrl: v.introAudio?.url || null,
       tryAgainAudioUrl: v.tryAgainAudio?.url || null,
@@ -167,6 +168,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'rewardImage', select: 'url type' })
     .populate({ path: 'rewardAudio', select: 'url type duration' })
     .populate({ path: 'vocab.image', select: 'url type' })
+    .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
     .populate({ path: 'vocab.introAudio', select: 'url type duration' })
     .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })
@@ -248,6 +250,7 @@ async function getMissionPracticeMaterialForChild({ parentUserId, childId, missi
 
   const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
     .populate({ path: 'vocab.image', select: 'url type' })
+    .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
     .populate({ path: 'vocab.introAudio', select: 'url type duration' })
     .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })

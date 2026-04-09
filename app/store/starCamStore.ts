@@ -16,6 +16,7 @@ import type {
   StarCamCategoryListItem,
   StarCamMissionListItem,
   StarCamChildMissionStartPayload,
+  StarCamPracticeMaterialPayload,
 } from '@/services/childStarCamService';
 
 // ---------------------------------------------------------------------------
@@ -31,10 +32,13 @@ export interface StarCamState {
 
   /** Latest loaded mission flow payload (start + practice + starCam + completion). */
   missionFlow: StarCamChildMissionStartPayload | null;
+  /** Dedicated practice material payload (e.g. index 6 target vocab). */
+  practiceMaterial: StarCamPracticeMaterialPayload | null;
 
   isLoadingCategories: boolean;
   isLoadingMissions: boolean;
   isLoadingMissionFlow: boolean;
+  isLoadingPracticeMaterial: boolean;
 
   error: string | null;
 }
@@ -50,6 +54,12 @@ export interface StarCamActions {
   selectMission: (missionId: string | null) => void;
   /** Fetch mission flow by missionId or mission slug. Also sets selectedMissionId. */
   fetchMissionStartFlow: (childId: string, missionIdOrSlug: string) => Promise<StarCamChildMissionStartPayload | null>;
+  /** Fetch dedicated practice material by mission + vocab index. */
+  fetchMissionPracticeMaterial: (
+    childId: string,
+    missionIdOrSlug: string,
+    index?: number
+  ) => Promise<StarCamPracticeMaterialPayload | null>;
   /** Clear loaded mission flow. */
   clearMissionFlow: () => void;
   /** Clear error. */
@@ -64,9 +74,11 @@ const initialState: StarCamState = {
   selectedCategoryKey: null,
   selectedMissionId: null,
   missionFlow: null,
+  practiceMaterial: null,
   isLoadingCategories: false,
   isLoadingMissions: false,
   isLoadingMissionFlow: false,
+  isLoadingPracticeMaterial: false,
   error: null,
 };
 
@@ -97,12 +109,20 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
       missions: [],
       selectedMissionId: null,
       missionFlow: null,
+      practiceMaterial: null,
       error: null,
     });
   },
 
   fetchLatestMissionsByCategory: async (childId, categoryKey) => {
-    set({ isLoadingMissions: true, error: null, selectedCategoryKey: categoryKey, missions: [], missionFlow: null });
+    set({
+      isLoadingMissions: true,
+      error: null,
+      selectedCategoryKey: categoryKey,
+      missions: [],
+      missionFlow: null,
+      practiceMaterial: null,
+    });
     try {
       const res = await childStarCamService.getLatestMissionsByCategory(childId, categoryKey);
       const items = res?.success ? res.data?.items ?? [] : [];
@@ -115,7 +135,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     }
   },
 
-  selectMission: (missionId) => set({ selectedMissionId: missionId, missionFlow: null, error: null }),
+  selectMission: (missionId) => set({ selectedMissionId: missionId, missionFlow: null, practiceMaterial: null, error: null }),
 
   fetchMissionStartFlow: async (childId, missionIdOrSlug) => {
     set({ isLoadingMissionFlow: true, error: null, selectedMissionId: missionIdOrSlug, missionFlow: null });
@@ -131,7 +151,21 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     }
   },
 
-  clearMissionFlow: () => set({ missionFlow: null }),
+  fetchMissionPracticeMaterial: async (childId, missionIdOrSlug, index = 6) => {
+    set({ isLoadingPracticeMaterial: true, error: null, selectedMissionId: missionIdOrSlug, practiceMaterial: null });
+    try {
+      const res = await childStarCamService.getMissionPracticeMaterial(childId, missionIdOrSlug, index);
+      const payload = res?.success ? res.data ?? null : null;
+      set({ practiceMaterial: payload, isLoadingPracticeMaterial: false });
+      return payload;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      set({ error: msg, isLoadingPracticeMaterial: false });
+      return null;
+    }
+  },
+
+  clearMissionFlow: () => set({ missionFlow: null, practiceMaterial: null }),
 
   clearError: () => set({ error: null }),
 

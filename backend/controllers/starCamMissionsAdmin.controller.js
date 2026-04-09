@@ -109,6 +109,7 @@ const addMissionVocabulary = async (req, res) => {
     const introAudioFile = req.files?.introAudio?.[0] || null;
     const tryAgainAudioFile = req.files?.tryAgainAudio?.[0] || null;
     const successAudioFile = req.files?.successAudio?.[0] || null;
+    const pronunciationVideoFile = req.files?.pronunciationVideo?.[0] || null;
     const data = await starCamMissionsAdminService.addMissionVocabularyEntry({
       id,
       userId: req.user?._id,
@@ -119,6 +120,7 @@ const addMissionVocabulary = async (req, res) => {
       introAudioFile,
       tryAgainAudioFile,
       successAudioFile,
+      pronunciationVideoFile,
     });
     return res.status(200).json({ success: true, data });
   } catch (error) {

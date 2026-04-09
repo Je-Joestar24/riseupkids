@@ -26,10 +26,12 @@ const StarCamCreateVocabularyModa = ({
   const audioInputRef = useRef(null);
   const tryAgainAudioInputRef = useRef(null);
   const successAudioInputRef = useRef(null);
+  const pronunciationVideoInputRef = useRef(null);
   const [imagePreview, setImagePreview] = useState('');
   const [audioPreview, setAudioPreview] = useState('');
   const [tryAgainAudioPreview, setTryAgainAudioPreview] = useState('');
   const [successAudioPreview, setSuccessAudioPreview] = useState('');
+  const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
 
   const isValid = useMemo(() => {
     return Boolean(
@@ -82,6 +84,16 @@ const StarCamCreateVocabularyModa = ({
     return () => URL.revokeObjectURL(url);
   }, [newVocab?.successAudioFile]);
 
+  useEffect(() => {
+    if (!newVocab?.pronunciationVideoFile) {
+      setPronunciationVideoPreview('');
+      return undefined;
+    }
+    const url = URL.createObjectURL(newVocab.pronunciationVideoFile);
+    setPronunciationVideoPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [newVocab?.pronunciationVideoFile]);
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
       <DialogTitle sx={{ fontWeight: 700 }}>Add Vocabulary</DialogTitle>
@@ -102,6 +114,9 @@ const StarCamCreateVocabularyModa = ({
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               Success audio: "That's a book, yeyy."
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+              Practice sample video (optional): short clip shown on the child practice screen with pronunciation or demo.
             </Typography>
           </Paper>
           <Grid container spacing={1}>
@@ -132,7 +147,7 @@ const StarCamCreateVocabularyModa = ({
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={5}>
+            <Grid item xs={12} md={7.5}>
               <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', height: '100%' }}>
                 <Stack spacing={1}>
                   <Typography sx={{ fontWeight: 700 }}>Reference Image</Typography>
@@ -212,96 +227,182 @@ const StarCamCreateVocabularyModa = ({
               </Paper>
             </Grid>
 
-            <Grid item xs={12} md={7}>
-              <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', height: '100%' }}>
-                <Stack spacing={1}>
-                  <Typography sx={{ fontWeight: 700 }}>Audio Set</Typography>
-                  <input ref={audioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('audioFile', e.target.files?.[0] || null)} />
-                  <input ref={tryAgainAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('tryAgainAudioFile', e.target.files?.[0] || null)} />
-                  <input ref={successAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('successAudioFile', e.target.files?.[0] || null)} />
+            <Grid item xs={12} md={4.5}>
+              <Stack spacing={1.25} sx={{ height: '100%' }}>
+                <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', flex: '0 0 auto' }}>
+                  <Stack spacing={1}>
+                    <Typography sx={{ fontWeight: 700 }}>Audio Set</Typography>
+                    <input ref={audioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('audioFile', e.target.files?.[0] || null)} />
+                    <input ref={tryAgainAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('tryAgainAudioFile', e.target.files?.[0] || null)} />
+                    <input ref={successAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('successAudioFile', e.target.files?.[0] || null)} />
 
-                  {[
-                    {
-                      label: 'Main Audio (Question)',
-                      hint: 'Sample: "Can you find a book?"',
-                      preview: audioPreview,
-                      ref: audioInputRef,
-                      empty: 'Click to upload main question audio',
-                      ariaLabel: 'Upload or change main question audio',
-                    },
-                    {
-                      label: 'Try Again Audio',
-                      hint: `Sample: "Ow that's not a book, let's try again."`,
-                      preview: tryAgainAudioPreview,
-                      ref: tryAgainAudioInputRef,
-                      empty: 'Click to upload try again audio',
-                      ariaLabel: 'Upload or change try again audio',
-                    },
-                    {
-                      label: 'Success Audio',
-                      hint: `Sample: "That's a book, yeyy."`,
-                      preview: successAudioPreview,
-                      ref: successAudioInputRef,
-                      empty: 'Click to upload success audio',
-                      ariaLabel: 'Upload or change success audio',
-                    },
-                  ].map((item) => (
-                    <Box key={item.label}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                        {item.label}
-                      </Typography>
-                      {item.hint ? (
+                    {[
+                      {
+                        label: 'Main Audio (Question)',
+                        hint: 'Sample: "Can you find a book?"',
+                        preview: audioPreview,
+                        ref: audioInputRef,
+                        empty: 'Click to upload main question audio',
+                        ariaLabel: 'Upload or change main question audio',
+                      },
+                      {
+                        label: 'Try Again Audio',
+                        hint: `Sample: "Ow that's not a book, let's try again."`,
+                        preview: tryAgainAudioPreview,
+                        ref: tryAgainAudioInputRef,
+                        empty: 'Click to upload try again audio',
+                        ariaLabel: 'Upload or change try again audio',
+                      },
+                      {
+                        label: 'Success Audio',
+                        hint: `Sample: "That's a book, yeyy."`,
+                        preview: successAudioPreview,
+                        ref: successAudioInputRef,
+                        empty: 'Click to upload success audio',
+                        ariaLabel: 'Upload or change success audio',
+                      },
+                    ].map((item) => (
+                      <Box key={item.label}>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                          {item.hint}
+                          {item.label}
                         </Typography>
-                      ) : null}
+                        {item.hint ? (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                            {item.hint}
+                          </Typography>
+                        ) : null}
+                        <Box
+                          role="button"
+                          tabIndex={0}
+                          aria-label={item.ariaLabel}
+                          onClick={() => item.ref.current?.click()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') item.ref.current?.click();
+                          }}
+                          sx={{
+                            minHeight: 56,
+                            borderRadius: '10px',
+                            border: item.preview ? '1px solid' : '1px dashed',
+                            borderColor: 'divider',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            px: 0,
+                            cursor: 'pointer',
+                            position: 'relative',
+                            backgroundColor: 'background.paper',
+                          }}
+                        >
+                          {item.preview ? (
+                            <>
+                              <Box component="audio" controls src={item.preview} sx={{ width: '100%', display: 'block' }} aria-label={`Preview ${item.label}`} />
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  item.ref.current?.click();
+                                }}
+                                sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
+                              >
+                                Change
+                              </Button>
+                            </>
+                          ) : (
+                            <Typography variant="caption" color="text.secondary">
+                              {item.empty}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                    ))}
+                  </Stack>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', flex: '1 1 auto' }}>
+                  <Stack spacing={1}>
+                    <Typography sx={{ fontWeight: 700 }}>Practice sample video</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Shown on the child app practice screen. Leave empty if you only use image + audio.
+                    </Typography>
+                    <input
+                      ref={pronunciationVideoInputRef}
+                      hidden
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => onVocabChange('pronunciationVideoFile', e.target.files?.[0] || null)}
+                    />
+                    {pronunciationVideoPreview ? (
                       <Box
                         role="button"
                         tabIndex={0}
-                        aria-label={item.ariaLabel}
-                        onClick={() => item.ref.current?.click()}
+                        aria-label="Change practice sample video"
+                        onClick={() => pronunciationVideoInputRef.current?.click()}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') item.ref.current?.click();
+                          if (e.key === 'Enter' || e.key === ' ') pronunciationVideoInputRef.current?.click();
                         }}
                         sx={{
-                          minHeight: 56,
+                          width: '100%',
+                          aspectRatio: '16 / 9',
                           borderRadius: '10px',
-                          border: item.preview ? '1px solid' : '1px dashed',
+                          overflow: 'hidden',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          backgroundColor: 'grey.900',
+                          position: 'relative',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Box
+                          component="video"
+                          controls
+                          src={pronunciationVideoPreview}
+                          playsInline
+                          aria-label="Practice video preview"
+                          sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                        />
+                        <Button
+                          size="small"
+                          variant="contained"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            pronunciationVideoInputRef.current?.click();
+                          }}
+                          sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
+                        >
+                          Change
+                        </Button>
+                      </Box>
+                    ) : (
+                      <Box
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Upload optional practice sample video"
+                        onClick={() => pronunciationVideoInputRef.current?.click()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') pronunciationVideoInputRef.current?.click();
+                        }}
+                        sx={{
+                          width: '100%',
+                          minHeight: 120,
+                          aspectRatio: '16 / 9',
+                          borderRadius: '10px',
+                          border: '1px dashed',
                           borderColor: 'divider',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          px: 0,
                           cursor: 'pointer',
-                          position: 'relative',
-                          backgroundColor: 'background.paper',
                         }}
                       >
-                        {item.preview ? (
-                          <>
-                            <Box component="audio" controls src={item.preview} sx={{ width: '100%', display: 'block' }} aria-label={`Preview ${item.label}`} />
-                            <Button
-                              size="small"
-                              variant="contained"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                item.ref.current?.click();
-                              }}
-                              sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
-                            >
-                              Change
-                            </Button>
-                          </>
-                        ) : (
-                          <Typography variant="caption" color="text.secondary">
-                            {item.empty}
-                          </Typography>
-                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          Click to upload practice video (optional)
+                        </Typography>
                       </Box>
-                    </Box>
-                  ))}
-                </Stack>
-              </Paper>
+                    )}
+                  </Stack>
+                </Paper>
+              </Stack>
             </Grid>
           </Grid>
         </Stack>

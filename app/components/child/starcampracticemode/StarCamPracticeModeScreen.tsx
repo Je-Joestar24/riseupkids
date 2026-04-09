@@ -1,7 +1,7 @@
-import { CameraView } from 'expo-camera';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import React, { memo, useEffect, useState } from 'react';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
@@ -10,28 +10,33 @@ import { ThemedText } from '@/components/themed-text';
 export interface StarCamPracticeModeScreenProps {
   title: string;
   targetLabel: string;
+  pronunciationVideoUrl: string | null;
   sampleImageUrl: string | null;
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
-  isLoadingCameraPermission: boolean;
-  hasCameraPermission: boolean;
   onBack: () => void;
-  onRequestCameraPermission: () => void;
+  onContinue: () => void;
 }
 
 export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen({
   title,
   targetLabel,
+  pronunciationVideoUrl,
   sampleImageUrl,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
-  isLoadingCameraPermission,
-  hasCameraPermission,
   onBack,
-  onRequestCameraPermission,
+  onContinue,
 }: StarCamPracticeModeScreenProps) {
+  const [videoLoadFailed, setVideoLoadFailed] = useState(false);
+  useEffect(() => {
+    setVideoLoadFailed(false);
+  }, [pronunciationVideoUrl]);
+
+  const hasPlayableVideo = Boolean(pronunciationVideoUrl) && !videoLoadFailed;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <View style={[styles.root, { borderColor }]}>
@@ -49,39 +54,26 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
 
           <View style={styles.stack}>
             <View style={styles.block}>
-              <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Camera</ThemedText>
-              <View style={styles.cameraFrame}>
-                {isLoadingCameraPermission ? (
-                  <View style={styles.centered}>
-                    <ActivityIndicator color={accentColor} />
-                    <ThemedText style={[styles.permissionText, { color: accentColor }]}>
-                      Asking for camera permission...
-                    </ThemedText>
-                  </View>
-                ) : hasCameraPermission ? (
-                  <CameraView
-                    style={styles.camera}
-                    facing="back"
-                    mute
-                    accessible
-                    accessibilityLabel="Practice camera preview"
+              <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Pronunciation Video</ThemedText>
+              <View style={styles.mediaFrame}>
+                {hasPlayableVideo ? (
+                  <Video
+                    source={{ uri: pronunciationVideoUrl || '' }}
+                    style={styles.video}
+                    resizeMode={ResizeMode.COVER}
+                    shouldPlay={false}
+                    isLooping
+                    useNativeControls
+                    onError={() => setVideoLoadFailed(true)}
+                    accessibilityLabel={`${targetLabel} pronunciation video`}
                   />
                 ) : (
                   <View style={styles.centered}>
-                    <ThemedText style={[styles.permissionText, { color: accentColor }]}>
-                      Camera access is needed for practice mode.
+                    <ThemedText style={[styles.placeholderText, { color: accentColor }]}>
+                      {pronunciationVideoUrl
+                        ? 'Video is unavailable right now.'
+                        : 'Pronunciation video will be available soon.'}
                     </ThemedText>
-                    <Pressable
-                      onPress={onRequestCameraPermission}
-                      accessibilityRole="button"
-                      accessibilityLabel="Allow camera permission"
-                      style={({ pressed }) => [
-                        styles.permissionButton,
-                        { backgroundColor: accentColor },
-                        pressed && styles.permissionButtonPressed,
-                      ]}>
-                      <ThemedText style={styles.permissionButtonText}>ALLOW CAMERA</ThemedText>
-                    </Pressable>
                   </View>
                 )}
               </View>
@@ -102,15 +94,21 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                   />
                 ) : (
                   <View style={styles.centered}>
-                    <ThemedText style={[styles.placeholderText, { color: accentColor }]}>
-                      No sample image yet.
-                    </ThemedText>
+                    <ThemedText style={[styles.placeholderText, { color: accentColor }]}>No sample image yet.</ThemedText>
                   </View>
                 )}
                 </View>
               </View>
             </View>
           </View>
+{/* 
+          <Pressable
+            onPress={onContinue}
+            accessibilityRole="button"
+            accessibilityLabel="Continue to star cam"
+            style={({ pressed }) => [styles.continueButton, { backgroundColor: accentColor }, pressed && styles.continueButtonPressed]}>
+            <ThemedText style={styles.continueButtonText}>START STARCAM</ThemedText>
+          </Pressable> */}
         </View>
       </View>
     </SafeAreaView>
@@ -132,6 +130,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 40,
+    paddingBottom: 22,
   },
   title: {
     textAlign: 'center',
@@ -147,7 +146,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     alignItems: 'center',
     justifyContent: 'space-evenly',
-    paddingBottom: 16,
+    paddingBottom: 10,
   },
   block: {
     width: '100%',
@@ -159,17 +158,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 18,
   },
-  cameraFrame: {
+  mediaFrame: {
     width: '80%',
     flex: 1,
-    marginHorizontal: 'auto',
+    alignSelf: 'center',
     borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: '#EDEDED',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  camera: {
+  video: {
     width: '100%',
     height: '100%',
   },
@@ -187,6 +186,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 20,
   },
   sampleImage: {
     width: '100%',
@@ -206,29 +206,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
-  permissionText: {
-    textAlign: 'center',
-    fontWeight: '700',
-    fontSize: 16,
-    lineHeight: 22,
-  },
   placeholderText: {
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 18,
   },
-  permissionButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+  continueButton: {
+    width: '100%',
+    maxWidth: 280,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  permissionButtonPressed: {
-    opacity: 0.85,
+  continueButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
-  permissionButtonText: {
+  continueButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 16,
     letterSpacing: 0.3,
   },
 });

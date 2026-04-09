@@ -13,6 +13,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
+import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import StarCamCreateVocabularyModa from './StarCamCreateVocabularyModa';
 
@@ -124,6 +125,14 @@ const StarCamRightPanelPreviewEdit = ({
                             color={vocab.successAudio ? 'success' : 'default'}
                             label={vocab.successAudio ? 'Success' : 'No Success'}
                           />
+                          <Tooltip title="Short clip for child practice screen (optional)">
+                            <Chip
+                              size="small"
+                              icon={<VideocamRoundedIcon />}
+                              color={vocab.pronunciationVideo ? 'success' : 'default'}
+                              label={vocab.pronunciationVideo ? 'Practice Video' : 'No Practice Video'}
+                            />
+                          </Tooltip>
                         </Box>
                       </Stack>
                     </Paper>

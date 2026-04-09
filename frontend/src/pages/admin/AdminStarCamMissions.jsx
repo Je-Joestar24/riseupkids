@@ -37,6 +37,7 @@ const AdminStarCamMissions = () => {
     audioFile: null,
     tryAgainAudioFile: null,
     successAudioFile: null,
+    pronunciationVideoFile: null,
   });
   const [openCreateModal, setOpenCreateModal] = React.useState(false);
 
@@ -81,6 +82,7 @@ const AdminStarCamMissions = () => {
       audioFile: newVocab.audioFile,
       tryAgainAudioFile: newVocab.tryAgainAudioFile,
       successAudioFile: newVocab.successAudioFile,
+      pronunciationVideoFile: newVocab.pronunciationVideoFile || undefined,
     });
     await loadMissionById(currentMission._id);
     setNewVocab({
@@ -90,6 +92,7 @@ const AdminStarCamMissions = () => {
       audioFile: null,
       tryAgainAudioFile: null,
       successAudioFile: null,
+      pronunciationVideoFile: null,
     });
   };
 

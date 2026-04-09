@@ -96,6 +96,7 @@ function buildPopulate() {
     { path: 'vocab.introAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.tryAgainAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.successAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'vocab.pronunciationVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
   ];
 }
 
@@ -247,6 +248,7 @@ async function updateMission({ id, userId, patch } = {}) {
       introAudio: ensureObjectId(v.introAudio, 'vocab.introAudio'),
       tryAgainAudio: ensureObjectId(v.tryAgainAudio, 'vocab.tryAgainAudio'),
       successAudio: ensureObjectId(v.successAudio, 'vocab.successAudio'),
+      pronunciationVideo: ensureObjectId(v.pronunciationVideo, 'vocab.pronunciationVideo'),
       sortOrder: Number(v.sortOrder),
     }));
   }
@@ -370,6 +372,9 @@ async function publishMission({ id, userId } = {}) {
       v.introAudio ? assertMediaExists(v.introAudio, { type: 'audio', fieldName: `vocab[${idx}].introAudio` }) : Promise.resolve(),
       assertMediaExists(v.tryAgainAudio, { type: 'audio', fieldName: `vocab[${idx}].tryAgainAudio` }),
       assertMediaExists(v.successAudio, { type: 'audio', fieldName: `vocab[${idx}].successAudio` }),
+      v.pronunciationVideo
+        ? assertMediaExists(v.pronunciationVideo, { type: 'video', fieldName: `vocab[${idx}].pronunciationVideo` })
+        : Promise.resolve(),
     ]),
   ]);
 
@@ -442,6 +447,7 @@ async function addMissionVocabularyEntry({
   introAudioFile,
   tryAgainAudioFile,
   successAudioFile,
+  pronunciationVideoFile,
 } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
@@ -493,15 +499,21 @@ async function addMissionVocabularyEntry({
     throw err;
   }
 
-  const [{ url: imageUrl, s3Key: imageS3Key }, { url: audioUrl, s3Key: audioS3Key }, { url: tryAgainAudioUrl, s3Key: tryAgainAudioS3Key }, { url: successAudioUrl, s3Key: successAudioS3Key }] =
-    await Promise.all([
-      s3Service.uploadFileFromMulter(imageFile, 'media/images'),
-      s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
-      s3Service.uploadFileFromMulter(tryAgainAudioFile, 'media/audio'),
-      s3Service.uploadFileFromMulter(successAudioFile, 'media/audio'),
-    ]);
+  const [
+    { url: imageUrl, s3Key: imageS3Key },
+    { url: audioUrl, s3Key: audioS3Key },
+    { url: tryAgainAudioUrl, s3Key: tryAgainAudioS3Key },
+    { url: successAudioUrl, s3Key: successAudioS3Key },
+    pronunciationVideoUpload,
+  ] = await Promise.all([
+    s3Service.uploadFileFromMulter(imageFile, 'media/images'),
+    s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
+    s3Service.uploadFileFromMulter(tryAgainAudioFile, 'media/audio'),
+    s3Service.uploadFileFromMulter(successAudioFile, 'media/audio'),
+    pronunciationVideoFile ? s3Service.uploadFileFromMulter(pronunciationVideoFile, 'media/videos') : Promise.resolve(null),
+  ]);
 
-  const [imageMedia, audioMedia, tryAgainAudioMedia, successAudioMedia] = await Promise.all([
+  const [imageMedia, audioMedia, tryAgainAudioMedia, successAudioMedia, pronunciationVideoMedia] = await Promise.all([
     Media.create({
       type: 'image',
       title: imageFile.originalname,
@@ -542,6 +554,18 @@ async function addMissionVocabularyEntry({
       uploadedBy: userId,
       isPublished: true,
     }),
+    pronunciationVideoUpload
+      ? Media.create({
+          type: 'video',
+          title: pronunciationVideoFile.originalname,
+          filePath: pronunciationVideoUpload.s3Key,
+          url: pronunciationVideoUpload.url,
+          mimeType: pronunciationVideoFile.mimetype,
+          size: pronunciationVideoFile.size,
+          uploadedBy: userId,
+          isPublished: true,
+        })
+      : Promise.resolve(null),
   ]);
 
   let introAudioMedia = null;
@@ -569,6 +593,7 @@ async function addMissionVocabularyEntry({
     introAudio: introAudioMedia ? introAudioMedia._id : null,
     tryAgainAudio: tryAgainAudioMedia._id,
     successAudio: successAudioMedia._id,
+    pronunciationVideo: pronunciationVideoMedia?._id || null,
     sortOrder: nextSort,
   });
   doc.updatedBy = userId;
