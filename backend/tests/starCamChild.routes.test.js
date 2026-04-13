@@ -19,9 +19,16 @@ describe('starCamChild.routes – protection + endpoints', () => {
     const hasStartFlow = router.stack.some(
       (l) => l.route && l.route.path === '/child/:childId/missions/:missionId/start' && l.route.methods.get
     );
+    const hasDetectObject = router.stack.some(
+      (l) =>
+        l.route &&
+        l.route.path === '/child/:childId/missions/:missionId/detect-object' &&
+        l.route.methods.post
+    );
     expect(hasCategories).toBe(true);
     expect(hasMissions).toBe(true);
     expect(hasStartFlow).toBe(true);
+    expect(hasDetectObject).toBe(true);
   });
 });
 

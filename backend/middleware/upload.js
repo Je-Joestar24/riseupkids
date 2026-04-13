@@ -648,6 +648,19 @@ const uploadStarCamMissionMedia = multer({
   { name: 'rewardVideo', maxCount: 1 },
 ]);
 
+// Star Cam object detection: single camera capture (multipart field: image)
+const uploadStarCamDetectImage = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname !== 'image') return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    return cb(new Error('image must be an image file'), false);
+  },
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+}).single('image');
+
 module.exports = {
   upload,
   uploadActivityMedia,
@@ -671,5 +684,6 @@ module.exports = {
   uploadStarCamVocab,
   uploadStarCamMissionImage,
   uploadStarCamMissionMedia,
+  uploadStarCamDetectImage,
 };
 

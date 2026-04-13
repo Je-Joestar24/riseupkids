@@ -1,4 +1,5 @@
 const { ChildProfile, StarCamCategory, StarCamMission } = require('../models');
+const { isVisionConfigured } = require('./googleVision.service');
 
 function asTrimmed(value) {
   if (value == null) return null;
@@ -223,9 +224,12 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       starCam: {
         promptTitle: 'Find the object',
         aiDetection: {
-          enabled: false,
-          status: 'pending_integration',
-          notes: 'Object detection endpoint and model integration to be added in child runtime phase.',
+          enabled: isVisionConfigured(),
+          status: isVisionConfigured() ? 'live' : 'pending_integration',
+          detectObjectPath: '/api/child/star-cam/child/:childId/missions/:missionId/detect-object',
+          notes: isVisionConfigured()
+            ? 'POST multipart field "image"; query itemOrder (1-7) or sortOrder (0-6).'
+            : 'Set GOOGLE_VISION_ENABLED and GOOGLE_VISION_* credentials to enable detection.',
         },
         items: huntItems,
       },
@@ -289,6 +293,7 @@ async function getMissionPracticeMaterialForChild({ parentUserId, childId, missi
 }
 
 module.exports = {
+  assertChildOwnership,
   getAvailableCategoriesForChild,
   getLatestMissionsByCategoryForChild,
   getMissionStartFlowForChild,

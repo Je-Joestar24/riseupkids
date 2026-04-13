@@ -143,6 +143,10 @@ describe('starCamChild.service', () => {
       imageUrl: '/leaf.png',
       order: 2,
     });
+    expect(result.flow.starCam.aiDetection).toMatchObject({
+      enabled: false,
+      status: 'pending_integration',
+    });
     expect(result.flow.starCam.items[0]).toMatchObject({ prompt: 'Find a book' });
     expect(result.flow.completion.title).toBe('Mission Accomplished!');
     expect(result.flow.completion.rewardAudioUrl).toBe('/reward.mp3');
