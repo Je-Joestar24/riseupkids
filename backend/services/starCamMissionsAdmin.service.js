@@ -91,6 +91,7 @@ function buildPopulate() {
     { path: 'missionShortVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'rewardVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.image', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.audio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.introAudio', select: 'type url title mimeType size duration isActive isPublished' },
@@ -232,6 +233,7 @@ async function updateMission({ id, userId, patch } = {}) {
   if (patch.missionShortVideo !== undefined) doc.missionShortVideo = ensureObjectId(patch.missionShortVideo, 'missionShortVideo');
   if (patch.rewardImage !== undefined) doc.rewardImage = ensureObjectId(patch.rewardImage, 'rewardImage');
   if (patch.rewardAudio !== undefined) doc.rewardAudio = ensureObjectId(patch.rewardAudio, 'rewardAudio');
+  if (patch.rewardVideo !== undefined) doc.rewardVideo = ensureObjectId(patch.rewardVideo, 'rewardVideo');
 
   if (patch.vocab !== undefined) {
     if (!Array.isArray(patch.vocab)) {
@@ -364,6 +366,7 @@ async function publishMission({ id, userId } = {}) {
     assertMediaExists(doc.introImage, { type: 'image', fieldName: 'introImage' }),
     assertMediaExists(doc.rewardImage, { type: 'image', fieldName: 'rewardImage' }),
     assertMediaExists(doc.rewardAudio, { type: 'audio', fieldName: 'rewardAudio' }),
+    doc.rewardVideo ? assertMediaExists(doc.rewardVideo, { type: 'video', fieldName: 'rewardVideo' }) : Promise.resolve(),
     assertMediaExists(doc.missionShortVideo, { type: 'video', fieldName: 'missionShortVideo' }),
     doc.introVideo ? assertMediaExists(doc.introVideo, { type: 'video', fieldName: 'introVideo' }) : Promise.resolve(),
     ...doc.vocab.flatMap((v, idx) => [
@@ -639,7 +642,7 @@ async function uploadMissionImage({ id, userId, imageFile } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile } = {}) {
+async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile, rewardVideoFile } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
@@ -651,8 +654,8 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile 
     err.statusCode = 400;
     throw err;
   }
-  if (!shortVideoFile && !rewardAudioFile) {
-    const err = new Error('shortVideo or rewardAudio file is required');
+  if (!shortVideoFile && !rewardAudioFile && !rewardVideoFile) {
+    const err = new Error('shortVideo, rewardAudio, or rewardVideo file is required');
     err.statusCode = 400;
     throw err;
   }
@@ -660,6 +663,7 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile 
   const uploads = [];
   if (shortVideoFile) uploads.push(s3Service.uploadFileFromMulter(shortVideoFile, 'media/videos'));
   if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(rewardAudioFile, 'media/audio'));
+  if (rewardVideoFile) uploads.push(s3Service.uploadFileFromMulter(rewardVideoFile, 'media/videos'));
   const uploaded = await Promise.all(uploads);
   let idx = 0;
 
@@ -691,6 +695,21 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile 
       isPublished: true,
     });
     doc.rewardAudio = rewardAudioMedia._id;
+  }
+
+  if (rewardVideoFile) {
+    const { url, s3Key } = uploaded[idx++];
+    const rewardVideoMedia = await Media.create({
+      type: 'video',
+      title: rewardVideoFile.originalname,
+      filePath: s3Key,
+      url,
+      mimeType: rewardVideoFile.mimetype,
+      size: rewardVideoFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    });
+    doc.rewardVideo = rewardVideoMedia._id;
   }
 
   doc.updatedBy = userId;

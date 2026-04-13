@@ -12,6 +12,7 @@ const normalizeMission = (mission) => {
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideo?.url || null,
     rewardAudioUrl: mission.rewardAudio?.url || null,
+    rewardVideoUrl: mission.rewardVideo?.url || null,
   };
 };
 
@@ -134,10 +135,11 @@ const starCamMissionAdminServices = {
     }
   },
 
-  uploadMissionMedia: async (id, { shortVideoFile, rewardAudioFile }) => {
+  uploadMissionMedia: async (id, { shortVideoFile, rewardAudioFile, rewardVideoFile }) => {
     const formData = new FormData();
     if (shortVideoFile) formData.append('shortVideo', shortVideoFile);
     if (rewardAudioFile) formData.append('rewardAudio', rewardAudioFile);
+    if (rewardVideoFile) formData.append('rewardVideo', rewardVideoFile);
     try {
       const response = await api.post(`${BASE_PATH}/${id}/mission-media`, formData, {
         headers: {

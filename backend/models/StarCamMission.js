@@ -107,6 +107,7 @@ const starCamMissionSchema = new mongoose.Schema(
 
     rewardImage: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Reward image is required'] },
     rewardAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Mission reward audio is required'] },
+    rewardVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     rewardTitle: {
       type: String,
       trim: true,

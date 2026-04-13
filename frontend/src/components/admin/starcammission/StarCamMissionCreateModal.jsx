@@ -22,6 +22,7 @@ const initialForm = {
   missionImageFile: null,
   missionShortVideoFile: null,
   rewardAudioFile: null,
+  rewardVideoFile: null,
 };
 
 const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMission, creating = false }) => {
@@ -30,9 +31,11 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [audioPreviewUrl, setAudioPreviewUrl] = useState('');
+  const [rewardVideoPreviewUrl, setRewardVideoPreviewUrl] = useState('');
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const rewardVideoInputRef = useRef(null);
 
   const isValid = useMemo(() => Boolean(form.title.trim() && form.categoryId), [form]);
 
@@ -67,11 +70,22 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
   }, [form.rewardAudioFile]);
 
   useEffect(() => {
+    if (!form.rewardVideoFile) {
+      setRewardVideoPreviewUrl('');
+      return undefined;
+    }
+    const objectUrl = URL.createObjectURL(form.rewardVideoFile);
+    setRewardVideoPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [form.rewardVideoFile]);
+
+  useEffect(() => {
     if (!open) {
       setForm(initialForm);
       setImagePreviewUrl('');
       setVideoPreviewUrl('');
       setAudioPreviewUrl('');
+      setRewardVideoPreviewUrl('');
     }
   }, [open]);
 
@@ -83,6 +97,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
       missionImageFile: form.missionImageFile,
       missionShortVideoFile: form.missionShortVideoFile,
       rewardAudioFile: form.rewardAudioFile,
+      rewardVideoFile: form.rewardVideoFile,
     });
     onClose();
   };
@@ -130,7 +145,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
             </Grid>
 
             <Grid item xs={12} md={7}>
-              <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', height: '100%' }}>
+              <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', height: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <Stack spacing={1}>
                   <Box>
                     <Typography sx={{ fontWeight: 700 }}>Mission Image</Typography>
@@ -193,6 +208,59 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
                     )}
                   </Box>
                 </Stack>
+                <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px' }}>
+                  <Stack spacing={1}>
+                    <Typography sx={{ fontWeight: 700 }}>Reward Audio</Typography>
+                    <input
+                      ref={audioInputRef}
+                      hidden
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setForm((prev) => ({ ...prev, rewardAudioFile: e.target.files?.[0] || null }))}
+                    />
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => audioInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') audioInputRef.current?.click();
+                      }}
+                      sx={{
+                        minHeight: 56,
+                        borderRadius: '10px',
+                        border: audioPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        px: 0,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        backgroundColor: theme.palette.background.paper,
+                      }}
+                    >
+                      {audioPreviewUrl ? (
+                        <>
+                          <Box component="audio" controls src={audioPreviewUrl} sx={{ width: '100%', display: 'block' }} />
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              audioInputRef.current?.click();
+                            }}
+                            sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
+                          >
+                            Change
+                          </Button>
+                        </>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Click to upload reward audio
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+                </Paper>
               </Paper>
             </Grid>
 
@@ -262,45 +330,56 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
                   </Stack>
                 </Paper>
 
+
                 <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px' }}>
                   <Stack spacing={1}>
-                    <Typography sx={{ fontWeight: 700 }}>Reward Audio</Typography>
+                    <Typography sx={{ fontWeight: 700 }}>Reward Video (Optional)</Typography>
                     <input
-                      ref={audioInputRef}
+                      ref={rewardVideoInputRef}
                       hidden
                       type="file"
-                      accept="audio/*"
-                      onChange={(e) => setForm((prev) => ({ ...prev, rewardAudioFile: e.target.files?.[0] || null }))}
+                      accept="video/*"
+                      onChange={(e) => setForm((prev) => ({ ...prev, rewardVideoFile: e.target.files?.[0] || null }))}
                     />
                     <Box
                       role="button"
                       tabIndex={0}
-                      onClick={() => audioInputRef.current?.click()}
+                      onClick={() => rewardVideoInputRef.current?.click()}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') audioInputRef.current?.click();
+                        if (e.key === 'Enter' || e.key === ' ') rewardVideoInputRef.current?.click();
                       }}
                       sx={{
-                        minHeight: 56,
+                        width: '100%',
+                        maxWidth: 420,
+                        aspectRatio: '1 / 1',
                         borderRadius: '10px',
-                        border: audioPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
+                        border: rewardVideoPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        px: 0,
+                        overflow: 'hidden',
                         cursor: 'pointer',
                         position: 'relative',
                         backgroundColor: theme.palette.background.paper,
                       }}
                     >
-                      {audioPreviewUrl ? (
+                      {rewardVideoPreviewUrl ? (
                         <>
-                          <Box component="audio" controls src={audioPreviewUrl} sx={{ width: '100%', display: 'block' }} />
+                          <Box
+                            component="video"
+                            src={rewardVideoPreviewUrl}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                          />
                           <Button
                             size="small"
                             variant="contained"
                             onClick={(e) => {
                               e.stopPropagation();
-                              audioInputRef.current?.click();
+                              rewardVideoInputRef.current?.click();
                             }}
                             sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
                           >
@@ -309,7 +388,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
                         </>
                       ) : (
                         <Typography variant="caption" color="text.secondary">
-                          Click to upload reward audio
+                          Click to upload reward video
                         </Typography>
                       )}
                     </Box>

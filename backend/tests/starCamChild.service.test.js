@@ -89,6 +89,7 @@ describe('starCamChild.service', () => {
         rewardSubtitle: 'Great job, Explorer!',
         rewardImage: { url: '/reward.png' },
         rewardAudio: { url: '/reward.mp3' },
+        rewardVideo: { url: '/reward.mp4' },
         vocab: [
           {
             displayText: 'Book',
@@ -145,6 +146,7 @@ describe('starCamChild.service', () => {
     expect(result.flow.starCam.items[0]).toMatchObject({ prompt: 'Find a book' });
     expect(result.flow.completion.title).toBe('Mission Accomplished!');
     expect(result.flow.completion.rewardAudioUrl).toBe('/reward.mp3');
+    expect(result.flow.completion.rewardVideoUrl).toBe('/reward.mp4');
     expect(result.flow.start.shortVideoUrl).toBe('/short.mp4');
     expect(result.flow.start.introImageUrl).toBe('/mission.png');
   });

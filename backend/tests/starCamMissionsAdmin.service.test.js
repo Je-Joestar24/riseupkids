@@ -49,6 +49,7 @@ function makeDoc(overrides = {}) {
     items: [],
     rewardImage: null,
     rewardAudio: null,
+    rewardVideo: null,
     category: null,
     updatedBy: null,
     publishedAt: null,
@@ -155,6 +156,7 @@ describe('starCamMissionsAdmin.service', () => {
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: true,
@@ -187,6 +189,7 @@ describe('starCamMissionsAdmin.service', () => {
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
@@ -200,7 +203,7 @@ describe('starCamMissionsAdmin.service', () => {
     Media.findOne.mockImplementation(({ _id }) => {
       if (_id === 'intro-img') return mockMediaFindOneResult({ type: 'audio' }); // wrong on purpose
       const str = String(_id || '');
-      if (str === 'short-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'short-vid' || str === 'reward-vid') return mockMediaFindOneResult({ type: 'video' });
       if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud')) {
         return mockMediaFindOneResult({ type: 'audio' });
       }
@@ -230,6 +233,7 @@ describe('starCamMissionsAdmin.service', () => {
       introImage: 'intro-img',
       rewardImage: 'reward-img',
       rewardAudio: 'reward-aud',
+      rewardVideo: 'reward-vid',
       missionShortVideo: 'short-vid',
       category: 'cat-1',
       videoEnabled: false,
@@ -254,6 +258,7 @@ describe('starCamMissionsAdmin.service', () => {
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // introImage
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })) // rewardImage
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' })) // rewardAudio
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' })) // rewardVideo
       .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' })); // missionShortVideo
     for (let i = 0; i < 7; i += 1) {
       Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' })); // vocab image
@@ -318,6 +323,7 @@ describe('starCamMissionsAdmin.service', () => {
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
@@ -335,7 +341,7 @@ describe('starCamMissionsAdmin.service', () => {
         };
       }
       const str = String(_id || '');
-      if (str === 'short-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'short-vid' || str === 'reward-vid') return mockMediaFindOneResult({ type: 'video' });
       if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud')) {
         return mockMediaFindOneResult({ type: 'audio' });
       }
@@ -365,6 +371,7 @@ describe('starCamMissionsAdmin.service', () => {
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
@@ -396,6 +403,7 @@ describe('starCamMissionsAdmin.service', () => {
         introImage: 'intro-img',
         rewardImage: 'reward-img',
         rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,

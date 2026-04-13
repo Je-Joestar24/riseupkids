@@ -86,9 +86,9 @@ export const useStarCamMissionAdmin = () => {
   );
 
   const updateMissionMedia = useCallback(
-    (missionId, { shortVideoFile, rewardAudioFile }) =>
+    (missionId, { shortVideoFile, rewardAudioFile, rewardVideoFile }) =>
       runThunk(
-        uploadStarCamMissionMedia({ missionId, shortVideoFile, rewardAudioFile }),
+        uploadStarCamMissionMedia({ missionId, shortVideoFile, rewardAudioFile, rewardVideoFile }),
         'Failed to upload mission media',
         'Mission media updated successfully'
       ),

@@ -167,6 +167,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'missionShortVideo', select: 'url type duration' })
     .populate({ path: 'rewardImage', select: 'url type' })
     .populate({ path: 'rewardAudio', select: 'url type duration' })
+    .populate({ path: 'rewardVideo', select: 'url type duration' })
     .populate({ path: 'vocab.image', select: 'url type' })
     .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
@@ -234,6 +235,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
         subtitle: mission.rewardSubtitle || 'Great job, Explorer!',
         rewardImageUrl: mission.rewardImage?.url || null,
         rewardAudioUrl: mission.rewardAudio?.url || null,
+        rewardVideoUrl: mission.rewardVideo?.url || null,
       },
     },
   };

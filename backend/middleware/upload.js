@@ -621,7 +621,7 @@ const uploadStarCamMissionImage = multer({
   { name: 'image', maxCount: 1 },
 ]);
 
-// Middleware for Star Cam mission-level media (short video + reward audio)
+// Middleware for Star Cam mission-level media (short video + reward audio + reward video)
 const uploadStarCamMissionMedia = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
@@ -633,6 +633,10 @@ const uploadStarCamMissionMedia = multer({
       if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
       return cb(new Error('rewardAudio must be an audio file'), false);
     }
+    if (file.fieldname === 'rewardVideo') {
+      if (file.mimetype && file.mimetype.startsWith('video/')) return cb(null, true);
+      return cb(new Error('rewardVideo must be a video file'), false);
+    }
     return cb(new Error(`Unknown field: ${file.fieldname}`), false);
   },
   limits: {
@@ -641,6 +645,7 @@ const uploadStarCamMissionMedia = multer({
 }).fields([
   { name: 'shortVideo', maxCount: 1 },
   { name: 'rewardAudio', maxCount: 1 },
+  { name: 'rewardVideo', maxCount: 1 },
 ]);
 
 module.exports = {
