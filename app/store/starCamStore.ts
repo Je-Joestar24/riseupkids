@@ -181,12 +181,17 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     try {
       const res = await childStarCamService.detectMissionObject(childId, missionIdOrSlug, image, options);
       const payload = res?.success ? res.data ?? null : null;
+      if (!payload) {
+        const err = new Error('Detector returned empty payload');
+        set({ isDetectingObject: false, error: err.message });
+        throw err;
+      }
       set({ lastDetection: payload, isDetectingObject: false });
       return payload;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ error: msg, isDetectingObject: false });
-      return null;
+      throw err instanceof Error ? err : new Error(msg);
     }
   },
 

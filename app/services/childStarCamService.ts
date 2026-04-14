@@ -249,12 +249,7 @@ export const childStarCamService = {
 
     return api.post<ApiResponse<StarCamDetectObjectPayload>>(
       `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/detect-object${query}`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     );
   },
 };
