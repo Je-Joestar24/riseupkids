@@ -17,9 +17,8 @@ const instance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 15000,
   headers: {
-    'Content-Type': 'application/json',
+    Accept: 'application/json',
   },
-  // 👇 THIS LINE FIXES IT
   adapter: 'xhr',
 });
 
@@ -27,6 +26,7 @@ function withFormDataSafeConfig(config?: AxiosRequestConfig, data?: unknown): Ax
   if (!(typeof FormData !== 'undefined' && data instanceof FormData)) return config;
   const headers: AxiosRequestHeaders = { ...(config?.headers as AxiosRequestHeaders) };
   delete headers['Content-Type'];
+  delete headers['content-type'];
   return {
     ...config,
     headers,

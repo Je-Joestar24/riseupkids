@@ -251,7 +251,7 @@ Proin vitae suscipit libero. Aliquam erat volutpat. Duis sollicitudin nunc nec e
 };
 
 /** Expiry for reset code: 1 minute */
-const RESET_CODE_EXPIRY_MS = 60 * 1000;
+const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;
 
 /**
  * Forgot password: if user exists, generate 6-digit code, store with 1-min expiry, send email.

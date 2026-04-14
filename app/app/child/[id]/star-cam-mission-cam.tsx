@@ -84,6 +84,12 @@ export default function StarCamMissionCamRoute() {
         Alert.alert('Capture failed', 'Please try taking the photo again.');
         return;
       }
+      if (__DEV__) {
+        console.log('[StarCamDetectDebug][app] captured-photo', {
+          hasUri: Boolean(photo?.uri),
+          uriPreview: String(photo.uri).slice(0, 80),
+        });
+      }
 
       // Phase 1: keep it linear and deterministic for quick backend validation.
       const detection = await detectObject(

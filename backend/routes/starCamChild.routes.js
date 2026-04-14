@@ -11,6 +11,37 @@ const {
   getChildMissionPracticeMaterial,
 } = require('../controllers/starCamChild.controller');
 
+function isStarCamDetectDebugEnabled() {
+  return String(process.env.STARCAM_DETECT_DEBUG || '').toLowerCase() === 'true';
+}
+
+function uploadStarCamDetectImageWithDebug(req, res, next) {
+  uploadStarCamDetectImage(req, res, (error) => {
+    if (isStarCamDetectDebugEnabled()) {
+      const payload = {
+        stage: 'route:upload-middleware',
+        path: req.originalUrl,
+        contentType: req.headers?.['content-type'] || null,
+        hasFile: Boolean(req.file),
+        file: req.file
+          ? {
+              fieldname: req.file.fieldname,
+              originalname: req.file.originalname,
+              mimetype: req.file.mimetype,
+              size: req.file.size,
+            }
+          : null,
+        errorName: error?.name || null,
+        errorCode: error?.code || null,
+        errorMessage: error?.message || null,
+      };
+      console.log('[StarCamDetectDebug]', JSON.stringify(payload));
+    }
+    if (error) return next(error);
+    return next();
+  });
+}
+
 /**
  * Star Cam Child Flow APIs (separate runtime endpoints)
  *
@@ -31,7 +62,7 @@ router.get('/child/:childId/categories/:categoryKey/missions', getChildStarCamMi
 router.get('/child/:childId/missions/:missionId/start', getChildMissionStartFlow);
 router.post(
   '/child/:childId/missions/:missionId/detect-object',
-  uploadStarCamDetectImage,
+  uploadStarCamDetectImageWithDebug,
   postChildMissionDetectObject
 );
 router.get('/child/:childId/missions/:missionId/practice-material', getChildMissionPracticeMaterial);

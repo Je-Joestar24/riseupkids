@@ -1,5 +1,28 @@
 const vision = require('@google-cloud/vision');
 
+function isStarCamDetectDebugEnabled() {
+  return String(process.env.STARCAM_DETECT_DEBUG || '').toLowerCase() === 'true';
+}
+
+function isVisionErrorVerboseEnabled() {
+  return isStarCamDetectDebugEnabled() || process.env.NODE_ENV !== 'production';
+}
+
+function logVisionDebug(stage, payload = {}) {
+  if (!isStarCamDetectDebugEnabled()) return;
+  console.log('[StarCamDetectDebug]', JSON.stringify({ stage, ...payload }));
+}
+
+function buildVisionProviderErrorMessage(error) {
+  const parts = [
+    error?.message,
+    error?.details,
+    error?.code != null ? `code=${error.code}` : null,
+    error?.status ? `status=${error.status}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' | ') : 'Unknown Vision provider error';
+}
+
 function parseBool(value) {
   if (value == null) return false;
   const s = String(value).toLowerCase();
@@ -78,6 +101,13 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
   }
 
   const timeoutMs = getRequestTimeoutMs();
+  logVisionDebug('vision:request:start', {
+    imageBytes: imageBuffer.length,
+    timeoutMs,
+    projectId: process.env.GOOGLE_VISION_PROJECT_ID || null,
+    hasClientEmail: Boolean(process.env.GOOGLE_VISION_CLIENT_EMAIL),
+    hasPrivateKey: Boolean(process.env.GOOGLE_VISION_PRIVATE_KEY),
+  });
   const detectionPromise = client.labelDetection({ image: { content: imageBuffer } });
 
   let timeoutId;
@@ -94,8 +124,20 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
   try {
     [result] = await Promise.race([detectionPromise, timeoutPromise]);
   } catch (e) {
+    logVisionDebug('vision:request:error', {
+      errorName: e?.name || null,
+      errorMessage: e?.message || null,
+      errorCode: e?.code ?? null,
+      errorDetails: e?.details || null,
+      errorStatus: e?.status || null,
+      errorStatusCode: e?.statusCode || null,
+    });
     if (e.statusCode) throw e;
-    const err = new Error('Vision API request failed');
+    const err = new Error(
+      isVisionErrorVerboseEnabled()
+        ? `Vision API request failed: ${buildVisionProviderErrorMessage(e)}`
+        : 'Vision API request failed'
+    );
     err.statusCode = 503;
     err.cause = e;
     throw err;
@@ -108,6 +150,11 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
     description: String(l.description || '').trim(),
     score: typeof l.score === 'number' && Number.isFinite(l.score) ? l.score : 0,
   }));
+  logVisionDebug('vision:request:success', {
+    labelCount: labels.length,
+    topLabel: labels[0]?.description || null,
+    topLabelScore: labels[0]?.score ?? null,
+  });
 
   return { labels };
 }

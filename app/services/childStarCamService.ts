@@ -13,6 +13,9 @@
  */
 
 import { api } from '@/services/api';
+import { API_BASE_URL } from '@/config';
+import { getAuthToken } from '@/services/tokenBridge';
+import { Platform } from 'react-native';
 
 // ---------------------------------------------------------------------------
 // Generic API response (backend convention)
@@ -235,22 +238,62 @@ export const childStarCamService = {
     image: { uri: string; name?: string; type?: string },
     options: { itemOrder?: number; sortOrder?: number } = {}
   ): Promise<ApiResponse<StarCamDetectObjectPayload>> => {
-    const formData = new FormData();
-    formData.append('image', {
-      uri: image.uri,
-      name: image.name || `star-cam-${Date.now()}.jpg`,
-      type: image.type || 'image/jpeg',
-    } as never);
-
     const queryParts: string[] = [];
     if (typeof options.itemOrder === 'number') queryParts.push(`itemOrder=${encodeURIComponent(String(options.itemOrder))}`);
     if (typeof options.sortOrder === 'number') queryParts.push(`sortOrder=${encodeURIComponent(String(options.sortOrder))}`);
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+    const endpoint = `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/detect-object${query}`;
 
-    return api.post<ApiResponse<StarCamDetectObjectPayload>>(
-      `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/detect-object${query}`,
-      formData
-    );
+    // Use fetch for React Native file upload reliability (Axios adapters can drop multipart file parts in some environments).
+    return (async () => {
+      const safeName = image.name || `star-cam-${Date.now()}.jpg`;
+      const safeType = image.type || 'image/jpeg';
+      const normalizedUri =
+        Platform.OS === 'web'
+          ? image.uri
+          : image.uri.startsWith('file://') || image.uri.startsWith('content://')
+            ? image.uri
+            : `file://${image.uri}`;
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const blob = await fetch(normalizedUri).then((r) => r.blob());
+        formData.append('image', blob, safeName);
+      } else {
+        formData.append('image', {
+          uri: normalizedUri,
+          name: safeName,
+          type: safeType,
+        } as never);
+      }
+
+      const token = getAuthToken();
+      if (__DEV__) {
+        console.log('[StarCamDetectDebug][app] upload-request', {
+          endpoint,
+          platform: Platform.OS,
+          hasToken: Boolean(token),
+          imageName: safeName,
+          imageType: safeType,
+          uriPreview: normalizedUri.slice(0, 80),
+        });
+      }
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+      if (__DEV__) {
+        console.log('[StarCamDetectDebug][app] upload-response', {
+          status: response.status,
+          ok: response.ok,
+        });
+      }
+      const payload = (await response.json()) as ApiResponse<StarCamDetectObjectPayload>;
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || `Request failed (${response.status})`);
+      }
+      return payload;
+    })();
   },
 };
 
