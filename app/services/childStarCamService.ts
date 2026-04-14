@@ -80,7 +80,8 @@ export interface StarCamMissionMapBubble {
 
 export interface AiDetectionPlaceholder {
   enabled: boolean;
-  status: 'pending_integration';
+  status: 'pending_integration' | 'live';
+  detectObjectPath?: string;
   notes?: string;
 }
 
@@ -150,6 +151,31 @@ export interface StarCamPracticeMaterialPayload {
   item: StarCamPracticeItem;
 }
 
+export interface StarCamDetectObjectPayload {
+  missionId: string;
+  target: string;
+  status: 'matched' | 'not_matched';
+  result: {
+    isMatch: boolean;
+    confidence: number;
+    confidencePercent: number;
+  };
+  ui: {
+    title: string;
+    message: string;
+    tone: 'success' | 'retry';
+    nextAction: 'continue' | 'retry';
+  };
+  meta: {
+    attemptId: string;
+    processedAt: string;
+    itemOrder: number | null;
+    sortOrder: number;
+    threshold: number;
+    topLabels?: { description: string; score: number }[];
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service implementation
 // ---------------------------------------------------------------------------
@@ -202,5 +228,34 @@ export const childStarCamService = {
     api.get<ApiResponse<StarCamPracticeMaterialPayload>>(
       `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/practice-material?index=${encodeURIComponent(String(index))}`
     ),
+
+  detectMissionObject: (
+    childId: string,
+    missionIdOrSlug: string,
+    image: { uri: string; name?: string; type?: string },
+    options: { itemOrder?: number; sortOrder?: number } = {}
+  ): Promise<ApiResponse<StarCamDetectObjectPayload>> => {
+    const formData = new FormData();
+    formData.append('image', {
+      uri: image.uri,
+      name: image.name || `star-cam-${Date.now()}.jpg`,
+      type: image.type || 'image/jpeg',
+    } as never);
+
+    const queryParts: string[] = [];
+    if (typeof options.itemOrder === 'number') queryParts.push(`itemOrder=${encodeURIComponent(String(options.itemOrder))}`);
+    if (typeof options.sortOrder === 'number') queryParts.push(`sortOrder=${encodeURIComponent(String(options.sortOrder))}`);
+    const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+
+    return api.post<ApiResponse<StarCamDetectObjectPayload>>(
+      `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/detect-object${query}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+  },
 };
 

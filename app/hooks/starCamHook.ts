@@ -16,6 +16,7 @@ import type {
   StarCamChildMissionStartPayload,
   StarCamMissionMapBubble,
   StarCamPracticeMaterialPayload,
+  StarCamDetectObjectPayload,
 } from '@/services/childStarCamService';
 
 export interface UseStarCamReturn {
@@ -30,6 +31,7 @@ export interface UseStarCamReturn {
   isLoadingMissions: boolean;
   isLoadingMissionFlow: boolean;
   isLoadingPracticeMaterial: boolean;
+  isDetectingObject: boolean;
   error: string | null;
   // Derived
   hasCategories: boolean;
@@ -47,6 +49,12 @@ export interface UseStarCamReturn {
     missionIdOrSlug: string,
     index?: number
   ) => Promise<StarCamPracticeMaterialPayload | null>;
+  detectObject: (
+    childId: string,
+    missionIdOrSlug: string,
+    image: { uri: string; name?: string; type?: string },
+    options?: { itemOrder?: number; sortOrder?: number }
+  ) => Promise<StarCamDetectObjectPayload | null>;
   clearMissionFlow: () => void;
   clearError: () => void;
   reset: () => void;
@@ -63,6 +71,7 @@ export function useStarCam(): UseStarCamReturn {
   const isLoadingMissions = useStarCamStore((s) => s.isLoadingMissions);
   const isLoadingMissionFlow = useStarCamStore((s) => s.isLoadingMissionFlow);
   const isLoadingPracticeMaterial = useStarCamStore((s) => s.isLoadingPracticeMaterial);
+  const isDetectingObject = useStarCamStore((s) => s.isDetectingObject);
   const error = useStarCamStore((s) => s.error);
 
   const fetchCategories = useStarCamStore((s) => s.fetchCategories);
@@ -71,6 +80,7 @@ export function useStarCam(): UseStarCamReturn {
   const selectMission = useStarCamStore((s) => s.selectMission);
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
   const fetchMissionPracticeMaterial = useStarCamStore((s) => s.fetchMissionPracticeMaterial);
+  const detectMissionObject = useStarCamStore((s) => s.detectMissionObject);
   const clearFlow = useStarCamStore((s) => s.clearMissionFlow);
   const clearStoreError = useStarCamStore((s) => s.clearError);
   const resetStore = useStarCamStore((s) => s.reset);
@@ -110,6 +120,15 @@ export function useStarCam(): UseStarCamReturn {
       fetchMissionPracticeMaterial(childId, missionIdOrSlug, index),
     [fetchMissionPracticeMaterial]
   );
+  const detectObject = useCallback(
+    (
+      childId: string,
+      missionIdOrSlug: string,
+      image: { uri: string; name?: string; type?: string },
+      options: { itemOrder?: number; sortOrder?: number } = {}
+    ) => detectMissionObject(childId, missionIdOrSlug, image, options),
+    [detectMissionObject]
+  );
 
   const practiceItems = useMemo(
     () => missionFlow?.flow?.practice?.items ?? [],
@@ -132,6 +151,7 @@ export function useStarCam(): UseStarCamReturn {
       isLoadingMissions,
       isLoadingMissionFlow,
       isLoadingPracticeMaterial,
+      isDetectingObject,
       error,
       hasCategories: categories.length > 0,
       hasMissions: missions.length > 0,
@@ -143,6 +163,7 @@ export function useStarCam(): UseStarCamReturn {
       chooseMission,
       loadMissionFlow,
       loadPracticeMaterial,
+      detectObject,
       clearMissionFlow,
       clearError,
       reset,
@@ -158,6 +179,7 @@ export function useStarCam(): UseStarCamReturn {
       isLoadingMissions,
       isLoadingMissionFlow,
       isLoadingPracticeMaterial,
+      isDetectingObject,
       error,
       practiceItems,
       huntItems,
@@ -167,6 +189,7 @@ export function useStarCam(): UseStarCamReturn {
       chooseMission,
       loadMissionFlow,
       loadPracticeMaterial,
+      detectObject,
       clearMissionFlow,
       clearError,
       reset,

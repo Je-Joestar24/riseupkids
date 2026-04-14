@@ -110,7 +110,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
           <Typography variant="body2" color="text.secondary">
             Fill out mission details first, then upload optional media assets. The layout is compact and optimized for faster authoring.
           </Typography>
-          <Grid container spacing={1}>
+          <Grid container spacing={1} >
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px' }}>
                 <Grid container spacing={1}>

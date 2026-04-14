@@ -101,14 +101,13 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
               </View>
             </View>
           </View>
-{/* 
           <Pressable
             onPress={onContinue}
             accessibilityRole="button"
             accessibilityLabel="Continue to star cam"
             style={({ pressed }) => [styles.continueButton, { backgroundColor: accentColor }, pressed && styles.continueButtonPressed]}>
             <ThemedText style={styles.continueButtonText}>START STARCAM</ThemedText>
-          </Pressable> */}
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>

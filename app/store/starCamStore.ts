@@ -17,6 +17,7 @@ import type {
   StarCamMissionListItem,
   StarCamChildMissionStartPayload,
   StarCamPracticeMaterialPayload,
+  StarCamDetectObjectPayload,
 } from '@/services/childStarCamService';
 
 // ---------------------------------------------------------------------------
@@ -39,8 +40,10 @@ export interface StarCamState {
   isLoadingMissions: boolean;
   isLoadingMissionFlow: boolean;
   isLoadingPracticeMaterial: boolean;
+  isDetectingObject: boolean;
 
   error: string | null;
+  lastDetection: StarCamDetectObjectPayload | null;
 }
 
 export interface StarCamActions {
@@ -60,6 +63,12 @@ export interface StarCamActions {
     missionIdOrSlug: string,
     index?: number
   ) => Promise<StarCamPracticeMaterialPayload | null>;
+  detectMissionObject: (
+    childId: string,
+    missionIdOrSlug: string,
+    image: { uri: string; name?: string; type?: string },
+    options?: { itemOrder?: number; sortOrder?: number }
+  ) => Promise<StarCamDetectObjectPayload | null>;
   /** Clear loaded mission flow. */
   clearMissionFlow: () => void;
   /** Clear error. */
@@ -79,7 +88,9 @@ const initialState: StarCamState = {
   isLoadingMissions: false,
   isLoadingMissionFlow: false,
   isLoadingPracticeMaterial: false,
+  isDetectingObject: false,
   error: null,
+  lastDetection: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -161,6 +172,20 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ error: msg, isLoadingPracticeMaterial: false });
+      return null;
+    }
+  },
+
+  detectMissionObject: async (childId, missionIdOrSlug, image, options = {}) => {
+    set({ isDetectingObject: true, error: null });
+    try {
+      const res = await childStarCamService.detectMissionObject(childId, missionIdOrSlug, image, options);
+      const payload = res?.success ? res.data ?? null : null;
+      set({ lastDetection: payload, isDetectingObject: false });
+      return payload;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      set({ error: msg, isDetectingObject: false });
       return null;
     }
   },

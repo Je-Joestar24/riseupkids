@@ -1,7 +1,7 @@
 import { CameraView } from 'expo-camera';
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { memo } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
@@ -18,6 +18,9 @@ export interface StarCamMissionCamScreenProps {
   totalStars?: number;
   isLoadingCameraPermission: boolean;
   hasCameraPermission: boolean;
+  isDetecting?: boolean;
+  cameraRef?: React.RefObject<CameraView | null>;
+  onCaptureAndDetect: () => void;
   onBack: () => void;
 }
 
@@ -30,6 +33,9 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   totalStars = 7,
   isLoadingCameraPermission,
   hasCameraPermission,
+  isDetecting = false,
+  cameraRef,
+  onCaptureAndDetect,
   onBack,
 }: StarCamMissionCamScreenProps) {
   return (
@@ -62,7 +68,13 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
                   <ThemedText style={styles.placeholderText}>Preparing camera...</ThemedText>
                 </View>
               ) : hasCameraPermission ? (
-                <CameraView style={styles.camera} facing="back" mute accessibilityLabel="Star cam circular camera preview" />
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.camera}
+                  facing="back"
+                  mute
+                  accessibilityLabel="Star cam circular camera preview"
+                />
               ) : (
                 <View style={styles.centered}>
                   <ThemedText style={styles.placeholderText}>Camera permission is required.</ThemedText>
@@ -72,6 +84,23 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
 
             <Image source={MAGNIFYING_GLASS} style={styles.magnifierImage} resizeMode="contain" accessibilityLabel="Magnifying glass overlay" />
           </View>
+
+          <Pressable
+            onPress={onCaptureAndDetect}
+            disabled={isLoadingCameraPermission || !hasCameraPermission || isDetecting}
+            accessibilityRole="button"
+            accessibilityLabel="Capture object and check detection"
+            style={({ pressed }) => [
+              styles.captureButton,
+              (isLoadingCameraPermission || !hasCameraPermission || isDetecting) && styles.captureButtonDisabled,
+              pressed && styles.captureButtonPressed,
+            ]}>
+            {isDetecting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <ThemedText style={styles.captureButtonText}>CHECK OBJECT</ThemedText>
+            )}
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -155,6 +184,29 @@ const styles = StyleSheet.create({
     width: '80%',
     position: 'fixed',
     top: 150,
+  },
+  captureButton: {
+    marginTop: 18,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    backgroundColor: '#85C2B9',
+    minWidth: 190,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureButtonDisabled: {
+    opacity: 0.6,
+  },
+  captureButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
+  },
+  captureButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    fontSize: 16,
   },
 });
 

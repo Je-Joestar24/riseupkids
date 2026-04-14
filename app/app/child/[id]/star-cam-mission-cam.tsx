@@ -1,6 +1,7 @@
 import { useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Alert } from 'react-native';
 
 import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
@@ -14,6 +15,7 @@ export default function StarCamMissionCamRoute() {
   }>();
   const router = useRouter();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
 
   const childId = id ?? null;
   const missionSlug = missionId ?? null;
@@ -21,7 +23,14 @@ export default function StarCamMissionCamRoute() {
   const hasCameraPermission = cameraPermission?.granted === true;
   const isLoadingCameraPermission = !cameraPermission;
 
-  const { practiceMaterial, loadPracticeMaterial } = useStarCam();
+  const {
+    missionFlow,
+    loadMissionFlow,
+    practiceMaterial,
+    loadPracticeMaterial,
+    detectObject,
+    isDetectingObject,
+  } = useStarCam();
 
   useEffect(() => {
     if (!cameraPermission) {
@@ -34,12 +43,21 @@ export default function StarCamMissionCamRoute() {
     void loadPracticeMaterial(childId, missionSlug, 6);
   }, [childId, missionSlug, loadPracticeMaterial]);
 
+  useEffect(() => {
+    if (!childId || !missionSlug) return;
+    void loadMissionFlow(childId, missionSlug);
+  }, [childId, missionSlug, loadMissionFlow]);
+
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
   }, [categoryKey]);
 
-  const targetLabel = practiceMaterial?.item?.target || practiceMaterial?.item?.displayText || 'object';
+  const targetLabel =
+    missionFlow?.flow?.starCam?.items?.[0]?.target ||
+    practiceMaterial?.item?.target ||
+    practiceMaterial?.item?.displayText ||
+    'object';
 
   const onBack = () => {
     if (!id) {
@@ -51,6 +69,50 @@ export default function StarCamMissionCamRoute() {
     );
   };
 
+  const onCaptureAndDetect = useCallback(async () => {
+    if (!childId || !missionSlug) return;
+    if (!hasCameraPermission) {
+      Alert.alert('Camera needed', 'Please allow camera permission first.');
+      return;
+    }
+    try {
+      const photo = await cameraRef.current?.takePictureAsync?.({
+        quality: 0.7,
+        skipProcessing: true,
+      });
+      if (!photo?.uri) {
+        Alert.alert('Capture failed', 'Please try taking the photo again.');
+        return;
+      }
+
+      // Phase 1: keep it linear and deterministic for quick backend validation.
+      const detection = await detectObject(
+        childId,
+        missionSlug,
+        {
+          uri: photo.uri,
+          name: `star-cam-${Date.now()}.jpg`,
+          type: 'image/jpeg',
+        },
+        { itemOrder: 1 }
+      );
+
+      if (!detection) {
+        Alert.alert('Detection failed', 'No response from detector. Please try again.');
+        return;
+      }
+
+      if (detection.result?.isMatch) {
+        Alert.alert('Success', `${detection.ui?.message || 'Object detected successfully.'}`);
+        return;
+      }
+      Alert.alert('Try again', `${detection.ui?.message || 'Object not matched yet.'}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Detection failed. Please try again.';
+      Alert.alert('Error', message);
+    }
+  }, [childId, missionSlug, hasCameraPermission, detectObject]);
+
   return (
     <StarCamMissionCamScreen
       targetLabel={targetLabel}
@@ -61,6 +123,9 @@ export default function StarCamMissionCamRoute() {
       totalStars={7}
       isLoadingCameraPermission={isLoadingCameraPermission}
       hasCameraPermission={hasCameraPermission}
+      isDetecting={isDetectingObject}
+      cameraRef={cameraRef}
+      onCaptureAndDetect={onCaptureAndDetect}
       onBack={onBack}
     />
   );
