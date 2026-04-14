@@ -6,6 +6,7 @@
 import axios, {
   type AxiosInstance,
   type AxiosRequestConfig,
+  type AxiosRequestHeaders,
   type InternalAxiosRequestConfig,
 } from 'axios';
 
@@ -21,6 +22,16 @@ const instance: AxiosInstance = axios.create({
   // 👇 THIS LINE FIXES IT
   adapter: 'xhr',
 });
+
+function withFormDataSafeConfig(config?: AxiosRequestConfig, data?: unknown): AxiosRequestConfig | undefined {
+  if (!(typeof FormData !== 'undefined' && data instanceof FormData)) return config;
+  const headers: AxiosRequestHeaders = { ...(config?.headers as AxiosRequestHeaders) };
+  delete headers['Content-Type'];
+  return {
+    ...config,
+    headers,
+  };
+}
 
 instance.interceptors.response.use(
   (response) => response,
@@ -42,13 +53,13 @@ export const api = {
     instance.get<T>(url, config).then((r) => r.data),
 
   post: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
-    instance.post<T>(url, data, config).then((r) => r.data),
+    instance.post<T>(url, data, withFormDataSafeConfig(config, data)).then((r) => r.data),
 
   put: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
-    instance.put<T>(url, data, config).then((r) => r.data),
+    instance.put<T>(url, data, withFormDataSafeConfig(config, data)).then((r) => r.data),
 
   patch: <T>(url: string, data?: unknown, config?: AxiosRequestConfig) =>
-    instance.patch<T>(url, data, config).then((r) => r.data),
+    instance.patch<T>(url, data, withFormDataSafeConfig(config, data)).then((r) => r.data),
 
   delete: <T>(url: string, config?: AxiosRequestConfig) =>
     instance.delete<T>(url, config).then((r) => r.data),
