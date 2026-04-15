@@ -15,7 +15,7 @@ import { getAuthToken } from './tokenBridge';
 
 const instance: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 15 * 60 * 1000,
   headers: {
     Accept: 'application/json',
   },

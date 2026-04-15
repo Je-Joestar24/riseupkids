@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
+import { StarCamMissionNotifications } from '@/components/child/starcammissioncam/StarCamMissionNotifications';
 import { ThemedText } from '@/components/themed-text';
 
 const MAGNIFYING_GLASS = require('@/assets/images/magnifying_glass.png');
@@ -19,6 +20,10 @@ export interface StarCamMissionCamScreenProps {
   isLoadingCameraPermission: boolean;
   hasCameraPermission: boolean;
   isDetecting?: boolean;
+  notificationVisible?: boolean;
+  notificationTone?: 'success' | 'retry';
+  notificationTitle?: string;
+  notificationMessage?: string;
   cameraRef?: React.RefObject<CameraView | null>;
   onCaptureAndDetect: () => void;
   onBack: () => void;
@@ -34,6 +39,10 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   isLoadingCameraPermission,
   hasCameraPermission,
   isDetecting = false,
+  notificationVisible = false,
+  notificationTone = 'success',
+  notificationTitle = '',
+  notificationMessage = '',
   cameraRef,
   onCaptureAndDetect,
   onBack,
@@ -102,6 +111,12 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
             )}
           </Pressable>
         </View>
+        <StarCamMissionNotifications
+          visible={notificationVisible}
+          tone={notificationTone}
+          title={notificationTitle}
+          message={notificationMessage}
+        />
       </View>
     </SafeAreaView>
   );

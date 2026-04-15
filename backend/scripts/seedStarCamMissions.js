@@ -8,6 +8,7 @@ dotenv.config();
 
 const MISSIONS_PER_CATEGORY = 3;
 const VOCAB_PER_MISSION = 7;
+const READING_DETECTABLE_OBJECTS = ['headphones', 'book', 'pencil', 'pen', 'notebook', 'eye glasses', 'shoe'];
 
 const DEFAULT_WORD_POOL = [
   'book',
@@ -73,6 +74,17 @@ function pickWords(categoryTargets = [], count = VOCAB_PER_MISSION) {
   if (picked.length >= count) return picked;
   const fallback = DEFAULT_WORD_POOL.filter((w) => !picked.includes(w)).slice(0, count - picked.length);
   return [...picked, ...fallback];
+}
+
+function getCategoryWordPool(category = {}) {
+  if (normalizeWord(category?.key) === 'reading') {
+    return READING_DETECTABLE_OBJECTS.map(normalizeWord);
+  }
+  return category?.targets || [];
+}
+
+function isReadingCategory(category = {}) {
+  return normalizeWord(category?.key) === 'reading';
 }
 
 function getSeedFileStats(filePath) {
@@ -148,7 +160,9 @@ function buildMissionPayload({
   vocabImageId,
   vocabAudioId,
 }) {
-  const words = pickWords(category.targets, VOCAB_PER_MISSION);
+  const words = isReadingCategory(category)
+    ? getCategoryWordPool(category).slice(0, VOCAB_PER_MISSION)
+    : pickWords(getCategoryWordPool(category), VOCAB_PER_MISSION);
   const vocab = words.map((word, idx) => {
     const readable = titleCase(word.replace(/_/g, ' '));
     return {

@@ -138,6 +138,8 @@ export interface StarCamChildMissionStartPayload {
       title: string;
       subtitle: string;
       rewardImageUrl: string | null;
+      rewardAudioUrl?: string | null;
+      rewardVideoUrl?: string | null;
     };
   };
 }
