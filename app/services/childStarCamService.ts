@@ -122,6 +122,7 @@ export interface StarCamChildMissionStartPayload {
       promptTitle: string;
       introText: string;
       introImageUrl: string | null;
+      shortVideoUrl?: string | null;
     };
     practice: {
       promptTitle: string;

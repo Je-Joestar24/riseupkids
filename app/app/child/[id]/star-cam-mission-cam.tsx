@@ -7,6 +7,14 @@ import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
 import { useStarCam } from '@/hooks/starCamHook';
 
+function formatDisplayLabel(value: string | null | undefined): string {
+  const cleaned = String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned ? cleaned.toUpperCase() : 'OBJECT';
+}
+
 export default function StarCamMissionCamRoute() {
   const { id, category, missionId } = useLocalSearchParams<{
     id: string;
@@ -26,8 +34,6 @@ export default function StarCamMissionCamRoute() {
   const {
     missionFlow,
     loadMissionFlow,
-    practiceMaterial,
-    loadPracticeMaterial,
     detectObject,
     isDetectingObject,
     huntItems,
@@ -56,11 +62,6 @@ export default function StarCamMissionCamRoute() {
 
   useEffect(() => {
     if (!childId || !missionSlug) return;
-    void loadPracticeMaterial(childId, missionSlug, 6);
-  }, [childId, missionSlug, loadPracticeMaterial]);
-
-  useEffect(() => {
-    if (!childId || !missionSlug) return;
     void loadMissionFlow(childId, missionSlug);
   }, [childId, missionSlug, loadMissionFlow]);
 
@@ -82,7 +83,11 @@ export default function StarCamMissionCamRoute() {
 
   const currentTarget = huntItems[currentItemIndex]?.target;
   const totalObjects = huntItems.length || 7;
-  const targetLabel = currentTarget || practiceMaterial?.item?.target || practiceMaterial?.item?.displayText || 'object';
+  const targetLabel = useMemo(() => {
+    if (!currentTarget) return 'OBJECT';
+    const fromPractice = missionFlow?.flow?.practice?.items?.find((it) => it.target === currentTarget);
+    return formatDisplayLabel(fromPractice?.displayText || fromPractice?.target || currentTarget || 'object');
+  }, [currentTarget, missionFlow?.flow?.practice?.items]);
 
   const onBack = () => {
     if (!id) {

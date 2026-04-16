@@ -20,5 +20,10 @@ export default function ChildStarCamScreen() {
     [id, router]
   );
 
-  return <ChildStarCam childId={childId} onSelectCategory={onSelectCategory} />;
+  const onGoHome = useCallback(() => {
+    if (!id) return;
+    router.replace(`/child/${id}/home` as never);
+  }, [id, router]);
+
+  return <ChildStarCam childId={childId} onSelectCategory={onSelectCategory} onGoHome={onGoHome} />;
 }

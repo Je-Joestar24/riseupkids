@@ -14,7 +14,7 @@ import type { ChildStarCamProps } from './types';
 import { useStarCamBubbleItems } from './useStarCamBubbleItems';
 import { useStarCamExplorerAnimations } from './useStarCamExplorerAnimations';
 
-export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
+export function ChildStarCam({ childId, onSelectCategory, onGoHome }: ChildStarCamProps) {
   const {
     categories,
     isLoadingCategories,
@@ -49,6 +49,7 @@ export function ChildStarCam({ childId, onSelectCategory }: ChildStarCamProps) {
           pulse={pulse}
           ping={ping}
           onBubblePress={handleBubblePress}
+          onGoHome={onGoHome}
           isLoadingCategories={isLoadingCategories}
           error={error}
           onDismissError={clearError}

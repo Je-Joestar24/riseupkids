@@ -1,5 +1,6 @@
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +13,7 @@ export interface StarCamMissionStartScreenProps {
   missionTitle: string;
   introText: string;
   introImageUrl: string | null;
+  introVideoUrl?: string | null;
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
@@ -81,6 +83,7 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   missionTitle,
   introText,
   introImageUrl,
+  introVideoUrl = null,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
@@ -89,8 +92,11 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   onStartMission,
 }: StarCamMissionStartScreenProps) {
   const resolvedImageUrl = resolveImageUrl(introImageUrl);
+  const resolvedVideoUrl = resolveImageUrl(introVideoUrl || null);
+  const [videoFailed, setVideoFailed] = useState(false);
   const defaultButtonColor = lightenColor(accentColor, 0.12);
   const pressedAccentColor = darkenColor(accentColor, 0.23);
+  const hasPlayableIntroVideo = Boolean(resolvedVideoUrl) && !videoFailed;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -108,13 +114,19 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
           <ThemedText style={[styles.title, { color: accentColor }]}>{categoryHuntTitle || 'Category Hunt'}</ThemedText>
 
           <View style={styles.imageFrame}>
-            {resolvedImageUrl ? (
-              <Image
-                source={{ uri: resolvedImageUrl }}
+            {hasPlayableIntroVideo ? (
+              <Video
+                source={{ uri: resolvedVideoUrl || '' }}
                 style={styles.image}
-                resizeMode="cover"
-                accessibilityLabel={`${missionTitle || 'Mission'} image`}
+                shouldPlay
+                isLooping
+                resizeMode={ResizeMode.COVER}
+                useNativeControls={false}
+                onError={() => setVideoFailed(true)}
+                accessibilityLabel={`${missionTitle || 'Mission'} intro video`}
               />
+            ) : resolvedImageUrl ? (
+              <Image source={{ uri: resolvedImageUrl }} style={styles.image} resizeMode="cover" accessibilityLabel={`${missionTitle || 'Mission'} image`} />
             ) : (
               <View style={styles.imagePlaceholder}>
                 <ThemedText style={[styles.placeholderLetter, { color: accentColor }]}>
@@ -124,8 +136,8 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
             )}
           </View>
 
-          <ThemedText style={[styles.missionTitleBottom, { color: accentColor }]}>{missionTitle || 'Mission'}</ThemedText>
-          <ThemedText style={[styles.subtitle, { color: accentColor }]}>{introText || 'Get ready for your mission!'}</ThemedText>
+          <ThemedText style={styles.missionTitleBottom}>{missionTitle || 'Mission'}</ThemedText>
+          <ThemedText style={styles.subtitle}>{introText || 'Get ready for your mission!'}</ThemedText>
 
           <Pressable
             onPress={onStartMission}
@@ -203,17 +215,23 @@ const styles = StyleSheet.create({
     marginBottom: 26,
     fontWeight: '700',
     fontSize: 19,
-    color: '#85C2B9',
+    color: '#FFFFFF',
     lineHeight: 26,
-    opacity: 0.95,
+    opacity: 0.98,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   missionTitleBottom: {
     textAlign: 'center',
     marginBottom: 12,
     fontWeight: '700',
     fontSize: 22,
-    color: '#85C2B9',
+    color: '#FFFFFF',
     lineHeight: 30,
+    textShadowColor: 'rgba(0,0,0,0.15)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   startBtn: {
     borderRadius: 12,

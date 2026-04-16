@@ -3,7 +3,15 @@ import React, { useEffect, useMemo } from 'react';
 
 import { StarCamMissionStartScreen } from '@/components/child/starcammissionstart';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
+import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
+
+function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  const safePath = url.startsWith('/') ? url : `/${url}`;
+  return `${BACKEND_ORIGIN}${safePath}`;
+}
 
 export default function StarCamMissionStartRoute() {
   const { id, category, missionId, title, imageUrl } = useLocalSearchParams<{
@@ -39,6 +47,7 @@ export default function StarCamMissionStartRoute() {
   }, [missionFlow?.mission?.category?.name, categoryKey]);
   const introText = missionFlow?.flow?.start?.introText || 'Get ready for your mission!';
   const introImageUrl = missionFlow?.flow?.start?.introImageUrl || imageUrl || null;
+  const introVideoUrl = resolveMediaUrl(missionFlow?.flow?.start?.shortVideoUrl);
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
@@ -65,6 +74,7 @@ export default function StarCamMissionStartRoute() {
       missionTitle={missionTitle}
       introText={introText}
       introImageUrl={introImageUrl}
+      introVideoUrl={introVideoUrl}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}

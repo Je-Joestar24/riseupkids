@@ -9,6 +9,8 @@ import { StarCamMissionNotifications } from '@/components/child/starcammissionca
 import { ThemedText } from '@/components/themed-text';
 
 const MAGNIFYING_GLASS = require('@/assets/images/magnifying_glass.png');
+const STAR_FILLED_COLOR = '#FFD84D';
+const STAR_EMPTY_COLOR = '#FFF3B0';
 
 export interface StarCamMissionCamScreenProps {
   targetLabel: string;
@@ -60,15 +62,16 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
                 key={`star-${i}`}
                 name={filled ? 'star' : 'star-outline'}
                 size={30}
-                color="#FFFFFF"
-                style={styles.starIcon}
+                color={filled ? STAR_FILLED_COLOR : STAR_EMPTY_COLOR}
+                style={[styles.starIcon, !filled && styles.starIconEmpty]}
               />
             );
           })}
         </View>
 
         <View style={styles.content}>
-          <ThemedText style={styles.promptText}>{`Can you find a ${targetLabel}?`}</ThemedText>
+          <ThemedText style={styles.promptText}>{`CAN YOU FIND ${targetLabel}?`}</ThemedText>
+
 
           <View style={styles.magnifierWrap}>
             <View style={styles.cameraCircle}>
@@ -152,7 +155,13 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   starIcon: {
-    opacity: 0.45,
+    opacity: 1,
+    textShadowColor: 'rgba(0,0,0,0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  starIconEmpty: {
+    opacity: 0.95,
   },
   promptText: {
     textAlign: 'center',
@@ -196,9 +205,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   magnifierImage: {
-    width: '80%',
-    position: 'fixed',
-    top: 150,
+    width: '80%',    position: 'fixed',
+   top: 150,
   },
   captureButton: {
     marginTop: 18,

@@ -5,12 +5,21 @@ import { StarCamPracticeModeScreen } from '@/components/child/starcampracticemod
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
+import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
 
 function resolveImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (/^https?:\/\//i.test(url)) return url;
   const safePath = url.startsWith('/') ? url : `/${url}`;
   return `${BACKEND_ORIGIN}${safePath}`;
+}
+
+function formatDisplayLabel(value: string | null | undefined): string {
+  const cleaned = String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned ? cleaned.toUpperCase() : 'OBJECT';
 }
 
 export default function StarCamPracticeModeRoute() {
@@ -27,22 +36,29 @@ export default function StarCamPracticeModeRoute() {
   const missionSlug = missionId ?? null;
   const categoryKey = (category || 'reading').toLowerCase();
 
-  const { practiceMaterial, loadPracticeMaterial } = useStarCam();
+  const { missionFlow, loadMissionFlow } = useStarCam();
 
   useEffect(() => {
     if (!childId || !missionSlug) return;
-    void loadPracticeMaterial(childId, missionSlug, 6);
-  }, [childId, missionSlug, loadPracticeMaterial]);
+    void loadMissionFlow(childId, missionSlug);
+  }, [childId, missionSlug, loadMissionFlow]);
 
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
   }, [categoryKey]);
 
-  const practiceItem = practiceMaterial?.item ?? null;
-  const targetLabel = practiceItem?.target || practiceItem?.displayText || '...';
-  const pronunciationVideo = resolveImageUrl(practiceItem?.pronunciationVideoUrl);
-  const sampleImage = resolveImageUrl(practiceItem?.imageUrl);
+  const items: StarCamPracticeSequenceItem[] = useMemo(() => {
+    const list = missionFlow?.flow?.practice?.items ?? [];
+    return list
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((it) => ({
+        targetLabel: formatDisplayLabel(it.displayText || it.target || 'object'),
+        pronunciationVideoUrl: resolveImageUrl(it.pronunciationVideoUrl),
+        sampleImageUrl: resolveImageUrl(it.imageUrl),
+      }));
+  }, [missionFlow]);
 
   const onBack = () => {
     if (!id) {
@@ -54,9 +70,9 @@ export default function StarCamPracticeModeRoute() {
     );
   };
 
-  const onContinue = () => {
+  const onComplete = () => {
     if (!id) return;
-    router.push(
+    router.replace(
       `/child/${id}/star-cam-mission-cam?category=${encodeURIComponent(categoryKey)}&missionId=${encodeURIComponent(missionSlug || '')}` as never
     );
   };
@@ -64,14 +80,12 @@ export default function StarCamPracticeModeRoute() {
   return (
     <StarCamPracticeModeScreen
       title="Let's practice"
-      targetLabel={targetLabel}
-      pronunciationVideoUrl={pronunciationVideo}
-      sampleImageUrl={sampleImage}
+      items={items}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}
       onBack={onBack}
-      onContinue={onContinue}
+      onComplete={onComplete}
     />
   );
 }

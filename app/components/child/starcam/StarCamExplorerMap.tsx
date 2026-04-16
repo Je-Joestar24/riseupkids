@@ -7,6 +7,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
@@ -23,6 +24,7 @@ export interface StarCamExplorerMapProps {
   pulse: Animated.Value;
   ping: Animated.Value;
   onBubblePress: (categoryKey: string) => void;
+  onGoHome?: () => void;
   isLoadingCategories: boolean;
   error: string | null;
   onDismissError: () => void;
@@ -33,6 +35,7 @@ export const StarCamExplorerMap = memo(function StarCamExplorerMap({
   pulse,
   ping,
   onBubblePress,
+  onGoHome,
   isLoadingCategories,
   error,
   onDismissError,
@@ -66,6 +69,16 @@ export const StarCamExplorerMap = memo(function StarCamExplorerMap({
           accessibilityLabel="Dismiss category loading error"
           style={styles.errorWrap}>
           <ThemedText style={styles.errorText}>{error}</ThemedText>
+        </Pressable>
+      ) : null}
+
+      {onGoHome ? (
+        <Pressable
+          onPress={onGoHome}
+          accessibilityRole="button"
+          accessibilityLabel="Go back to child home page"
+          style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}>
+          <MaterialCommunityIcons name="home" size={34} color={colors.textInverse} />
         </Pressable>
       ) : null}
     </View>
@@ -120,5 +133,29 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  homeButton: {
+    position: 'absolute',
+    bottom: spacing[5],
+    alignSelf: 'center',
+    width: 80,
+    height: 80,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing[5],
+    zIndex: 25,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  homeButtonPressed: {
+    opacity: 0.92,
+    transform: [{ scale: 0.98 }],
   },
 });

@@ -159,6 +159,7 @@ function buildMissionPayload({
   missionImageId,
   vocabImageId,
   vocabAudioId,
+  sampleVideoId,
 }) {
   const words = isReadingCategory(category)
     ? getCategoryWordPool(category).slice(0, VOCAB_PER_MISSION)
@@ -171,6 +172,10 @@ function buildMissionPayload({
       target: normalizeWord(word),
       image: vocabImageId,
       audio: vocabAudioId,
+      // Required by schema for published missions; keep placeholders until real audio is uploaded.
+      tryAgainAudio: vocabAudioId,
+      successAudio: vocabAudioId,
+      pronunciationVideo: sampleVideoId,
       sortOrder: idx,
     };
   });
@@ -194,11 +199,14 @@ function buildMissionPayload({
     introText: `Welcome to ${category.name} Mission ${missionNumber}. Find all 7 objects and complete your Star Cam challenge!`,
     missionImage: missionImageId,
     introImage: missionImageId,
-    videoEnabled: false,
-    introVideo: null,
+    videoEnabled: true,
+    introVideo: sampleVideoId,
+    missionShortVideo: sampleVideoId,
     vocab,
     items,
     rewardImage: missionImageId,
+    rewardAudio: vocabAudioId,
+    rewardVideo: sampleVideoId,
     rewardTitle: 'Mission Accomplished!',
     rewardSubtitle: 'Great job, Explorer!',
     createdBy,
@@ -213,6 +221,7 @@ async function seedStarCamMissions() {
     missionImage: path.join(backendRoot, 'assets', 'seeds', 'mission_image_temp.png'),
     vocabImage: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_image_temp.png'),
     vocabAudio: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_audio_temp.mp3'),
+    sampleVideo: path.join(backendRoot, 'assets', 'seeds', 'sample_video.mp4'),
   };
 
   try {
@@ -238,7 +247,7 @@ async function seedStarCamMissions() {
     }
 
     const seederUserId = await resolveSeederUserId();
-    const [missionImageId, vocabImageId, vocabAudioId] = await Promise.all([
+    const [missionImageId, vocabImageId, vocabAudioId, sampleVideoId] = await Promise.all([
       ensureSeedMedia({
         type: 'image',
         title: 'starcam_seed_mission_image_temp',
@@ -263,6 +272,14 @@ async function seedStarCamMissions() {
         mimeType: 'audio/mpeg',
         uploadedBy: seederUserId,
       }),
+      ensureSeedMedia({
+        type: 'video',
+        title: 'starcam_seed_sample_video',
+        sourceFilePath: seedFiles.sampleVideo,
+        destinationRelativeUrl: '/uploads/media/videos/starcam_seed_sample_video.mp4',
+        mimeType: 'video/mp4',
+        uploadedBy: seederUserId,
+      }),
     ]);
 
     let created = 0;
@@ -277,6 +294,7 @@ async function seedStarCamMissions() {
           missionImageId,
           vocabImageId,
           vocabAudioId,
+          sampleVideoId,
         });
 
         const existing = await StarCamMission.findOne({ missionId: payload.missionId }).select('_id').lean();

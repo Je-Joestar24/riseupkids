@@ -1,39 +1,60 @@
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { memo, useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
 import { ThemedText } from '@/components/themed-text';
+import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
+import { useStarCamPracticeSequence } from '@/hooks/useStarCamPracticeSequence';
 
 export interface StarCamPracticeModeScreenProps {
   title: string;
-  targetLabel: string;
-  pronunciationVideoUrl: string | null;
-  sampleImageUrl: string | null;
+  items: StarCamPracticeSequenceItem[];
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
   onBack: () => void;
-  onContinue: () => void;
+  onComplete: () => void;
 }
 
 export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen({
   title,
-  targetLabel,
-  pronunciationVideoUrl,
-  sampleImageUrl,
+  items,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
   onBack,
-  onContinue,
+  onComplete,
 }: StarCamPracticeModeScreenProps) {
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   useEffect(() => {
     setVideoLoadFailed(false);
-  }, [pronunciationVideoUrl]);
+  }, [items]);
+
+  const {
+    current,
+    progressText,
+    passNumber,
+    playbackRate,
+    isVideoLoading,
+    isShowingNextIntro,
+    nextIntroText,
+    onVideoLoadStart,
+    onVideoLoad,
+    onVideoError,
+    onPlaybackStatusUpdate,
+  } = useStarCamPracticeSequence({
+    items,
+    stepDelayMs: 900,
+    nextToastMs: 500,
+    onComplete,
+  });
+
+  const targetLabel = current?.targetLabel || '...';
+  const pronunciationVideoUrl = current?.pronunciationVideoUrl || null;
+  const sampleImageUrl = current?.sampleImageUrl || null;
 
   const hasPlayableVideo = Boolean(pronunciationVideoUrl) && !videoLoadFailed;
 
@@ -51,20 +72,41 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
 
         <View style={styles.content}>
           <ThemedText style={[styles.title, { color: accentColor }]}>{title}</ThemedText>
+          <View style={styles.progressPill}>
+            <ThemedText style={[styles.progressText, { color: accentColor }]}>
+              {progressText} • Round {passNumber}/2
+            </ThemedText>
+          </View>
+          {isShowingNextIntro && nextIntroText ? (
+            <View
+              style={[styles.nextToast, { borderColor: accentColor }]}
+              accessibilityRole="text"
+              accessibilityLabel={nextIntroText}>
+              <ThemedText style={[styles.nextToastText, { color: accentColor }]}>{nextIntroText}</ThemedText>
+            </View>
+          ) : null}
 
           <View style={styles.stack}>
             <View style={styles.block}>
-              <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Pronunciation Video</ThemedText>
               <View style={styles.mediaFrame}>
                 {hasPlayableVideo ? (
                   <Video
+                    key={`${passNumber}-${progressText}-${pronunciationVideoUrl ?? 'no-video'}`}
                     source={{ uri: pronunciationVideoUrl || '' }}
-                    style={styles.video}
-                    resizeMode={ResizeMode.COVER}
-                    shouldPlay={false}
-                    isLooping
-                    useNativeControls
-                    onError={() => setVideoLoadFailed(true)}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay={!isShowingNextIntro}
+                    isLooping={false}
+                    rate={playbackRate}
+                    shouldCorrectPitch
+                    useNativeControls={false}
+                    onLoadStart={onVideoLoadStart}
+                    onLoad={onVideoLoad}
+                    onError={() => {
+                      setVideoLoadFailed(true);
+                      onVideoError();
+                    }}
+                    onPlaybackStatusUpdate={onPlaybackStatusUpdate}
                     accessibilityLabel={`${targetLabel} pronunciation video`}
                   />
                 ) : (
@@ -76,38 +118,36 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                     </ThemedText>
                   </View>
                 )}
+                {hasPlayableVideo && isVideoLoading ? (
+                  <View style={styles.videoLoadingOverlay} pointerEvents="none">
+                    <ActivityIndicator size="large" color={accentColor} />
+                  </View>
+                ) : null}
               </View>
             </View>
 
-            <ThemedText style={[styles.targetText, { color: accentColor }]}>{targetLabel}</ThemedText>
+            <ThemedText style={[styles.targetText, { color: accentColor, marginTop: 20 }]}>{targetLabel}</ThemedText>
 
             <View style={styles.block}>
-              <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Sample</ThemedText>
+              {/* <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Sample</ThemedText> */}
               <View style={styles.sampleWrap}>
                 <View style={styles.sampleFrame}>
-                {sampleImageUrl ? (
-                  <Image
-                    source={{ uri: sampleImageUrl }}
-                    resizeMode="cover"
-                    style={styles.sampleImage}
-                    accessibilityLabel={`${targetLabel} sample image`}
-                  />
-                ) : (
-                  <View style={styles.centered}>
-                    <ThemedText style={[styles.placeholderText, { color: accentColor }]}>No sample image yet.</ThemedText>
-                  </View>
-                )}
+                  {sampleImageUrl ? (
+                    <Image
+                      source={{ uri: sampleImageUrl }}
+                      resizeMode="contain"
+                      style={StyleSheet.absoluteFill}
+                      accessibilityLabel={`${targetLabel} sample image`}
+                    />
+                  ) : (
+                    <View style={styles.centered}>
+                      <ThemedText style={[styles.placeholderText, { color: accentColor }]}>No sample image yet.</ThemedText>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
           </View>
-          <Pressable
-            onPress={onContinue}
-            accessibilityRole="button"
-            accessibilityLabel="Continue to star cam"
-            style={({ pressed }) => [styles.continueButton, { backgroundColor: accentColor }, pressed && styles.continueButtonPressed]}>
-            <ThemedText style={styles.continueButtonText}>START STARCAM</ThemedText>
-          </Pressable>
         </View>
       </View>
     </SafeAreaView>
@@ -139,6 +179,33 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     lineHeight: 42,
   },
+  progressPill: {
+    marginTop: 10,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.65)',
+  },
+  progressText: {
+    fontWeight: '700',
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  nextToast: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderWidth: 2,
+  },
+  nextToastText: {
+    fontWeight: '800',
+    fontSize: 16,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
   stack: {
     flex: 1,
     width: '100%',
@@ -159,7 +226,7 @@ const styles = StyleSheet.create({
   },
   mediaFrame: {
     width: '80%',
-    flex: 1,
+    aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 28,
     overflow: 'hidden',
@@ -167,13 +234,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  video: {
-    width: '100%',
-    height: '100%',
+  videoLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.08)',
   },
   sampleFrame: {
     width: '80%',
     aspectRatio: 1,
+    alignSelf: 'center',
     borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: '#EDEDED',
@@ -185,18 +255,14 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 20,
-  },
-  sampleImage: {
-    width: '100%',
-    height: '100%',
+    marginTop: 0,
   },
   targetText: {
     fontWeight: '700',
     fontSize: 34,
     lineHeight: 38,
     textAlign: 'center',
-    textTransform: 'lowercase',
+    textTransform: 'uppercase',
   },
   centered: {
     flex: 1,
@@ -209,29 +275,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 18,
-  },
-  continueButton: {
-    width: '100%',
-    maxWidth: 280,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.22,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  continueButtonPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-    letterSpacing: 0.3,
   },
 });
 
