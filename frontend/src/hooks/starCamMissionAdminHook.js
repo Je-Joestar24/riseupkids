@@ -10,6 +10,8 @@ import {
   fetchStarCamMissionById,
   fetchStarCamMissions,
   addStarCamMissionVocabulary,
+  updateStarCamMissionVocabulary,
+  deleteStarCamMissionVocabulary,
   uploadStarCamMissionImage,
   uploadStarCamMissionMedia,
   publishStarCamMission,
@@ -18,6 +20,8 @@ import {
   setStarCamMissionAdminFilters,
   unpublishStarCamMission,
   updateStarCamMission,
+  updateStarCamMissionItem,
+  deleteStarCamMissionItem,
 } from '../store/slices/starCamMissionAdminSlice';
 import { showNotification } from '../store/slices/uiSlice';
 
@@ -85,6 +89,26 @@ export const useStarCamMissionAdmin = () => {
     [editMission]
   );
 
+  const editMissionItem = useCallback(
+    (missionId, sortOrder, payload) =>
+      runThunk(
+        updateStarCamMissionItem({ missionId, sortOrder, payload }),
+        'Failed to update mission item',
+        'Mission item updated successfully'
+      ),
+    [runThunk]
+  );
+
+  const removeMissionItem = useCallback(
+    (missionId, sortOrder) =>
+      runThunk(
+        deleteStarCamMissionItem({ missionId, sortOrder }),
+        'Failed to delete mission item',
+        'Mission item deleted successfully'
+      ),
+    [runThunk]
+  );
+
   const updateMissionMedia = useCallback(
     (missionId, { shortVideoFile, rewardAudioFile, rewardVideoFile }) =>
       runThunk(
@@ -101,6 +125,26 @@ export const useStarCamMissionAdmin = () => {
         addStarCamMissionVocabulary({ missionId, payload }),
         'Failed to add vocabulary',
         'Vocabulary added successfully'
+      ),
+    [runThunk]
+  );
+
+  const editMissionVocabulary = useCallback(
+    (missionId, sortOrder, payload) =>
+      runThunk(
+        updateStarCamMissionVocabulary({ missionId, sortOrder, payload }),
+        'Failed to update vocabulary',
+        'Vocabulary updated successfully'
+      ),
+    [runThunk]
+  );
+
+  const removeMissionVocabulary = useCallback(
+    (missionId, sortOrder) =>
+      runThunk(
+        deleteStarCamMissionVocabulary({ missionId, sortOrder }),
+        'Failed to delete vocabulary',
+        'Vocabulary deleted successfully'
       ),
     [runThunk]
   );
@@ -161,10 +205,14 @@ export const useStarCamMissionAdmin = () => {
       addMission,
       loadMissionById,
       editMission,
+      editMissionItem,
+      removeMissionItem,
       updateMissionImage,
       updateMissionMedia,
       uploadMissionImage,
       addMissionVocabulary,
+      editMissionVocabulary,
+      removeMissionVocabulary,
       publishMission,
       unpublishMission,
       archiveMission,
@@ -181,10 +229,14 @@ export const useStarCamMissionAdmin = () => {
       addMission,
       loadMissionById,
       editMission,
+      editMissionItem,
+      removeMissionItem,
       updateMissionImage,
       updateMissionMedia,
       uploadMissionImage,
       addMissionVocabulary,
+      editMissionVocabulary,
+      removeMissionVocabulary,
       publishMission,
       unpublishMission,
       archiveMission,

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { Box, Grid, Paper, Typography } from '@mui/material';
 import StarCamMissionHeader from '../../components/admin/starcammission/StarCamMissionHeader';
 import StarCamMissionFilters from '../../components/admin/starcammission/StarCamMissionFilters';
@@ -7,8 +8,10 @@ import StarCamMissionTablePaginations from '../../components/admin/starcammissio
 import StarCamRightPanelPreviewEdit from '../../components/admin/starcammission/StarCamRightPanelPreviewEdit';
 import StarCamMissionCreateModal from '../../components/admin/starcammission/StarCamMissionCreateModal';
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
+import { showConfirmationDialog } from '../../store/slices/uiSlice';
 
 const AdminStarCamMissions = () => {
+  const dispatch = useDispatch();
   const {
     categories,
     missions,
@@ -21,6 +24,8 @@ const AdminStarCamMissions = () => {
     loadMissions,
     loadMissionById,
     addMissionVocabulary,
+    editMissionVocabulary,
+    removeMissionVocabulary,
     addMission,
     uploadMissionImage,
     updateMissionMedia,
@@ -94,6 +99,39 @@ const AdminStarCamMissions = () => {
       successAudioFile: null,
       pronunciationVideoFile: null,
     });
+  };
+
+  const handleEditVocabulary = async (missionId, sortOrder, payload) => {
+    if (!missionId) return;
+    const safePayload = {
+      displayText: String(payload?.displayText || '').trim(),
+      target: String(payload?.target || '').trim().toLowerCase(),
+      imageFile: payload?.imageFile || undefined,
+      audioFile: payload?.audioFile || undefined,
+      introAudioFile: payload?.introAudioFile || undefined,
+      tryAgainAudioFile: payload?.tryAgainAudioFile || undefined,
+      successAudioFile: payload?.successAudioFile || undefined,
+      pronunciationVideoFile: payload?.pronunciationVideoFile || undefined,
+    };
+    await editMissionVocabulary(missionId, sortOrder, safePayload);
+    await loadMissionById(missionId);
+  };
+
+  const handleDeleteVocabularyConfirm = (vocab) => {
+    if (!currentMission?._id || vocab?.sortOrder == null) return;
+    dispatch(
+      showConfirmationDialog({
+        title: 'Delete Vocabulary?',
+        message: `This will permanently remove "${vocab?.displayText || vocab?.word || 'this vocabulary'}" from the mission.`,
+        type: 'warning',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          await removeMissionVocabulary(currentMission._id, vocab.sortOrder);
+          await loadMissionById(currentMission._id);
+        },
+      })
+    );
   };
 
   const handleCreateMission = async ({ title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile }) => {
@@ -187,6 +225,8 @@ const AdminStarCamMissions = () => {
               newVocab={newVocab}
               onVocabChange={(field, value) => setNewVocab((prev) => ({ ...prev, [field]: value }))}
               onSubmitVocabulary={handleSubmitVocabulary}
+              onEditVocabulary={handleEditVocabulary}
+              onDeleteVocabulary={handleDeleteVocabularyConfirm}
             />
           </Grid>
         </Grid>

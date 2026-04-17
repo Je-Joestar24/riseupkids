@@ -21,6 +21,10 @@ const {
   listCategories,
   createCategory,
   createMission,
+  updateMissionItem,
+  deleteMissionItem,
+  updateMissionVocabularyEntry,
+  deleteMissionVocabularyEntry,
   publishMission,
   unpublishMission,
   archiveMission,
@@ -419,6 +423,130 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.findById.mockResolvedValue(makeDoc({ status: 'archived' }));
     await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 400 });
     await expect(unpublishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('updates one mission item by sortOrder', async () => {
+    const doc = makeDoc({
+      status: 'draft',
+      items: [
+        { target: 'book', prompt: 'Find book', success: 'Nice', fail: 'Try again', sortOrder: 0 },
+        { target: 'pen', prompt: 'Find pen', success: 'Great', fail: 'Nope', sortOrder: 1 },
+      ],
+    });
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', items: [{ sortOrder: 0 }, { target: 'marker', sortOrder: 1 }] }),
+      });
+
+    const result = await updateMissionItem({
+      id: 'mission-1',
+      userId: 'u1',
+      sortOrder: 1,
+      patch: { target: 'marker', prompt: 'Find marker' },
+    });
+    expect(doc.items[1].target).toBe('marker');
+    expect(doc.items[1].prompt).toBe('Find marker');
+    expect(doc.save).toHaveBeenCalled();
+    expect(result).toMatchObject({ missionId: 'nature_01' });
+  });
+
+  it('deletes one mission item by sortOrder and reorders list', async () => {
+    const doc = makeDoc({
+      status: 'draft',
+      items: [
+        { target: 'book', prompt: 'Find book', success: 'Nice', fail: 'Try again', sortOrder: 0 },
+        { target: 'pen', prompt: 'Find pen', success: 'Great', fail: 'Nope', sortOrder: 1 },
+        { target: 'cup', prompt: 'Find cup', success: 'Good', fail: 'Retry', sortOrder: 2 },
+      ],
+    });
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', items: [{ sortOrder: 0 }, { sortOrder: 1 }] }),
+      });
+
+    const result = await deleteMissionItem({
+      id: 'mission-1',
+      userId: 'u1',
+      sortOrder: 1,
+    });
+    expect(doc.items).toHaveLength(2);
+    expect(doc.items[0].sortOrder).toBe(0);
+    expect(doc.items[1].sortOrder).toBe(1);
+    expect(doc.items[1].target).toBe('cup');
+    expect(doc.save).toHaveBeenCalled();
+    expect(result).toMatchObject({ missionId: 'nature_01' });
+  });
+
+  it('rejects deleting mission item when mission is published', async () => {
+    StarCamMission.findById.mockResolvedValue(makeDoc({ status: 'published', items: [{ sortOrder: 0 }] }));
+    await expect(deleteMissionItem({ id: 'mission-1', userId: 'u1', sortOrder: 0 })).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('updates one vocabulary entry text fields by sortOrder', async () => {
+    const doc = makeDoc({
+      status: 'draft',
+      vocab: [
+        {
+          word: 'book',
+          displayText: 'Book',
+          target: 'book',
+          image: 'img1',
+          audio: 'aud1',
+          tryAgainAudio: 'try1',
+          successAudio: 'success1',
+          pronunciationVideo: null,
+          sortOrder: 0,
+        },
+      ],
+    });
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', vocab: [{ displayText: 'Notebook', target: 'notebook', sortOrder: 0 }] }),
+      });
+
+    const result = await updateMissionVocabularyEntry({
+      id: 'mission-1',
+      userId: 'u1',
+      sortOrder: 0,
+      displayText: 'Notebook',
+      target: 'notebook',
+    });
+    expect(doc.vocab[0].displayText).toBe('Notebook');
+    expect(doc.vocab[0].word).toBe('Notebook');
+    expect(doc.vocab[0].target).toBe('notebook');
+    expect(doc.save).toHaveBeenCalled();
+    expect(result).toMatchObject({ missionId: 'nature_01' });
+  });
+
+  it('deletes one vocabulary entry by sortOrder and reorders list', async () => {
+    const doc = makeDoc({
+      status: 'draft',
+      vocab: [
+        { word: 'book', displayText: 'Book', target: 'book', image: 'img1', audio: 'aud1', tryAgainAudio: 'try1', successAudio: 'ok1', sortOrder: 0 },
+        { word: 'pen', displayText: 'Pen', target: 'pen', image: 'img2', audio: 'aud2', tryAgainAudio: 'try2', successAudio: 'ok2', sortOrder: 1 },
+        { word: 'cup', displayText: 'Cup', target: 'cup', image: 'img3', audio: 'aud3', tryAgainAudio: 'try3', successAudio: 'ok3', sortOrder: 2 },
+      ],
+    });
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', vocab: [{ sortOrder: 0 }, { sortOrder: 1 }] }),
+      });
+
+    const result = await deleteMissionVocabularyEntry({ id: 'mission-1', userId: 'u1', sortOrder: 1 });
+    expect(doc.vocab).toHaveLength(2);
+    expect(doc.vocab[0].sortOrder).toBe(0);
+    expect(doc.vocab[1].sortOrder).toBe(1);
+    expect(doc.vocab[1].target).toBe('cup');
+    expect(doc.save).toHaveBeenCalled();
+    expect(result).toMatchObject({ missionId: 'nature_01' });
   });
 
 });

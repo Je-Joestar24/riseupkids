@@ -73,6 +73,30 @@ export const updateStarCamMission = createAsyncThunk(
   }
 );
 
+export const updateStarCamMissionItem = createAsyncThunk(
+  'starCamMissionAdmin/updateMissionItem',
+  async ({ missionId, sortOrder, payload }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.updateMissionItem(missionId, sortOrder, payload);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update Star Cam mission item');
+    }
+  }
+);
+
+export const deleteStarCamMissionItem = createAsyncThunk(
+  'starCamMissionAdmin/deleteMissionItem',
+  async ({ missionId, sortOrder }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.deleteMissionItem(missionId, sortOrder);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to delete Star Cam mission item');
+    }
+  }
+);
+
 export const addStarCamMissionVocabulary = createAsyncThunk(
   'starCamMissionAdmin/addMissionVocabulary',
   async ({ missionId, payload }, { rejectWithValue }) => {
@@ -81,6 +105,30 @@ export const addStarCamMissionVocabulary = createAsyncThunk(
       return response;
     } catch (error) {
       return rejectWithValue(error || 'Failed to add Star Cam vocabulary');
+    }
+  }
+);
+
+export const updateStarCamMissionVocabulary = createAsyncThunk(
+  'starCamMissionAdmin/updateMissionVocabulary',
+  async ({ missionId, sortOrder, payload }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.updateVocabulary(missionId, sortOrder, payload);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update Star Cam vocabulary');
+    }
+  }
+);
+
+export const deleteStarCamMissionVocabulary = createAsyncThunk(
+  'starCamMissionAdmin/deleteMissionVocabulary',
+  async ({ missionId, sortOrder }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.deleteVocabulary(missionId, sortOrder);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to delete Star Cam vocabulary');
     }
   }
 );
@@ -325,6 +373,42 @@ const starCamMissionAdminSlice = createSlice({
         setError(state, action);
       })
 
+      .addCase(updateStarCamMissionItem.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(updateStarCamMissionItem.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'updateMissionItem';
+      })
+      .addCase(updateStarCamMissionItem.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(deleteStarCamMissionItem.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(deleteStarCamMissionItem.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'deleteMissionItem';
+      })
+      .addCase(deleteStarCamMissionItem.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
       .addCase(addStarCamMissionVocabulary.pending, (state) => {
         state.loading.mutating = true;
         state.error = null;
@@ -339,6 +423,42 @@ const starCamMissionAdminSlice = createSlice({
         state.lastAction = 'addMissionVocabulary';
       })
       .addCase(addStarCamMissionVocabulary.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(updateStarCamMissionVocabulary.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(updateStarCamMissionVocabulary.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'updateMissionVocabulary';
+      })
+      .addCase(updateStarCamMissionVocabulary.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(deleteStarCamMissionVocabulary.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(deleteStarCamMissionVocabulary.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'deleteMissionVocabulary';
+      })
+      .addCase(deleteStarCamMissionVocabulary.rejected, (state, action) => {
         state.loading.mutating = false;
         setError(state, action);
       })

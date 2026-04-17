@@ -276,6 +276,88 @@ async function updateMission({ id, userId, patch } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
+function getMissionItemIndexBySortOrder(items, sortOrder) {
+  const numericSortOrder = Number(sortOrder);
+  if (!Number.isInteger(numericSortOrder) || numericSortOrder < 0) {
+    const err = new Error('item sortOrder must be a non-negative integer');
+    err.statusCode = 400;
+    throw err;
+  }
+  const idx = (items || []).findIndex((it) => Number(it?.sortOrder) === numericSortOrder);
+  if (idx < 0) {
+    const err = new Error('Mission item not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return idx;
+}
+
+async function updateMissionItem({ id, userId, sortOrder, patch } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (patch == null || typeof patch !== 'object') {
+    const err = new Error('Invalid payload');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = getMissionItemIndexBySortOrder(doc.items, sortOrder);
+  const item = doc.items[idx];
+
+  if (patch.target !== undefined) item.target = asTrimmedString(patch.target);
+  if (patch.prompt !== undefined) item.prompt = asTrimmedString(patch.prompt);
+  if (patch.success !== undefined) item.success = asTrimmedString(patch.success);
+  if (patch.fail !== undefined) item.fail = asTrimmedString(patch.fail);
+
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
+async function deleteMissionItem({ id, userId, sortOrder } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (doc.status === 'published') {
+    const err = new Error('Published missions must keep exactly 7 items. Unpublish first.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = getMissionItemIndexBySortOrder(doc.items, sortOrder);
+  doc.items.splice(idx, 1);
+  doc.items = doc.items.map((item, index) => ({
+    target: asTrimmedString(item.target),
+    prompt: asTrimmedString(item.prompt),
+    success: asTrimmedString(item.success),
+    fail: asTrimmedString(item.fail),
+    sortOrder: index,
+  }));
+
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
 async function publishMission({ id, userId } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
@@ -605,6 +687,161 @@ async function addMissionVocabularyEntry({
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
+function getMissionVocabIndexBySortOrder(vocabList, sortOrder) {
+  const numericSortOrder = Number(sortOrder);
+  if (!Number.isInteger(numericSortOrder) || numericSortOrder < 0) {
+    const err = new Error('vocab sortOrder must be a non-negative integer');
+    err.statusCode = 400;
+    throw err;
+  }
+  const idx = (vocabList || []).findIndex((v) => Number(v?.sortOrder) === numericSortOrder);
+  if (idx < 0) {
+    const err = new Error('Mission vocabulary not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return idx;
+}
+
+async function uploadMediaAndCreateDoc(file, { folder, type, userId }) {
+  const { url, s3Key } = await s3Service.uploadFileFromMulter(file, folder);
+  return Media.create({
+    type,
+    title: file.originalname,
+    filePath: s3Key,
+    url,
+    mimeType: file.mimetype,
+    size: file.size,
+    uploadedBy: userId,
+    isPublished: true,
+  });
+}
+
+async function updateMissionVocabularyEntry({
+  id,
+  userId,
+  sortOrder,
+  displayText,
+  target,
+  imageFile,
+  audioFile,
+  introAudioFile,
+  tryAgainAudioFile,
+  successAudioFile,
+  pronunciationVideoFile,
+} = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = getMissionVocabIndexBySortOrder(doc.vocab, sortOrder);
+  const entry = doc.vocab[idx];
+  if (!entry) {
+    const err = new Error('Mission vocabulary not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const hasTextPatch = displayText !== undefined || target !== undefined;
+  const hasFilePatch = Boolean(imageFile || audioFile || introAudioFile || tryAgainAudioFile || successAudioFile || pronunciationVideoFile);
+  if (!hasTextPatch && !hasFilePatch) {
+    const err = new Error('No vocabulary updates provided');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (displayText !== undefined) {
+    const safeDisplay = asTrimmedString(displayText);
+    if (!safeDisplay) {
+      const err = new Error('displayText is required');
+      err.statusCode = 400;
+      throw err;
+    }
+    entry.displayText = safeDisplay;
+    entry.word = safeDisplay;
+  }
+  if (target !== undefined) {
+    const safeTarget = asTrimmedString(target)?.toLowerCase();
+    if (!safeTarget) {
+      const err = new Error('target is required');
+      err.statusCode = 400;
+      throw err;
+    }
+    entry.target = safeTarget;
+  }
+
+  const mediaTasks = [];
+  if (imageFile) mediaTasks.push(uploadMediaAndCreateDoc(imageFile, { folder: 'media/images', type: 'image', userId }).then((m) => ({ key: 'image', id: m._id })));
+  if (audioFile) mediaTasks.push(uploadMediaAndCreateDoc(audioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'audio', id: m._id })));
+  if (introAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(introAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'introAudio', id: m._id })));
+  if (tryAgainAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(tryAgainAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'tryAgainAudio', id: m._id })));
+  if (successAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(successAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'successAudio', id: m._id })));
+  if (pronunciationVideoFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(pronunciationVideoFile, { folder: 'media/videos', type: 'video', userId }).then((m) => ({
+        key: 'pronunciationVideo',
+        id: m._id,
+      }))
+    );
+  }
+  const uploadedMedia = await Promise.all(mediaTasks);
+  uploadedMedia.forEach(({ key, id: mediaId }) => {
+    entry[key] = mediaId;
+  });
+
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
+async function deleteMissionVocabularyEntry({ id, userId, sortOrder } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (doc.status === 'published') {
+    const err = new Error('Published missions must keep exactly 7 vocabulary entries. Unpublish first.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const idx = getMissionVocabIndexBySortOrder(doc.vocab, sortOrder);
+  doc.vocab.splice(idx, 1);
+  doc.vocab = doc.vocab.map((entry, index) => ({
+    word: asTrimmedString(entry.word) || asTrimmedString(entry.displayText),
+    displayText: asTrimmedString(entry.displayText) || asTrimmedString(entry.word),
+    target: asTrimmedString(entry.target)?.toLowerCase(),
+    image: entry.image || null,
+    audio: entry.audio || null,
+    introAudio: entry.introAudio || null,
+    tryAgainAudio: entry.tryAgainAudio || null,
+    successAudio: entry.successAudio || null,
+    pronunciationVideo: entry.pronunciationVideo || null,
+    sortOrder: index,
+  }));
+
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+}
+
 async function uploadMissionImage({ id, userId, imageFile } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
@@ -728,7 +965,11 @@ module.exports = {
   publishMission,
   unpublishMission,
   archiveMission,
+  updateMissionItem,
+  deleteMissionItem,
   addMissionVocabularyEntry,
+  updateMissionVocabularyEntry,
+  deleteMissionVocabularyEntry,
   uploadMissionImage,
   uploadMissionMedia,
 };

@@ -129,6 +129,52 @@ const addMissionVocabulary = async (req, res) => {
   }
 };
 
+const updateMissionVocabulary = async (req, res) => {
+  try {
+    const { id, sortOrder } = req.params;
+    const displayText = req.body?.displayText;
+    const target = req.body?.target;
+    const imageFile = req.files?.image?.[0] || null;
+    const audioFile = req.files?.audio?.[0] || null;
+    const introAudioFile = req.files?.introAudio?.[0] || null;
+    const tryAgainAudioFile = req.files?.tryAgainAudio?.[0] || null;
+    const successAudioFile = req.files?.successAudio?.[0] || null;
+    const pronunciationVideoFile = req.files?.pronunciationVideo?.[0] || null;
+    const data = await starCamMissionsAdminService.updateMissionVocabularyEntry({
+      id,
+      userId: req.user?._id,
+      sortOrder,
+      displayText,
+      target,
+      imageFile,
+      audioFile,
+      introAudioFile,
+      tryAgainAudioFile,
+      successAudioFile,
+      pronunciationVideoFile,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to update vocabulary' });
+  }
+};
+
+const deleteMissionVocabulary = async (req, res) => {
+  try {
+    const { id, sortOrder } = req.params;
+    const data = await starCamMissionsAdminService.deleteMissionVocabularyEntry({
+      id,
+      userId: req.user?._id,
+      sortOrder,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to delete vocabulary' });
+  }
+};
+
 const uploadMissionImage = async (req, res) => {
   try {
     const { id } = req.params;
@@ -165,6 +211,37 @@ const uploadMissionMedia = async (req, res) => {
   }
 };
 
+const updateMissionItem = async (req, res) => {
+  try {
+    const { id, sortOrder } = req.params;
+    const data = await starCamMissionsAdminService.updateMissionItem({
+      id,
+      userId: req.user?._id,
+      sortOrder,
+      patch: req.body,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to update mission item' });
+  }
+};
+
+const deleteMissionItem = async (req, res) => {
+  try {
+    const { id, sortOrder } = req.params;
+    const data = await starCamMissionsAdminService.deleteMissionItem({
+      id,
+      userId: req.user?._id,
+      sortOrder,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({ success: false, message: error.message || 'Failed to delete mission item' });
+  }
+};
+
 module.exports = {
   listMissions,
   listCategories,
@@ -176,7 +253,11 @@ module.exports = {
   unpublishMission,
   archiveMission,
   addMissionVocabulary,
+  updateMissionVocabulary,
+  deleteMissionVocabulary,
   uploadMissionImage,
   uploadMissionMedia,
+  updateMissionItem,
+  deleteMissionItem,
 };
 

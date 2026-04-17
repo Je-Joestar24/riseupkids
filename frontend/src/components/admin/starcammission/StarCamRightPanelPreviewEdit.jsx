@@ -5,6 +5,7 @@ import {
   Chip,
   CircularProgress,
   Grid,
+  IconButton,
   Paper,
   Stack,
   Tooltip,
@@ -15,6 +16,8 @@ import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarCamCreateVocabularyModa from './StarCamCreateVocabularyModa';
 
 const StarCamRightPanelPreviewEdit = ({
@@ -24,9 +27,23 @@ const StarCamRightPanelPreviewEdit = ({
   newVocab,
   onVocabChange,
   onSubmitVocabulary,
+  onEditVocabulary,
+  onDeleteVocabulary,
 }) => {
   const theme = useTheme();
   const [openAddVocabModal, setOpenAddVocabModal] = useState(false);
+  const [openEditVocabModal, setOpenEditVocabModal] = useState(false);
+  const [editingVocab, setEditingVocab] = useState(null);
+  const [editVocabForm, setEditVocabForm] = useState({
+    displayText: '',
+    target: '',
+    imageFile: null,
+    audioFile: null,
+    introAudioFile: null,
+    tryAgainAudioFile: null,
+    successAudioFile: null,
+    pronunciationVideoFile: null,
+  });
   const vocabList = Array.isArray(mission?.vocab) ? mission.vocab.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
 
   if (!mission) {
@@ -92,9 +109,51 @@ const StarCamRightPanelPreviewEdit = ({
                       }}
                     >
                       <Stack spacing={0.8}>
-                        <Typography sx={{ fontWeight: 700 }}>
-                          {vocab.sortOrder != null ? Number(vocab.sortOrder) + 1 : idx + 1}. {vocab.displayText || vocab.word || '-'}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                          <Typography sx={{ fontWeight: 700 }}>
+                            {vocab.sortOrder != null ? Number(vocab.sortOrder) + 1 : idx + 1}. {vocab.displayText || vocab.word || '-'}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Tooltip title={mission.status === 'archived' ? 'Archived missions are read-only' : 'Edit vocabulary'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setEditingVocab(vocab);
+                                    setEditVocabForm({
+                                      displayText: String(vocab?.displayText || vocab?.word || ''),
+                                      target: String(vocab?.target || ''),
+                                      imageFile: null,
+                                      audioFile: null,
+                                      introAudioFile: null,
+                                      tryAgainAudioFile: null,
+                                      successAudioFile: null,
+                                      pronunciationVideoFile: null,
+                                    });
+                                    setOpenEditVocabModal(true);
+                                  }}
+                                  disabled={mutating || mission.status === 'archived'}
+                                  aria-label={`edit vocabulary ${vocab.displayText || vocab.word || idx + 1}`}
+                                >
+                                  <EditOutlinedIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title={mission.status === 'archived' ? 'Archived missions are read-only' : 'Delete vocabulary'}>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => onDeleteVocabulary?.(vocab)}
+                                  disabled={mutating || mission.status === 'archived'}
+                                  aria-label={`delete vocabulary ${vocab.displayText || vocab.word || idx + 1}`}
+                                >
+                                  <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
+                        </Box>
                         <Typography variant="body2" color="text.secondary">
                           Target: {vocab.target || '-'}
                         </Typography>
@@ -161,6 +220,33 @@ const StarCamRightPanelPreviewEdit = ({
           if (!canSubmit) return;
           await onSubmitVocabulary();
           setOpenAddVocabModal(false);
+        }}
+        mutating={mutating}
+      />
+      <StarCamCreateVocabularyModa
+        open={openEditVocabModal}
+        onClose={() => {
+          if (mutating) return;
+          setOpenEditVocabModal(false);
+          setEditingVocab(null);
+        }}
+        missionTitle={mission?.title || ''}
+        mode="edit"
+        editingSortOrder={editingVocab?.sortOrder}
+        existingVocabMedia={{
+          imageUrl: editingVocab?.image?.url || '',
+          audioUrl: editingVocab?.audio?.url || '',
+          tryAgainAudioUrl: editingVocab?.tryAgainAudio?.url || '',
+          successAudioUrl: editingVocab?.successAudio?.url || '',
+          pronunciationVideoUrl: editingVocab?.pronunciationVideo?.url || '',
+        }}
+        newVocab={editVocabForm}
+        onVocabChange={(field, value) => setEditVocabForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmitVocabulary={async () => {
+          if (!mission?._id || editingVocab?.sortOrder == null) return;
+          await onEditVocabulary?.(mission._id, editingVocab.sortOrder, editVocabForm);
+          setOpenEditVocabModal(false);
+          setEditingVocab(null);
         }}
         mutating={mutating}
       />

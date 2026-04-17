@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
 import { BACKEND_BASE_URL } from '../../../config/constants';
 import footstepsIcon from '../../../assets/images/footsteps.png';
+import lockIcon from '../../../assets/images/lock.png';
 
 /**
  * ChildJourneyCards Component
@@ -232,7 +233,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   boxShadow: theme.shadows[4],
                   border: `3px solid ${getBorderColor(status)}`,
                   position: 'relative',
-                  opacity: isLocked ? 0.7 : 1,
+                  opacity: 1,
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   cursor: isLocked ? 'not-allowed' : 'pointer',
                   '&:hover': {
@@ -248,12 +249,26 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   width: '100%',
                   height: '160px',
                   maxHeight: '160px',
-                  backgroundColor: isLocked ? '#000000' : themeColors.bgTertiary,
+                  backgroundColor: themeColors.bgTertiary,
                   overflow: 'hidden',
                 }}
               >
-                {isLocked ? (
-                  // Locked state - centered lock icon
+                {/* Course cover image */}
+                {coverImageUrl ? (
+                  <Box
+                    component="img"
+                    src={coverImageUrl}
+                    alt={course.title || 'Course cover'}
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
                   <Box
                     sx={{
                       position: 'absolute',
@@ -264,77 +279,42 @@ const ChildJourneyCards = ({ courses = [] }) => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      backgroundColor: 'gray',
+                      color: themeColors.textInverse,
+                      fontSize: '48px',
                     }}
                   >
-                    {/* Lock icon in white circle */}
+                    📚
+                  </Box>
+                )}
+
+                {isLocked ? (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                    }}
+                  >
                     <Box
+                      component="img"
+                      src={lockIcon}
+                      alt="Locked journey step"
                       sx={{
-                        width: '56px', // 32px icon + 12px padding * 2 = 56px
-                        height: '56px',
-                        backgroundColor: themeColors.textInverse,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '12px',
+                        width: '92px',
+                        height: '92px',
+                        objectFit: 'contain',
                       }}
-                    >
-                      {/* Lock SVG icon */}
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="32"
-                        height="32"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ color: '#64748b' }}
-                        aria-hidden="true"
-                      >
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                      </svg>
-                    </Box>
+                    />
                   </Box>
                 ) : (
                   <>
-                    {/* Course cover image */}
-                    {coverImageUrl ? (
-                      <Box
-                        component="img"
-                        src={coverImageUrl}
-                        alt={course.title || 'Course cover'}
-                        sx={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: 'gray',
-                          color: themeColors.textInverse,
-                          fontSize: '48px',
-                        }}
-                      >
-                        📚
-                      </Box>
-                    )}
-
                     {/* Status Icon - Top Left */}
                     {renderStatusIcon(status)}
 
@@ -392,11 +372,11 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   {/* Footsteps image */}
                   <Box
                     component="img"
-                    src={footstepsIcon}
-                    alt="Footsteps icon"
+                    src={isLocked ? lockIcon : footstepsIcon}
+                    alt={isLocked ? 'Locked step icon' : 'Footsteps icon'}
                     sx={{
-                      width: '100%',
-                      height: '100%',
+                      width: isLocked ? '34px' : '100%',
+                      height: isLocked ? '34px' : '100%',
                       objectFit: 'contain',
                       padding: '0px',
                     }}

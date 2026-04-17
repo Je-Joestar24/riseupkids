@@ -21,6 +21,9 @@ const StarCamCreateVocabularyModa = ({
   onVocabChange,
   onSubmitVocabulary,
   mutating = false,
+  mode = 'create',
+  editingSortOrder = null,
+  existingVocabMedia = null,
 }) => {
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -34,74 +37,91 @@ const StarCamCreateVocabularyModa = ({
   const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
 
   const isValid = useMemo(() => {
+    const hasRequiredFilesFromExisting = Boolean(
+      existingVocabMedia?.imageUrl &&
+        existingVocabMedia?.audioUrl &&
+        existingVocabMedia?.tryAgainAudioUrl &&
+        existingVocabMedia?.successAudioUrl
+    );
+    const isCreateMode = mode !== 'edit';
     return Boolean(
       String(newVocab?.displayText || '').trim() &&
         String(newVocab?.target || '').trim() &&
-        newVocab?.imageFile &&
-        newVocab?.audioFile &&
-        newVocab?.tryAgainAudioFile &&
-        newVocab?.successAudioFile
+        (newVocab?.imageFile || !isCreateMode || hasRequiredFilesFromExisting) &&
+        (newVocab?.audioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
+        (newVocab?.tryAgainAudioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
+        (newVocab?.successAudioFile || !isCreateMode || hasRequiredFilesFromExisting)
     );
-  }, [newVocab]);
+  }, [newVocab, mode, existingVocabMedia]);
 
   useEffect(() => {
-    if (!newVocab?.imageFile) {
-      setImagePreview('');
+    const file = newVocab?.imageFile;
+    if (!file) {
+      setImagePreview(existingVocabMedia?.imageUrl || '');
       return undefined;
     }
-    const url = URL.createObjectURL(newVocab.imageFile);
+    const url = URL.createObjectURL(file);
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [newVocab?.imageFile]);
+  }, [newVocab?.imageFile, existingVocabMedia?.imageUrl]);
 
   useEffect(() => {
-    if (!newVocab?.audioFile) {
-      setAudioPreview('');
+    const file = newVocab?.audioFile;
+    if (!file) {
+      setAudioPreview(existingVocabMedia?.audioUrl || '');
       return undefined;
     }
-    const url = URL.createObjectURL(newVocab.audioFile);
+    const url = URL.createObjectURL(file);
     setAudioPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [newVocab?.audioFile]);
+  }, [newVocab?.audioFile, existingVocabMedia?.audioUrl]);
 
   useEffect(() => {
-    if (!newVocab?.tryAgainAudioFile) {
-      setTryAgainAudioPreview('');
+    const file = newVocab?.tryAgainAudioFile;
+    if (!file) {
+      setTryAgainAudioPreview(existingVocabMedia?.tryAgainAudioUrl || '');
       return undefined;
     }
-    const url = URL.createObjectURL(newVocab.tryAgainAudioFile);
+    const url = URL.createObjectURL(file);
     setTryAgainAudioPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [newVocab?.tryAgainAudioFile]);
+  }, [newVocab?.tryAgainAudioFile, existingVocabMedia?.tryAgainAudioUrl]);
 
   useEffect(() => {
-    if (!newVocab?.successAudioFile) {
-      setSuccessAudioPreview('');
+    const file = newVocab?.successAudioFile;
+    if (!file) {
+      setSuccessAudioPreview(existingVocabMedia?.successAudioUrl || '');
       return undefined;
     }
-    const url = URL.createObjectURL(newVocab.successAudioFile);
+    const url = URL.createObjectURL(file);
     setSuccessAudioPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [newVocab?.successAudioFile]);
+  }, [newVocab?.successAudioFile, existingVocabMedia?.successAudioUrl]);
 
   useEffect(() => {
-    if (!newVocab?.pronunciationVideoFile) {
-      setPronunciationVideoPreview('');
+    const file = newVocab?.pronunciationVideoFile;
+    if (!file) {
+      setPronunciationVideoPreview(existingVocabMedia?.pronunciationVideoUrl || '');
       return undefined;
     }
-    const url = URL.createObjectURL(newVocab.pronunciationVideoFile);
+    const url = URL.createObjectURL(file);
     setPronunciationVideoPreview(url);
     return () => URL.revokeObjectURL(url);
-  }, [newVocab?.pronunciationVideoFile]);
+  }, [newVocab?.pronunciationVideoFile, existingVocabMedia?.pronunciationVideoUrl]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="lg">
-      <DialogTitle sx={{ fontWeight: 700 }}>Add Vocabulary</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>{mode === 'edit' ? 'Edit Vocabulary' : 'Add Vocabulary'}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.25}>
           <Typography variant="body2" color="text.secondary">
             {missionTitle ? `Mission: ${missionTitle}` : 'Fill in details and upload all required media files.'}
           </Typography>
+          {mode === 'edit' ? (
+            <Typography variant="caption" color="text.secondary">
+              Editing vocabulary #{Number(editingSortOrder ?? 0) + 1}. Upload a new file only for the media you want to replace.
+            </Typography>
+          ) : null}
           <Paper variant="outlined" sx={{ p: 1, borderRadius: '10px', backgroundColor: 'background.default' }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               Audio guide:
@@ -412,7 +432,7 @@ const StarCamCreateVocabularyModa = ({
           Cancel
         </Button>
         <Button variant="contained" onClick={onSubmitVocabulary} disabled={!isValid || mutating}>
-          {mutating ? 'Saving...' : 'Add Vocabulary'}
+          {mutating ? 'Saving...' : mode === 'edit' ? 'Save Vocabulary' : 'Add Vocabulary'}
         </Button>
       </DialogActions>
     </Dialog>

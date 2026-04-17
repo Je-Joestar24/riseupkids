@@ -19,6 +19,10 @@ describe('starCamMissionsAdmin.routes – protection + endpoints', () => {
     const hasPublish = router.stack.some((l) => l.route && l.route.path === '/:id/publish' && l.route.methods.post);
     const hasUnpublish = router.stack.some((l) => l.route && l.route.path === '/:id/unpublish' && l.route.methods.post);
     const hasArchive = router.stack.some((l) => l.route && l.route.path === '/:id/archive' && l.route.methods.post);
+    const hasUpdateVocab = router.stack.some((l) => l.route && l.route.path === '/:id/vocab/:sortOrder' && l.route.methods.patch);
+    const hasDeleteVocab = router.stack.some((l) => l.route && l.route.path === '/:id/vocab/:sortOrder' && l.route.methods.delete);
+    const hasUpdateItem = router.stack.some((l) => l.route && l.route.path === '/:id/items/:sortOrder' && l.route.methods.patch);
+    const hasDeleteItem = router.stack.some((l) => l.route && l.route.path === '/:id/items/:sortOrder' && l.route.methods.delete);
 
     expect(hasList).toBe(true);
     expect(hasCreate).toBe(true);
@@ -29,6 +33,10 @@ describe('starCamMissionsAdmin.routes – protection + endpoints', () => {
     expect(hasPublish).toBe(true);
     expect(hasUnpublish).toBe(true);
     expect(hasArchive).toBe(true);
+    expect(hasUpdateVocab).toBe(true);
+    expect(hasDeleteVocab).toBe(true);
+    expect(hasUpdateItem).toBe(true);
+    expect(hasDeleteItem).toBe(true);
   });
 });
 

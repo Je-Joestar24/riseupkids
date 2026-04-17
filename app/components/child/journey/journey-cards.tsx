@@ -16,6 +16,7 @@ import type { ChildCourseWithProgress } from '@/services/journeyService';
 import { API_BASE_URL } from '@/config';
 
 const FOOTSTEPS_IMAGE = require('@/assets/images/footsteps.png');
+const LOCK_IMAGE = require('@/assets/icons/lock.png');
 
 type CardStatus = 'completed' | 'in_progress' | 'not_started' | 'locked';
 
@@ -80,8 +81,7 @@ const MAX_CONTENT_WIDTH = 848;
 const IMAGE_HEIGHT = 180;
 const STATUS_ICON_SIZE = 24;
 const STATUS_ICON_WRAP = 40;
-const LOCK_ICON_SIZE = 32;
-const LOCK_WRAP = 56;
+const LOCK_WRAP = 92;
 
 export interface JourneyCardsProps {
   courses: ChildCourseWithProgress[];
@@ -141,30 +141,31 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
             }>
             {/* Image / cover area */}
             <View style={[styles.imageContainer, isLocked && styles.imageContainerLocked]}>
+              {coverUrl ? (
+                <Image
+                  source={{ uri: coverUrl }}
+                  style={styles.coverImage}
+                  resizeMode="cover"
+                  accessibilityLabel={course.title ? `${course.title} cover` : 'Course cover'}
+                />
+              ) : (
+                <View style={styles.coverPlaceholder}>
+                  <ThemedText style={styles.coverPlaceholderEmoji}>📚</ThemedText>
+                </View>
+              )}
               {isLocked ? (
                 <View style={styles.lockOverlay}>
                   <View style={styles.lockIconWrap}>
-                    <MaterialCommunityIcons
-                      name="lock"
-                      size={LOCK_ICON_SIZE}
-                      color={colors.textMuted}
+                    <Image
+                      source={LOCK_IMAGE}
+                      style={styles.lockImage}
+                      resizeMode="contain"
+                      accessibilityLabel="Locked journey step"
                     />
                   </View>
                 </View>
               ) : (
                 <>
-                  {coverUrl ? (
-                    <Image
-                      source={{ uri: coverUrl }}
-                      style={styles.coverImage}
-                      resizeMode="cover"
-                      accessibilityLabel={course.title ? `${course.title} cover` : 'Course cover'}
-                    />
-                  ) : (
-                    <View style={styles.coverPlaceholder}>
-                      <ThemedText style={styles.coverPlaceholderEmoji}>📚</ThemedText>
-                    </View>
-                  )}
                   {/* Status icon – top left */}
                   {(status === 'completed' || status === 'in_progress' || status === 'not_started') && (
                     <View style={styles.statusIconWrap}>
@@ -195,9 +196,10 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
             <View style={styles.content}>
               <View style={[styles.footstepsWrap, { borderColor: getIconBorderColor(status), backgroundColor: getIconBorderColor(status) }]}>
                 <Image
-                  source={FOOTSTEPS_IMAGE}
-                  style={styles.footstepsImage}
+                  source={isLocked ? LOCK_IMAGE : FOOTSTEPS_IMAGE}
+                  style={isLocked ? styles.lockFootstepImage : styles.footstepsImage}
                   resizeMode="contain"
+                  accessibilityLabel={isLocked ? 'Locked step icon' : 'Footsteps icon'}
                   accessibilityIgnoresInvertColors
                 />
               </View>
@@ -243,7 +245,7 @@ const styles = StyleSheet.create({
     margin: 'auto'
   },
   cardLocked: {
-    opacity: 0.85,
+    opacity: 1,
   },
   cardPressed: {
     opacity: 0.92,
@@ -284,16 +286,19 @@ const styles = StyleSheet.create({
   },
   lockOverlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   lockIconWrap: {
     width: LOCK_WRAP,
     height: LOCK_WRAP,
-    borderRadius: LOCK_WRAP / 2,
-    backgroundColor: colors.textInverse,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  lockImage: {
+    width: '100%',
+    height: '100%',
   },
   statusIconWrap: {
     position: 'absolute',
@@ -341,6 +346,10 @@ const styles = StyleSheet.create({
   footstepsImage: {
     width: 40,
     height: 40,
+  },
+  lockFootstepImage: {
+    width: 34,
+    height: 34,
   },
   textWrap: {
     flex: 1,

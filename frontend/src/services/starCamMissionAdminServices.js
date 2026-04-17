@@ -91,6 +91,30 @@ const starCamMissionAdminServices = {
     }
   },
 
+  updateMissionItem: async (id, sortOrder, payload = {}) => {
+    try {
+      const response = await api.patch(`${BASE_PATH}/${id}/items/${sortOrder}`, payload);
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to update mission item');
+    }
+  },
+
+  deleteMissionItem: async (id, sortOrder) => {
+    try {
+      const response = await api.delete(`${BASE_PATH}/${id}/items/${sortOrder}`);
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to delete mission item');
+    }
+  },
+
   addVocabulary: async (id, { displayText, target, imageFile, audioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
     const formData = new FormData();
     formData.append('displayText', displayText || '');
@@ -113,6 +137,44 @@ const starCamMissionAdminServices = {
       };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to add vocabulary');
+    }
+  },
+
+  updateVocabulary: async (id, sortOrder, { displayText, target, imageFile, audioFile, introAudioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
+    const formData = new FormData();
+    if (displayText !== undefined) formData.append('displayText', displayText || '');
+    if (target !== undefined) formData.append('target', target || '');
+    if (imageFile) formData.append('image', imageFile);
+    if (audioFile) formData.append('audio', audioFile);
+    if (introAudioFile) formData.append('introAudio', introAudioFile);
+    if (tryAgainAudioFile) formData.append('tryAgainAudio', tryAgainAudioFile);
+    if (successAudioFile) formData.append('successAudio', successAudioFile);
+    if (pronunciationVideoFile) formData.append('pronunciationVideo', pronunciationVideoFile);
+
+    try {
+      const response = await api.patch(`${BASE_PATH}/${id}/vocab/${sortOrder}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to update vocabulary');
+    }
+  },
+
+  deleteVocabulary: async (id, sortOrder) => {
+    try {
+      const response = await api.delete(`${BASE_PATH}/${id}/vocab/${sortOrder}`);
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to delete vocabulary');
     }
   },
 
