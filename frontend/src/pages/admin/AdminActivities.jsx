@@ -15,6 +15,7 @@ import { CONTENT_TYPES } from '../../services/contentService';
  * 
  * Main page for managing all content types (activities, books, videos, audio, chants)
  * Supports URL persistence: /admin/courses/contents?type=books
+ * Default view (no query param): books
  */
 const AdminActivities = () => {
   const theme = useTheme();
@@ -38,7 +39,7 @@ const AdminActivities = () => {
       'chant': CONTENT_TYPES.CHANT,
       'chants': CONTENT_TYPES.CHANT,
     };
-    return typeMap[typeParam?.toLowerCase()] || CONTENT_TYPES.ACTIVITY;
+    return typeMap[typeParam?.toLowerCase()] || CONTENT_TYPES.BOOK;
   };
 
   // Map CONTENT_TYPES to URL type parameter
@@ -50,7 +51,7 @@ const AdminActivities = () => {
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
       [CONTENT_TYPES.CHANT]: 'chants',
     };
-    return urlMap[contentType] || 'activities';
+    return urlMap[contentType] || 'books';
   };
 
   // Initialize content type from URL on mount
@@ -66,10 +67,10 @@ const AdminActivities = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Fetch contents (default to activities) on component mount and when filters change
+  // Fetch contents (default to books) on component mount and when filters change
   useEffect(() => {
     if (isInitialized) {
-      fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
+      fetchContents(filters.contentType || CONTENT_TYPES.BOOK);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.contentType, filters.isPublished, filters.isArchived, filters.search, filters.page, filters.limit, isInitialized]);
@@ -84,11 +85,11 @@ const AdminActivities = () => {
 
   const handleContentCreated = () => {
     setAddModalOpen(false);
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
+    fetchContents(filters.contentType || CONTENT_TYPES.BOOK);
   };
 
   const handleRefresh = () => {
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY);
+    fetchContents(filters.contentType || CONTENT_TYPES.BOOK);
   };
 
   return (

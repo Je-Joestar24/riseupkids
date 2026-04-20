@@ -5,6 +5,8 @@ const {
   getAllBooks,
   getBookById,
   updateBook,
+  archiveBook,
+  unarchiveBook,
   deleteBook,
 } = require('../controllers/book.controller');
 const { protect, authorize } = require('../middleware/auth');
@@ -44,6 +46,12 @@ router.get('/:id', getBookById);
 
 // Update book (with optional cover image upload, no SCORM file)
 router.put('/:id', uploadBookUpdate, updateBook);
+
+// Archive book (soft delete)
+router.patch('/:id/archive', archiveBook);
+
+// Unarchive book (restore)
+router.patch('/:id/unarchive', unarchiveBook);
 
 // Delete book
 router.delete('/:id', deleteBook);

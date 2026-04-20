@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
 import {
   Box,
   Paper,
@@ -20,11 +21,13 @@ import {
   Edit as EditIcon,
   Archive as ArchiveIcon,
   Restore as RestoreIcon,
+  DeleteForever as DeleteForeverIcon,
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ActivityEditModal from './ActivityEditModal';
+import { showConfirmationDialog } from '../../../../store/slices/uiSlice';
 
 /**
  * ActivityItems Component
@@ -33,6 +36,7 @@ import ActivityEditModal from './ActivityEditModal';
  */
 const ActivityItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
+  const dispatch = useDispatch();
   const {
     contentItems,
     archiveContentData,
@@ -80,6 +84,56 @@ const ActivityItems = ({ loading, onRefresh }) => {
       }
     }
     handleMenuClose();
+  };
+
+  const handleArchiveWithConfirm = () => {
+    if (!selectedActivity) return;
+    const activity = selectedActivity;
+    const type = activity._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    handleMenuClose();
+    dispatch(
+      showConfirmationDialog({
+        title: 'Archive Content?',
+        message: `Are you sure you want to archive "${activity.title || 'this content'}"? You can restore it later.`,
+        type: 'warning',
+        confirmText: 'Archive',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            if (type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK) {
+              await archiveContentData(type, activity._id);
+            }
+            if (onRefresh) onRefresh();
+          } catch (error) {
+            console.error('Error archiving activity:', error);
+          }
+        },
+      })
+    );
+  };
+
+  const handleDeleteWithConfirm = () => {
+    if (!selectedActivity) return;
+    const activity = selectedActivity;
+    const type = activity._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    handleMenuClose();
+    dispatch(
+      showConfirmationDialog({
+        title: 'Delete Permanently?',
+        message: `This will permanently delete "${activity.title || 'this content'}" and cannot be undone. Continue?`,
+        type: 'error',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            await deleteContentData(type, activity._id);
+            if (onRefresh) onRefresh();
+          } catch (error) {
+            console.error('Error deleting content permanently:', error);
+          }
+        },
+      })
+    );
   };
 
   const handleRestore = async () => {
@@ -411,22 +465,34 @@ const ActivityItems = ({ loading, onRefresh }) => {
           </MenuItem>
         )}
         {selectedActivity?.isArchived ? (
-          <MenuItem
-            onClick={handleRestore}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              color: theme.palette.success.main,
-            }}
-          >
-            <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Restore
-          </MenuItem>
+          <>
+            <MenuItem
+              onClick={handleRestore}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: theme.palette.success.main,
+              }}
+            >
+              <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
+              Restore
+            </MenuItem>
+            <MenuItem
+              onClick={handleDeleteWithConfirm}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: theme.palette.error.main,
+              }}
+            >
+              <DeleteForeverIcon sx={{ marginRight: 1, fontSize: 20 }} />
+              Delete Permanently
+            </MenuItem>
+          </>
         ) : (
           <MenuItem
-            onClick={handleArchive}
+            onClick={handleArchiveWithConfirm}
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              color: theme.palette.error.main,
+              color: theme.palette.warning.main,
             }}
           >
             <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />

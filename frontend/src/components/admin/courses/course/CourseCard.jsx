@@ -14,6 +14,7 @@ import {
   Edit as EditIcon,
   Archive as ArchiveIcon,
   Restore as RestoreIcon,
+  DeleteForever as DeleteForeverIcon,
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import useCourse from '../../../../hooks/courseHook';
@@ -24,7 +25,7 @@ import useCourse from '../../../../hooks/courseHook';
  * Displays a single course/content collection card
  * Shows cover image, title, description, tags, content count, and status
  */
-const CourseCard = ({ course, onEdit, onArchive, onView }) => {
+const CourseCard = ({ course, onEdit, onArchive, onDeletePermanent, onView }) => {
   const theme = useTheme();
   const { getCoverImageUrl } = useCourse();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -54,6 +55,13 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
     handleMenuClose();
     if (onArchive) {
       onArchive(course);
+    }
+  };
+
+  const handleDeletePermanent = () => {
+    handleMenuClose();
+    if (onDeletePermanent) {
+      onDeletePermanent(course);
     }
   };
 
@@ -361,16 +369,28 @@ const CourseCard = ({ course, onEdit, onArchive, onView }) => {
           Edit
         </MenuItem>
         {isArchived ? (
-          <MenuItem
-            onClick={handleArchive}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              color: theme.palette.success.main,
-            }}
-          >
-            <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Restore
-          </MenuItem>
+          <>
+            <MenuItem
+              onClick={handleArchive}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: theme.palette.success.main,
+              }}
+            >
+              <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
+              Restore
+            </MenuItem>
+            <MenuItem
+              onClick={handleDeletePermanent}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: theme.palette.error.main,
+              }}
+            >
+              <DeleteForeverIcon sx={{ marginRight: 1, fontSize: 20 }} />
+              Delete Permanently
+            </MenuItem>
+          </>
         ) : (
           <MenuItem
             onClick={handleArchive}

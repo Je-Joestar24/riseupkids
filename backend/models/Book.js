@@ -166,6 +166,10 @@ const bookSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
@@ -199,6 +203,7 @@ bookSchema.index({ readingLevel: 1 });
 bookSchema.index({ scormFile: 1 });
 bookSchema.index({ packageType: 1 });
 bookSchema.index({ badgeAwarded: 1 });
+bookSchema.index({ isArchived: 1 });
 
 // Virtual for total pages
 bookSchema.virtual('totalPages').get(function () {

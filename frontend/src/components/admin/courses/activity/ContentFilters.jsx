@@ -35,15 +35,15 @@ const ContentFilters = () => {
       [CONTENT_TYPES.AUDIO_ASSIGNMENT]: 'audio',
       [CONTENT_TYPES.CHANT]: 'chants',
     };
-    return urlMap[contentType] || 'activities';
+    return urlMap[contentType] || 'books';
   };
 
   // Update URL when content type changes
   const updateUrlType = (contentType) => {
     const urlType = getUrlTypeFromContentType(contentType);
     const newSearchParams = new URLSearchParams(searchParams);
-    if (urlType === 'activities') {
-      // Remove type param for default (activities)
+    if (urlType === 'books') {
+      // Remove type param for default (books)
       newSearchParams.delete('type');
     } else {
       newSearchParams.set('type', urlType);
@@ -57,14 +57,14 @@ const ContentFilters = () => {
     // Debounce search - fetch after user stops typing
     clearTimeout(window.contentSearchTimeout);
     window.contentSearchTimeout = setTimeout(() => {
-      fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+      fetchContents(filters.contentType || CONTENT_TYPES.BOOK, newFilters);
     }, 500);
   };
 
   const handleFilterChange = (field, value) => {
     const newFilters = { ...filters, [field]: value, page: 1 };
     updateFilters(newFilters);
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+    fetchContents(filters.contentType || CONTENT_TYPES.BOOK, newFilters);
   };
 
   const handleContentTypeChange = (value) => {
@@ -72,12 +72,10 @@ const ContentFilters = () => {
       ...filters,
       contentType: value,
       page: 1,
-      // Reset archive filter when switching away from activities
-      isArchived: value === CONTENT_TYPES.ACTIVITY ? filters.isArchived : undefined,
     };
     updateFilters(newFilters);
-    updateUrlType(value || CONTENT_TYPES.ACTIVITY);
-    fetchContents(value || CONTENT_TYPES.ACTIVITY, newFilters);
+    updateUrlType(value || CONTENT_TYPES.BOOK);
+    fetchContents(value || CONTENT_TYPES.BOOK, newFilters);
   };
 
   const handleClearFilters = () => {
@@ -86,7 +84,7 @@ const ContentFilters = () => {
     const newSearchParams = new URLSearchParams(searchParams);
     newSearchParams.delete('type');
     setSearchParams(newSearchParams, { replace: true });
-    fetchContents(CONTENT_TYPES.ACTIVITY);
+    fetchContents(CONTENT_TYPES.BOOK);
   };
 
   const hasActiveFilters =
@@ -123,7 +121,7 @@ const ContentFilters = () => {
             Content Type
           </InputLabel>
           <Select
-            value={filters.contentType || CONTENT_TYPES.ACTIVITY}
+            value={filters.contentType || CONTENT_TYPES.BOOK}
             label="Content Type"
             onChange={(e) => handleContentTypeChange(e.target.value)}
             sx={{
@@ -132,7 +130,6 @@ const ContentFilters = () => {
               backgroundColor: theme.palette.custom.bgSecondary,
             }}
           >
-            <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activities</MenuItem>
             <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Videos</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignments</MenuItem>
@@ -197,36 +194,34 @@ const ContentFilters = () => {
           </Select>
         </FormControl>
 
-        {/* Archived Status Filter (only relevant for activities) */}
-        {filters.contentType === CONTENT_TYPES.ACTIVITY && (
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              Archive
-            </InputLabel>
-            <Select
-              value={filters.isArchived !== undefined ? String(filters.isArchived) : ''}
-              label="Archive"
-              onChange={(e) =>
-                handleFilterChange(
-                  'isArchived',
-                  e.target.value === '' ? undefined : e.target.value === 'true'
-                )
-              }
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                borderRadius: '8px',
-                backgroundColor: theme.palette.custom.bgSecondary,
-              }}
-            >
-              <MenuItem value="">Active</MenuItem>
-              <MenuItem value="true">Archived</MenuItem>
-            </Select>
-          </FormControl>
-        )}
+        {/* Active/Archived Status Filter (available for all content types) */}
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            Archive
+          </InputLabel>
+          <Select
+            value={filters.isArchived !== undefined ? String(filters.isArchived) : ''}
+            label="Archive"
+            onChange={(e) =>
+              handleFilterChange(
+                'isArchived',
+                e.target.value === '' ? undefined : e.target.value === 'true'
+              )
+            }
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              borderRadius: '8px',
+              backgroundColor: theme.palette.custom.bgSecondary,
+            }}
+          >
+            <MenuItem value="">Active</MenuItem>
+            <MenuItem value="true">Archived</MenuItem>
+          </Select>
+        </FormControl>
 
         {/* Clear Filters Button */}
         {hasActiveFilters && (

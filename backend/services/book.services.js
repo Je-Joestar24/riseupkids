@@ -1,8 +1,10 @@
-const { Book, Media, Badge } = require('../models');
+const { Book, Media, Badge, Course } = require('../models');
+const fs = require('fs');
 const path = require('path');
 const html5handlerService = require('./html5handler.service');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
+const cloudfrontService = require('./cloudfront.service');
 
 /**
  * Create Book Service
@@ -153,6 +155,7 @@ const createBook = async (userId, bookData, files = {}) => {
 const getAllBooks = async (queryParams = {}) => {
   const {
     isPublished,
+    isArchived,
     language,
     readingLevel,
     search,
@@ -165,6 +168,12 @@ const getAllBooks = async (queryParams = {}) => {
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
+  }
+
+  if (isArchived !== undefined) {
+    query.isArchived = isArchived === 'true' || isArchived === true;
+  } else {
+    query.isArchived = false;
   }
 
   if (language) {
@@ -232,6 +241,57 @@ const getBookById = async (bookId) => {
   }
 
   return book;
+};
+
+/**
+ * Archive Book Service
+ *
+ * Soft-deletes a book by setting isArchived=true and unpublishing it.
+ *
+ * @param {String} bookId - Book's MongoDB ID
+ * @returns {Object} Archived book info
+ * @throws {Error} If book not found or already archived
+ */
+const archiveBook = async (bookId) => {
+  const book = await Book.findById(bookId);
+  if (!book) {
+    throw new Error('Book not found');
+  }
+
+  if (book.isArchived) {
+    throw new Error('Book is already archived');
+  }
+
+  book.isArchived = true;
+  book.isPublished = false;
+  await book.save();
+
+  return { message: 'Book archived successfully', id: book._id };
+};
+
+/**
+ * Unarchive Book Service
+ *
+ * Restores an archived book by setting isArchived=false.
+ *
+ * @param {String} bookId - Book's MongoDB ID
+ * @returns {Object} Unarchived book info
+ * @throws {Error} If book not found or not archived
+ */
+const unarchiveBook = async (bookId) => {
+  const book = await Book.findById(bookId);
+  if (!book) {
+    throw new Error('Book not found');
+  }
+
+  if (!book.isArchived) {
+    throw new Error('Book is not archived');
+  }
+
+  book.isArchived = false;
+  await book.save();
+
+  return { message: 'Book unarchived successfully', id: book._id };
 };
 
 /**
@@ -366,6 +426,16 @@ const deleteBook = async (bookId) => {
     throw new Error('Book not found');
   }
 
+  if (!book.isArchived) {
+    throw new Error('Book must be archived before permanent deletion');
+  }
+
+  // Detach book from all courses/collections before deleting.
+  await Course.updateMany(
+    { 'contents.contentId': book._id, 'contents.contentType': 'book' },
+    { $pull: { contents: { contentId: book._id, contentType: 'book' } } }
+  );
+
   // Delete SCORM file from S3 if exists
   if (book.scormFile) {
     try {
@@ -379,12 +449,55 @@ const deleteBook = async (bookId) => {
     }
   }
 
+  // Delete extracted SCORM package directory from S3.
+  try {
+    await s3Service.deleteByPrefix(`scorm/book/${book._id}`);
+  } catch (error) {
+    console.error('Error deleting extracted SCORM package from S3:', error);
+  }
+
+  // Delete HTML5 package directory from S3 when this is an HTML5 book.
+  if (book.html5PackageId) {
+    try {
+      await s3Service.deleteByPrefix(`html5/${book.html5PackageId}`);
+    } catch (error) {
+      console.error('Error deleting HTML5 package from S3:', error);
+    }
+  }
+
   // Delete cover image if exists
-  if (book.coverImage && fs.existsSync(path.join(__dirname, '../', book.coverImage.replace('/uploads', 'uploads')))) {
+  if (
+    book.coverImage &&
+    !book.coverImage.startsWith('http') &&
+    fs.existsSync(path.join(__dirname, '../', book.coverImage.replace('/uploads', 'uploads')))
+  ) {
     try {
       fs.unlinkSync(path.join(__dirname, '../', book.coverImage.replace('/uploads', 'uploads')));
     } catch (error) {
       console.error('Error deleting cover image:', error);
+    }
+  }
+
+  if (book.coverImage && book.coverImage.startsWith('http')) {
+    try {
+      const coverKey = s3Service.getS3KeyFromUrl(book.coverImage);
+      if (coverKey) await s3Service.deleteByKey(coverKey);
+    } catch (error) {
+      console.error('Error deleting cover image from S3:', error);
+    }
+  }
+
+  // Best-effort CloudFront invalidation for removed package paths.
+  if (cloudfrontService.isConfigured()) {
+    try {
+      const invalidationPaths = [];
+      if (book.html5PackageId) invalidationPaths.push(`/html5/${book.html5PackageId}/*`);
+      if (book.scormBaseUrl || book.scormFilePath) invalidationPaths.push(`/scorm/book/${book._id}/*`);
+      if (invalidationPaths.length > 0) {
+        await cloudfrontService.invalidate(invalidationPaths);
+      }
+    } catch (error) {
+      console.error('Error creating CloudFront invalidation for deleted book assets:', error);
     }
   }
 
@@ -398,6 +511,8 @@ module.exports = {
   getAllBooks,
   getBookById,
   updateBook,
+  archiveBook,
+  unarchiveBook,
   deleteBook,
 };
 

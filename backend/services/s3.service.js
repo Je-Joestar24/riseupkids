@@ -1,4 +1,12 @@
-const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadBucketCommand } = require('@aws-sdk/client-s3');
+const {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsV2Command,
+  HeadBucketCommand,
+} = require('@aws-sdk/client-s3');
 const path = require('path');
 const fs = require('fs');
 
@@ -235,6 +243,49 @@ const deleteByKey = async (key) => {
 };
 
 /**
+ * Delete all objects under an S3 prefix.
+ * @param {string} prefix - S3 key prefix (e.g. 'html5/abc123')
+ * @returns {Promise<{deletedCount:number}>}
+ */
+const deleteByPrefix = async (prefix) => {
+  if (!prefix) return { deletedCount: 0 };
+
+  const client = getClient();
+  const bucket = getConfig().bucket;
+  const normalizedPrefix = prefix.startsWith('/') ? prefix.slice(1) : prefix;
+  let continuationToken;
+  let deletedCount = 0;
+
+  do {
+    const listResponse = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: normalizedPrefix,
+        ContinuationToken: continuationToken,
+      })
+    );
+
+    const keys = (listResponse.Contents || []).map((item) => item.Key).filter(Boolean);
+    if (keys.length > 0) {
+      await client.send(
+        new DeleteObjectsCommand({
+          Bucket: bucket,
+          Delete: {
+            Objects: keys.map((Key) => ({ Key })),
+            Quiet: true,
+          },
+        })
+      );
+      deletedCount += keys.length;
+    }
+
+    continuationToken = listResponse.IsTruncated ? listResponse.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return { deletedCount };
+};
+
+/**
  * Extract S3 key from a CloudFront or S3 URL (same bucket/base).
  * @param {string} url - Full URL (e.g. https://xxx.cloudfront.net/media/images/xxx.jpg)
  * @returns {string|null} S3 key or null
@@ -292,6 +343,7 @@ module.exports = {
   getObjectBuffer,
   uploadDirectory,
   deleteByKey,
+  deleteByPrefix,
   getS3KeyFromUrl,
   checkConnection,
   isConfigured,

@@ -5,7 +5,10 @@ import {
   fetchContentById,
   updateContent,
   deleteContent,
+  archiveContent,
   restoreContent,
+  updateStarCamVocabularyEntry,
+  deleteStarCamVocabularyEntry,
   clearError,
   setFilters,
   clearFilters,
@@ -223,14 +226,75 @@ export const useContent = () => {
   };
 
   /**
+   * Update Star Cam vocabulary entry using content internals
+   * @param {String} missionId
+   * @param {Number|String} sortOrder
+   * @param {Object} payload
+   * @returns {Promise}
+   */
+  const updateStarCamVocabularyData = async (missionId, sortOrder, payload) => {
+    try {
+      const result = await dispatch(updateStarCamVocabularyEntry({ missionId, sortOrder, payload })).unwrap();
+      dispatch(showNotification({
+        message: 'Star Cam vocabulary updated successfully!',
+        type: 'success',
+      }));
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to update Star Cam vocabulary',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Delete Star Cam vocabulary entry using content internals
+   * @param {String} missionId
+   * @param {Number|String} sortOrder
+   * @returns {Promise}
+   */
+  const deleteStarCamVocabularyData = async (missionId, sortOrder) => {
+    try {
+      const result = await dispatch(deleteStarCamVocabularyEntry({ missionId, sortOrder })).unwrap();
+      dispatch(showNotification({
+        message: 'Star Cam vocabulary deleted successfully!',
+        type: 'success',
+      }));
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to delete Star Cam vocabulary',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
    * Archive content item (activities only - uses delete for now)
    * @param {String} contentType - Content type (should be 'activity')
    * @param {String} contentId - Content item's ID
    * @returns {Promise} Archive result
    */
   const archiveContentData = async (contentType, contentId) => {
-    // For activities, archive is the same as delete (soft delete)
-    return deleteContentData(contentType, contentId);
+    try {
+      const result = await dispatch(archiveContent({ contentType, contentId })).unwrap();
+
+      dispatch(showNotification({
+        message: `${getContentTypeLabel(contentType)} archived successfully!`,
+        type: 'success',
+      }));
+
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || `Failed to archive ${getContentTypeLabel(contentType)}`,
+        type: 'error',
+      }));
+      throw error;
+    }
   };
 
   /**
@@ -291,6 +355,8 @@ export const useContent = () => {
     deleteContentData,
     archiveContentData,
     restoreContentData,
+    updateStarCamVocabularyData,
+    deleteStarCamVocabularyData,
     updateFilters,
     resetFilters,
     setContentTypeFilter,

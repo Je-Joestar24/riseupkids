@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import {
   Box,
   Paper,
@@ -21,6 +22,7 @@ import {
   Edit as EditIcon,
   Archive as ArchiveIcon,
   Restore as RestoreIcon,
+  DeleteForever as DeleteForeverIcon,
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
@@ -29,6 +31,7 @@ import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
 import AdminTestHtmlModal from '../../common/AdminTestHtmlModal';
 import useHtml5 from '../../../../hooks/html5Hook';
+import { showConfirmationDialog } from '../../../../store/slices/uiSlice';
 
 /**
  * ContentItems Component
@@ -38,6 +41,7 @@ import useHtml5 from '../../../../hooks/html5Hook';
  */
 const ContentItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
+  const dispatch = useDispatch();
   const {
     contentItems,
     archiveContentData,
@@ -121,10 +125,8 @@ const ContentItems = ({ loading, onRefresh }) => {
     if (selectedItem) {
       try {
         const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
-        if (type === CONTENT_TYPES.ACTIVITY) {
+        if (type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK) {
           await archiveContentData(type, selectedItem._id);
-        } else {
-          await deleteContentData(type, selectedItem._id);
         }
         if (onRefresh) onRefresh();
       } catch (error) {
@@ -138,7 +140,7 @@ const ContentItems = ({ loading, onRefresh }) => {
     if (selectedItem) {
       try {
         const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
-        if (type === CONTENT_TYPES.ACTIVITY) {
+        if (type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK) {
           await restoreContentData(type, selectedItem._id);
         }
         if (onRefresh) onRefresh();
@@ -147,6 +149,67 @@ const ContentItems = ({ loading, onRefresh }) => {
       }
     }
     handleMenuClose();
+  };
+
+  const handleDeletePermanent = async () => {
+    if (selectedItem) {
+      try {
+        const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+        await deleteContentData(type, selectedItem._id);
+        if (onRefresh) onRefresh();
+      } catch (error) {
+        console.error('Error deleting content permanently:', error);
+      }
+    }
+    handleMenuClose();
+  };
+
+  const handleArchiveWithConfirm = () => {
+    if (!selectedItem) return;
+    const item = selectedItem;
+    const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    handleMenuClose();
+    dispatch(
+      showConfirmationDialog({
+        title: 'Archive Content?',
+        message: `Are you sure you want to archive "${item.title || 'this content'}"? You can restore it later.`,
+        type: 'warning',
+        confirmText: 'Archive',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            await archiveContentData(type, item._id);
+            if (onRefresh) onRefresh();
+          } catch (error) {
+            console.error('Error archiving content:', error);
+          }
+        },
+      })
+    );
+  };
+
+  const handleDeleteWithConfirm = () => {
+    if (!selectedItem) return;
+    const item = selectedItem;
+    const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+    handleMenuClose();
+    dispatch(
+      showConfirmationDialog({
+        title: 'Delete Permanently?',
+        message: `This will permanently delete "${item.title || 'this content'}" and cannot be undone. Continue?`,
+        type: 'error',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          try {
+            await deleteContentData(type, item._id);
+            if (onRefresh) onRefresh();
+          } catch (error) {
+            console.error('Error deleting content permanently:', error);
+          }
+        },
+      })
+    );
   };
 
   const handleEditModalClose = () => {
@@ -180,6 +243,8 @@ const ContentItems = ({ loading, onRefresh }) => {
     }
     return item.starsAwarded || 0;
   };
+
+  const supportsArchive = (type) => type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK;
 
   if (loading) {
     return (
@@ -556,27 +621,52 @@ const ContentItems = ({ loading, onRefresh }) => {
           <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
           Edit
         </MenuItem>
-        {selectedItem?._contentType === CONTENT_TYPES.ACTIVITY && selectedItem?.isArchived ? (
-          <MenuItem
-            onClick={handleRestore}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              color: theme.palette.success.main,
-            }}
-          >
-            <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Restore
-          </MenuItem>
+        {selectedItem && supportsArchive(resolvedMenuType) ? (
+          selectedItem?.isArchived ? (
+            <>
+              <MenuItem
+                onClick={handleRestore}
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  color: theme.palette.success.main,
+                }}
+              >
+                <RestoreIcon sx={{ marginRight: 1, fontSize: 20 }} />
+                Restore
+              </MenuItem>
+              <MenuItem
+                onClick={handleDeleteWithConfirm}
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  color: theme.palette.error.main,
+                }}
+              >
+                <DeleteForeverIcon sx={{ marginRight: 1, fontSize: 20 }} />
+                Delete Permanently
+              </MenuItem>
+            </>
+          ) : (
+            <MenuItem
+              onClick={handleArchiveWithConfirm}
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: theme.palette.warning.main,
+              }}
+            >
+              <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
+              Archive
+            </MenuItem>
+          )
         ) : (
           <MenuItem
-            onClick={handleArchive}
+            onClick={handleDeleteWithConfirm}
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               color: theme.palette.error.main,
             }}
           >
-            <ArchiveIcon sx={{ marginRight: 1, fontSize: 20 }} />
-            Archive
+            <DeleteForeverIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Delete Permanently
           </MenuItem>
         )}
       </Menu>

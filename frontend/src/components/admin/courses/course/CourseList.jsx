@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Typography, CircularProgress, Paper, Grid, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
+import { Box, Typography, CircularProgress, Paper, Grid } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useDispatch } from 'react-redux';
 import useCourse from '../../../../hooks/courseHook';
 import CourseFilters from './CourseFilters';
 import CourseHeader from './CourseHeader';
 import CoursePagination from './CoursePagination';
 import CourseCard from './CourseCard';
 import CourseAddModal from './CourseAddModal';
+import { showConfirmationDialog } from '../../../../store/slices/uiSlice';
 
 /**
  * CourseList Component
@@ -16,9 +18,8 @@ import CourseAddModal from './CourseAddModal';
  */
 const CourseList = ({ onAddClick, onReorderClick }) => {
   const theme = useTheme();
-  const { courses, loading, error, fetchCourses, filters, archiveCourseData, unarchiveCourseData } = useCourse();
-  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
-  const [courseToArchive, setCourseToArchive] = useState(null);
+  const dispatch = useDispatch();
+  const { courses, loading, error, fetchCourses, filters, archiveCourseData, unarchiveCourseData, deleteCourseData } = useCourse();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState(null);
 
@@ -141,8 +142,49 @@ const CourseList = ({ onAddClick, onReorderClick }) => {
                     setEditModalOpen(true);
                   }}
                   onArchive={(course) => {
-                    setCourseToArchive(course);
-                    setArchiveDialogOpen(true);
+                    if (course?.isArchived) {
+                      // Keep restore as a direct action for quick recovery
+                      unarchiveCourseData(course._id)
+                        .then(() => fetchCourses())
+                        .catch((error) => console.error('Error unarchiving course:', error));
+                      return;
+                    }
+                    dispatch(
+                      showConfirmationDialog({
+                        title: 'Archive Course?',
+                        message: `Are you sure you want to archive "${course?.title || 'this course'}"? You can restore it later.`,
+                        type: 'warning',
+                        confirmText: 'Archive',
+                        cancelText: 'Cancel',
+                        onConfirm: async () => {
+                          try {
+                            await archiveCourseData(course._id);
+                            fetchCourses();
+                          } catch (error) {
+                            console.error('Error archiving course:', error);
+                          }
+                        },
+                      })
+                    );
+                  }}
+                  onDeletePermanent={(course) => {
+                    dispatch(
+                      showConfirmationDialog({
+                        title: 'Delete Permanently?',
+                        message: `This will permanently delete "${course?.title || 'this course'}" and cannot be undone. Continue?`,
+                        type: 'error',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel',
+                        onConfirm: async () => {
+                          try {
+                            await deleteCourseData(course._id);
+                            fetchCourses();
+                          } catch (error) {
+                            console.error('Error deleting course permanently:', error);
+                          }
+                        },
+                      })
+                    );
                   }}
                   onView={(course) => {
                     // TODO: Implement view functionality
@@ -154,78 +196,6 @@ const CourseList = ({ onAddClick, onReorderClick }) => {
           </Grid>
         </Box>
       )}
-
-      {/* Archive/Unarchive Confirmation Dialog */}
-      <Dialog
-        open={archiveDialogOpen}
-        onClose={() => setArchiveDialogOpen(false)}
-        PaperProps={{
-          elevation: 8,
-          sx: {
-            borderRadius: '12px',
-            fontFamily: 'Quicksand, sans-serif',
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 600,
-          }}
-        >
-          {courseToArchive?.isArchived ? 'Restore Course?' : 'Archive Course?'}
-        </DialogTitle>
-        <DialogContent>
-          <Typography
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            {courseToArchive?.isArchived
-              ? `Are you sure you want to restore "${courseToArchive?.title}"? It will be visible again in the course list.`
-              : `Are you sure you want to archive "${courseToArchive?.title}"? It will be hidden from the course list but can be restored later.`}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setArchiveDialogOpen(false)}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 600,
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={async () => {
-              if (courseToArchive) {
-                try {
-                  if (courseToArchive.isArchived) {
-                    await unarchiveCourseData(courseToArchive._id);
-                  } else {
-                    await archiveCourseData(courseToArchive._id);
-                  }
-                  setArchiveDialogOpen(false);
-                  setCourseToArchive(null);
-                  // Refresh courses list
-                  fetchCourses();
-                } catch (error) {
-                  console.error('Error archiving/unarchiving course:', error);
-                }
-              }
-            }}
-            color={courseToArchive?.isArchived ? 'success' : 'warning'}
-            variant="contained"
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 600,
-            }}
-          >
-            {courseToArchive?.isArchived ? 'Restore' : 'Archive'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
 
       {/* Edit Course Modal */}
       <CourseAddModal

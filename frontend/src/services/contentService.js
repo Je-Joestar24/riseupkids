@@ -21,6 +21,7 @@ export const CONTENT_TYPES = {
   VIDEO: 'video',
   AUDIO_ASSIGNMENT: 'audioAssignment',
   CHANT: 'chant',
+  STAR_CAM_MISSION: 'starCamMission',
 };
 
 // API endpoint mapping (BOOK: same /books for SCORM and HTML5; backend uses body.packageType)
@@ -30,6 +31,7 @@ const API_ENDPOINTS = {
   [CONTENT_TYPES.VIDEO]: '/videos',
   [CONTENT_TYPES.AUDIO_ASSIGNMENT]: '/audio-assignments',
   [CONTENT_TYPES.CHANT]: '/chants',
+  [CONTENT_TYPES.STAR_CAM_MISSION]: '/admin/star-cam/missions',
 };
 
 const contentService = {
@@ -173,6 +175,29 @@ const contentService = {
   },
 
   /**
+   * Archive content item (soft delete for supported types)
+   * @param {String} contentType - Content type
+   * @param {String} contentId - Content item's ID
+   * @returns {Promise} API response
+   */
+  archiveContent: async (contentType, contentId) => {
+    try {
+      const endpoint = API_ENDPOINTS[contentType];
+      if (!endpoint) {
+        throw new Error(`Invalid content type: ${contentType}`);
+      }
+      if (contentType !== CONTENT_TYPES.ACTIVITY && contentType !== CONTENT_TYPES.BOOK) {
+        throw new Error('Archive is only supported for activities and books');
+      }
+
+      const response = await api.patch(`${endpoint}/${contentId}/archive`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
    * Restore archived content item (for activities only)
    * @param {String} contentType - Content type (should be 'activity')
    * @param {String} contentId - Content item's ID
@@ -180,13 +205,60 @@ const contentService = {
    */
   restoreContent: async (contentType, contentId) => {
     try {
-      // Only activities support restore
-      if (contentType !== CONTENT_TYPES.ACTIVITY) {
-        throw new Error('Restore is only supported for activities');
+      // Activities and books support restore
+      if (contentType !== CONTENT_TYPES.ACTIVITY && contentType !== CONTENT_TYPES.BOOK) {
+        throw new Error('Restore is only supported for activities and books');
       }
 
       const endpoint = API_ENDPOINTS[contentType];
-      const response = await api.patch(`${endpoint}/${contentId}/restore`);
+      const restorePath = contentType === CONTENT_TYPES.BOOK ? 'unarchive' : 'restore';
+      const response = await api.patch(`${endpoint}/${contentId}/${restorePath}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Update Star Cam mission vocabulary entry (with optional media replacements)
+   * @param {String} missionId
+   * @param {Number|String} sortOrder
+   * @param {Object} payload
+   * @returns {Promise}
+   */
+  updateStarCamVocabulary: async (missionId, sortOrder, payload = {}) => {
+    try {
+      const endpoint = API_ENDPOINTS[CONTENT_TYPES.STAR_CAM_MISSION];
+      const formData = new FormData();
+
+      if (payload.displayText !== undefined) formData.append('displayText', payload.displayText || '');
+      if (payload.target !== undefined) formData.append('target', payload.target || '');
+      if (payload.imageFile) formData.append('image', payload.imageFile);
+      if (payload.audioFile) formData.append('audio', payload.audioFile);
+      if (payload.introAudioFile) formData.append('introAudio', payload.introAudioFile);
+      if (payload.tryAgainAudioFile) formData.append('tryAgainAudio', payload.tryAgainAudioFile);
+      if (payload.successAudioFile) formData.append('successAudio', payload.successAudioFile);
+      if (payload.pronunciationVideoFile) formData.append('pronunciationVideo', payload.pronunciationVideoFile);
+
+      const response = await api.patch(`${endpoint}/${missionId}/vocab/${sortOrder}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
+   * Delete Star Cam mission vocabulary entry by sortOrder
+   * @param {String} missionId
+   * @param {Number|String} sortOrder
+   * @returns {Promise}
+   */
+  deleteStarCamVocabulary: async (missionId, sortOrder) => {
+    try {
+      const endpoint = API_ENDPOINTS[CONTENT_TYPES.STAR_CAM_MISSION];
+      const response = await api.delete(`${endpoint}/${missionId}/vocab/${sortOrder}`);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || error.message;

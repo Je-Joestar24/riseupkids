@@ -125,6 +125,74 @@ const getBookById = async (req, res) => {
 };
 
 /**
+ * @desc    Archive book (soft delete)
+ * @route   PATCH /api/books/:id/archive
+ * @access  Private (Admin/Teacher only)
+ */
+const archiveBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!['admin', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and teachers can archive books',
+      });
+    }
+
+    const result = await bookService.archiveBook(id);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: { id: result.id },
+    });
+  } catch (error) {
+    const statusCode =
+      error.message.includes('not found') || error.message.includes('already archived') ? 400 : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to archive book',
+    });
+  }
+};
+
+/**
+ * @desc    Unarchive book (restore)
+ * @route   PATCH /api/books/:id/unarchive
+ * @access  Private (Admin/Teacher only)
+ */
+const unarchiveBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!['admin', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and teachers can unarchive books',
+      });
+    }
+
+    const result = await bookService.unarchiveBook(id);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: { id: result.id },
+    });
+  } catch (error) {
+    const statusCode =
+      error.message.includes('not found') || error.message.includes('not archived') ? 400 : 500;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to unarchive book',
+    });
+  }
+};
+
+/**
  * @desc    Update book
  * @route   PUT /api/books/:id
  * @access  Private (Admin/Teacher only)
@@ -195,7 +263,8 @@ const deleteBook = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
+    const statusCode =
+      error.message.includes('not found') || error.message.includes('must be archived') ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to delete book',
@@ -208,6 +277,8 @@ module.exports = {
   getAllBooks,
   getBookById,
   updateBook,
+  archiveBook,
+  unarchiveBook,
   deleteBook,
 };
 

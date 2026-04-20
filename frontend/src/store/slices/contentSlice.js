@@ -91,6 +91,51 @@ export const restoreContent = createAsyncThunk(
   }
 );
 
+/**
+ * Async thunk for archiving content (activities/books)
+ */
+export const archiveContent = createAsyncThunk(
+  'content/archiveContent',
+  async ({ contentType, contentId }, { rejectWithValue }) => {
+    try {
+      const response = await contentService.archiveContent(contentType, contentId);
+      return { contentType, contentId, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to archive content');
+    }
+  }
+);
+
+/**
+ * Async thunk for updating one Star Cam mission vocabulary entry
+ */
+export const updateStarCamVocabularyEntry = createAsyncThunk(
+  'content/updateStarCamVocabularyEntry',
+  async ({ missionId, sortOrder, payload }, { rejectWithValue }) => {
+    try {
+      const response = await contentService.updateStarCamVocabulary(missionId, sortOrder, payload);
+      return { missionId, sortOrder, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update Star Cam vocabulary');
+    }
+  }
+);
+
+/**
+ * Async thunk for deleting one Star Cam mission vocabulary entry
+ */
+export const deleteStarCamVocabularyEntry = createAsyncThunk(
+  'content/deleteStarCamVocabularyEntry',
+  async ({ missionId, sortOrder }, { rejectWithValue }) => {
+    try {
+      const response = await contentService.deleteStarCamVocabulary(missionId, sortOrder);
+      return { missionId, sortOrder, response };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to delete Star Cam vocabulary');
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   // Unified content items (all types mixed)
@@ -98,7 +143,7 @@ const initialState = {
   // Current content item being viewed/edited
   currentContent: null,
   // Current content type filter
-  currentContentType: CONTENT_TYPES.ACTIVITY,
+  currentContentType: CONTENT_TYPES.BOOK,
   // Pagination
   pagination: {
     page: 1,
@@ -108,7 +153,7 @@ const initialState = {
   },
   // Filters
   filters: {
-    contentType: CONTENT_TYPES.ACTIVITY, // Filter by content type
+    contentType: CONTENT_TYPES.BOOK, // Default filter: books
     isPublished: undefined,
     isArchived: undefined, // For activities only
     search: '',
@@ -312,7 +357,7 @@ const contentSlice = createSlice({
         state.error = action.payload;
       });
 
-    // Restore Content (activities only)
+    // Restore Content (activities/books)
     builder
       .addCase(restoreContent.pending, (state) => {
         state.loading = true;
@@ -335,6 +380,104 @@ const contentSlice = createSlice({
         state.error = null;
       })
       .addCase(restoreContent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Archive Content (activities/books)
+    builder
+      .addCase(archiveContent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(archiveContent.fulfilled, (state, action) => {
+        state.loading = false;
+        const { contentType, contentId } = action.payload;
+
+        const idx = state.contentItems.findIndex(
+          (item) => item._id === contentId && item._contentType === contentType
+        );
+        if (idx !== -1) {
+          state.contentItems[idx].isArchived = true;
+          if (!state.filters.isArchived) {
+            state.contentItems = state.contentItems.filter(
+              (item) => !(item._id === contentId && item._contentType === contentType)
+            );
+            state.pagination.total = Math.max(0, state.pagination.total - 1);
+          }
+        }
+
+        if (state.currentContent?._id === contentId && state.currentContent?._contentType === contentType) {
+          state.currentContent = {
+            ...state.currentContent,
+            isArchived: true,
+          };
+        }
+        state.error = null;
+      })
+      .addCase(archiveContent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Update Star Cam Vocabulary Entry
+    builder
+      .addCase(updateStarCamVocabularyEntry.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateStarCamVocabularyEntry.fulfilled, (state, action) => {
+        state.loading = false;
+        const mission = action.payload?.response?.data;
+        const missionId = action.payload?.missionId;
+        if (mission?._id) {
+          const missionWithType = { ...mission, _contentType: CONTENT_TYPES.STAR_CAM_MISSION };
+          const idx = state.contentItems.findIndex(
+            (item) => item._id === missionId && item._contentType === CONTENT_TYPES.STAR_CAM_MISSION
+          );
+          if (idx !== -1) {
+            state.contentItems[idx] = missionWithType;
+          } else {
+            state.contentItems.unshift(missionWithType);
+          }
+          if (state.currentContent?._id === missionId) {
+            state.currentContent = missionWithType;
+          }
+        }
+        state.error = null;
+      })
+      .addCase(updateStarCamVocabularyEntry.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Delete Star Cam Vocabulary Entry
+    builder
+      .addCase(deleteStarCamVocabularyEntry.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteStarCamVocabularyEntry.fulfilled, (state, action) => {
+        state.loading = false;
+        const mission = action.payload?.response?.data;
+        const missionId = action.payload?.missionId;
+        if (mission?._id) {
+          const missionWithType = { ...mission, _contentType: CONTENT_TYPES.STAR_CAM_MISSION };
+          const idx = state.contentItems.findIndex(
+            (item) => item._id === missionId && item._contentType === CONTENT_TYPES.STAR_CAM_MISSION
+          );
+          if (idx !== -1) {
+            state.contentItems[idx] = missionWithType;
+          } else {
+            state.contentItems.unshift(missionWithType);
+          }
+          if (state.currentContent?._id === missionId) {
+            state.currentContent = missionWithType;
+          }
+        }
+        state.error = null;
+      })
+      .addCase(deleteStarCamVocabularyEntry.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

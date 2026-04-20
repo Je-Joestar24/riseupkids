@@ -4,6 +4,7 @@ const Book = require('../models/Book');
 const Media = require('../models/Media');
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
+const fs = require('fs');
 const path = require('path');
 const s3Service = require('./s3.service');
 
@@ -585,12 +586,29 @@ const deleteCourse = async (courseId) => {
     throw new Error('Course not found');
   }
 
+  if (!course.isArchived) {
+    throw new Error('Course must be archived before permanent deletion');
+  }
+
   // Delete cover image if exists
-  if (course.coverImage && fs.existsSync(path.join(__dirname, '../', course.coverImage.replace('/uploads', 'uploads')))) {
+  if (
+    course.coverImage &&
+    !course.coverImage.startsWith('http') &&
+    fs.existsSync(path.join(__dirname, '../', course.coverImage.replace('/uploads', 'uploads')))
+  ) {
     try {
       fs.unlinkSync(path.join(__dirname, '../', course.coverImage.replace('/uploads', 'uploads')));
     } catch (error) {
       console.error('Error deleting cover image:', error);
+    }
+  }
+
+  if (course.coverImage && course.coverImage.startsWith('http')) {
+    try {
+      const coverKey = s3Service.getS3KeyFromUrl(course.coverImage);
+      if (coverKey) await s3Service.deleteByKey(coverKey);
+    } catch (error) {
+      console.error('Error deleting course cover image from S3:', error);
     }
   }
 

@@ -29,14 +29,14 @@ const ActivityFilters = () => {
     // Debounce search - fetch after user stops typing
     clearTimeout(window.activitySearchTimeout);
     window.activitySearchTimeout = setTimeout(() => {
-      fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+      fetchContents(filters.contentType || CONTENT_TYPES.BOOK, newFilters);
     }, 500);
   };
 
   const handleFilterChange = (field, value) => {
     const newFilters = { ...filters, [field]: value, page: 1 };
     updateFilters(newFilters);
-    fetchContents(filters.contentType || CONTENT_TYPES.ACTIVITY, newFilters);
+    fetchContents(filters.contentType || CONTENT_TYPES.BOOK, newFilters);
   };
 
   const handleContentTypeChange = (value) => {
@@ -48,12 +48,12 @@ const ActivityFilters = () => {
       isArchived: value === CONTENT_TYPES.ACTIVITY ? filters.isArchived : undefined,
     };
     updateFilters(newFilters);
-    fetchContents(value || CONTENT_TYPES.ACTIVITY, newFilters);
+    fetchContents(value || CONTENT_TYPES.BOOK, newFilters);
   };
 
   const handleClearFilters = () => {
     resetFilters();
-    fetchContents(CONTENT_TYPES.ACTIVITY);
+    fetchContents(CONTENT_TYPES.BOOK);
   };
 
   const hasActiveFilters =
@@ -90,7 +90,7 @@ const ActivityFilters = () => {
             Content Type
           </InputLabel>
           <Select
-            value={filters.contentType || CONTENT_TYPES.ACTIVITY}
+            value={filters.contentType || CONTENT_TYPES.BOOK}
             label="Content Type"
             onChange={(e) => handleContentTypeChange(e.target.value)}
             sx={{
@@ -99,6 +99,7 @@ const ActivityFilters = () => {
               backgroundColor: theme.palette.custom.bgSecondary,
             }}
           >
+            <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activities</MenuItem>
             {/* Future: enable when frontend for other types is ready */}
             {/* <MenuItem value={CONTENT_TYPES.BOOK}>Books</MenuItem>

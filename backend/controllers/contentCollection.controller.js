@@ -282,7 +282,8 @@ const deleteCourse = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
+    const statusCode =
+      error.message.includes('not found') || error.message.includes('must be archived') ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to delete course',

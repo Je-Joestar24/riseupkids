@@ -4,13 +4,10 @@ import {
   Button,
   CircularProgress,
   Dialog,
-  DialogActions,
   DialogContent,
-  DialogTitle,
   IconButton,
   Typography,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import html5Service from '../../../services/html5Service';
@@ -24,15 +21,15 @@ import html5Service from '../../../services/html5Service';
 export default function AdminTestHtmlModal({
   open,
   onClose,
-  contentId,
-  contentTitle = 'HTML5 Test',
+  contentId: _contentId,
+  contentTitle: _contentTitle = 'HTML5 Test',
   html5PackageId,
   html5EntryPoint,
 }) {
-  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [launchUrl, setLaunchUrl] = useState(null);
+  const iframeRef = React.useRef(null);
 
   const resetState = () => {
     setLoading(true);
@@ -83,89 +80,119 @@ export default function AdminTestHtmlModal({
     fetchLaunchUrl();
   };
 
+  const enforceFullSizeInIframe = React.useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
+
+      const styleId = 'riseupkids-html5-stretch-style';
+      if (!doc.getElementById(styleId)) {
+        const styleEl = doc.createElement('style');
+        styleEl.id = styleId;
+        styleEl.textContent = `
+          html, body {
+            width: 100% !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #000 !important;
+          }
+
+          #project_container,
+          #project,
+          #project_main,
+          #div_Slide,
+          #autoplayDiv,
+          #pwdv,
+          #exdv {
+            position: absolute !important;
+            inset: 0 !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            margin: 0 !important;
+          }
+
+          #project_container,
+          #project,
+          #project_main {
+            overflow: hidden !important;
+          }
+
+          .cp-main,
+          .cp-movie,
+          .cp-frameset {
+            width: 100% !important;
+            height: 100% !important;
+          }
+        `;
+        doc.head?.appendChild(styleEl);
+      }
+    } catch (_e) {
+      // Ignore cross-origin access restrictions.
+    }
+  }, []);
+
+  const handleIframeLoad = React.useCallback(() => {
+    setLoading(false);
+    enforceFullSizeInIframe();
+    // Captivate may rewrite inline sizes after initial load; re-apply once more.
+    window.setTimeout(enforceFullSizeInIframe, 500);
+    window.setTimeout(enforceFullSizeInIframe, 1500);
+  }, [enforceFullSizeInIframe]);
+
   return (
     <Dialog
       open={!!open}
       onClose={handleClose}
-      fullWidth
-      maxWidth="lg"
+      fullScreen
       PaperProps={{
-        elevation: 10,
+        elevation: 0,
         sx: {
-          borderRadius: '18px',
+          borderRadius: 0,
           fontFamily: 'Quicksand, sans-serif',
-          maxHeight: '90vh',
+          width: '100vw',
+          height: '100vh',
+          maxWidth: '100vw',
+          maxHeight: '100vh',
           overflow: 'hidden',
-          backgroundColor: themeColors.bgCard,
+          backgroundColor: '#000',
         },
       }}
       BackdropProps={{
-        sx: { backgroundColor: 'rgba(0,0,0,0.65)' },
+        sx: { backgroundColor: '#000' },
       }}
     >
-      <DialogTitle
-        component="div"
-        sx={{
-          px: 0,
-          py: 0,
-          borderBottom: `3px solid ${themeColors.orange}`,
-          backgroundColor: themeColors.bgCard,
-          boxShadow: `0 2px 12px ${themeColors.borderOrange}`,
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 2,
-            px: 3,
-            py: 2,
-          }}
-        >
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              component="span"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 800,
-                fontSize: '0.95rem',
-                color: themeColors.orange,
-                letterSpacing: '0.02em',
-                textTransform: 'uppercase',
-                mr: 1.5,
-              }}
-            >
-              Test HTML5
-            </Typography>
-            <Typography
-              component="span"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 700,
-                fontSize: '1.25rem',
-                color: themeColors.text,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: 'inline-block',
-                maxWidth: '70%',
-                verticalAlign: 'middle',
-              }}
-              title={contentTitle}
-            >
-              {contentTitle}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <DialogContent sx={{ p: 0, backgroundColor: '#000' }}>
+        <Box sx={{ position: 'relative', backgroundColor: '#000', width: '100vw', height: '100vh' }}>
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 16,
+              right: 16,
+              zIndex: 5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
             <IconButton
               onClick={handleRetry}
               size="medium"
               aria-label="Reload HTML5 test"
               sx={{
                 borderRadius: '12px',
-                backgroundColor: themeColors.textInverse,
+                backgroundColor: 'rgba(0,0,0,0.45)',
                 border: `2px solid ${themeColors.orange}`,
-                color: themeColors.orange,
+                color: themeColors.textInverse,
+                backdropFilter: 'blur(6px)',
                 '&:hover': {
                   backgroundColor: themeColors.orange,
                   color: themeColors.textInverse,
@@ -191,11 +218,7 @@ export default function AdminTestHtmlModal({
               <CloseIcon />
             </IconButton>
           </Box>
-        </Box>
-      </DialogTitle>
 
-      <DialogContent sx={{ p: 0, backgroundColor: themeColors.bgSecondary }}>
-        <Box sx={{ position: 'relative', backgroundColor: '#000', minHeight: 560 }}>
           {loading && (
             <Box
               sx={{
@@ -225,7 +248,17 @@ export default function AdminTestHtmlModal({
           )}
 
           {error && !launchUrl && (
-            <Box sx={{ p: 3, backgroundColor: themeColors.bgCard, minHeight: 200 }}>
+            <Box
+              sx={{
+                p: 3,
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                minHeight: '100vh',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
@@ -261,60 +294,21 @@ export default function AdminTestHtmlModal({
 
           {launchUrl && !error && (
             <iframe
+              ref={iframeRef}
               src={launchUrl}
               title="HTML5 Test Player"
+              onLoad={handleIframeLoad}
               style={{
                 width: '100%',
                 height: '100%',
-                minHeight: 560,
                 border: 'none',
-                display: loading ? 'none' : 'block',
+                display: 'block',
               }}
               allow="fullscreen"
             />
           )}
         </Box>
       </DialogContent>
-
-      <DialogActions
-        sx={{
-          px: 3,
-          py: 2,
-          borderTop: `2px solid ${themeColors.borderOrange}`,
-          backgroundColor: themeColors.bgCard,
-        }}
-      >
-        <Typography
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            color: themeColors.textSecondary,
-            fontWeight: 700,
-            fontSize: '0.9rem',
-          }}
-        >
-          Testing mode: HTML5 (Captivate) content — no SCORM tracking.
-        </Typography>
-        <Button
-          onClick={handleClose}
-          variant="contained"
-          sx={{
-            borderRadius: '12px',
-            backgroundColor: themeColors.orange,
-            color: themeColors.textInverse,
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 800,
-            textTransform: 'none',
-            px: 3,
-            border: `2px solid ${themeColors.orange}`,
-            '&:hover': {
-              backgroundColor: themeColors.textInverse,
-              color: themeColors.orange,
-            },
-          }}
-        >
-          Close
-        </Button>
-      </DialogActions>
     </Dialog>
   );
 }
