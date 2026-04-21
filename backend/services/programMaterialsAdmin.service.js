@@ -109,6 +109,110 @@ const uploadModulePrintable = async ({ courseId, userId, title, description, cov
   return printable;
 };
 
+const getCoursePrintableById = async ({ courseId, printableId }) => {
+  if (!courseId) throw new Error('courseId is required');
+  if (!printableId) throw new Error('printableId is required');
+
+  const printable = await ProgramPrintable.findOne({
+    _id: printableId,
+    type: 'module',
+    course: courseId,
+    isActive: true,
+  }).lean();
+
+  if (!printable) throw new Error('Printable not found');
+
+  return {
+    id: String(printable._id),
+    courseId: String(printable.course),
+    title: printable.title,
+    description: printable.description || null,
+    coverImage: printable.coverImage || null,
+    pdfUrl: printable.pdfUrl,
+    isActive: printable.isActive,
+    createdAt: printable.createdAt,
+    updatedAt: printable.updatedAt,
+  };
+};
+
+const updateCoursePrintable = async ({
+  courseId,
+  printableId,
+  title,
+  description,
+  coverImageFile,
+  pdfFile,
+}) => {
+  if (!courseId) throw new Error('courseId is required');
+  if (!printableId) throw new Error('printableId is required');
+
+  const printable = await ProgramPrintable.findOne({
+    _id: printableId,
+    type: 'module',
+    course: courseId,
+    isActive: true,
+  });
+  if (!printable) throw new Error('Printable not found');
+
+  const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+  if (!normalizedTitle) throw new Error('title is required');
+
+  printable.title = normalizedTitle;
+  printable.description = typeof description === 'string' && description.trim()
+    ? description.trim()
+    : null;
+
+  if (pdfFile) {
+    const { url: pdfUrl } = await s3Service.uploadFileFromMulter(pdfFile, 'program-materials/printables/pdfs');
+    const currentPdfKey = s3Service.getS3KeyFromUrl(printable.pdfUrl);
+    if (currentPdfKey) {
+      await s3Service.deleteByKey(currentPdfKey).catch(() => null);
+    }
+    printable.pdfUrl = pdfUrl;
+  }
+
+  if (coverImageFile) {
+    const { url: coverImage } = await s3Service.uploadFileFromMulter(coverImageFile, 'program-materials/printables/covers');
+    const currentCoverKey = s3Service.getS3KeyFromUrl(printable.coverImage);
+    if (currentCoverKey) {
+      await s3Service.deleteByKey(currentCoverKey).catch(() => null);
+    }
+    printable.coverImage = coverImage;
+  }
+
+  await printable.save();
+
+  return printable;
+};
+
+const deleteCoursePrintable = async ({ courseId, printableId }) => {
+  if (!courseId) throw new Error('courseId is required');
+  if (!printableId) throw new Error('printableId is required');
+
+  const printable = await ProgramPrintable.findOne({
+    _id: printableId,
+    type: 'module',
+    course: courseId,
+    isActive: true,
+  });
+  if (!printable) throw new Error('Printable not found');
+
+  printable.isActive = false;
+  await printable.save();
+
+  const pdfKey = s3Service.getS3KeyFromUrl(printable.pdfUrl);
+  if (pdfKey) {
+    await s3Service.deleteByKey(pdfKey).catch(() => null);
+  }
+
+  const coverKey = s3Service.getS3KeyFromUrl(printable.coverImage);
+  if (coverKey) {
+    await s3Service.deleteByKey(coverKey).catch(() => null);
+  }
+
+  return { id: String(printable._id) };
+};
+
 const listCoursePrintables = async ({ courseId, page = 1, limit = 10, search = '' }) => {
   if (!courseId) throw new Error('courseId is required');
   const course = await Course.findOne({ _id: courseId, isPublished: true, isArchived: false })
@@ -204,7 +308,10 @@ const getPrintableAsset = async (type) => {
 module.exports = {
   listModulesWithPrintables,
   listCoursePrintables,
+  getCoursePrintableById,
   uploadModulePrintable,
+  updateCoursePrintable,
+  deleteCoursePrintable,
   uploadSinglePrintableAsset,
   getPrintableAsset,
 };

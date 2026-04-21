@@ -30,6 +30,23 @@ const listCoursePrintables = async (req, res) => {
   }
 };
 
+const getCoursePrintableById = async (req, res) => {
+  try {
+    const { courseId, printableId } = req.params;
+    const data = await programMaterialsAdminService.getCoursePrintableById({
+      courseId,
+      printableId,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.message === 'Printable not found' ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to get printable material',
+    });
+  }
+};
+
 const uploadModulePrintable = async (req, res) => {
   try {
     const { courseId } = req.params;
@@ -50,6 +67,54 @@ const uploadModulePrintable = async (req, res) => {
   } catch (error) {
     const statusCode = error.message?.toLowerCase().includes('required') ? 400 : 500;
     return res.status(statusCode).json({ success: false, message: error.message || 'Failed to upload printable' });
+  }
+};
+
+const updateCoursePrintable = async (req, res) => {
+  try {
+    const { courseId, printableId } = req.params;
+    const { title, description } = req.body;
+    const pdfFile = req.files?.pdfFile?.[0] || null;
+    const coverImageFile = req.files?.coverImage?.[0] || null;
+
+    const printable = await programMaterialsAdminService.updateCoursePrintable({
+      courseId,
+      printableId,
+      title,
+      description,
+      coverImageFile,
+      pdfFile,
+    });
+
+    return res.status(200).json({ success: true, data: printable });
+  } catch (error) {
+    const errorMessage = error.message || 'Failed to update printable';
+    const statusCode = ['courseid is required', 'printableid is required', 'title is required'].includes(
+      errorMessage.toLowerCase()
+    )
+      ? 400
+      : errorMessage === 'Printable not found'
+        ? 404
+        : 500;
+    return res.status(statusCode).json({ success: false, message: errorMessage });
+  }
+};
+
+const deleteCoursePrintable = async (req, res) => {
+  try {
+    const { courseId, printableId } = req.params;
+    const data = await programMaterialsAdminService.deleteCoursePrintable({
+      courseId,
+      printableId,
+    });
+
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.message === 'Printable not found' ? 404 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to delete printable',
+    });
   }
 };
 
@@ -100,7 +165,10 @@ const uploadRecipes = async (req, res) => {
 module.exports = {
   listModules,
   listCoursePrintables,
+  getCoursePrintableById,
   uploadModulePrintable,
+  updateCoursePrintable,
+  deleteCoursePrintable,
   uploadFullBundle,
   uploadRecipes,
 };

@@ -6,7 +6,10 @@ const { uploadProgramPrintable } = require('../middleware/upload');
 const {
   listModules,
   listCoursePrintables,
+  getCoursePrintableById,
   uploadModulePrintable,
+  updateCoursePrintable,
+  deleteCoursePrintable,
   uploadFullBundle,
   uploadRecipes,
 } = require('../controllers/programMaterialsAdmin.controller');
@@ -22,11 +25,14 @@ router.get('/modules', listModules);
 
 // List printable materials inside a specific module/course
 router.get('/modules/:courseId/printables', listCoursePrintables);
+router.get('/modules/:courseId/printables/:printableId', getCoursePrintableById);
 
 // Upload/replace module printable (PDF + optional cover)
 router.post('/modules/:courseId/printables', uploadProgramPrintable, uploadModulePrintable);
 // Backward compatibility alias
 router.post('/modules/:courseId/printable', uploadProgramPrintable, uploadModulePrintable);
+router.put('/modules/:courseId/printables/:printableId', uploadProgramPrintable, updateCoursePrintable);
+router.delete('/modules/:courseId/printables/:printableId', deleteCoursePrintable);
 
 // Upload/replace full bundle
 router.post('/full-bundle', uploadProgramPrintable, uploadFullBundle);

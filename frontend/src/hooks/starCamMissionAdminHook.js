@@ -30,11 +30,11 @@ export const useStarCamMissionAdmin = () => {
   const state = useSelector(selectStarCamMissionAdmin);
 
   const runThunk = useCallback(
-    async (thunkAction, errorMessage, successMessage) => {
+    async (thunkAction, errorMessage, successConfig) => {
       try {
         const result = await dispatch(thunkAction).unwrap();
-        if (successMessage) {
-          dispatch(showNotification({ message: successMessage, type: 'success' }));
+        if (successConfig?.enabled !== false && successConfig?.message) {
+          dispatch(showNotification({ message: successConfig.message, type: 'success' }));
         }
         return result;
       } catch (error) {
@@ -53,7 +53,7 @@ export const useStarCamMissionAdmin = () => {
 
   const addCategory = useCallback(
     (payload) =>
-      runThunk(createStarCamCategory(payload), 'Failed to create Star Cam category', 'Category created successfully'),
+      runThunk(createStarCamCategory(payload), 'Failed to create Star Cam category', { message: 'Category created successfully' }),
     [runThunk]
   );
 
@@ -64,8 +64,11 @@ export const useStarCamMissionAdmin = () => {
   );
 
   const addMission = useCallback(
-    (payload) =>
-      runThunk(createStarCamMission(payload), 'Failed to create Star Cam mission', 'Mission created successfully'),
+    (payload, options = {}) =>
+      runThunk(createStarCamMission(payload), 'Failed to create Star Cam mission', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Mission created successfully',
+      }),
     [runThunk]
   );
 
@@ -76,8 +79,11 @@ export const useStarCamMissionAdmin = () => {
   );
 
   const editMission = useCallback(
-    (missionId, payload) =>
-      runThunk(updateStarCamMission({ missionId, payload }), 'Failed to update Star Cam mission', 'Mission updated successfully'),
+    (missionId, payload, options = {}) =>
+      runThunk(updateStarCamMission({ missionId, payload }), 'Failed to update Star Cam mission', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Mission updated successfully',
+      }),
     [runThunk]
   );
 
@@ -110,11 +116,14 @@ export const useStarCamMissionAdmin = () => {
   );
 
   const updateMissionMedia = useCallback(
-    (missionId, { shortVideoFile, rewardAudioFile, rewardVideoFile }) =>
+    (missionId, { shortVideoFile, rewardAudioFile, rewardVideoFile }, options = {}) =>
       runThunk(
         uploadStarCamMissionMedia({ missionId, shortVideoFile, rewardAudioFile, rewardVideoFile }),
         'Failed to upload mission media',
-        'Mission media updated successfully'
+        {
+          enabled: options.notifySuccess !== false,
+          message: options.successMessage || 'Mission media updated successfully',
+        }
       ),
     [runThunk]
   );
@@ -150,11 +159,14 @@ export const useStarCamMissionAdmin = () => {
   );
 
   const uploadMissionImage = useCallback(
-    (missionId, imageFile) =>
+    (missionId, imageFile, options = {}) =>
       runThunk(
         uploadStarCamMissionImage({ missionId, imageFile }),
         'Failed to upload mission image',
-        'Mission image uploaded successfully'
+        {
+          enabled: options.notifySuccess !== false,
+          message: options.successMessage || 'Mission image uploaded successfully',
+        }
       ),
     [runThunk]
   );

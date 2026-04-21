@@ -8,7 +8,7 @@ import StarCamMissionTablePaginations from '../../components/admin/starcammissio
 import StarCamRightPanelPreviewEdit from '../../components/admin/starcammission/StarCamRightPanelPreviewEdit';
 import StarCamMissionCreateModal from '../../components/admin/starcammission/StarCamMissionCreateModal';
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
-import { showConfirmationDialog } from '../../store/slices/uiSlice';
+import { showConfirmationDialog, showNotification } from '../../store/slices/uiSlice';
 
 const AdminStarCamMissions = () => {
   const dispatch = useDispatch();
@@ -27,6 +27,7 @@ const AdminStarCamMissions = () => {
     editMissionVocabulary,
     removeMissionVocabulary,
     addMission,
+    editMission,
     uploadMissionImage,
     updateMissionMedia,
     publishMission,
@@ -45,6 +46,7 @@ const AdminStarCamMissions = () => {
     pronunciationVideoFile: null,
   });
   const [openCreateModal, setOpenCreateModal] = React.useState(false);
+  const [editingMission, setEditingMission] = React.useState(null);
 
   useEffect(() => {
     loadCategories();
@@ -134,25 +136,71 @@ const AdminStarCamMissions = () => {
     );
   };
 
-  const handleCreateMission = async ({ title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile }) => {
-    const created = await addMission({ title, categoryId });
+  const missionQueryParams = {
+    page: filters.page,
+    limit: filters.limit,
+    status: filters.status || undefined,
+    search: filters.search || undefined,
+    categoryId: filters.categoryId || undefined,
+  };
+
+  const handleCreateMission = async ({ title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile, rewardVideoFile }) => {
+    const created = await addMission(
+      { title, categoryId },
+      { notifySuccess: false }
+    );
     const createdMissionId = created?.data?._id;
     if (createdMissionId && missionImageFile) {
-      await uploadMissionImage(createdMissionId, missionImageFile);
+      await uploadMissionImage(createdMissionId, missionImageFile, { notifySuccess: false });
     }
-    if (createdMissionId && (missionShortVideoFile || rewardAudioFile)) {
+    if (createdMissionId && (missionShortVideoFile || rewardAudioFile || rewardVideoFile)) {
       await updateMissionMedia(createdMissionId, {
         shortVideoFile: missionShortVideoFile,
         rewardAudioFile,
-      });
+        rewardVideoFile,
+      }, { notifySuccess: false });
     }
-    await loadMissions({
-      page: filters.page,
-      limit: filters.limit,
-      status: filters.status || undefined,
-      search: filters.search || undefined,
-      categoryId: filters.categoryId || undefined,
-    });
+    await loadMissions(missionQueryParams);
+    dispatch(showNotification({ message: 'Mission upload completed successfully', type: 'success' }));
+  };
+
+  const handleEditMission = async (
+    missionId,
+    { title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile, rewardVideoFile }
+  ) => {
+    await editMission(missionId, { title, categoryId }, { notifySuccess: false });
+    if (missionImageFile) {
+      await uploadMissionImage(missionId, missionImageFile, { notifySuccess: false });
+    }
+    if (missionShortVideoFile || rewardAudioFile || rewardVideoFile) {
+      await updateMissionMedia(missionId, {
+        shortVideoFile: missionShortVideoFile,
+        rewardAudioFile,
+        rewardVideoFile,
+      }, { notifySuccess: false });
+    }
+    await loadMissions(missionQueryParams);
+    if (currentMission?._id === missionId) {
+      await loadMissionById(missionId);
+    }
+    dispatch(showNotification({ message: 'Mission upload completed successfully', type: 'success' }));
+  };
+
+  const handleOpenCreateMissionModal = () => {
+    setEditingMission(null);
+    setOpenCreateModal(true);
+  };
+
+  const handleOpenEditMissionModal = async (mission) => {
+    if (!mission?._id) return;
+    const response = await loadMissionById(mission._id);
+    setEditingMission(response?.data || mission);
+    setOpenCreateModal(true);
+  };
+
+  const handleCloseMissionModal = () => {
+    setOpenCreateModal(false);
+    setEditingMission(null);
   };
 
   const isDetailsMode = Boolean(currentMission?._id);
@@ -163,7 +211,7 @@ const AdminStarCamMissions = () => {
         selectedMission={currentMission}
         totalMissions={pagination?.total || missions.length}
         onClearSelection={clearCurrentMission}
-        onOpenCreateModal={() => setOpenCreateModal(true)}
+        onOpenCreateModal={handleOpenCreateMissionModal}
       />
 
       <StarCamMissionFilters
@@ -189,6 +237,7 @@ const AdminStarCamMissions = () => {
             loading={loading.missions}
             selectedMissionId={currentMission?._id || null}
             onToggleMission={handleToggleMission}
+            onEditMission={handleOpenEditMissionModal}
             onPublishMission={publishMission}
             onUnpublishMission={unpublishMission}
             onArchiveMission={archiveMission}
@@ -207,6 +256,7 @@ const AdminStarCamMissions = () => {
               loading={loading.missions}
               selectedMissionId={currentMission?._id || null}
               onToggleMission={handleToggleMission}
+              onEditMission={handleOpenEditMissionModal}
               onPublishMission={publishMission}
               onUnpublishMission={unpublishMission}
               onArchiveMission={archiveMission}
@@ -234,9 +284,11 @@ const AdminStarCamMissions = () => {
 
       <StarCamMissionCreateModal
         open={openCreateModal}
-        onClose={() => setOpenCreateModal(false)}
+        onClose={handleCloseMissionModal}
         categories={categories}
         onCreateMission={handleCreateMission}
+        onEditMission={handleEditMission}
+        editingMission={editingMission}
         creating={loading.mutating}
       />
     </Box>

@@ -23,10 +23,14 @@ const AdminPrintables = () => {
     loadingModules,
     loadingCoursePrintables,
     addingPrintable,
+    updatingPrintable,
+    deletingPrintable,
     error,
     loadModules,
     loadCoursePrintables,
     createCoursePrintable,
+    editCoursePrintable,
+    requestDeleteCoursePrintable,
     clearCourseState,
   } = usePrintableMaterials();
 
@@ -62,6 +66,25 @@ const AdminPrintables = () => {
     await createCoursePrintable(selectedCourse.id, payload);
     await loadCoursePrintables(selectedCourse.id, printableQuery);
     await loadModules(moduleQuery); // refresh counts on left table
+  };
+
+  const handleRequestDeletePrintable = (printable) => {
+    if (!selectedCourse?.id) return;
+    requestDeleteCoursePrintable({
+      courseId: selectedCourse.id,
+      printable,
+      onDeleted: async () => {
+        await loadCoursePrintables(selectedCourse.id, printableQuery);
+        await loadModules(moduleQuery);
+      },
+    });
+  };
+
+  const handleEditPrintable = async (printableId, payload) => {
+    if (!selectedCourse?.id || !printableId) return;
+    await editCoursePrintable(selectedCourse.id, printableId, payload);
+    await loadCoursePrintables(selectedCourse.id, printableQuery);
+    await loadModules(moduleQuery);
   };
 
   return (
@@ -128,7 +151,11 @@ const AdminPrintables = () => {
               pagination={coursePrintablesPagination}
               loading={loadingCoursePrintables}
               adding={addingPrintable}
+              updating={updatingPrintable}
+              deleting={deletingPrintable}
               onAddPrintable={handleAddPrintable}
+              onEditPrintable={handleEditPrintable}
+              onDeletePrintable={handleRequestDeletePrintable}
               onPageChange={(page) => setPrintableQuery((prev) => ({ ...prev, page }))}
               onLimitChange={(limit) => setPrintableQuery((prev) => ({ ...prev, limit, page: 1 }))}
             />

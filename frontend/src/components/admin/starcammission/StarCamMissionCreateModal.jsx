@@ -25,7 +25,15 @@ const initialForm = {
   rewardVideoFile: null,
 };
 
-const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMission, creating = false }) => {
+const StarCamMissionCreateModal = ({
+  open,
+  onClose,
+  categories = [],
+  onCreateMission,
+  onEditMission,
+  editingMission = null,
+  creating = false,
+}) => {
   const theme = useTheme();
   const [form, setForm] = useState(initialForm);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
@@ -37,6 +45,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
   const audioInputRef = useRef(null);
   const rewardVideoInputRef = useRef(null);
 
+  const isEditMode = Boolean(editingMission?._id);
   const isValid = useMemo(() => Boolean(form.title.trim() && form.categoryId), [form]);
 
   useEffect(() => {
@@ -80,31 +89,61 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
   }, [form.rewardVideoFile]);
 
   useEffect(() => {
-    if (!open) {
-      setForm(initialForm);
-      setImagePreviewUrl('');
-      setVideoPreviewUrl('');
-      setAudioPreviewUrl('');
-      setRewardVideoPreviewUrl('');
+    if (!open) return;
+    if (isEditMode) {
+      setForm({
+        title: editingMission?.title || '',
+        categoryId: editingMission?.category?._id || editingMission?.categoryId || '',
+        missionImageFile: null,
+        missionShortVideoFile: null,
+        rewardAudioFile: null,
+        rewardVideoFile: null,
+      });
+      setImagePreviewUrl(editingMission?.missionImageUrl || editingMission?.missionImage?.url || '');
+      setVideoPreviewUrl(editingMission?.missionShortVideoUrl || editingMission?.missionShortVideo?.url || '');
+      setAudioPreviewUrl(editingMission?.rewardAudioUrl || editingMission?.rewardAudio?.url || '');
+      setRewardVideoPreviewUrl(editingMission?.rewardVideoUrl || editingMission?.rewardVideo?.url || '');
+      return;
     }
+    setForm(initialForm);
+    setImagePreviewUrl('');
+    setVideoPreviewUrl('');
+    setAudioPreviewUrl('');
+    setRewardVideoPreviewUrl('');
+  }, [open, isEditMode, editingMission]);
+
+  useEffect(() => {
+    if (open) return;
+    setForm(initialForm);
+    setImagePreviewUrl('');
+    setVideoPreviewUrl('');
+    setAudioPreviewUrl('');
+    setRewardVideoPreviewUrl('');
   }, [open]);
 
   const handleSubmit = async () => {
     if (!isValid) return;
-    await onCreateMission({
+    const payload = {
       title: form.title.trim(),
       categoryId: form.categoryId,
       missionImageFile: form.missionImageFile,
       missionShortVideoFile: form.missionShortVideoFile,
       rewardAudioFile: form.rewardAudioFile,
       rewardVideoFile: form.rewardVideoFile,
-    });
+    };
+    if (isEditMode) {
+      await onEditMission(editingMission._id, payload);
+    } else {
+      await onCreateMission(payload);
+    }
     onClose();
   };
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ fontWeight: 700 }}>Create Star Cam Mission</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>
+        {isEditMode ? 'Edit Star Cam Mission' : 'Create Star Cam Mission'}
+      </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.25}>
           <Typography variant="body2" color="text.secondary">
@@ -399,7 +438,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
           </Grid>
           <Divider />
           <Typography variant="caption" color="text.secondary">
-            Tip: You can create first, then update media later if needed.
+            {isEditMode ? 'Tip: Only upload files you want to replace.' : 'Tip: You can create first, then update media later if needed.'}
           </Typography>
         </Stack>
       </DialogContent>
@@ -408,7 +447,7 @@ const StarCamMissionCreateModal = ({ open, onClose, categories = [], onCreateMis
           Cancel
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={!isValid || creating}>
-          {creating ? 'Creating...' : 'Create Mission'}
+          {creating ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Mission')}
         </Button>
       </DialogActions>
     </Dialog>
