@@ -49,6 +49,8 @@ const programMaterialsAdminRoutes = require('./routes/programMaterialsAdmin.rout
 const starCamRoutes = require('./routes/starCam.routes');
 const starCamChildRoutes = require('./routes/starCamChild.routes');
 const starCamMissionsAdminRoutes = require('./routes/starCamMissionsAdmin.routes');
+const cmsBookAdminRoutes = require('./routes/cmsBookAdmin.routes');
+const cmsBookPlayerRoutes = require('./routes/cmsBookPlayer.routes');
 
 // Import middleware
 const notFound = require('./middleware/notFound');
@@ -156,6 +158,8 @@ app.use('/api/admin/program-materials', programMaterialsAdminRoutes);
 app.use('/api/star-cam', starCamRoutes);
 app.use('/api/child/star-cam', starCamChildRoutes);
 app.use('/api/admin/star-cam/missions', starCamMissionsAdminRoutes);
+app.use('/api/admin/cms-books', cmsBookAdminRoutes);
+app.use('/api/parent/cms-books', cmsBookPlayerRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);
