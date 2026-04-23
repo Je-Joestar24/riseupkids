@@ -24,6 +24,8 @@ import AdminMeetings from '../pages/admin/AdminMeetings';
 import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
 import AdminPrintables from '../pages/admin/AdminPrintables';
 import AdminStarCamMissions from '../pages/admin/AdminStarCamMissions';
+import AdminBooksBuilder from '../pages/admin/AdminBooksBuilder';
+import AdminBooksBuilderCreate from '../pages/admin/AdminBooksBuilderCreate';
 import AdminLayout from '../layouts/AdminLayout';
 import TeacherLayout from '../layouts/TeacherLayout';
 import TeacherDashboard from '../pages/teacher/TeacherDashboard';
@@ -346,6 +348,26 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminPrintables />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/built-in-books"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminBooksBuilder />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/built-in-books/create"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminBooksBuilderCreate />
               </AdminLayout>
             </AuthedAccess>
           }

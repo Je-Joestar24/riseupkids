@@ -25,6 +25,7 @@ async function createCmsBook({ userId, payload }) {
   const created = await CmsBook.create({
     ...payload,
     title: String(payload.title).trim(),
+    status: 'published',
     createdBy: userId,
     updatedBy: userId,
   });

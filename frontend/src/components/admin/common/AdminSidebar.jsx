@@ -34,6 +34,7 @@ import {
   LiveTvOutlined,
   DescriptionOutlined,
   AutoAwesomeOutlined,
+  AutoStoriesOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -70,6 +71,7 @@ const AdminSidebar = () => {
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },
     { text: 'Printables', icon: <DescriptionOutlined />, path: '/admin/printables' },
+    { text: 'Built-in Books', icon: <AutoStoriesOutlined />, path: '/admin/built-in-books' },
     { text: 'Star Cam Missions', icon: <AutoAwesomeOutlined />, path: '/admin/star-cam-missions' },
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
     { text: 'Live Classes', icon: <VideocamOutlined />, path: '/admin/meetings' },
