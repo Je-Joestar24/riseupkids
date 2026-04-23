@@ -1,0 +1,143 @@
+import { useCallback, useMemo } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import {
+  archiveCmsBook,
+  clearCmsBookAdminError,
+  clearCurrentCmsBook,
+  createCmsBook,
+  fetchCmsBookById,
+  fetchCmsBooks,
+  publishCmsBook,
+  resetCmsBookAdminState,
+  selectCmsBookAdmin,
+  setCmsBookAdminFilters,
+  unpublishCmsBook,
+  updateCmsBook,
+} from '../store/slices/cmsBookAdminSlice';
+import { showNotification } from '../store/slices/uiSlice';
+
+const useCmsBookAdmin = () => {
+  const dispatch = useDispatch();
+  const state = useSelector(selectCmsBookAdmin);
+
+  const runThunk = useCallback(
+    async (thunkAction, errorMessage, successConfig = {}) => {
+      try {
+        const result = await dispatch(thunkAction).unwrap();
+        if (successConfig.enabled !== false && successConfig.message) {
+          dispatch(showNotification({ message: successConfig.message, type: 'success' }));
+        }
+        return result;
+      } catch (error) {
+        dispatch(showNotification({ message: error || errorMessage, type: 'error' }));
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
+  const loadBooks = useCallback(
+    (params = {}) => runThunk(fetchCmsBooks(params), 'Failed to load CMS books'),
+    [runThunk]
+  );
+
+  const loadBookById = useCallback(
+    (bookId) => runThunk(fetchCmsBookById(bookId), 'Failed to load CMS book'),
+    [runThunk]
+  );
+
+  const addBook = useCallback(
+    (payload, options = {}) =>
+      runThunk(createCmsBook(payload), 'Failed to create CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book created successfully',
+      }),
+    [runThunk]
+  );
+
+  const editBook = useCallback(
+    (bookId, payload, options = {}) =>
+      runThunk(updateCmsBook({ bookId, payload }), 'Failed to update CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book updated successfully',
+      }),
+    [runThunk]
+  );
+
+  const publishBook = useCallback(
+    (bookId, options = {}) =>
+      runThunk(publishCmsBook(bookId), 'Failed to publish CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book published successfully',
+      }),
+    [runThunk]
+  );
+
+  const unpublishBook = useCallback(
+    (bookId, options = {}) =>
+      runThunk(unpublishCmsBook(bookId), 'Failed to unpublish CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book moved to draft',
+      }),
+    [runThunk]
+  );
+
+  const archiveBook = useCallback(
+    (bookId, options = {}) =>
+      runThunk(archiveCmsBook(bookId), 'Failed to archive CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book archived successfully',
+      }),
+    [runThunk]
+  );
+
+  const updateFilters = useCallback(
+    (filters) => dispatch(setCmsBookAdminFilters(filters)),
+    [dispatch]
+  );
+
+  const clearError = useCallback(() => {
+    dispatch(clearCmsBookAdminError());
+  }, [dispatch]);
+
+  const clearCurrentBook = useCallback(() => {
+    dispatch(clearCurrentCmsBook());
+  }, [dispatch]);
+
+  const resetState = useCallback(() => {
+    dispatch(resetCmsBookAdminState());
+  }, [dispatch]);
+
+  return useMemo(
+    () => ({
+      ...state,
+      loadBooks,
+      loadBookById,
+      addBook,
+      editBook,
+      publishBook,
+      unpublishBook,
+      archiveBook,
+      updateFilters,
+      clearError,
+      clearCurrentBook,
+      resetState,
+    }),
+    [
+      state,
+      loadBooks,
+      loadBookById,
+      addBook,
+      editBook,
+      publishBook,
+      unpublishBook,
+      archiveBook,
+      updateFilters,
+      clearError,
+      clearCurrentBook,
+      resetState,
+    ]
+  );
+};
+
+export default useCmsBookAdmin;
