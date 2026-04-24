@@ -1,8 +1,7 @@
 import React from 'react';
 import { Menu, MenuItem } from '@mui/material';
-import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 
-const BooksBuilderTypeMenu = ({ position, open, onClose, onSelect }) => (
+const BooksBuilderTypeMenu = ({ position, open, onClose, onSelect, options }) => (
   <Menu
     anchorReference="anchorPosition"
     anchorPosition={position || undefined}
@@ -15,7 +14,7 @@ const BooksBuilderTypeMenu = ({ position, open, onClose, onSelect }) => (
     open={open}
     onClose={onClose}
   >
-    {PAGE_TYPES.map((item) => (
+    {options.map((item) => (
       <MenuItem key={item.key} onClick={() => onSelect(item.key)}>
         {item.label}
       </MenuItem>

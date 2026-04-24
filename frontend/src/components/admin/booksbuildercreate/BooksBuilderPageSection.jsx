@@ -14,7 +14,6 @@ const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage 
         mb: 2,
         borderRadius: '16px',
         border: `1px solid ${theme.palette.border.main}`,
-        minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         gap: 2,
@@ -27,6 +26,7 @@ const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage 
         page={page}
         pageIndex={pageIndex}
         onOpenTypeMenu={(targetEl) => onOpenTypeMenu(targetEl, pageIndex)}
+        onPatch={(patch) => onPatchPage(pageIndex, patch)}
       />
 
       <BooksBuilderPageFields page={page} onPatch={(patch) => onPatchPage(pageIndex, patch)} />

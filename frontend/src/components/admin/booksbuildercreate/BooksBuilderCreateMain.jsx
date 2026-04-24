@@ -5,7 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import BooksBuilderCreateHeader from './BooksBuilderCreateHeader';
 import BooksBuilderPageSection from './BooksBuilderPageSection';
 import BooksBuilderTypeMenu from './BooksBuilderTypeMenu';
-import { createEmptyPage, isPageComplete, resetPageByType } from './BooksBuilderCreate.utils';
+import { PAGE_TYPES } from './BooksBuilderCreate.constants';
+import {
+  createEmptyPage,
+  isPageComplete,
+  isValidPageSequence,
+  resetPageByType,
+} from './BooksBuilderCreate.utils';
 
 const BooksBuilderCreateMain = () => {
   const navigate = useNavigate();
@@ -16,8 +22,26 @@ const BooksBuilderCreateMain = () => {
   const canAddNext = useMemo(() => {
     if (!pages.length) return false;
     if (!isPageComplete(pages[0])) return false;
+    if (!isValidPageSequence(pages)) return false;
     return pages.every((page) => isPageComplete(page));
   }, [pages]);
+
+  const availableTypeOptions = useMemo(() => {
+    if (activePageIndex == null) return [];
+
+    return PAGE_TYPES.filter((item) => {
+      const draftPages = pages.map((page, index) =>
+        index === activePageIndex
+          ? {
+              ...page,
+              type: item.key,
+              ...resetPageByType,
+            }
+          : page
+      );
+      return isValidPageSequence(draftPages);
+    });
+  }, [activePageIndex, pages]);
 
   const openTypeMenu = (targetEl, pageIndex) => {
     if (!targetEl?.getBoundingClientRect) return;
@@ -42,6 +66,7 @@ const BooksBuilderCreateMain = () => {
 
   const selectPageType = (typeKey) => {
     if (activePageIndex == null) return;
+    if (!availableTypeOptions.some((option) => option.key === typeKey)) return;
     updatePage(activePageIndex, {
       type: typeKey,
       ...resetPageByType,
@@ -50,7 +75,7 @@ const BooksBuilderCreateMain = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh' }}>
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
       <BooksBuilderCreateHeader onBack={() => navigate('/admin/built-in-books')} />
 
       {pages.map((page, index) => (
@@ -79,6 +104,7 @@ const BooksBuilderCreateMain = () => {
         open={Boolean(menuPosition)}
         onClose={closeTypeMenu}
         onSelect={selectPageType}
+        options={availableTypeOptions}
       />
     </Box>
   );
