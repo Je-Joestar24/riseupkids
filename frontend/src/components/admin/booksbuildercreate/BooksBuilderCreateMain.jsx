@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button } from '@mui/material';
 import { AddCircleOutline } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -53,10 +53,21 @@ const BooksBuilderCreateMain = () => {
     setActivePageIndex(pageIndex);
   };
 
-  const closeTypeMenu = () => {
+  const closeTypeMenu = useCallback(() => {
     setMenuPosition(null);
     setActivePageIndex(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!menuPosition) return undefined;
+    const onScroll = () => {
+      closeTypeMenu();
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [menuPosition, closeTypeMenu]);
 
   const updatePage = (pageIndex, patch) => {
     setPages((prev) =>
@@ -67,10 +78,15 @@ const BooksBuilderCreateMain = () => {
   const selectPageType = (typeKey) => {
     if (activePageIndex == null) return;
     if (!availableTypeOptions.some((option) => option.key === typeKey)) return;
-    updatePage(activePageIndex, {
+    const basePatch = {
       type: typeKey,
       ...resetPageByType,
-    });
+    };
+    if (typeKey === 'interactive') {
+      basePatch.interactionMode = 'two_options_one_answer';
+      basePatch.answerTwoCorrectOptionId = '';
+    }
+    updatePage(activePageIndex, basePatch);
     closeTypeMenu();
   };
 

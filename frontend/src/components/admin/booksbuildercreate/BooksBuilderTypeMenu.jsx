@@ -10,7 +10,6 @@ const BooksBuilderTypeMenu = ({ position, open, onClose, onSelect, options }) =>
     autoFocus={false}
     disableAutoFocusItem
     disableRestoreFocus
-    keepMounted
     open={open}
     onClose={onClose}
   >

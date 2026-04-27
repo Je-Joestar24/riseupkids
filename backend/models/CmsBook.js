@@ -156,6 +156,25 @@ function isInteractivePage(type) {
 function validatePageByType(page) {
   const media = page.media || {};
   const interaction = page.interaction || null;
+  const options = Array.isArray(interaction?.options) ? interaction.options : [];
+
+  const ensureInteractiveOptionsMedia = (pageType) => {
+    const hasOptionAudio = options.every((option) => Boolean(option.audioMediaId));
+    if (!hasOptionAudio) {
+      throw new Error(`${pageType} page requires audioMediaId for every interaction option`);
+    }
+
+    const hasOptionImages = options.every((option) => Boolean(option.imageMediaId));
+    if (!hasOptionImages) {
+      throw new Error(`${pageType} page requires imageMediaId for every interaction option (option icon)`);
+    }
+  };
+
+  const ensureInteractiveBackground = (pageType) => {
+    if (!media.backgroundImageMediaId) {
+      throw new Error(`${pageType} page requires media.backgroundImageMediaId (interactive background image)`);
+    }
+  };
 
   if (page.type === 'cover' && !media.imageMediaId) {
     throw new Error('Cover page requires media.imageMediaId');
@@ -182,6 +201,8 @@ function validatePageByType(page) {
     if (!Array.isArray(media.guideImageMediaIds) || media.guideImageMediaIds.length !== 2) {
       throw new Error('activity_drag_2x2 page requires exactly 2 guide images');
     }
+    ensureInteractiveOptionsMedia('activity_drag_2x2');
+    ensureInteractiveBackground('activity_drag_2x2');
   }
 
   if (page.type === 'activity_drag_2x1') {
@@ -197,6 +218,8 @@ function validatePageByType(page) {
     if (!media.guideImageMediaId) {
       throw new Error('activity_drag_2x1 page requires 1 guide image');
     }
+    ensureInteractiveOptionsMedia('activity_drag_2x1');
+    ensureInteractiveBackground('activity_drag_2x1');
   }
 
   if (page.scoring && page.scoring.enabled && page.scoring.points < 0) {

@@ -4,21 +4,41 @@ export const createEmptyPage = (index) => ({
   title: '',
   subtitle: '',
   imageUrl: '',
+  backgroundImageUrl: '',
   audioUrl: '',
   videoUrl: '',
   interactionMode: '',
+  optionAudioOne: '',
+  optionAudioTwo: '',
+  optionImageOne: '',
+  optionImageTwo: '',
   guideImageOne: '',
   guideImageTwo: '',
+  answerOneCorrectOptionId: '',
+  answerTwoCorrectOptionId: '',
 });
 
 export const resetPageByType = {
   subtitle: '',
   imageUrl: '',
+  backgroundImageUrl: '',
   audioUrl: '',
   videoUrl: '',
   interactionMode: '',
+  optionAudioOne: '',
+  optionAudioTwo: '',
+  optionImageOne: '',
+  optionImageTwo: '',
   guideImageOne: '',
   guideImageTwo: '',
+  answerOneCorrectOptionId: '',
+  answerTwoCorrectOptionId: '',
+};
+
+export const getOppositeInteractiveOption = (optionId) => {
+  if (optionId === 'option_one') return 'option_two';
+  if (optionId === 'option_two') return 'option_one';
+  return '';
 };
 
 export const isPageComplete = (page) => {
@@ -30,9 +50,18 @@ export const isPageComplete = (page) => {
     return Boolean(page.subtitle?.trim() && page.imageUrl?.trim() && page.audioUrl?.trim());
   }
   if (page.type === 'interactive') {
+    if (!page.backgroundImageUrl?.trim()) return false;
     if (!page.interactionMode) return false;
-    if (page.interactionMode === 'parallel_2x2') {
-      return Boolean(page.guideImageOne?.trim() && page.guideImageTwo?.trim());
+    const hasRequiredOptionAudio = Boolean(page.optionAudioOne?.trim() && page.optionAudioTwo?.trim());
+    const hasRequiredOptionIcons = Boolean(page.optionImageOne?.trim() && page.optionImageTwo?.trim());
+    if (!hasRequiredOptionAudio || !hasRequiredOptionIcons) return false;
+    if (!page.answerOneCorrectOptionId) return false;
+
+    if (page.interactionMode === 'two_options_two_answers') {
+      const hasTwoAnswerImages = Boolean(page.guideImageOne?.trim() && page.guideImageTwo?.trim());
+      const hasTwoMappings = Boolean(page.answerOneCorrectOptionId && page.answerTwoCorrectOptionId);
+      const hasUniqueMappings = page.answerOneCorrectOptionId !== page.answerTwoCorrectOptionId;
+      return Boolean(hasTwoAnswerImages && hasTwoMappings && hasUniqueMappings);
     }
     return Boolean(page.guideImageOne?.trim());
   }

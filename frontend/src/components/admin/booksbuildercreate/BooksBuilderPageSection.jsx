@@ -1,6 +1,7 @@
 import React from 'react';
-import { Paper, Typography } from '@mui/material';
+import { Box, MenuItem, Paper, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import BooksBuilderTypeDropArea from './BooksBuilderTypeDropArea';
 import BooksBuilderPageFields from './BooksBuilderPageFields';
 
@@ -20,7 +21,61 @@ const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage 
         width: '100%',
       }}
     >
-      <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+      {page.type === 'interactive' ? (
+        <Box
+          role="group"
+          aria-label={`Page ${pageIndex + 1} header`}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap',
+            rowGap: 1.5,
+          }}
+        >
+          <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+          <TextField
+            label="Interactive type"
+            size="small"
+            select
+            SelectProps={{
+              MenuProps: {
+                disableScrollLock: true,
+                keepMounted: false,
+              },
+            }}
+            value={page.interactionMode || 'two_options_one_answer'}
+            onChange={(event) => {
+              const nextMode = event.target.value;
+              if (nextMode === 'two_options_two_answers') {
+                const answerOne = page.answerOneCorrectOptionId || 'option_one';
+                onPatchPage(pageIndex, {
+                  interactionMode: nextMode,
+                  answerOneCorrectOptionId: answerOne,
+                  answerTwoCorrectOptionId: getOppositeInteractiveOption(answerOne),
+                });
+                return;
+              }
+              onPatchPage(pageIndex, {
+                interactionMode: nextMode,
+                answerTwoCorrectOptionId: '',
+              });
+            }}
+            sx={{
+              minWidth: { xs: '100%', sm: 200 },
+              maxWidth: { sm: 360 },
+              flex: { sm: '0 0 auto' },
+              ml: { sm: 'auto' },
+            }}
+          >
+            <MenuItem value="two_options_one_answer">2 options, 1 answer</MenuItem>
+            <MenuItem value="two_options_two_answers">2 options, 2 answers</MenuItem>
+          </TextField>
+        </Box>
+      ) : (
+        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+      )}
 
       <BooksBuilderTypeDropArea
         page={page}

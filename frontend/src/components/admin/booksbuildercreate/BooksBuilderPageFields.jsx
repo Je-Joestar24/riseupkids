@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import { Box, Button, Stack, TextField, Typography } from '@mui/material';
-import { CloudUpload } from '@mui/icons-material';
 import { isPageComplete } from './BooksBuilderCreate.utils';
 
 const BooksBuilderPageFields = ({ page, onPatch }) => {
@@ -162,7 +161,7 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
         </Box>
       ) : null}
 
-      {(page.type === 'demo' || page.type === 'reward') ? (
+      {page.type === 'reward' ? (
         <TextField
           label="Video URL (required)"
           size="small"
@@ -172,29 +171,13 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
       ) : null}
 
       {page.type === 'interactive' ? (
-        <>
-          <TextField
-            label="Interaction mode"
-            size="small"
-            placeholder="single_2x1 or parallel_2x2"
-            value={page.interactionMode}
-            onChange={(e) => onPatch({ interactionMode: e.target.value })}
-          />
-          <TextField
-            label="Guide image 1 (required)"
-            size="small"
-            value={page.guideImageOne}
-            onChange={(e) => onPatch({ guideImageOne: e.target.value })}
-          />
-          {page.interactionMode === 'parallel_2x2' ? (
-            <TextField
-              label="Guide image 2 (required for parallel)"
-              size="small"
-              value={page.guideImageTwo}
-              onChange={(e) => onPatch({ guideImageTwo: e.target.value })}
-            />
-          ) : null}
-        </>
+        <Typography
+          variant="caption"
+          sx={{ fontFamily: 'Quicksand, sans-serif', color: 'text.secondary', fontWeight: 700 }}
+        >
+          Use the top-left link in the canvas to upload the full-page background image, then add answers, options, and
+          mappings in the same area.
+        </Typography>
       ) : null}
 
       <Typography
