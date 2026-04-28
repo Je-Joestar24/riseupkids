@@ -2,19 +2,24 @@ import { useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   archiveCmsBook,
+  appendCmsBookBuilderPage,
   clearCmsBookAdminError,
   clearCurrentCmsBook,
   createCmsBook,
   fetchCmsBookById,
   fetchCmsBooks,
+  patchCmsBookBuilderPage,
   publishCmsBook,
+  resetCmsBookBuilderDraft,
   resetCmsBookAdminState,
   selectCmsBookAdmin,
   setCmsBookAdminFilters,
+  setCmsBookBuilderPages,
   unpublishCmsBook,
   updateCmsBook,
 } from '../store/slices/cmsBookAdminSlice';
 import { showNotification } from '../store/slices/uiSlice';
+import cmsBookAdminService from '../services/cmsBookAdminService';
 
 const useCmsBookAdmin = () => {
   const dispatch = useDispatch();
@@ -91,10 +96,41 @@ const useCmsBookAdmin = () => {
     [runThunk]
   );
 
+  const uploadBookMedia = useCallback(
+    async ({ file, mediaType, title, description }) => {
+      try {
+        return await cmsBookAdminService.uploadBookMedia({ file, mediaType, title, description });
+      } catch (error) {
+        dispatch(showNotification({ message: error || 'Failed to upload media', type: 'error' }));
+        throw error;
+      }
+    },
+    [dispatch]
+  );
+
   const updateFilters = useCallback(
     (filters) => dispatch(setCmsBookAdminFilters(filters)),
     [dispatch]
   );
+
+  const setBuilderPages = useCallback(
+    (pages) => dispatch(setCmsBookBuilderPages(pages)),
+    [dispatch]
+  );
+
+  const patchBuilderPage = useCallback(
+    (pageIndex, patch) => dispatch(patchCmsBookBuilderPage({ pageIndex, patch })),
+    [dispatch]
+  );
+
+  const appendBuilderPage = useCallback(
+    (page) => dispatch(appendCmsBookBuilderPage(page)),
+    [dispatch]
+  );
+
+  const resetBuilderDraft = useCallback(() => {
+    dispatch(resetCmsBookBuilderDraft());
+  }, [dispatch]);
 
   const clearError = useCallback(() => {
     dispatch(clearCmsBookAdminError());
@@ -118,7 +154,12 @@ const useCmsBookAdmin = () => {
       publishBook,
       unpublishBook,
       archiveBook,
+      uploadBookMedia,
       updateFilters,
+      setBuilderPages,
+      patchBuilderPage,
+      appendBuilderPage,
+      resetBuilderDraft,
       clearError,
       clearCurrentBook,
       resetState,
@@ -132,7 +173,12 @@ const useCmsBookAdmin = () => {
       publishBook,
       unpublishBook,
       archiveBook,
+      uploadBookMedia,
       updateFilters,
+      setBuilderPages,
+      patchBuilderPage,
+      appendBuilderPage,
+      resetBuilderDraft,
       clearError,
       clearCurrentBook,
       resetState,

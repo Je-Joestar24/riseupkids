@@ -1,4 +1,4 @@
-const { CmsBook } = require('../models');
+const { CmsBook, Media } = require('../models');
 
 function createHttpError(message, statusCode) {
   const err = new Error(message);
@@ -12,9 +12,10 @@ function parsePositiveInt(value, fallback) {
   return parsed;
 }
 
-function ensureParentAccess(userRole) {
-  if (userRole !== 'parent') {
-    throw createHttpError('Only parents can access book player', 403);
+function ensurePlayerAccess(userRole) {
+  const allowedRoles = ['parent', 'admin', 'teacher'];
+  if (!allowedRoles.includes(userRole)) {
+    throw createHttpError('Only parent/admin/teacher can access book player', 403);
   }
 }
 
@@ -40,6 +41,75 @@ function toPlayerPage(page) {
   };
 }
 
+function toMediaView(media) {
+  if (!media) return null;
+  return {
+    id: String(media._id),
+    type: media.type || null,
+    url: media.url || media.cloudUrl || null,
+    mimeType: media.mimeType || null,
+  };
+}
+
+function collectMediaIdsFromPages(pages = []) {
+  const ids = new Set();
+  pages.forEach((page) => {
+    const media = page?.media || {};
+    [
+      media.imageMediaId,
+      media.audioMediaId,
+      media.videoMediaId,
+      media.instructionAudioMediaId,
+      media.backgroundImageMediaId,
+      media.guideImageMediaId,
+      ...(Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : []),
+    ].forEach((id) => {
+      if (id) ids.add(String(id));
+    });
+
+    const options = Array.isArray(page?.interaction?.options) ? page.interaction.options : [];
+    options.forEach((option) => {
+      if (option?.imageMediaId) ids.add(String(option.imageMediaId));
+      if (option?.audioMediaId) ids.add(String(option.audioMediaId));
+    });
+  });
+  return Array.from(ids);
+}
+
+function enrichPageMedia(page, mediaMap) {
+  const base = toPlayerPage(page);
+  const media = base.media || {};
+  const resolveMedia = (id) => (id ? mediaMap.get(String(id)) || null : null);
+
+  const interaction = base.interaction
+    ? {
+        ...base.interaction,
+        options: (base.interaction.options || []).map((option) => ({
+          ...option,
+          imageMedia: resolveMedia(option.imageMediaId),
+          audioMedia: resolveMedia(option.audioMediaId),
+        })),
+      }
+    : null;
+
+  return {
+    ...base,
+    media: {
+      ...media,
+      imageMedia: resolveMedia(media.imageMediaId),
+      audioMedia: resolveMedia(media.audioMediaId),
+      videoMedia: resolveMedia(media.videoMediaId),
+      instructionAudioMedia: resolveMedia(media.instructionAudioMediaId),
+      backgroundImageMedia: resolveMedia(media.backgroundImageMediaId),
+      guideImageMedia: resolveMedia(media.guideImageMediaId),
+      guideImageMedias: Array.isArray(media.guideImageMediaIds)
+        ? media.guideImageMediaIds.map((id) => resolveMedia(id)).filter(Boolean)
+        : [],
+    },
+    interaction,
+  };
+}
+
 async function listPlayableCmsBooksForParent({
   userRole,
   page = 1,
@@ -47,7 +117,7 @@ async function listPlayableCmsBooksForParent({
   search = '',
   language,
 } = {}) {
-  ensureParentAccess(userRole);
+  ensurePlayerAccess(userRole);
 
   const safePage = parsePositiveInt(page, 1);
   const safeLimit = Math.min(parsePositiveInt(limit, 10), 100);
@@ -97,7 +167,7 @@ async function listPlayableCmsBooksForParent({
 }
 
 async function getPlayableCmsBookForParent({ userRole, bookId }) {
-  ensureParentAccess(userRole);
+  ensurePlayerAccess(userRole);
   if (!bookId) throw createHttpError('bookId is required', 400);
 
   const book = await CmsBook.findOne({
@@ -109,13 +179,21 @@ async function getPlayableCmsBookForParent({ userRole, bookId }) {
   if (!book) throw createHttpError('Playable book not found', 404);
 
   const orderedPages = [...(book.pages || [])].sort((a, b) => a.order - b.order);
+  const mediaIds = collectMediaIdsFromPages(orderedPages);
+  const mediaDocs = mediaIds.length
+    ? await Media.find({ _id: { $in: mediaIds }, isActive: true })
+      .select('_id type url cloudUrl mimeType')
+      .lean()
+    : [];
+  const mediaMap = new Map(mediaDocs.map((item) => [String(item._id), toMediaView(item)]));
+
   return {
     id: String(book._id),
     title: book.title,
     description: book.description || null,
     language: book.language || 'en',
     version: book.version || 1,
-    pages: orderedPages.map(toPlayerPage),
+    pages: orderedPages.map((page) => enrichPageMedia(page, mediaMap)),
   };
 }
 

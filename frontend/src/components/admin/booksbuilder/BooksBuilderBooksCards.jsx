@@ -2,7 +2,12 @@ import React from 'react';
 import { Box, CircularProgress, Grid, Paper, Typography } from '@mui/material';
 import BooksBuilderCard from './BooksBuilderCard';
 
-const BooksBuilderBooksCards = ({ books = [], loading = false }) => {
+const BooksBuilderBooksCards = ({
+  books = [],
+  loading = false,
+  onTestBook,
+  testingBookId = '',
+}) => {
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
@@ -28,7 +33,11 @@ const BooksBuilderBooksCards = ({ books = [], loading = false }) => {
     <Grid container spacing={2}>
       {books.map((book) => (
         <Grid key={book._id} item xs={12} sm={6} md={4} lg={3}>
-          <BooksBuilderCard book={book} />
+          <BooksBuilderCard
+            book={book}
+            onTest={onTestBook}
+            isTesting={Boolean(testingBookId && (book?._id === testingBookId || book?.id === testingBookId))}
+          />
         </Grid>
       ))}
     </Grid>

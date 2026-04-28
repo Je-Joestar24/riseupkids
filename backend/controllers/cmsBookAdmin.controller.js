@@ -115,6 +115,24 @@ const archiveCmsBook = async (req, res) => {
   }
 };
 
+const uploadCmsBookMedia = async (req, res) => {
+  try {
+    const data = await cmsBookAdminService.uploadCmsBookMedia({
+      userId: req.user?._id,
+      file: req.file,
+      mediaType: req.body?.mediaType,
+      title: req.body?.title,
+      description: req.body?.description,
+    });
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return res.status(resolveStatusCode(error, 400)).json({
+      success: false,
+      message: error.message || 'Failed to upload CMS book media',
+    });
+  }
+};
+
 module.exports = {
   createCmsBook,
   listCmsBooks,
@@ -123,4 +141,5 @@ module.exports = {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  uploadCmsBookMedia,
 };

@@ -1,4 +1,5 @@
-const { CmsBook } = require('../models');
+const { CmsBook, Media } = require('../models');
+const s3Service = require('./s3.service');
 
 function createHttpError(message, statusCode) {
   const err = new Error(message);
@@ -143,6 +144,53 @@ async function archiveCmsBook({ bookId, userId }) {
   return { id: String(book._id) };
 }
 
+async function uploadCmsBookMedia({
+  userId,
+  file,
+  mediaType,
+  title,
+  description,
+}) {
+  if (!userId) throw createHttpError('userId is required', 400);
+  if (!file || !file.buffer) throw createHttpError('Media file is required', 400);
+
+  const normalizedType = ['image', 'audio', 'video'].includes(String(mediaType || '').toLowerCase())
+    ? String(mediaType).toLowerCase()
+    : (file.mimetype?.startsWith('image/')
+      ? 'image'
+      : file.mimetype?.startsWith('audio/')
+        ? 'audio'
+        : file.mimetype?.startsWith('video/')
+          ? 'video'
+          : null);
+
+  if (!normalizedType) {
+    throw createHttpError('Invalid media type. Expected image/audio/video', 400);
+  }
+
+  const folder = normalizedType === 'image'
+    ? 'media/images'
+    : normalizedType === 'audio'
+      ? 'media/audio'
+      : 'media/videos';
+
+  const { url, s3Key } = await s3Service.uploadFileFromMulter(file, folder);
+  const media = await Media.create({
+    type: normalizedType,
+    title: title?.trim() || file.originalname,
+    description: description?.trim() || null,
+    filePath: s3Key,
+    cloudUrl: url,
+    url,
+    mimeType: file.mimetype,
+    size: file.size,
+    uploadedBy: userId,
+    isPublished: true,
+  });
+
+  return media;
+}
+
 module.exports = {
   createCmsBook,
   listCmsBooks,
@@ -151,4 +199,5 @@ module.exports = {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  uploadCmsBookMedia,
 };

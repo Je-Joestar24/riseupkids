@@ -1,9 +1,24 @@
 import React from 'react';
-import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { MenuBookOutlined as MenuBookOutlinedIcon, Language as LanguageIcon } from '@mui/icons-material';
 
-const BooksBuilderCard = ({ book }) => {
+const resolveBookIntroImage = (book) => {
+  const pages = Array.isArray(book?.pages) ? book.pages : [];
+  const introLikePage = pages.find((page) => page?.type === 'intro' || page?.type === 'cover');
+  if (!introLikePage) return '';
+
+  return (
+    introLikePage.imageUrl
+    || introLikePage?.media?.imageUrl
+    || introLikePage?.media?.image?.url
+    || introLikePage?.media?.imageMedia?.url
+    || ''
+  );
+};
+
+const BooksBuilderCard = ({ book, onTest, isTesting = false }) => {
   const pageCount = Array.isArray(book?.pages) ? book.pages.length : 0;
+  const introImageUrl = resolveBookIntroImage(book);
 
   return (
     <Card
@@ -27,9 +42,24 @@ const BooksBuilderCard = ({ book }) => {
           borderBottom: (theme) => `1px solid ${theme.palette.border.main}`,
         }}
       >
-        <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
-          <MenuBookOutlinedIcon sx={{ fontSize: 52, color: 'orange.main', opacity: 0.9 }} />
-        </Box>
+        {introImageUrl ? (
+          <Box
+            component="img"
+            src={introImageUrl}
+            alt={book?.title || 'Book intro preview'}
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : (
+          <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+            <MenuBookOutlinedIcon sx={{ fontSize: 52, color: 'orange.main', opacity: 0.9 }} />
+          </Box>
+        )}
         <Chip
           label={`${pageCount} pages`}
           size="small"
@@ -73,6 +103,20 @@ const BooksBuilderCard = ({ book }) => {
             />
             <Chip size="small" label={`v${book?.version || 1}`} sx={{ fontFamily: 'Quicksand, sans-serif' }} />
           </Stack>
+          <Button
+            variant="outlined"
+            onClick={() => onTest?.(book)}
+            disabled={isTesting}
+            aria-label={`Test book ${book?.title || ''}`}
+            sx={{
+              alignSelf: 'flex-start',
+              borderRadius: '10px',
+              textTransform: 'none',
+              fontWeight: 700,
+            }}
+          >
+            {isTesting ? 'Loading...' : 'Test'}
+          </Button>
         </Stack>
       </CardContent>
     </Card>

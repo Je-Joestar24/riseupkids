@@ -44,6 +44,23 @@ const cmsBookAdminService = {
     }
   },
 
+  uploadBookMedia: async ({ file, mediaType, title, description }) => {
+    try {
+      if (!file) throw new Error('File is required');
+      const formData = new FormData();
+      formData.append('file', file);
+      if (mediaType) formData.append('mediaType', mediaType);
+      if (title) formData.append('title', title);
+      if (description) formData.append('description', description);
+      const response = await api.post(`${BASE_PATH}/media`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to upload CMS book media');
+    }
+  },
+
   updateBook: async (bookId, payload) => {
     try {
       const response = await api.put(`${BASE_PATH}/${bookId}`, sanitizePayload(payload));

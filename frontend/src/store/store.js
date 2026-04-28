@@ -16,6 +16,7 @@ import languageReducer from './slices/languageSlice';
 import printableManagementReducer from './slices/printableManagementSlice';
 import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
+import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
 
 export const store = configureStore({
   reducer: {
@@ -36,6 +37,7 @@ export const store = configureStore({
     printableManagement: printableManagementReducer, // Admin printable materials state
     starCamMissionAdmin: starCamMissionAdminReducer, // Star Cam mission/category admin state
     cmsBookAdmin: cmsBookAdminReducer, // Admin CMS book builder state
+    cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

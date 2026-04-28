@@ -4,19 +4,42 @@ jest.mock('../models', () => ({
     find: jest.fn(),
     findOne: jest.fn(),
   },
+  Media: {
+    find: jest.fn(),
+  },
 }));
 
-const { CmsBook } = require('../models');
+const { CmsBook, Media } = require('../models');
 const service = require('../services/cmsBookPlayer.service');
 
 describe('cmsBookPlayer.service', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
   });
 
-  it('rejects non-parent access for playable list', async () => {
+  it('allows admin access for playable list', async () => {
+    CmsBook.countDocuments.mockResolvedValue(0);
+    CmsBook.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
+    const result = await service.listPlayableCmsBooksForParent({ userRole: 'admin', page: 1, limit: 10 });
+    expect(result).toMatchObject({
+      items: [],
+      pagination: expect.any(Object),
+    });
+  });
+
+  it('rejects unauthorized access for playable list', async () => {
     await expect(
-      service.listPlayableCmsBooksForParent({ userRole: 'admin', page: 1, limit: 10 })
+      service.listPlayableCmsBooksForParent({ userRole: 'child', page: 1, limit: 10 })
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
@@ -70,9 +93,24 @@ describe('cmsBookPlayer.service', () => {
     expect(result.pages[1].pageId).toBe('p2');
   });
 
-  it('rejects non-parent access for play by id', async () => {
+  it('allows teacher access for play by id', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Animals 1',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [],
+      }),
+    });
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'teacher', bookId: 'book-1' });
+    expect(result).toMatchObject({ id: 'book-1' });
+  });
+
+  it('rejects unauthorized access for play by id', async () => {
     await expect(
-      service.getPlayableCmsBookForParent({ userRole: 'teacher', bookId: 'book-1' })
+      service.getPlayableCmsBookForParent({ userRole: 'child', bookId: 'book-1' })
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 });

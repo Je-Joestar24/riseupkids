@@ -120,3 +120,51 @@ export const isValidPageSequence = (pages) => {
   if (introCount !== 1) return false;
   return true;
 };
+
+export const buildCmsBookCreatePayload = (pages = [], cmsPages = []) => {
+  const safePages = Array.isArray(pages) ? pages : [];
+  const firstTitledPage = safePages.find((page) => String(page?.title || '').trim());
+  const title = firstTitledPage?.title?.trim() || `Built-in Book ${new Date().toISOString().slice(0, 10)}`;
+  const typedPageCount = safePages.filter((page) => Boolean(page?.type)).length;
+
+  return {
+    title,
+    description: `Built with Books Builder (${typedPageCount} configured pages).`,
+    language: 'en',
+    pages: Array.isArray(cmsPages) ? cmsPages : [],
+  };
+};
+
+const normalizeInteractiveKind = (interactionMode) =>
+  interactionMode === 'two_options_two_answers' ? 'drag_2x2' : 'drag_2x1';
+
+const toCmsPageType = (builderType, interactionMode) => {
+  if (builderType === 'intro') return 'cover';
+  if (builderType === 'demo') return 'activity_demo_video';
+  if (builderType === 'interactive') {
+    return normalizeInteractiveKind(interactionMode) === 'drag_2x2'
+      ? 'activity_drag_2x2'
+      : 'activity_drag_2x1';
+  }
+  return builderType;
+};
+
+export const buildCmsPageSkeleton = ({ page, index }) => ({
+  pageId: page?.id || `page-${index + 1}`,
+  order: index + 1,
+  type: toCmsPageType(page?.type, page?.interactionMode),
+  title: page?.title?.trim() || null,
+  subtitle: page?.subtitle?.trim() || null,
+  media: {},
+  interaction: null,
+  navigation: {
+    allowBack: true,
+    allowNext: true,
+    requireCompletionToNext: Boolean(page?.type === 'interactive'),
+  },
+  scoring: {
+    enabled: false,
+    points: 0,
+    awardMode: 'once_on_correct',
+  },
+});

@@ -102,6 +102,9 @@ const initialState = {
     details: false,
     mutating: false,
   },
+  builderDraft: {
+    pages: [],
+  },
   error: null,
   lastAction: null,
 };
@@ -132,6 +135,24 @@ const cmsBookAdminSlice = createSlice({
     },
     setCmsBookAdminFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
+    },
+    setCmsBookBuilderPages: (state, action) => {
+      state.builderDraft.pages = Array.isArray(action.payload) ? action.payload : [];
+    },
+    patchCmsBookBuilderPage: (state, action) => {
+      const { pageIndex, patch } = action.payload || {};
+      if (!Number.isInteger(pageIndex)) return;
+      const prev = state.builderDraft.pages[pageIndex];
+      if (!prev) return;
+      state.builderDraft.pages[pageIndex] = { ...prev, ...(patch || {}) };
+    },
+    appendCmsBookBuilderPage: (state, action) => {
+      const page = action.payload;
+      if (!page || typeof page !== 'object') return;
+      state.builderDraft.pages.push(page);
+    },
+    resetCmsBookBuilderDraft: (state) => {
+      state.builderDraft = { pages: [] };
     },
     resetCmsBookAdminState: () => initialState,
   },
@@ -260,6 +281,10 @@ export const {
   clearCmsBookAdminError,
   clearCurrentCmsBook,
   setCmsBookAdminFilters,
+  setCmsBookBuilderPages,
+  patchCmsBookBuilderPage,
+  appendCmsBookBuilderPage,
+  resetCmsBookBuilderDraft,
   resetCmsBookAdminState,
 } = cmsBookAdminSlice.actions;
 

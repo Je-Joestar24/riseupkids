@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { protect, authorize } = require('../middleware/auth');
+const { upload } = require('../middleware/upload');
 const {
   createCmsBook,
   listCmsBooks,
@@ -9,6 +10,7 @@ const {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  uploadCmsBookMedia,
 } = require('../controllers/cmsBookAdmin.controller');
 
 const router = express.Router();
@@ -16,6 +18,7 @@ const router = express.Router();
 router.use(protect);
 router.use(authorize('admin', 'teacher'));
 
+router.post('/media', upload.single('file'), uploadCmsBookMedia);
 router.post('/', createCmsBook);
 router.get('/', listCmsBooks);
 router.get('/:id', getCmsBookById);

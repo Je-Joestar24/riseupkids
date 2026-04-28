@@ -161,15 +161,6 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
         </Box>
       ) : null}
 
-      {page.type === 'reward' ? (
-        <TextField
-          label="Video URL (required)"
-          size="small"
-          value={page.videoUrl}
-          onChange={(e) => onPatch({ videoUrl: e.target.value })}
-        />
-      ) : null}
-
       {page.type === 'interactive' ? (
         <Typography
           variant="caption"

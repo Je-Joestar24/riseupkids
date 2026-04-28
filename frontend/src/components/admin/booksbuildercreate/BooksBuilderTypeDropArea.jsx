@@ -24,14 +24,16 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const selectedLabel = PAGE_TYPES.find((item) => item.key === page.type)?.label || null;
   const isIntroPage = page.type === 'intro';
   const isDemoPage = page.type === 'demo';
+  const isRewardPage = page.type === 'reward';
+  const isVideoUploadPage = isDemoPage || isRewardPage;
   const isContentPage = page.type === 'content';
   const isInteractivePage = page.type === 'interactive';
   const isParallelInteractive = page.interactionMode === 'two_options_two_answers';
   const hasIntroImage = Boolean(page.imageUrl);
   const hasContentImage = Boolean(page.imageUrl);
-  const hasDemoVideo = Boolean(page.videoUrl);
+  const hasUploadedVideo = Boolean(page.videoUrl);
   const hasInteractiveBackground = Boolean(page.backgroundImageUrl);
-  const hasPrimaryMedia = hasIntroImage || hasDemoVideo;
+  const hasPrimaryMedia = hasIntroImage || (isVideoUploadPage && hasUploadedVideo);
   const [isSubtitleEditing, setIsSubtitleEditing] = useState(false);
 
   const handleIntroImageUpload = (event) => {
@@ -53,7 +55,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
       introImageInputRef.current?.click();
       return;
     }
-    if (isDemoPage) {
+    if (isVideoUploadPage) {
       demoVideoInputRef.current?.click();
       return;
     }
@@ -853,8 +855,8 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
       aria-label={
         isIntroPage
           ? `Upload intro image for page ${pageIndex + 1}`
-          : isDemoPage
-            ? `Upload demo video for page ${pageIndex + 1}`
+          : isVideoUploadPage
+            ? `Upload ${isRewardPage ? 'reward' : 'demo'} video for page ${pageIndex + 1}`
           : `Add content type for page ${pageIndex + 1}`
       }
       onClick={(event) => handleDropAreaAction(event.currentTarget)}
@@ -918,7 +920,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
           }}
         />
       ) : null}
-      {isDemoPage && hasDemoVideo ? (
+      {isVideoUploadPage && hasUploadedVideo ? (
         <Box
           component="video"
           src={page.videoUrl}
@@ -947,7 +949,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
           px: 2,
           py: 2,
           borderRadius: '14px',
-          backgroundColor: (isIntroPage && hasIntroImage) || (isDemoPage && hasDemoVideo)
+          backgroundColor: (isIntroPage && hasIntroImage) || (isVideoUploadPage && hasUploadedVideo)
             ? 'rgba(0, 0, 0, 0.35)'
             : 'transparent',
         }}
@@ -964,8 +966,8 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
       >
         {isIntroPage
           ? (hasIntroImage ? 'Click to replace intro image' : 'Upload Intro Image')
-          : isDemoPage
-            ? (hasDemoVideo ? 'Click to replace demo video' : 'Upload Demo Video')
+          : isVideoUploadPage
+            ? (hasUploadedVideo ? `Click to replace ${isRewardPage ? 'reward' : 'demo'} video` : `Upload ${isRewardPage ? 'Reward' : 'Demo'} Video`)
           : selectedLabel || 'Add Content'}
       </Typography>
       <Typography
@@ -977,7 +979,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
       >
         {isIntroPage
           ? 'Image fills the full create area'
-          : isDemoPage
+          : isVideoUploadPage
             ? 'Video fills the full create area'
           : 'Click to choose page type'}
       </Typography>

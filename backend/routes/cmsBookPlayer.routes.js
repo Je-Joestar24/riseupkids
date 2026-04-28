@@ -6,7 +6,7 @@ const { listPlayableBooks, getPlayableBookById } = require('../controllers/cmsBo
 const router = express.Router();
 
 router.use(protect);
-router.use(authorize('parent'));
+router.use(authorize('parent', 'admin', 'teacher'));
 
 router.get('/playable', listPlayableBooks);
 router.get('/:id/play', getPlayableBookById);
