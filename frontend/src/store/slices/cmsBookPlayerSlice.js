@@ -23,6 +23,28 @@ export const fetchPlayableCmsBookById = createAsyncThunk(
   }
 );
 
+export const preloadPlayableCmsBookMedia = createAsyncThunk(
+  'cmsBookPlayer/preloadPlayableBookMedia',
+  async ({ bookId, pages = [] } = {}, { dispatch, rejectWithValue }) => {
+    try {
+      dispatch(setCmsBookPlayerPreloadProgress(0));
+      const result = await cmsBookPlayerService.preloadBookMedia({
+        pages,
+        onProgress: ({ progress }) => {
+          dispatch(setCmsBookPlayerPreloadProgress(progress));
+        },
+      });
+
+      return {
+        ...result,
+        bookId: bookId || null,
+      };
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to preload playable book media');
+    }
+  }
+);
+
 const initialState = {
   books: [],
   currentBook: null,
@@ -43,7 +65,10 @@ const initialState = {
   loading: {
     list: false,
     details: false,
+    preload: false,
   },
+  preloadProgress: 0,
+  preloadSummary: null,
   error: null,
   lastAction: null,
 };
@@ -64,6 +89,14 @@ const cmsBookPlayerSlice = createSlice({
     },
     setCmsBookPlayerFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
+    },
+    setCmsBookPlayerPreloadProgress: (state, action) => {
+      state.preloadProgress = Number(action.payload) || 0;
+    },
+    clearCmsBookPreloadState: (state) => {
+      state.loading.preload = false;
+      state.preloadProgress = 0;
+      state.preloadSummary = null;
     },
     resetCmsBookPlayerState: () => initialState,
   },
@@ -95,6 +128,22 @@ const cmsBookPlayerSlice = createSlice({
       .addCase(fetchPlayableCmsBookById.rejected, (state, action) => {
         state.loading.details = false;
         setError(state, action);
+      })
+      .addCase(preloadPlayableCmsBookMedia.pending, (state) => {
+        state.loading.preload = true;
+        state.preloadProgress = 0;
+        state.preloadSummary = null;
+        state.error = null;
+      })
+      .addCase(preloadPlayableCmsBookMedia.fulfilled, (state, action) => {
+        state.loading.preload = false;
+        state.preloadProgress = 100;
+        state.preloadSummary = action.payload || null;
+        state.lastAction = 'preloadPlayableBookMedia';
+      })
+      .addCase(preloadPlayableCmsBookMedia.rejected, (state, action) => {
+        state.loading.preload = false;
+        setError(state, action);
       });
   },
 });
@@ -103,6 +152,8 @@ export const {
   clearCmsBookPlayerError,
   clearCurrentPlayableCmsBook,
   setCmsBookPlayerFilters,
+  setCmsBookPlayerPreloadProgress,
+  clearCmsBookPreloadState,
   resetCmsBookPlayerState,
 } = cmsBookPlayerSlice.actions;
 

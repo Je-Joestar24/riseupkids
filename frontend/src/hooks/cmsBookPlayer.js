@@ -1,10 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  clearCmsBookPreloadState,
   clearCmsBookPlayerError,
   clearCurrentPlayableCmsBook,
   fetchPlayableCmsBookById,
   fetchPlayableCmsBooks,
+  preloadPlayableCmsBookMedia,
   resetCmsBookPlayerState,
   selectCmsBookPlayer,
   setCmsBookPlayerFilters,
@@ -37,6 +39,11 @@ const useCmsBookPlayer = () => {
     [runThunk]
   );
 
+  const preloadBookMedia = useCallback(
+    ({ bookId, pages }) => runThunk(preloadPlayableCmsBookMedia({ bookId, pages }), 'Failed to preload playable book media'),
+    [runThunk]
+  );
+
   const updateFilters = useCallback(
     (filters) => dispatch(setCmsBookPlayerFilters(filters)),
     [dispatch]
@@ -50,6 +57,10 @@ const useCmsBookPlayer = () => {
     dispatch(clearCurrentPlayableCmsBook());
   }, [dispatch]);
 
+  const clearPreloadState = useCallback(() => {
+    dispatch(clearCmsBookPreloadState());
+  }, [dispatch]);
+
   const resetState = useCallback(() => {
     dispatch(resetCmsBookPlayerState());
   }, [dispatch]);
@@ -59,18 +70,22 @@ const useCmsBookPlayer = () => {
       ...state,
       loadPlayableBooks,
       loadPlayableBookById,
+      preloadBookMedia,
       updateFilters,
       clearError,
       clearCurrentBook,
+      clearPreloadState,
       resetState,
     }),
     [
       state,
       loadPlayableBooks,
       loadPlayableBookById,
+      preloadBookMedia,
       updateFilters,
       clearError,
       clearCurrentBook,
+      clearPreloadState,
       resetState,
     ]
   );

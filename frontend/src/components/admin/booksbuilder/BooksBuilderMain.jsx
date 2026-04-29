@@ -11,7 +11,14 @@ import CmsBooksModalTest from '../common/CmsBooksModalTest';
 const BooksBuilderMain = () => {
   const navigate = useNavigate();
   const { books, pagination, loading, filters, loadBooks, updateFilters } = useCmsBookAdmin();
-  const { loadPlayableBookById } = useCmsBookPlayer();
+  const {
+    loadPlayableBookById,
+    preloadBookMedia,
+    clearPreloadState,
+    preloadProgress,
+    preloadSummary,
+    loading: playerLoading,
+  } = useCmsBookPlayer();
   const [searchInput, setSearchInput] = useState(filters?.search || '');
   const [testingBook, setTestingBook] = useState(null);
   const [testingBookId, setTestingBookId] = useState('');
@@ -45,18 +52,26 @@ const BooksBuilderMain = () => {
     }
 
     setTestingBookId(targetId);
+    clearPreloadState();
     try {
       const response = await loadPlayableBookById(targetId);
       const playableBook = response?.data || null;
-      if (playableBook) {
-        setTestingBook({
+      const activeBook = playableBook
+        ? {
           ...book,
           ...playableBook,
           pages: playableBook.pages || [],
-        });
-        return;
+        }
+        : book;
+      const pages = activeBook?.pages || [];
+
+      setTestingBook(activeBook);
+
+      if (pages.length > 0) {
+        await preloadBookMedia({ bookId: targetId, pages });
       }
-      setTestingBook(book);
+
+      if (playableBook) return;
     } catch (_error) {
       // If playable endpoint is unavailable for current role, fallback to local book payload.
       setTestingBook(book);
@@ -98,8 +113,14 @@ const BooksBuilderMain = () => {
 
       <CmsBooksModalTest
         open={Boolean(testingBook)}
-        onClose={() => setTestingBook(null)}
+        onClose={() => {
+          setTestingBook(null);
+          clearPreloadState();
+        }}
         pages={testingBook?.pages || []}
+        isPreloading={Boolean(playerLoading?.preload)}
+        preloadProgress={preloadProgress}
+        preloadSummary={preloadSummary}
       />
     </Box>
   );

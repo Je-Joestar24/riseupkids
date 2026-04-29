@@ -85,25 +85,27 @@ export const isValidPageSequence = (pages) => {
     if (type === 'intro') {
       introCount += 1;
       if (introCount > 1 || index !== 0 || stage !== 'intro') return false;
-      stage = 'content_or_demo';
+      stage = 'content';
       continue;
     }
 
     if (type === 'content') {
-      if (stage !== 'content_or_demo') return false;
+      if (stage !== 'content' && stage !== 'after_content') return false;
       contentCount += 1;
+      stage = 'after_content';
       continue;
     }
 
     if (type === 'demo') {
       demoCount += 1;
-      if (demoCount > 1 || stage !== 'content_or_demo' || contentCount === 0) return false;
+      if (demoCount > 1 || stage !== 'after_content' || contentCount === 0) return false;
       stage = 'interactive_or_reward';
       continue;
     }
 
     if (type === 'interactive') {
-      if (stage !== 'interactive_or_reward') return false;
+      if (stage !== 'after_content' && stage !== 'interactive_or_reward') return false;
+      stage = 'interactive_or_reward';
       continue;
     }
 

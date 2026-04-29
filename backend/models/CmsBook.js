@@ -259,9 +259,11 @@ cmsBookSchema.pre('validate', function (next) {
 
       if (isInteractivePage(page.type)) {
         const previousPage = pages[i - 1];
-        if (!previousPage || previousPage.type !== 'activity_demo_video') {
+        const hasValidPreviousPage = previousPage
+          && (previousPage.type === 'activity_demo_video' || previousPage.type === 'content');
+        if (!hasValidPreviousPage) {
           throw new Error(
-            `Interactive page at order=${page.order} must be preceded by activity_demo_video page`
+            `Interactive page at order=${page.order} must be preceded by content or activity_demo_video page`
           );
         }
       }

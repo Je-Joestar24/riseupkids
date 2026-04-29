@@ -335,7 +335,7 @@ const BooksBuilderCreateMain = () => {
           onClick={() => appendBuilderPage(createEmptyPage(pages.length))}
           sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
         >
-          Add Next Content
+          Add Next Page
         </Button>
       ) : null}
 
