@@ -82,16 +82,19 @@ describe('cmsBookAdmin.service', () => {
     expect(doc.save).toHaveBeenCalled();
   });
 
-  it('rejects updating published book content', async () => {
-    CmsBook.findById.mockResolvedValue(makeDoc({ status: 'published' }));
+  it('updates published cms book', async () => {
+    const doc = makeDoc({ status: 'published', title: 'Old Published' });
+    CmsBook.findById.mockResolvedValue(doc);
 
-    await expect(
-      service.updateCmsBook({
-        bookId: 'book-1',
-        userId: 'admin-1',
-        patch: { title: 'New Title' },
-      })
-    ).rejects.toMatchObject({ statusCode: 400 });
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: { title: 'Updated Published' },
+    });
+
+    expect(result.title).toBe('Updated Published');
+    expect(result.updatedBy).toBe('admin-1');
+    expect(doc.save).toHaveBeenCalled();
   });
 
   it('publishes book', async () => {

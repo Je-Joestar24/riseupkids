@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button } from '@mui/material';
 import { AddCircleOutline } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import useCmsBookAdmin from '../../../hooks/cmsBookAdminHook';
+import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import CmsBooksModalTest from '../common/CmsBooksModalTest';
 import BooksBuilderCreateHeader from './BooksBuilderCreateHeader';
 import BooksBuilderPageSection from './BooksBuilderPageSection';
@@ -11,6 +12,7 @@ import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 import {
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
+  buildBuilderPageFromCms,
   createEmptyPage,
   isPageComplete,
   isValidPageSequence,
@@ -19,34 +21,85 @@ import {
 
 const BooksBuilderCreateMain = () => {
   const navigate = useNavigate();
+  const { bookId } = useParams();
+  const isEditMode = Boolean(bookId);
   const {
     addBook,
+    editBook,
+    loadBookById,
     loading,
     builderDraft,
     setBuilderPages,
     patchBuilderPage,
-    appendBuilderPage,
     resetBuilderDraft,
     uploadBookMedia,
   } = useCmsBookAdmin();
+  const { loadPlayableBookById } = useCmsBookPlayer();
   const pages = builderDraft?.pages || [];
   const [menuPosition, setMenuPosition] = useState(null);
   const [activePageIndex, setActivePageIndex] = useState(null);
   const [isTesterOpen, setIsTesterOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [bookMeta, setBookMeta] = useState(null);
 
   useEffect(() => {
-    if (!pages.length) {
+    if (!isEditMode && !pages.length) {
       setBuilderPages([createEmptyPage(0)]);
     }
-  }, [pages.length, setBuilderPages]);
+  }, [isEditMode, pages.length, setBuilderPages]);
 
-  const canAddNext = useMemo(() => {
-    if (!pages.length) return false;
-    if (!isPageComplete(pages[0])) return false;
-    if (!isValidPageSequence(pages)) return false;
-    return pages.every((page) => isPageComplete(page));
-  }, [pages]);
+  useEffect(() => {
+    const initEditDraft = async () => {
+      if (!isEditMode || !bookId) return;
+      setIsInitializing(true);
+      try {
+        const adminResponse = await loadBookById(bookId);
+        const adminBook = adminResponse?.data || null;
+        if (!adminBook) return;
+
+        let playableBook = null;
+        try {
+          const playableResponse = await loadPlayableBookById(bookId);
+          playableBook = playableResponse?.data || null;
+        } catch (_error) {
+          playableBook = null;
+        }
+
+        const playableByPageId = new Map(
+          (playableBook?.pages || []).map((page) => [String(page.pageId || ''), page])
+        );
+        const sourcePages = Array.isArray(adminBook.pages) ? [...adminBook.pages] : [];
+        sourcePages.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const mappedPages = sourcePages.map((page, index) => {
+          const playablePage = playableByPageId.get(String(page.pageId || ''));
+          const mergedPage = playablePage
+            ? {
+                ...page,
+                media: {
+                  ...(page.media || {}),
+                  ...(playablePage.media || {}),
+                },
+                interaction: playablePage.interaction || page.interaction || null,
+              }
+            : page;
+          return buildBuilderPageFromCms(mergedPage, index);
+        });
+
+        setBookMeta({
+          title: adminBook.title || '',
+          description: adminBook.description || '',
+          language: adminBook.language || 'en',
+        });
+        setBuilderPages(mappedPages.length ? mappedPages : [createEmptyPage(0)]);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initEditDraft();
+  }, [bookId, isEditMode, loadBookById, loadPlayableBookById, setBuilderPages]);
 
   const canSaveBook = useMemo(() => {
     if (!pages.length) return false;
@@ -103,6 +156,17 @@ const BooksBuilderCreateMain = () => {
     patchBuilderPage(pageIndex, patch);
   };
 
+  const insertPageAfter = useCallback(
+    (pageIndex) => {
+      const currentPage = pages[pageIndex];
+      if (!currentPage || currentPage.type === 'reward') return;
+      const nextPages = [...pages];
+      nextPages.splice(pageIndex + 1, 0, createEmptyPage(pageIndex + 1));
+      setBuilderPages(nextPages);
+    },
+    [pages, setBuilderPages]
+  );
+
   const selectPageType = (typeKey) => {
     if (activePageIndex == null) return;
     if (!availableTypeOptions.some((option) => option.key === typeKey)) return;
@@ -138,7 +202,7 @@ const BooksBuilderCreateMain = () => {
       return new File([blob], filename, { type: blob.type || fallbackMime || 'application/octet-stream' });
     };
 
-    const ensureUploadedMediaId = async ({ source, mediaType, title }) => {
+    const ensureUploadedMediaId = async ({ source, mediaType, title, existingMediaId = null }) => {
       if (!source) return null;
       if (typeof source !== 'string') return null;
       if (mediaCache.has(source)) return mediaCache.get(source);
@@ -148,8 +212,7 @@ const BooksBuilderCreateMain = () => {
         const fallbackMime = mediaType === 'image' ? 'image/png' : mediaType === 'audio' ? 'audio/mpeg' : 'video/mp4';
         fileToUpload = await dataUrlToFile(source, `${mediaType}-${Date.now()}`, fallbackMime);
       } else {
-        // For now, the builder stores local data URLs. Non-data URLs are not supported in this save flow.
-        return null;
+        return existingMediaId || null;
       }
 
       const uploadResponse = await uploadBookMedia({
@@ -175,23 +238,27 @@ const BooksBuilderCreateMain = () => {
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Cover'} image`,
+            existingMediaId: page.imageMediaId,
           });
         } else if (page.type === 'demo' || page.type === 'reward') {
           pagePayload.media.videoMediaId = await ensureUploadedMediaId({
             source: page.videoUrl,
             mediaType: 'video',
             title: `${page.title || 'Video'} video`,
+            existingMediaId: page.videoMediaId,
           });
         } else if (page.type === 'content') {
           pagePayload.media.imageMediaId = await ensureUploadedMediaId({
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Content'} image`,
+            existingMediaId: page.imageMediaId,
           });
           pagePayload.media.audioMediaId = await ensureUploadedMediaId({
             source: page.audioUrl,
             mediaType: 'audio',
             title: `${page.title || 'Content'} audio`,
+            existingMediaId: page.audioMediaId,
           });
         } else if (page.type === 'interactive') {
           const isTwoAnswer = page.interactionMode === 'two_options_two_answers';
@@ -199,6 +266,7 @@ const BooksBuilderCreateMain = () => {
             source: page.backgroundImageUrl,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} background`,
+            existingMediaId: page.backgroundImageMediaId,
           });
 
           if (isTwoAnswer) {
@@ -206,11 +274,13 @@ const BooksBuilderCreateMain = () => {
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide one`,
+              existingMediaId: page.guideImageMediaIds?.[0] || page.guideImageMediaId,
             });
             const guideTwo = await ensureUploadedMediaId({
               source: page.guideImageTwo,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide two`,
+              existingMediaId: page.guideImageMediaIds?.[1] || null,
             });
             pagePayload.media.guideImageMediaIds = [guideOne, guideTwo].filter(Boolean);
           } else {
@@ -218,6 +288,7 @@ const BooksBuilderCreateMain = () => {
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide`,
+              existingMediaId: page.guideImageMediaId || page.guideImageMediaIds?.[0] || null,
             });
           }
 
@@ -225,21 +296,25 @@ const BooksBuilderCreateMain = () => {
             source: page.optionImageOne,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option one image`,
+            existingMediaId: page.optionOneImageMediaId,
           });
           const optionOneAudioId = await ensureUploadedMediaId({
             source: page.optionAudioOne,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option one audio`,
+            existingMediaId: page.optionOneAudioMediaId,
           });
           const optionTwoImageId = await ensureUploadedMediaId({
             source: page.optionImageTwo,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option two image`,
+            existingMediaId: page.optionTwoImageMediaId,
           });
           const optionTwoAudioId = await ensureUploadedMediaId({
             source: page.optionAudioTwo,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option two audio`,
+            existingMediaId: page.optionTwoAudioMediaId,
           });
 
           pagePayload.interaction = {
@@ -286,26 +361,53 @@ const BooksBuilderCreateMain = () => {
       }
 
       const payload = buildCmsBookCreatePayload(pages, cmsPages);
-      await addBook(payload, { successMessage: 'Book saved successfully' });
+      if (isEditMode && bookId) {
+        await editBook(
+          bookId,
+          {
+            title: bookMeta?.title || payload.title,
+            description: bookMeta?.description || payload.description,
+            language: bookMeta?.language || payload.language || 'en',
+            pages: payload.pages,
+          },
+          { successMessage: 'Book updated successfully' }
+        );
+      } else {
+        await addBook(payload, { successMessage: 'Book saved successfully' });
+      }
       resetBuilderDraft();
       navigate('/admin/built-in-books');
     } finally {
       setIsSaving(false);
     }
-  }, [addBook, isSaving, loading?.mutating, navigate, pages, resetBuilderDraft, uploadBookMedia]);
+  }, [addBook, bookId, bookMeta?.description, bookMeta?.language, bookMeta?.title, editBook, isEditMode, isSaving, loading?.mutating, navigate, pages, resetBuilderDraft, uploadBookMedia]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <BooksBuilderCreateHeader onBack={() => navigate('/admin/built-in-books')} />
 
       {pages.map((page, index) => (
-        <BooksBuilderPageSection
-          key={page.id}
-          page={page}
-          pageIndex={index}
-          onOpenTypeMenu={openTypeMenu}
-          onPatchPage={updatePage}
-        />
+        <Box key={page.id || `page-${index + 1}`} sx={{ mb: 2 }}>
+          <BooksBuilderPageSection
+            page={page}
+            pageIndex={index}
+            onOpenTypeMenu={openTypeMenu}
+            onPatchPage={updatePage}
+          />
+          {page?.type !== 'reward' ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+              <Button
+                variant="outlined"
+                startIcon={<AddCircleOutline />}
+                onClick={() => insertPageAfter(index)}
+                aria-label={`Insert new page after page ${index + 1}`}
+                sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
+              >
+                Add page after this
+              </Button>
+            </Box>
+          ) : null}
+        </Box>
       ))}
 
       {canSaveBook ? (
@@ -313,10 +415,10 @@ const BooksBuilderCreateMain = () => {
           <Button
             variant="contained"
             onClick={handleSaveBook}
-            disabled={isSaving || loading?.mutating}
+            disabled={isSaving || loading?.mutating || isInitializing}
             sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
           >
-            {isSaving || loading?.mutating ? 'Saving...' : 'Save'}
+            {isSaving || loading?.mutating ? 'Saving...' : isEditMode ? 'Update' : 'Save'}
           </Button>
           <Button
             variant="outlined"
@@ -326,17 +428,6 @@ const BooksBuilderCreateMain = () => {
             Test
           </Button>
         </Box>
-      ) : null}
-
-      {canAddNext && !canSaveBook ? (
-        <Button
-          variant="contained"
-          startIcon={<AddCircleOutline />}
-          onClick={() => appendBuilderPage(createEmptyPage(pages.length))}
-          sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-        >
-          Add Next Page
-        </Button>
       ) : null}
 
       <BooksBuilderTypeMenu

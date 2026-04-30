@@ -373,6 +373,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/admin/built-in-books/:bookId/edit"
+          element={
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
+              <AdminLayout>
+                <AdminBooksBuilderCreate />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/admin/star-cam-missions"
           element={
             <AuthedAccess allowedRoles={['admin', 'teacher']}>

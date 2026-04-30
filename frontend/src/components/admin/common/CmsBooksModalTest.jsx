@@ -201,7 +201,7 @@ const CmsBooksModalTest = ({
         },
       }}
     >
-      <DialogContent sx={{ p: 0, height: '100vh', backgroundColor: '#f8f8f8', overflow: 'hidden' }}>
+      <DialogContent sx={{ p: 0, height: '100dvh', backgroundColor: '#f8f8f8', overflow: 'hidden' }}>
         <Box
           sx={{
             width: '100%',

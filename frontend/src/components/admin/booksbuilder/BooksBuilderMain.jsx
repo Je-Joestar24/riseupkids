@@ -22,6 +22,7 @@ const BooksBuilderMain = () => {
   const [searchInput, setSearchInput] = useState(filters?.search || '');
   const [testingBook, setTestingBook] = useState(null);
   const [testingBookId, setTestingBookId] = useState('');
+  const [editingBookId, setEditingBookId] = useState('');
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -80,6 +81,13 @@ const BooksBuilderMain = () => {
     }
   };
 
+  const handleOpenEdit = (book) => {
+    const targetId = book?._id || book?.id;
+    if (!targetId) return;
+    setEditingBookId(targetId);
+    navigate(`/admin/built-in-books/${targetId}/edit`);
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh' }}>
       <BooksBuilderHeader
@@ -102,7 +110,9 @@ const BooksBuilderMain = () => {
         books={books}
         loading={loading.list}
         onTestBook={handleOpenTest}
+        onEditBook={handleOpenEdit}
         testingBookId={testingBookId}
+        editingBookId={editingBookId}
       />
 
       <BooksBuilderPagination

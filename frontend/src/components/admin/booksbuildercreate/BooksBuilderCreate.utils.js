@@ -1,22 +1,27 @@
-export const createEmptyPage = (index) => ({
-  id: `temp-page-${index + 1}`,
-  type: '',
-  title: '',
-  subtitle: '',
-  imageUrl: '',
-  backgroundImageUrl: '',
-  audioUrl: '',
-  videoUrl: '',
-  interactionMode: '',
-  optionAudioOne: '',
-  optionAudioTwo: '',
-  optionImageOne: '',
-  optionImageTwo: '',
-  guideImageOne: '',
-  guideImageTwo: '',
-  answerOneCorrectOptionId: '',
-  answerTwoCorrectOptionId: '',
-});
+let tempPageCounter = 0;
+
+export const createEmptyPage = (index) => {
+  tempPageCounter += 1;
+  return {
+    id: `temp-page-${index + 1}-${tempPageCounter}`,
+    type: '',
+    title: '',
+    subtitle: '',
+    imageUrl: '',
+    backgroundImageUrl: '',
+    audioUrl: '',
+    videoUrl: '',
+    interactionMode: '',
+    optionAudioOne: '',
+    optionAudioTwo: '',
+    optionImageOne: '',
+    optionImageTwo: '',
+    guideImageOne: '',
+    guideImageTwo: '',
+    answerOneCorrectOptionId: '',
+    answerTwoCorrectOptionId: '',
+  };
+};
 
 export const resetPageByType = {
   subtitle: '',
@@ -170,3 +175,55 @@ export const buildCmsPageSkeleton = ({ page, index }) => ({
     awardMode: 'once_on_correct',
   },
 });
+
+const toBuilderPageType = (cmsType) => {
+  if (cmsType === 'cover') return 'intro';
+  if (cmsType === 'activity_demo_video') return 'demo';
+  if (cmsType === 'activity_drag_2x2' || cmsType === 'activity_drag_2x1') return 'interactive';
+  return cmsType;
+};
+
+const toMediaUrl = (media) => media?.url || media?.cloudUrl || '';
+
+export const buildBuilderPageFromCms = (page = {}, index = 0) => {
+  const builderType = toBuilderPageType(page.type);
+  const media = page.media || {};
+  const options = Array.isArray(page?.interaction?.options) ? page.interaction.options : [];
+  const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
+  const optionOne = options[0] || {};
+  const optionTwo = options[1] || {};
+
+  return {
+    ...createEmptyPage(index),
+    id: page.pageId || `page-${index + 1}`,
+    type: builderType,
+    title: page.title || '',
+    subtitle: page.subtitle || '',
+    imageUrl: toMediaUrl(media.imageMedia) || '',
+    backgroundImageUrl: toMediaUrl(media.backgroundImageMedia) || '',
+    audioUrl: toMediaUrl(media.audioMedia) || '',
+    videoUrl: toMediaUrl(media.videoMedia) || '',
+    interactionMode: page.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer',
+    optionAudioOne: toMediaUrl(optionOne.audioMedia) || '',
+    optionAudioTwo: toMediaUrl(optionTwo.audioMedia) || '',
+    optionImageOne: toMediaUrl(optionOne.imageMedia) || '',
+    optionImageTwo: toMediaUrl(optionTwo.imageMedia) || '',
+    guideImageOne:
+      toMediaUrl(media.guideImageMedia)
+      || (Array.isArray(media.guideImageMedias) ? toMediaUrl(media.guideImageMedias[0]) : '')
+      || '',
+    guideImageTwo: Array.isArray(media.guideImageMedias) ? toMediaUrl(media.guideImageMedias[1]) || '' : '',
+    answerOneCorrectOptionId: dropZones[0]?.correctOptionId || '',
+    answerTwoCorrectOptionId: dropZones[1]?.correctOptionId || '',
+    imageMediaId: media.imageMediaId || null,
+    backgroundImageMediaId: media.backgroundImageMediaId || null,
+    audioMediaId: media.audioMediaId || null,
+    videoMediaId: media.videoMediaId || null,
+    guideImageMediaId: media.guideImageMediaId || null,
+    guideImageMediaIds: Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : [],
+    optionOneImageMediaId: optionOne.imageMediaId || null,
+    optionOneAudioMediaId: optionOne.audioMediaId || null,
+    optionTwoImageMediaId: optionTwo.imageMediaId || null,
+    optionTwoAudioMediaId: optionTwo.audioMediaId || null,
+  };
+};

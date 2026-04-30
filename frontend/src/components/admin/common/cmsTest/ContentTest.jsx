@@ -141,8 +141,10 @@ const ContentTest = ({
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
-          left: { xs: 12, md: 18 },
-          bottom: { xs: 44, md: 106 },
+          left: '0.9375%',
+          bottom: '9.8148%',
+          width: '7.5%',
+          aspectRatio: '1 / 1',
         }}
       >
         <img src={contentBackButtonImage} alt="Back button" />
@@ -154,8 +156,10 @@ const ContentTest = ({
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
-          right: { xs: 12, md: 18 },
-          bottom: { xs: 44, md: 106 },
+          right: '0.9375%',
+          bottom: '9.8148%',
+          width: '7.5%',
+          aspectRatio: '1 / 1',
         }}
       >
         <img src={contentNextButtonImage} alt="Next button" />

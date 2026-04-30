@@ -88,9 +88,6 @@ async function updateCmsBook({ bookId, userId, patch }) {
 
   const book = await CmsBook.findById(bookId);
   if (!book || book.isArchived) throw createHttpError('Book not found', 404);
-  if (book.status === 'published') {
-    throw createHttpError('Unpublish book before editing content', 400);
-  }
 
   const safePatch = { ...(patch || {}) };
   delete safePatch._id;

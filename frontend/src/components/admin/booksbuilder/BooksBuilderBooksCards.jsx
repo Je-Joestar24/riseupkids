@@ -6,7 +6,9 @@ const BooksBuilderBooksCards = ({
   books = [],
   loading = false,
   onTestBook,
+  onEditBook,
   testingBookId = '',
+  editingBookId = '',
 }) => {
   if (loading) {
     return (
@@ -36,7 +38,9 @@ const BooksBuilderBooksCards = ({
           <BooksBuilderCard
             book={book}
             onTest={onTestBook}
+            onEdit={onEditBook}
             isTesting={Boolean(testingBookId && (book?._id === testingBookId || book?.id === testingBookId))}
+            isEditing={Boolean(editingBookId && (book?._id === editingBookId || book?.id === editingBookId))}
           />
         </Grid>
       ))}

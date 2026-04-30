@@ -12,6 +12,43 @@ import {
   resolveImageUrl,
 } from './shared';
 
+const DESIGN_STAGE_WIDTH = 1920;
+const DESIGN_STAGE_HEIGHT = 1080;
+const PARALLEL_SIZE_MULTIPLIER = 1.75; // +75% for parallel options/answers
+
+const getScaledInteractiveMetrics = (stageRect, isSingleLayout) => {
+  const scale = Math.min(
+    stageRect.width / DESIGN_STAGE_WIDTH,
+    stageRect.height / DESIGN_STAGE_HEIGHT
+  );
+
+  const single = {
+    cardWidth: 320 * scale,
+    cardHeight: 272 * scale,
+    optionTopOffset: 320 * scale,
+    zoneGap: 68 * scale,
+    dropSnapOffset: 320 * scale,
+    minStartLeft: 16 * scale,
+    parallelBottomOffset: 112 * scale,
+  };
+
+  const parallel = {
+    cardWidth: 180 * PARALLEL_SIZE_MULTIPLIER * scale,
+    cardHeight: 136 * PARALLEL_SIZE_MULTIPLIER * scale,
+    optionTopOffset: 0,
+    // Answers only: bring zones closer together by about half combined.
+    zoneGap: 68 * 0.92 * scale,
+    dropSnapOffset: 0,
+    minStartLeft: 16 * scale,
+    parallelBottomOffset: 96 * scale,
+  };
+
+  return {
+    scale,
+    ...(isSingleLayout ? single : parallel),
+  };
+};
+
 const InteractiveTest = ({
   page,
   isPreloading,
@@ -31,6 +68,16 @@ const InteractiveTest = ({
   const [placedByZone, setPlacedByZone] = useState({});
   const [placedByOption, setPlacedByOption] = useState({});
   const [dropResult, setDropResult] = useState('');
+  const [stageMetrics, setStageMetrics] = useState({
+    scale: 1,
+    cardWidth: 320,
+    cardHeight: 272,
+    optionTopOffset: 320,
+    zoneGap: 68,
+    dropSnapOffset: 320,
+    minStartLeft: 16,
+    parallelBottomOffset: 112,
+  });
   const bgImage = resolveImageUrl(page);
   const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
   const guideImageUrls = useMemo(() => {
@@ -93,17 +140,15 @@ const InteractiveTest = ({
       const stageRect = stageRef.current?.getBoundingClientRect();
       if (!stageRect) return;
 
-      const isMobile = stageRect.width < 900;
-      const cardWidth = isSingleLayout
-        ? (isMobile ? Math.min(420, stageRect.width * 0.62) : 320)
-        : (isMobile ? Math.min(170, stageRect.width * 0.24) : 180);
-      const cardHeight = isSingleLayout ? (isMobile ? 240 : 272) : (isMobile ? 120 : 136);
-      const gap = isSingleLayout ? (isMobile ? 8.4 * 8 : 12 * 8) : (isMobile ? 16.8 * 8 : 24 * 8);
+      const metrics = getScaledInteractiveMetrics(stageRect, isSingleLayout);
+      const cardWidth = metrics.cardWidth;
+      const cardHeight = metrics.cardHeight;
+      const gap = isSingleLayout ? (96 * metrics.scale) : (192 * metrics.scale);
       const totalWidth = (options.length * cardWidth) + ((options.length - 1) * gap);
-      const startLeft = Math.max(16, (stageRect.width - totalWidth) / 2);
+      const startLeft = Math.max(metrics.minStartLeft, (stageRect.width - totalWidth) / 2);
       const top = isSingleLayout
         ? ((stageRect.height - cardHeight) / 2)
-        : (stageRect.height - cardHeight - (isMobile ? 336 : 112));
+        : (stageRect.height - cardHeight - metrics.parallelBottomOffset);
 
       const nextPositions = {};
       options.forEach((option, index) => {
@@ -112,6 +157,7 @@ const InteractiveTest = ({
           y: top,
         };
       });
+      setStageMetrics(metrics);
       setOptionPositions(nextPositions);
     };
 
@@ -251,7 +297,7 @@ const InteractiveTest = ({
       }
       const centeredX = (zoneRect.left - stageRect.left) + ((zoneRect.width - dragState.width) / 2);
       const centeredY = (zoneRect.top - stageRect.top) + ((zoneRect.height - dragState.height) / 2);
-      const snapY = isSingleLayout ? centeredY - 320 : centeredY;
+      const snapY = isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY;
       setOptionPositions((prev) => ({
         ...prev,
         [dragState.id]: { x: centeredX, y: snapY },
@@ -328,7 +374,16 @@ const InteractiveTest = ({
           ) : null}
         </Box>
 
-        <Box role="group" aria-label="Interactive answer options" sx={{ position: 'absolute', inset: 0, zIndex: 5, top: isSingleLayout ? 320: ''}}>
+        <Box
+          role="group"
+          aria-label="Interactive answer options"
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 5,
+            top: isSingleLayout ? stageMetrics.optionTopOffset : 0,
+          }}
+        >
           {options.map((option) => (
             <Box
               key={option.id}
@@ -350,9 +405,8 @@ const InteractiveTest = ({
                 position: 'absolute',
                 left: optionPositions[option.id]?.x ?? -9999,
                 top: optionPositions[option.id]?.y ?? -9999,
-                width: isSingleLayout ? { xs: '62%', md: 320 } : { xs: '24%', md: 190 },
-                maxWidth: isSingleLayout ? { xs: 420, md: 320 } : { xs: 170, md: 190 },
-                minHeight: isSingleLayout ? { xs: 240, md: 272 } : { xs: 120, md: 136 },
+                width: stageMetrics.cardWidth,
+                height: stageMetrics.cardHeight,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -409,7 +463,7 @@ const InteractiveTest = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: { xs: 8, md: 68 },
+              gap: stageMetrics.zoneGap,
               zIndex: 4,
               pointerEvents: 'none',
               userSelect: 'none',
@@ -422,9 +476,8 @@ const InteractiveTest = ({
                 role="img"
                 aria-label={`${zone.label} drop zone`}
                 sx={{
-                  width: isSingleLayout ? { xs: '62vw', md: 320 } : { xs: '24vw', md: 180 },
-                  maxWidth: isSingleLayout ? { xs: 420, md: 320 } : { xs: 170, md: 180 },
-                  minHeight: isSingleLayout ? { xs: 240, md: 272 } : { xs: 120, md: 136 },
+                  width: stageMetrics.cardWidth,
+                  height: stageMetrics.cardHeight,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -534,8 +587,10 @@ const InteractiveTest = ({
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
-          right: { xs: 12, md: 18 },
-          bottom: { xs: 44, md: 56 },
+          right: '0.9375%',
+          bottom: '5.1852%',
+          width: '7.5%',
+          aspectRatio: '1 / 1',
           zIndex: 30,
           pointerEvents: 'auto',
         }}

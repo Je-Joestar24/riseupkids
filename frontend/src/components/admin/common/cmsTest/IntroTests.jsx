@@ -34,7 +34,9 @@ const IntroTests = ({
           ...imageActionButtonSx,
           position: 'absolute',
           left: '50%',
-          bottom: { xs: 52, md: 66 },
+          bottom: '6.1111%',
+          width: '7.5%',
+          aspectRatio: '1 / 1',
           transform: 'translateX(-50%)',
         }}
       >

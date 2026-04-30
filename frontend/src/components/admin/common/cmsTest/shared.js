@@ -1,7 +1,9 @@
 export const pageFrameSx = {
-  width: 'min(100vw, calc(100vh * 16 / 9))',
+  width: 'min(100%, calc(100dvh * 16 / 9))',
+  height: 'min(100dvh, calc(100vw * 9 / 16))',
   maxWidth: '100vw',
-  maxHeight: '100vh',
+  maxHeight: '100dvh',
+  minHeight: 0,
   aspectRatio: '1920 / 1080',
   borderRadius: '8px',
   overflow: 'hidden',

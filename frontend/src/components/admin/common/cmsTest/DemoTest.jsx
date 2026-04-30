@@ -69,8 +69,10 @@ const DemoTest = ({
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
-          right: { xs: 12, md: 18 },
-          bottom: { xs: 44, md: 56 },
+          right: '0.9375%',
+          bottom: '5.1852%',
+          width: '7.5%',
+          aspectRatio: '1 / 1',
         }}
       >
         <img src={demoPlayButtonImage} alt="Demo play button" />

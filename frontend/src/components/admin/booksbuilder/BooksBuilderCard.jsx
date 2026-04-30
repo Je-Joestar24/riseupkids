@@ -16,7 +16,7 @@ const resolveBookIntroImage = (book) => {
   );
 };
 
-const BooksBuilderCard = ({ book, onTest, isTesting = false }) => {
+const BooksBuilderCard = ({ book, onTest, onEdit, isTesting = false, isEditing = false }) => {
   const pageCount = Array.isArray(book?.pages) ? book.pages.length : 0;
   const introImageUrl = resolveBookIntroImage(book);
 
@@ -103,20 +103,34 @@ const BooksBuilderCard = ({ book, onTest, isTesting = false }) => {
             />
             <Chip size="small" label={`v${book?.version || 1}`} sx={{ fontFamily: 'Quicksand, sans-serif' }} />
           </Stack>
-          <Button
-            variant="outlined"
-            onClick={() => onTest?.(book)}
-            disabled={isTesting}
-            aria-label={`Test book ${book?.title || ''}`}
-            sx={{
-              alignSelf: 'flex-start',
-              borderRadius: '10px',
-              textTransform: 'none',
-              fontWeight: 700,
-            }}
-          >
-            {isTesting ? 'Loading...' : 'Test'}
-          </Button>
+          <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-start' }}>
+            <Button
+              variant="outlined"
+              onClick={() => onEdit?.(book)}
+              disabled={isEditing}
+              aria-label={`Edit book ${book?.title || ''}`}
+              sx={{
+                borderRadius: '10px',
+                textTransform: 'none',
+                fontWeight: 700,
+              }}
+            >
+              {isEditing ? 'Opening...' : 'Edit'}
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => onTest?.(book)}
+              disabled={isTesting}
+              aria-label={`Test book ${book?.title || ''}`}
+              sx={{
+                borderRadius: '10px',
+                textTransform: 'none',
+                fontWeight: 700,
+              }}
+            >
+              {isTesting ? 'Loading...' : 'Test'}
+            </Button>
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
