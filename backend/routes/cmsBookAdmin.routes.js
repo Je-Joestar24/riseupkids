@@ -10,6 +10,7 @@ const {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  deleteCmsBook,
   uploadCmsBookMedia,
 } = require('../controllers/cmsBookAdmin.controller');
 
@@ -26,5 +27,6 @@ router.put('/:id', updateCmsBook);
 router.patch('/:id/publish', publishCmsBook);
 router.patch('/:id/unpublish', unpublishCmsBook);
 router.patch('/:id/archive', archiveCmsBook);
+router.delete('/:id', deleteCmsBook);
 
 module.exports = router;

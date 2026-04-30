@@ -16,7 +16,15 @@ const resolveBookIntroImage = (book) => {
   );
 };
 
-const BooksBuilderCard = ({ book, onTest, onEdit, isTesting = false, isEditing = false }) => {
+const BooksBuilderCard = ({
+  book,
+  onTest,
+  onEdit,
+  onDelete,
+  isTesting = false,
+  isEditing = false,
+  isDeleting = false,
+}) => {
   const pageCount = Array.isArray(book?.pages) ? book.pages.length : 0;
   const introImageUrl = resolveBookIntroImage(book);
 
@@ -129,6 +137,20 @@ const BooksBuilderCard = ({ book, onTest, onEdit, isTesting = false, isEditing =
               }}
             >
               {isTesting ? 'Loading...' : 'Test'}
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => onDelete?.(book)}
+              disabled={isDeleting}
+              aria-label={`Delete book ${book?.title || ''}`}
+              sx={{
+                borderRadius: '10px',
+                textTransform: 'none',
+                fontWeight: 700,
+              }}
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </Button>
           </Stack>
         </Stack>

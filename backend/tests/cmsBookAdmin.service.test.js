@@ -5,10 +5,20 @@ jest.mock('../models', () => ({
     find: jest.fn(),
     findOne: jest.fn(),
     findById: jest.fn(),
+    findByIdAndDelete: jest.fn(),
+  },
+  Media: {
+    find: jest.fn(),
+    deleteMany: jest.fn(),
   },
 }));
+jest.mock('../services/s3.service', () => ({
+  deleteByKey: jest.fn(),
+  getS3KeyFromUrl: jest.fn((value) => value),
+}));
 
-const { CmsBook } = require('../models');
+const { CmsBook, Media } = require('../models');
+const s3Service = require('../services/s3.service');
 const service = require('../services/cmsBookAdmin.service');
 
 function makeDoc(overrides = {}) {
@@ -115,5 +125,43 @@ describe('cmsBookAdmin.service', () => {
     expect(doc.status).toBe('archived');
     expect(doc.isArchived).toBe(true);
     expect(doc.save).toHaveBeenCalled();
+  });
+
+  it('deletes book and cleans up attached media', async () => {
+    CmsBook.findById.mockResolvedValue({
+      _id: 'book-1',
+      pages: [
+        {
+          media: {
+            imageMediaId: 'm-1',
+            guideImageMediaIds: ['m-2'],
+          },
+          interaction: {
+            options: [
+              { imageMediaId: 'm-3', audioMediaId: 'm-4' },
+            ],
+          },
+        },
+      ],
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'm-1', filePath: 'media/images/1.png' },
+        { _id: 'm-2', filePath: 'media/images/2.png' },
+        { _id: 'm-3', filePath: 'media/images/3.png' },
+        { _id: 'm-4', filePath: 'media/audio/4.mp3' },
+      ]),
+    });
+    Media.deleteMany.mockResolvedValue({ deletedCount: 4 });
+    CmsBook.findByIdAndDelete.mockResolvedValue({ _id: 'book-1' });
+    s3Service.deleteByKey.mockResolvedValue(true);
+
+    const result = await service.deleteCmsBook({ bookId: 'book-1', userId: 'admin-1' });
+
+    expect(result).toMatchObject({ id: 'book-1', deletedMediaCount: 4 });
+    expect(s3Service.deleteByKey).toHaveBeenCalledTimes(4);
+    expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['m-1', 'm-2', 'm-3', 'm-4'] } });
+    expect(CmsBook.findByIdAndDelete).toHaveBeenCalledWith('book-1');
   });
 });

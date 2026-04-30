@@ -17,6 +17,36 @@ function normalizeSearch(value) {
   return String(value || '').trim();
 }
 
+function collectBookMediaIds(book) {
+  const pages = Array.isArray(book?.pages) ? book.pages : [];
+  const ids = new Set();
+
+  const addId = (value) => {
+    if (!value) return;
+    ids.add(String(value));
+  };
+
+  pages.forEach((page) => {
+    const media = page?.media || {};
+    addId(media.imageMediaId);
+    addId(media.audioMediaId);
+    addId(media.videoMediaId);
+    addId(media.instructionAudioMediaId);
+    addId(media.backgroundImageMediaId);
+    addId(media.guideImageMediaId);
+    const guideImageMediaIds = Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : [];
+    guideImageMediaIds.forEach(addId);
+
+    const options = Array.isArray(page?.interaction?.options) ? page.interaction.options : [];
+    options.forEach((option) => {
+      addId(option?.imageMediaId);
+      addId(option?.audioMediaId);
+    });
+  });
+
+  return [...ids];
+}
+
 async function createCmsBook({ userId, payload }) {
   if (!userId) throw createHttpError('userId is required', 400);
   if (!payload || !payload.title || !String(payload.title).trim()) {
@@ -141,6 +171,39 @@ async function archiveCmsBook({ bookId, userId }) {
   return { id: String(book._id) };
 }
 
+async function deleteCmsBook({ bookId, userId }) {
+  if (!bookId) throw createHttpError('bookId is required', 400);
+  if (!userId) throw createHttpError('userId is required', 400);
+
+  const book = await CmsBook.findById(bookId);
+  if (!book) throw createHttpError('Book not found', 404);
+
+  const serializedBook = typeof book.toObject === 'function' ? book.toObject() : book;
+  const mediaIds = collectBookMediaIds(serializedBook);
+  if (mediaIds.length > 0) {
+    const mediaRecords = await Media.find({ _id: { $in: mediaIds } })
+      .select('_id filePath cloudUrl url')
+      .lean();
+
+    await Promise.all(
+      mediaRecords.map(async (media) => {
+        const fallbackKey = media?.cloudUrl ? s3Service.getS3KeyFromUrl(media.cloudUrl) : null;
+        const urlKey = !fallbackKey && media?.url ? s3Service.getS3KeyFromUrl(media.url) : null;
+        const fileKey = media?.filePath || fallbackKey || urlKey;
+        if (fileKey) {
+          await s3Service.deleteByKey(fileKey).catch(() => null);
+        }
+      })
+    );
+
+    await Media.deleteMany({ _id: { $in: mediaRecords.map((media) => media._id) } });
+  }
+
+  await CmsBook.findByIdAndDelete(bookId);
+
+  return { id: String(bookId), deletedMediaCount: mediaIds.length };
+}
+
 async function uploadCmsBookMedia({
   userId,
   file,
@@ -196,5 +259,6 @@ module.exports = {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  deleteCmsBook,
   uploadCmsBookMedia,
 };

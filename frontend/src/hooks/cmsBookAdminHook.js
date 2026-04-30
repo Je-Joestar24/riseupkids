@@ -6,6 +6,7 @@ import {
   clearCmsBookAdminError,
   clearCurrentCmsBook,
   createCmsBook,
+  deleteCmsBook,
   fetchCmsBookById,
   fetchCmsBooks,
   patchCmsBookBuilderPage,
@@ -96,6 +97,15 @@ const useCmsBookAdmin = () => {
     [runThunk]
   );
 
+  const removeBook = useCallback(
+    (bookId, options = {}) =>
+      runThunk(deleteCmsBook(bookId), 'Failed to delete CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book deleted successfully',
+      }),
+    [runThunk]
+  );
+
   const uploadBookMedia = useCallback(
     async ({ file, mediaType, title, description }) => {
       try {
@@ -154,6 +164,7 @@ const useCmsBookAdmin = () => {
       publishBook,
       unpublishBook,
       archiveBook,
+      removeBook,
       uploadBookMedia,
       updateFilters,
       setBuilderPages,
@@ -173,6 +184,7 @@ const useCmsBookAdmin = () => {
       publishBook,
       unpublishBook,
       archiveBook,
+      removeBook,
       uploadBookMedia,
       updateFilters,
       setBuilderPages,

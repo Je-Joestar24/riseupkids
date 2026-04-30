@@ -15,6 +15,9 @@ describe('cmsBookAdmin.routes - endpoints', () => {
     const hasArchive = router.stack.some(
       (l) => l.route && l.route.path === '/:id/archive' && l.route.methods.patch
     );
+    const hasDelete = router.stack.some(
+      (l) => l.route && l.route.path === '/:id' && l.route.methods.delete
+    );
 
     expect(hasCreate).toBe(true);
     expect(hasList).toBe(true);
@@ -23,5 +26,6 @@ describe('cmsBookAdmin.routes - endpoints', () => {
     expect(hasPublish).toBe(true);
     expect(hasUnpublish).toBe(true);
     expect(hasArchive).toBe(true);
+    expect(hasDelete).toBe(true);
   });
 });

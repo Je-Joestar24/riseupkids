@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { Box, Paper, TextField } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import BooksBuilderHeader from './BooksBuilderHeader';
@@ -7,10 +8,12 @@ import BooksBuilderPagination from './BooksBuilderPagination';
 import useCmsBookAdmin from '../../../hooks/cmsBookAdminHook';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import CmsBooksModalTest from '../common/CmsBooksModalTest';
+import { showConfirmationDialog } from '../../../store/slices/uiSlice';
 
 const BooksBuilderMain = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { books, pagination, loading, filters, loadBooks, updateFilters } = useCmsBookAdmin();
+  const { books, pagination, loading, filters, loadBooks, updateFilters, removeBook } = useCmsBookAdmin();
   const {
     loadPlayableBookById,
     preloadBookMedia,
@@ -23,6 +26,7 @@ const BooksBuilderMain = () => {
   const [testingBook, setTestingBook] = useState(null);
   const [testingBookId, setTestingBookId] = useState('');
   const [editingBookId, setEditingBookId] = useState('');
+  const [deletingBookId, setDeletingBookId] = useState('');
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -88,6 +92,35 @@ const BooksBuilderMain = () => {
     navigate(`/admin/built-in-books/${targetId}/edit`);
   };
 
+  const handleDeleteBookConfirm = (book) => {
+    const targetId = book?._id || book?.id;
+    if (!targetId) return;
+    dispatch(
+      showConfirmationDialog({
+        title: 'Delete built-in book?',
+        message: `This will permanently delete "${book?.title || 'this book'}" and its linked media files.`,
+        type: 'error',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          setDeletingBookId(targetId);
+          try {
+            await removeBook(targetId);
+            await loadBooks({
+              page: filters.page,
+              limit: filters.limit,
+              search: filters.search || undefined,
+              language: filters.language || undefined,
+              includeArchived: false,
+            });
+          } finally {
+            setDeletingBookId('');
+          }
+        },
+      })
+    );
+  };
+
   return (
     <Box sx={{ p: 3, minHeight: '100vh' }}>
       <BooksBuilderHeader
@@ -111,8 +144,10 @@ const BooksBuilderMain = () => {
         loading={loading.list}
         onTestBook={handleOpenTest}
         onEditBook={handleOpenEdit}
+        onDeleteBook={handleDeleteBookConfirm}
         testingBookId={testingBookId}
         editingBookId={editingBookId}
+        deletingBookId={deletingBookId}
       />
 
       <BooksBuilderPagination

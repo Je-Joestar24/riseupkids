@@ -6,6 +6,7 @@ jest.mock('../services/cmsBookAdmin.service', () => ({
   publishCmsBook: jest.fn(),
   unpublishCmsBook: jest.fn(),
   archiveCmsBook: jest.fn(),
+  deleteCmsBook: jest.fn(),
 }));
 
 const service = require('../services/cmsBookAdmin.service');
@@ -59,5 +60,22 @@ describe('cmsBookAdmin.controller', () => {
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+  });
+
+  it('deletes cms book and returns 200', async () => {
+    service.deleteCmsBook.mockResolvedValue({ id: 'book-1', deletedMediaCount: 3 });
+    const req = { params: { id: 'book-1' }, user: { _id: 'admin-1' } };
+    const res = makeRes();
+
+    await controller.deleteCmsBook(req, res);
+
+    expect(service.deleteCmsBook).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      userId: 'admin-1',
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: true, data: expect.objectContaining({ id: 'book-1' }) })
+    );
   });
 });

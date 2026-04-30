@@ -78,6 +78,17 @@ export const archiveCmsBook = createAsyncThunk(
   }
 );
 
+export const deleteCmsBook = createAsyncThunk(
+  'cmsBookAdmin/deleteBook',
+  async (bookId, { rejectWithValue }) => {
+    try {
+      return await cmsBookAdminService.deleteBook(bookId);
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to delete CMS book');
+    }
+  }
+);
+
 const initialState = {
   books: [],
   currentBook: null,
@@ -271,6 +282,25 @@ const cmsBookAdminSlice = createSlice({
         state.lastAction = 'archiveBook';
       })
       .addCase(archiveCmsBook.rejected, (state, action) => {
+        state.loading.mutating = false;
+        setError(state, action);
+      })
+      .addCase(deleteCmsBook.pending, (state) => {
+        state.loading.mutating = true;
+        state.error = null;
+      })
+      .addCase(deleteCmsBook.fulfilled, (state, action) => {
+        state.loading.mutating = false;
+        const deletedId = action.payload?.data?.id || null;
+        if (deletedId && state.currentBook?._id === deletedId) {
+          state.currentBook = null;
+        }
+        if (deletedId) {
+          state.books = state.books.filter((item) => item._id !== deletedId);
+        }
+        state.lastAction = 'deleteBook';
+      })
+      .addCase(deleteCmsBook.rejected, (state, action) => {
         state.loading.mutating = false;
         setError(state, action);
       });

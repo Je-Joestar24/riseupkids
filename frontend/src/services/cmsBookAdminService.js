@@ -96,6 +96,15 @@ const cmsBookAdminService = {
       throw getErrorMessage(error, 'Failed to archive CMS book');
     }
   },
+
+  deleteBook: async (bookId) => {
+    try {
+      const response = await api.delete(`${BASE_PATH}/${bookId}`);
+      return response.data;
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to delete CMS book');
+    }
+  },
 };
 
 export default cmsBookAdminService;

@@ -115,6 +115,21 @@ const archiveCmsBook = async (req, res) => {
   }
 };
 
+const deleteCmsBook = async (req, res) => {
+  try {
+    const data = await cmsBookAdminService.deleteCmsBook({
+      bookId: req.params.id,
+      userId: req.user?._id,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(resolveStatusCode(error, 400)).json({
+      success: false,
+      message: error.message || 'Failed to delete CMS book',
+    });
+  }
+};
+
 const uploadCmsBookMedia = async (req, res) => {
   try {
     const data = await cmsBookAdminService.uploadCmsBookMedia({
@@ -141,5 +156,6 @@ module.exports = {
   publishCmsBook,
   unpublishCmsBook,
   archiveCmsBook,
+  deleteCmsBook,
   uploadCmsBookMedia,
 };
