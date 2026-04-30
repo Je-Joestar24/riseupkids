@@ -1,12 +1,25 @@
 import React from 'react';
-import { Box, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import { Box, IconButton, MenuItem, Paper, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { ArrowUpward, ArrowDownward, DeleteOutline } from '@mui/icons-material';
 import { getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import BooksBuilderTypeDropArea from './BooksBuilderTypeDropArea';
 import BooksBuilderPageFields from './BooksBuilderPageFields';
 
-const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage }) => {
+const BooksBuilderPageSection = ({
+  page,
+  pageIndex,
+  onOpenTypeMenu,
+  onPatchPage,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
+  onDeletePage,
+  canDelete = false,
+}) => {
   const theme = useTheme();
+  const isMovableType = page?.type === 'content' || page?.type === 'interactive';
 
   return (
     <Paper
@@ -34,7 +47,29 @@ const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage 
             rowGap: 1.5,
           }}
         >
-          <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+            {isMovableType ? (
+              <>
+                <IconButton
+                  size="small"
+                  onClick={() => onMoveUp?.(pageIndex)}
+                  disabled={!canMoveUp}
+                  aria-label={`Move page ${pageIndex + 1} up`}
+                >
+                  <ArrowUpward fontSize="inherit" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => onMoveDown?.(pageIndex)}
+                  disabled={!canMoveDown}
+                  aria-label={`Move page ${pageIndex + 1} down`}
+                >
+                  <ArrowDownward fontSize="inherit" />
+                </IconButton>
+              </>
+            ) : null}
+          </Box>
           <TextField
             label="Interactive type"
             size="small"
@@ -65,16 +100,65 @@ const BooksBuilderPageSection = ({ page, pageIndex, onOpenTypeMenu, onPatchPage 
             sx={{
               minWidth: { xs: '100%', sm: 200 },
               maxWidth: { sm: 360 },
-              flex: { sm: '0 0 auto' },
-              ml: { sm: 'auto' },
+              flex: { sm: '1 1 auto' },
+              ml: { sm: 0 },
             }}
           >
             <MenuItem value="two_options_one_answer">2 options, 1 answer</MenuItem>
             <MenuItem value="two_options_two_answers">2 options, 2 answers</MenuItem>
           </TextField>
+          <IconButton
+            size="medium"
+            onClick={() => onDeletePage?.(pageIndex)}
+            disabled={!canDelete}
+            aria-label={`Delete page ${pageIndex + 1}`}
+            sx={{
+              ml: { sm: 0.5 },
+              color: 'orange.main',
+              '&:hover': { backgroundColor: 'rgba(233, 138, 104, 0.12)' },
+            }}
+          >
+            <DeleteOutline fontSize="medium" />
+          </IconButton>
         </Box>
       ) : (
-        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Page {pageIndex + 1}</Typography>
+            {isMovableType ? (
+              <>
+                <IconButton
+                  size="small"
+                  onClick={() => onMoveUp?.(pageIndex)}
+                  disabled={!canMoveUp}
+                  aria-label={`Move page ${pageIndex + 1} up`}
+                >
+                  <ArrowUpward fontSize="inherit" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  onClick={() => onMoveDown?.(pageIndex)}
+                  disabled={!canMoveDown}
+                  aria-label={`Move page ${pageIndex + 1} down`}
+                >
+                  <ArrowDownward fontSize="inherit" />
+                </IconButton>
+              </>
+            ) : null}
+          </Box>
+          <IconButton
+            size="medium"
+            onClick={() => onDeletePage?.(pageIndex)}
+            disabled={!canDelete}
+            aria-label={`Delete page ${pageIndex + 1}`}
+            sx={{
+              color: 'orange.main',
+              '&:hover': { backgroundColor: 'rgba(233, 138, 104, 0.12)' },
+            }}
+          >
+            <DeleteOutline fontSize="medium" />
+          </IconButton>
+        </Box>
       )}
 
       <BooksBuilderTypeDropArea

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button } from '@mui/material';
 import { AddCircleOutline } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -42,6 +42,8 @@ const BooksBuilderCreateMain = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const [bookMeta, setBookMeta] = useState(null);
+  const pageNodeMapRef = useRef(new Map());
+  const [pendingScrollPageId, setPendingScrollPageId] = useState('');
 
   useEffect(() => {
     if (!isEditMode && !pages.length) {
@@ -101,12 +103,40 @@ const BooksBuilderCreateMain = () => {
     initEditDraft();
   }, [bookId, isEditMode, loadBookById, loadPlayableBookById, setBuilderPages]);
 
+  useEffect(() => {
+    if (!pendingScrollPageId) return;
+    const node = pageNodeMapRef.current.get(pendingScrollPageId);
+    if (node) {
+      const rootFontSize = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const topOffsetPx = rootFontSize * 5; // 5em allowance from top
+      const nodeTop = node.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({
+        top: Math.max(nodeTop - topOffsetPx, 0),
+        behavior: 'smooth',
+      });
+    }
+    setPendingScrollPageId('');
+  }, [pages, pendingScrollPageId]);
+
   const canSaveBook = useMemo(() => {
     if (!pages.length) return false;
+    if (pages.some((page) => !page?.type)) return false;
     if (!isValidPageSequence(pages)) return false;
-    const lastPage = pages[pages.length - 1];
+    if (!pages.every((page) => isPageComplete(page))) return false;
+
+    const typedPages = pages.filter((page) => Boolean(page?.type));
+    const hasIntro = typedPages.some((page) => page.type === 'intro');
+    const hasContent = typedPages.some((page) => page.type === 'content');
+    const hasInteractive = typedPages.some((page) => page.type === 'interactive');
+    const hasReward = typedPages.some((page) => page.type === 'reward');
+    const demoCount = typedPages.filter((page) => page.type === 'demo').length;
+    const lastPage = typedPages[typedPages.length - 1];
+
+    if (!hasIntro || !hasContent || !hasInteractive || !hasReward) return false;
+    if (demoCount > 1) return false;
     if (lastPage?.type !== 'reward') return false;
-    return isPageComplete(lastPage);
+
+    return true;
   }, [pages]);
 
   const availableTypeOptions = useMemo(() => {
@@ -155,6 +185,66 @@ const BooksBuilderCreateMain = () => {
   const updatePage = (pageIndex, patch) => {
     patchBuilderPage(pageIndex, patch);
   };
+
+  const getSwappedPages = useCallback(
+    (fromIndex, toIndex) => {
+      if (fromIndex < 0 || toIndex < 0) return null;
+      if (fromIndex >= pages.length || toIndex >= pages.length) return null;
+
+      const movingPage = pages[fromIndex];
+      const targetPage = pages[toIndex];
+      const isMovable = movingPage?.type === 'content' || movingPage?.type === 'interactive';
+      const targetIsMovable = targetPage?.type === 'content' || targetPage?.type === 'interactive';
+      if (!isMovable || !targetIsMovable) return null;
+
+      const nextPages = [...pages];
+      [nextPages[fromIndex], nextPages[toIndex]] = [nextPages[toIndex], nextPages[fromIndex]];
+      return nextPages;
+    },
+    [pages]
+  );
+
+  const canMovePage = useCallback(
+    (pageIndex, direction) => {
+      const targetIndex = direction === 'up' ? pageIndex - 1 : pageIndex + 1;
+      const swapped = getSwappedPages(pageIndex, targetIndex);
+      if (!swapped) return false;
+      return isValidPageSequence(swapped);
+    },
+    [getSwappedPages]
+  );
+
+  const movePage = useCallback(
+    (pageIndex, direction) => {
+      const targetIndex = direction === 'up' ? pageIndex - 1 : pageIndex + 1;
+      const swapped = getSwappedPages(pageIndex, targetIndex);
+      if (!swapped) return;
+      if (!isValidPageSequence(swapped)) return;
+      const movedPageId = pages[pageIndex]?.id || '';
+      if (movedPageId) setPendingScrollPageId(movedPageId);
+      setBuilderPages(swapped);
+    },
+    [getSwappedPages, pages, setBuilderPages]
+  );
+
+  const canDeletePage = useCallback(
+    (pageIndex) => {
+      if (pages.length <= 1) return false;
+      const nextPages = pages.filter((_, index) => index !== pageIndex);
+      if (!nextPages.length) return false;
+      return isValidPageSequence(nextPages);
+    },
+    [pages]
+  );
+
+  const deletePage = useCallback(
+    (pageIndex) => {
+      if (!canDeletePage(pageIndex)) return;
+      const nextPages = pages.filter((_, index) => index !== pageIndex);
+      setBuilderPages(nextPages.length ? nextPages : [createEmptyPage(0)]);
+    },
+    [canDeletePage, pages, setBuilderPages]
+  );
 
   const insertPageAfter = useCallback(
     (pageIndex) => {
@@ -387,12 +477,30 @@ const BooksBuilderCreateMain = () => {
       <BooksBuilderCreateHeader onBack={() => navigate('/admin/built-in-books')} />
 
       {pages.map((page, index) => (
-        <Box key={page.id || `page-${index + 1}`} sx={{ mb: 2 }}>
+        <Box
+          key={page.id || `page-${index + 1}`}
+          ref={(node) => {
+            const pageId = page.id || '';
+            if (!pageId) return;
+            if (node) {
+              pageNodeMapRef.current.set(pageId, node);
+            } else {
+              pageNodeMapRef.current.delete(pageId);
+            }
+          }}
+          sx={{ mb: 2 }}
+        >
           <BooksBuilderPageSection
             page={page}
             pageIndex={index}
             onOpenTypeMenu={openTypeMenu}
             onPatchPage={updatePage}
+            onMoveUp={(pageIndex) => movePage(pageIndex, 'up')}
+            onMoveDown={(pageIndex) => movePage(pageIndex, 'down')}
+            canMoveUp={canMovePage(index, 'up')}
+            canMoveDown={canMovePage(index, 'down')}
+            onDeletePage={deletePage}
+            canDelete={canDeletePage(index)}
           />
           {page?.type !== 'reward' ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
@@ -410,25 +518,23 @@ const BooksBuilderCreateMain = () => {
         </Box>
       ))}
 
-      {canSaveBook ? (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
-          <Button
-            variant="contained"
-            onClick={handleSaveBook}
-            disabled={isSaving || loading?.mutating || isInitializing}
-            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-          >
-            {isSaving || loading?.mutating ? 'Saving...' : isEditMode ? 'Update' : 'Save'}
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() => setIsTesterOpen(true)}
-            sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-          >
-            Test
-          </Button>
-        </Box>
-      ) : null}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+        <Button
+          variant="contained"
+          onClick={handleSaveBook}
+          disabled={!canSaveBook || isSaving || loading?.mutating || isInitializing}
+          sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
+        >
+          {isSaving || loading?.mutating ? 'Saving...' : isEditMode ? 'Update' : 'Save'}
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={() => setIsTesterOpen(true)}
+          sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
+        >
+          Test
+        </Button>
+      </Box>
 
       <BooksBuilderTypeMenu
         position={menuPosition}
