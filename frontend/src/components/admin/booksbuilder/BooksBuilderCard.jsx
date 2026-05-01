@@ -1,5 +1,15 @@
-import React from 'react';
-import { Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import React, { useState } from 'react';
+import {
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  Stack,
+  Typography,
+} from '@mui/material';
 import { MenuBookOutlined as MenuBookOutlinedIcon, Language as LanguageIcon } from '@mui/icons-material';
 
 const resolveBookIntroImage = (book) => {
@@ -16,6 +26,20 @@ const resolveBookIntroImage = (book) => {
   );
 };
 
+const DotsMenuSvgIcon = () => (
+  <Box
+    component="svg"
+    viewBox="0 0 24 24"
+    role="img"
+    aria-label="More options"
+    sx={{ width: 20, height: 20, display: 'block' }}
+  >
+    <circle cx="12" cy="5" r="2" fill="currentColor" />
+    <circle cx="12" cy="12" r="2" fill="currentColor" />
+    <circle cx="12" cy="19" r="2" fill="currentColor" />
+  </Box>
+);
+
 const BooksBuilderCard = ({
   book,
   onTest,
@@ -25,8 +49,23 @@ const BooksBuilderCard = ({
   isEditing = false,
   isDeleting = false,
 }) => {
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const pageCount = Array.isArray(book?.pages) ? book.pages.length : 0;
   const introImageUrl = resolveBookIntroImage(book);
+  const isMenuOpen = Boolean(menuAnchorEl);
+
+  const handleOpenMenu = (event) => {
+    setMenuAnchorEl(event.currentTarget);
+  };
+
+  const handleCloseMenu = () => {
+    setMenuAnchorEl(null);
+  };
+
+  const handleAction = (action) => {
+    handleCloseMenu();
+    action?.(book);
+  };
 
   return (
     <Card
@@ -81,6 +120,24 @@ const BooksBuilderCard = ({
             color: 'common.white',
           }}
         />
+        <IconButton
+          onClick={handleOpenMenu}
+          aria-label={`Open actions for ${book?.title || 'book'}`}
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            color: 'common.white',
+            width: 30,
+            height: 30,
+            '&:hover': {
+              backgroundColor: 'rgba(0,0,0,0.75)',
+            },
+          }}
+        >
+          <DotsMenuSvgIcon />
+        </IconButton>
       </Box>
 
       <CardContent sx={{ p: 2.25 }}>
@@ -111,50 +168,38 @@ const BooksBuilderCard = ({
             />
             <Chip size="small" label={`v${book?.version || 1}`} sx={{ fontFamily: 'Quicksand, sans-serif' }} />
           </Stack>
-          <Stack direction="row" spacing={1} sx={{ alignSelf: 'flex-start' }}>
-            <Button
-              variant="outlined"
-              onClick={() => onEdit?.(book)}
-              disabled={isEditing}
-              aria-label={`Edit book ${book?.title || ''}`}
-              sx={{
-                borderRadius: '10px',
-                textTransform: 'none',
-                fontWeight: 700,
-              }}
-            >
-              {isEditing ? 'Opening...' : 'Edit'}
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => onTest?.(book)}
-              disabled={isTesting}
-              aria-label={`Test book ${book?.title || ''}`}
-              sx={{
-                borderRadius: '10px',
-                textTransform: 'none',
-                fontWeight: 700,
-              }}
-            >
-              {isTesting ? 'Loading...' : 'Test'}
-            </Button>
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={() => onDelete?.(book)}
-              disabled={isDeleting}
-              aria-label={`Delete book ${book?.title || ''}`}
-              sx={{
-                borderRadius: '10px',
-                textTransform: 'none',
-                fontWeight: 700,
-              }}
-            >
-              {isDeleting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </Stack>
         </Stack>
       </CardContent>
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={isMenuOpen}
+        onClose={handleCloseMenu}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuItem
+          disabled={isEditing}
+          onClick={() => handleAction(onEdit)}
+          aria-label={`Edit ${book?.title || 'book'}`}
+        >
+          {isEditing ? 'Opening...' : 'Edit'}
+        </MenuItem>
+        <MenuItem
+          disabled={isTesting}
+          onClick={() => handleAction(onTest)}
+          aria-label={`Test ${book?.title || 'book'}`}
+        >
+          {isTesting ? 'Loading...' : 'Test'}
+        </MenuItem>
+        <MenuItem
+          disabled={isDeleting}
+          onClick={() => handleAction(onDelete)}
+          aria-label={`Delete ${book?.title || 'book'}`}
+          sx={{ color: 'error.main' }}
+        >
+          {isDeleting ? 'Deleting...' : 'Delete'}
+        </MenuItem>
+      </Menu>
     </Card>
   );
 };
