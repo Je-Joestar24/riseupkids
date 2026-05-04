@@ -21,6 +21,7 @@ router.use(authorize('admin', 'teacher'));
 
 router.post('/media', upload.single('file'), uploadCmsBookMedia);
 router.post('/', createCmsBook);
+// Query status=published (and includeArchived=false) to populate admin UI pickers for linking Book → CmsBook.
 router.get('/', listCmsBooks);
 router.get('/:id', getCmsBookById);
 router.put('/:id', updateCmsBook);

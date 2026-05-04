@@ -17,7 +17,9 @@ const bookService = require('../services/book.services');
  * - badgeAwarded: String (optional) - Badge ID
  * - tags: JSON String (optional) - Array of tag strings
  * - isPublished: Boolean (optional, default: false)
- * - scormFile: File (required) - SCORM ZIP file
+ * - packageType: 'scorm' | 'html5' | 'builtin' (default scorm for zip uploads)
+ * - cmsBookId: String (required when packageType=builtin) — published CmsBook _id to play in the built-in reader
+ * - scormFile: File (required for scorm/html5) — ZIP package; omit for builtin
  * - coverImage: File (optional) - Cover image for the book
  */
 const createBook = async (req, res) => {
@@ -207,6 +209,7 @@ const unarchiveBook = async (req, res) => {
  * - starsPerReading: Number (optional)
  * - totalStarsAwarded: Number (optional)
  * - isPublished: Boolean (optional)
+ * - cmsBookId: String (optional) — only for packageType=builtin; must reference a published CmsBook
  * - coverImage: File (optional) - New cover image
  */
 const updateBook = async (req, res) => {

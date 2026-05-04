@@ -1,4 +1,5 @@
-const { Book, Media, Badge, Course } = require('../models');
+const { Book, Media, Badge, Course, CmsBook } = require('../models');
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 const html5handlerService = require('./html5handler.service');
@@ -12,9 +13,10 @@ const cloudfrontService = require('./cloudfront.service');
  * Creates a new book with either SCORM or HTML5 package (admin chooses via radio on form).
  * - packageType 'scorm': zip stored as SCORM, scormFile/Path/Url/Size set.
  * - packageType 'html5': zip sent to html5handler (extract + host), html5PackageId + html5EntryPoint set.
+ * - packageType 'builtin': no zip; cmsBookId must reference a published, non-archived CmsBook.
  *
  * @param {String} userId - Admin user's MongoDB ID
- * @param {Object} bookData - Book data (includes packageType: 'scorm' | 'html5')
+ * @param {Object} bookData - Book data (includes packageType: 'scorm' | 'html5' | 'builtin')
  * @param {Object} files - Uploaded files (from multer: scormFile = zip, coverImage optional)
  * @returns {Object} Created book
  * @throws {Error} If validation fails
@@ -35,18 +37,44 @@ const createBook = async (userId, bookData, files = {}) => {
     packageType: rawPackageType,
   } = bookData;
 
-  const packageType = (rawPackageType && rawPackageType.toLowerCase()) === 'html5' ? 'html5' : 'scorm';
+  const rawLower = (rawPackageType && String(rawPackageType).toLowerCase()) || '';
+  const packageType = rawLower === 'html5' ? 'html5' : rawLower === 'builtin' ? 'builtin' : 'scorm';
 
   if (!title || !title.trim()) {
     throw new Error('Please provide a book title');
   }
 
-  if (!files.scormFile || !Array.isArray(files.scormFile) || files.scormFile.length === 0) {
-    throw new Error('Please provide a package file (ZIP) for the book');
+  let linkedCmsBookId = null;
+  if (packageType === 'builtin') {
+    const cmsId = bookData.cmsBookId;
+    if (!cmsId || !String(cmsId).trim()) {
+      throw new Error('Built-in book requires cmsBookId (select a built-in / CMS book)');
+    }
+    if (!mongoose.Types.ObjectId.isValid(cmsId)) {
+      throw new Error('Invalid cmsBookId');
+    }
+    const cmsDoc = await CmsBook.findOne({
+      _id: cmsId,
+      status: 'published',
+      isArchived: false,
+    })
+      .select('_id')
+      .lean();
+    if (!cmsDoc) {
+      throw new Error('Built-in CMS book not found, not published, or archived');
+    }
+    linkedCmsBookId = cmsDoc._id;
+  } else {
+    if (!files.scormFile || !Array.isArray(files.scormFile) || files.scormFile.length === 0) {
+      throw new Error('Please provide a package file (ZIP) for the book');
+    }
   }
 
-  const zipFile = files.scormFile[0];
-  if (!zipFile || !(zipFile.buffer || zipFile.path)) {
+  const zipFile =
+    files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0
+      ? files.scormFile[0]
+      : null;
+  if (packageType !== 'builtin' && (!zipFile || !(zipFile.buffer || zipFile.path))) {
     throw new Error('Package file was not uploaded correctly. Please try again.');
   }
 
@@ -62,6 +90,7 @@ const createBook = async (userId, bookData, files = {}) => {
     description: description?.trim() || null,
     coverImage: null,
     packageType,
+    cmsBookId: linkedCmsBookId,
     language: language || 'en',
     readingLevel: readingLevel || 'beginner',
     estimatedReadingTime: estimatedReadingTime ? parseInt(estimatedReadingTime, 10) : null,
@@ -74,7 +103,17 @@ const createBook = async (userId, bookData, files = {}) => {
     createdBy: userId,
   };
 
-  if (packageType === 'html5') {
+  if (packageType === 'builtin') {
+    bookPayload.scormFile = null;
+    bookPayload.scormFilePath = null;
+    bookPayload.scormFileUrl = null;
+    bookPayload.scormFileSize = null;
+    bookPayload.scormBaseUrl = null;
+    bookPayload.scormEntryPoint = 'index.html';
+    bookPayload.html5PackageId = null;
+    bookPayload.html5EntryPoint = 'index.html';
+    bookPayload.html5BaseUrl = null;
+  } else if (packageType === 'html5') {
     const zipInput = zipFile.buffer || zipFile.path;
     const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
     bookPayload.html5PackageId = id;
@@ -101,6 +140,7 @@ const createBook = async (userId, bookData, files = {}) => {
     bookPayload.scormFileSize = zipFile.size;
     bookPayload.html5PackageId = null;
     bookPayload.html5EntryPoint = null;
+    bookPayload.cmsBookId = null;
   }
 
   if (tags) {
@@ -120,7 +160,7 @@ const createBook = async (userId, bookData, files = {}) => {
 
   const book = await Book.create(bookPayload);
 
-  if (packageType === 'scorm' && zipFile.buffer) {
+  if (packageType === 'scorm' && zipFile && zipFile.buffer) {
     const extracted = await scormService.uploadExtractedScormToS3(zipFile.buffer, 'book', book._id);
     if (extracted) {
       book.scormBaseUrl = extracted.baseUrl;
@@ -131,6 +171,11 @@ const createBook = async (userId, bookData, files = {}) => {
 
   const createdBook = await Book.findById(book._id)
     .populate({ path: 'scormFile', select: 'type title url mimeType size', strictPopulate: false })
+    .populate({
+      path: 'cmsBookId',
+      select: 'title description status language version isArchived',
+      strictPopulate: false,
+    })
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -199,6 +244,7 @@ const getAllBooks = async (queryParams = {}) => {
   // Get books
   const books = await Book.find(query)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version')
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 })
@@ -232,6 +278,7 @@ const getAllBooks = async (queryParams = {}) => {
 const getBookById = async (bookId) => {
   const book = await Book.findById(bookId)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -298,8 +345,9 @@ const unarchiveBook = async (bookId) => {
  * Update Book Service
  * 
  * Updates book fields: title, description, coverImage, language, readingLevel,
- * estimatedReadingTime, requiredReadingCount, starsPerReading, totalStarsAwarded, isPublished
- * SCORM file cannot be changed
+ * estimatedReadingTime, requiredReadingCount, starsPerReading, totalStarsAwarded, isPublished,
+ * cmsBookId (only when packageType is builtin — re-link to another published CmsBook)
+ * SCORM / HTML5 package files cannot be changed via this method
  * 
  * @param {String} bookId - Book's MongoDB ID
  * @param {String} userId - Admin user's MongoDB ID (for verification)
@@ -319,6 +367,7 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
     starsPerReading,
     totalStarsAwarded,
     isPublished,
+    cmsBookId,
   } = updateData;
 
   // Find book
@@ -391,6 +440,30 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
     book.isPublished = isPublished === 'true' || isPublished === true;
   }
 
+  // Re-link built-in CMS book (only for packageType=builtin)
+  if (cmsBookId !== undefined) {
+    if ((book.packageType || 'scorm') !== 'builtin') {
+      throw new Error('cmsBookId can only be changed for built-in books (packageType=builtin)');
+    }
+    if (!cmsBookId || !String(cmsBookId).trim()) {
+      throw new Error('cmsBookId cannot be empty for built-in books');
+    }
+    if (!mongoose.Types.ObjectId.isValid(cmsBookId)) {
+      throw new Error('Invalid cmsBookId');
+    }
+    const linked = await CmsBook.findOne({
+      _id: cmsBookId,
+      status: 'published',
+      isArchived: false,
+    })
+      .select('_id')
+      .lean();
+    if (!linked) {
+      throw new Error('Linked built-in CMS book not found, not published, or archived');
+    }
+    book.cmsBookId = cmsBookId;
+  }
+
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
@@ -403,6 +476,7 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
   // Get updated book with populated data
   const updatedBook = await Book.findById(bookId)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();

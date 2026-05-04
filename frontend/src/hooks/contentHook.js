@@ -16,7 +16,7 @@ import {
   setContentType,
 } from '../store/slices/contentSlice';
 import { showNotification } from '../store/slices/uiSlice';
-import { CONTENT_TYPES } from '../services/contentService';
+import { CONTENT_TYPES, BOOK_PACKAGE_TYPES } from '../services/contentService';
 
 /**
  * Custom hook for unified content management
@@ -60,6 +60,9 @@ export const useContent = () => {
         }
         if (filters.typeSpecific?.readingLevel) {
           finalParams.readingLevel = filters.typeSpecific.readingLevel;
+        }
+        if (filters.typeSpecific?.packageType) {
+          finalParams.packageType = filters.typeSpecific.packageType;
         }
       } else if (type === CONTENT_TYPES.VIDEO) {
         if (filters.typeSpecific?.isActive !== undefined) {
@@ -327,6 +330,23 @@ export const useContent = () => {
     return labels[contentType] || 'Content';
   };
 
+  const getBookPackageType = (book) => {
+    const value = book?.packageType;
+    return [BOOK_PACKAGE_TYPES.SCORM, BOOK_PACKAGE_TYPES.HTML5, BOOK_PACKAGE_TYPES.BUILTIN].includes(value)
+      ? value
+      : BOOK_PACKAGE_TYPES.SCORM;
+  };
+
+  const isBuiltinBook = (book) => getBookPackageType(book) === BOOK_PACKAGE_TYPES.BUILTIN;
+
+  const getLinkedCmsBookId = (book) => {
+    if (!book) return null;
+    if (typeof book.cmsBookId === 'string' && book.cmsBookId.trim()) return book.cmsBookId;
+    if (book.cmsBookId && typeof book.cmsBookId === 'object' && book.cmsBookId._id) return book.cmsBookId._id;
+    if (book.cmsBook && typeof book.cmsBook === 'object' && book.cmsBook._id) return book.cmsBook._id;
+    return null;
+  };
+
   /**
    * Get filtered content items (by current contentType filter)
    */
@@ -363,8 +383,12 @@ export const useContent = () => {
     clearContentError,
     clearContent,
     getContentTypeLabel,
+    getBookPackageType,
+    isBuiltinBook,
+    getLinkedCmsBookId,
     // Constants
     CONTENT_TYPES,
+    BOOK_PACKAGE_TYPES,
   };
 };
 

@@ -234,6 +234,37 @@ describe('courseProgress.controller – submitBookCompletion (HTML5 vs SCORM val
     15000
   );
 
+  it('allows builtin (CMS-linked) book completion with same relaxed rules as HTML5', async () => {
+    stubModelsForFlow();
+
+    models.Book.findById.mockResolvedValue({
+      _id: 'book1',
+      title: 'Builtin shell',
+      packageType: 'builtin',
+      cmsBookId: '507f1f77bcf86cd799439011',
+      requiredReadingCount: 5,
+      totalStarsAwarded: 50,
+    });
+
+    models.Course.findById.mockResolvedValue({
+      _id: 'course1',
+      title: 'Course',
+      contents: [{ contentId: 'book1', contentType: 'book', step: 1 }],
+    });
+
+    const req = {
+      params: { courseId: 'course1', childId: 'child1', bookId: 'book1' },
+      body: { score: null, maxScore: null, status: 'passed', timeSpent: 0, progress: 100 },
+      user: { role: 'admin', _id: 'admin1' },
+    };
+    const res = mockRes();
+
+    await courseProgressController.submitBookCompletion(req, res);
+
+    const statusCalls = res.status.mock.calls.map((c) => c[0]);
+    expect(statusCalls).not.toContain(400);
+  });
+
   it('rejects HTML5 completion when status is "completed" and score is 0 (not passed)', async () => {
     stubModelsForFlow();
     models.Book.findById.mockResolvedValue({

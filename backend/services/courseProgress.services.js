@@ -728,6 +728,7 @@ const getCourseDetailsForChild = async (childId, courseId) => {
       } else if (contentItem.contentType === 'book') {
         const book = await Book.findById(contentItem.contentId)
           .populate('scormFile', 'type title url mimeType size')
+          .populate('cmsBookId', 'title description status language version isArchived')
           .populate('badgeAwarded', 'name description icon image category rarity')
           .lean();
         contentData = book ? { ...book, _contentType: 'book' } : null;

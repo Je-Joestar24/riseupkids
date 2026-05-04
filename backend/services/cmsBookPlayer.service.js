@@ -1,5 +1,10 @@
 const { CmsBook, Media } = require('../models');
 
+/**
+ * Parent/teacher player for CmsBook (built-in book builder).
+ * Linked from library Book records via Book.packageType === 'builtin' and Book.cmsBookId → same id used in getPlayableCmsBookForParent.
+ */
+
 function createHttpError(message, statusCode) {
   const err = new Error(message);
   err.statusCode = statusCode;

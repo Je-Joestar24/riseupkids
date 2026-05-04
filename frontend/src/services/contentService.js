@@ -5,13 +5,15 @@ import { TIMEOUT } from '../constants/timeout';
  *
  * Unified service for managing all content types:
  * - Activities (SCORM-based)
- * - Books (SCORM or HTML5: same endpoint POST /api/books; formData.packageType selects handling)
+ * - Books (SCORM, HTML5, or builtin CMS-linked: same endpoint POST /api/books; formData.packageType selects handling)
  * - Videos (playable video + SCORM)
  * - Audio Assignments (reference audio)
  * - Chants (optional audio and SCORM files)
  *
  * All methods accept a contentType parameter to route to the correct API endpoint.
- * Book create: always POST /api/books with packageType and scormFile (ZIP); no separate HTML5 URL.
+ * Book create: POST /api/books with packageType.
+ * - scorm/html5: requires ZIP in scormFile.
+ * - builtin: requires cmsBookId and no ZIP upload.
  */
 
 // Content type constants
@@ -24,7 +26,35 @@ export const CONTENT_TYPES = {
   STAR_CAM_MISSION: 'starCamMission',
 };
 
-// API endpoint mapping (BOOK: same /books for SCORM and HTML5; backend uses body.packageType)
+export const BOOK_PACKAGE_TYPES = {
+  SCORM: 'scorm',
+  HTML5: 'html5',
+  BUILTIN: 'builtin',
+};
+
+export const normalizeBookContent = (book = {}) => {
+  const packageType =
+    [BOOK_PACKAGE_TYPES.SCORM, BOOK_PACKAGE_TYPES.HTML5, BOOK_PACKAGE_TYPES.BUILTIN].includes(
+      book?.packageType
+    )
+      ? book.packageType
+      : BOOK_PACKAGE_TYPES.SCORM;
+
+  const linkedCmsBook = book?.cmsBookId && typeof book.cmsBookId === 'object' ? book.cmsBookId : null;
+  const linkedCmsBookId =
+    linkedCmsBook?._id ||
+    (typeof book?.cmsBookId === 'string' && book.cmsBookId.trim() ? book.cmsBookId : null);
+
+  return {
+    ...book,
+    packageType,
+    cmsBookId: linkedCmsBookId,
+    cmsBook: linkedCmsBook,
+    isBuiltinBook: packageType === BOOK_PACKAGE_TYPES.BUILTIN,
+  };
+};
+
+// API endpoint mapping (BOOK: same /books for SCORM/HTML5/builtin; backend uses body.packageType)
 const API_ENDPOINTS = {
   [CONTENT_TYPES.ACTIVITY]: '/activities',
   [CONTENT_TYPES.BOOK]: '/books',

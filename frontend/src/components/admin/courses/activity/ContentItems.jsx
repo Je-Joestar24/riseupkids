@@ -26,12 +26,15 @@ import {
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
-import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
 import AdminTestHtmlModal from '../../common/AdminTestHtmlModal';
+import CmsBooksModalTest from '../../common/CmsBooksModalTest';
 import useHtml5 from '../../../../hooks/html5Hook';
+import useCmsBookPlayer from '../../../../hooks/cmsBookPlayer';
 import { showConfirmationDialog } from '../../../../store/slices/uiSlice';
+import cmsBookAdminService from '../../../../services/cmsBookAdminService';
 
 /**
  * ContentItems Component
@@ -54,7 +57,17 @@ const ContentItems = ({ loading, onRefresh }) => {
   const [selectedContentType, setSelectedContentType] = useState(CONTENT_TYPES.ACTIVITY);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [cmsTestModalOpen, setCmsTestModalOpen] = useState(false);
+  const [cmsTestPages, setCmsTestPages] = useState([]);
   const { openTestHtml5, modalProps: html5ModalProps, canTestHtml5 } = useHtml5();
+  const {
+    loadPlayableBookById,
+    preloadBookMedia,
+    clearPreloadState,
+    preloadProgress,
+    preloadSummary,
+    loading: cmsPlayerLoading,
+  } = useCmsBookPlayer();
 
   const resolveMediaUrl = useCallback((maybeUrl) => {
     if (!maybeUrl) return '';
@@ -73,8 +86,8 @@ const ContentItems = ({ loading, onRefresh }) => {
   const isScormItem = useCallback((type, item) => {
     // Content types that are inherently SCORM-based in this admin UI.
     if (type === CONTENT_TYPES.ACTIVITY) return true;
-    // Books may be SCORM or HTML5 (packageType). When SCORM, we ignore clicks/testing.
-    if (type === CONTENT_TYPES.BOOK && item?.packageType === 'scorm') return true;
+    // Books may be SCORM, HTML5, or builtin. Only HTML5 is testable in this modal.
+    if (type === CONTENT_TYPES.BOOK && item?.packageType !== BOOK_PACKAGE_TYPES.HTML5) return true;
     return false;
   }, []);
 
@@ -83,15 +96,49 @@ const ContentItems = ({ loading, onRefresh }) => {
     [canTestHtml5, isScormItem]
   );
 
+  const canShowBuiltinTest = useCallback(
+    (type, item) =>
+      type === CONTENT_TYPES.BOOK &&
+      item?.packageType === BOOK_PACKAGE_TYPES.BUILTIN &&
+      Boolean(item?.cmsBookId || item?.cmsBook?._id),
+    []
+  );
+
   const handleTestClick = useCallback(
-    (item) => {
+    async (item) => {
       const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      if (canShowBuiltinTest(type, item)) {
+        const cmsBookId =
+          (typeof item?.cmsBookId === 'string' && item.cmsBookId) ||
+          item?.cmsBookId?._id ||
+          item?.cmsBook?._id;
+        if (!cmsBookId) return;
+        try {
+          clearPreloadState();
+          let pages = [];
+          try {
+            const playableResponse = await loadPlayableBookById(cmsBookId);
+            pages = Array.isArray(playableResponse?.data?.pages) ? playableResponse.data.pages : [];
+          } catch (_playableError) {
+            const response = await cmsBookAdminService.getBookById(cmsBookId);
+            pages = Array.isArray(response?.data?.pages) ? response.data.pages : [];
+          }
+          setCmsTestPages(pages);
+          setCmsTestModalOpen(true);
+          if (pages.length > 0) {
+            await preloadBookMedia({ bookId: cmsBookId, pages });
+          }
+        } catch (error) {
+          console.error('Failed to load built-in CMS book for testing:', error);
+        }
+        return;
+      }
       if (isScormItem(type, item)) return;
       if (canTestHtml5(type, item)) {
         openTestHtml5(item, type);
       }
     },
-    [filters.contentType, canTestHtml5, openTestHtml5, isScormItem]
+    [filters.contentType, canShowBuiltinTest, isScormItem, canTestHtml5, openTestHtml5]
   );
 
   const handleMenuOpen = (event, item) => {
@@ -117,6 +164,13 @@ const ContentItems = ({ loading, onRefresh }) => {
     if (selectedItem) {
       const type = selectedItem._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
       openTestHtml5(selectedItem, type);
+    }
+    handleMenuClose();
+  };
+
+  const handleTestBuiltin = async () => {
+    if (selectedItem) {
+      await handleTestClick(selectedItem);
     }
     handleMenuClose();
   };
@@ -244,6 +298,14 @@ const ContentItems = ({ loading, onRefresh }) => {
     return item.starsAwarded || 0;
   };
 
+  const getBookPackageMeta = (item) => {
+    if ((item?._contentType || filters.contentType) !== CONTENT_TYPES.BOOK) return null;
+    const packageType = item?.packageType || BOOK_PACKAGE_TYPES.SCORM;
+    if (packageType === BOOK_PACKAGE_TYPES.BUILTIN) return 'Built-in';
+    if (packageType === BOOK_PACKAGE_TYPES.HTML5) return 'HTML5';
+    return 'SCORM';
+  };
+
   const supportsArchive = (type) => type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK;
 
   if (loading) {
@@ -337,16 +399,23 @@ const ContentItems = ({ loading, onRefresh }) => {
 
             <CardActionArea
               onClick={() => handleTestClick(item)}
-              disabled={!canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)}
+              disabled={
+                !canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) &&
+                !canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+              }
               sx={{
-                cursor: canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
-                  ? 'pointer'
-                  : 'default',
+                cursor:
+                  canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
+                  canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                    ? 'pointer'
+                    : 'default',
               }}
               aria-label={
-                canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
-                  ? `Test HTML5 for ${item.title}`
-                  : `${item.title}`
+                canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  ? `Preview built-in book ${item.title}`
+                  : canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                    ? `Test HTML5 for ${item.title}`
+                    : `${item.title}`
               }
             >
               {/* Cover / Placeholder - full width square */}
@@ -393,6 +462,27 @@ const ContentItems = ({ loading, onRefresh }) => {
                       }}
                     />
                   </Box>
+                  {getBookPackageMeta(item) && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 104,
+                        zIndex: 1,
+                      }}
+                    >
+                      <Chip
+                        label={getBookPackageMeta(item)}
+                        size="small"
+                        sx={{
+                          backgroundColor: `${theme.palette.primary.main}d9`,
+                          color: theme.palette.common.white,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 700,
+                        }}
+                      />
+                    </Box>
+                  )}
                   {/* Published/Draft Badge - Lower right */}
                   <Box
                     sx={{
@@ -439,10 +529,18 @@ const ContentItems = ({ loading, onRefresh }) => {
                         backdropFilter: 'blur(4px)',
                       }}
                     />
-                    {canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                    {(canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
+                      canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)) && (
                       <Chip
                         icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
-                        label="Test"
+                        label={
+                          canShowBuiltinTest(
+                            item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
+                            item
+                          )
+                            ? 'Preview'
+                            : 'Test'
+                        }
                         size="small"
                         sx={{
                           backgroundColor: `${theme.palette.success.main}e0`,
@@ -498,6 +596,27 @@ const ContentItems = ({ loading, onRefresh }) => {
                       }}
                     />
                   </Box>
+                  {getBookPackageMeta(item) && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        left: 104,
+                        zIndex: 1,
+                      }}
+                    >
+                      <Chip
+                        label={getBookPackageMeta(item)}
+                        size="small"
+                        sx={{
+                          backgroundColor: `${theme.palette.primary.main}d9`,
+                          color: theme.palette.common.white,
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 700,
+                        }}
+                      />
+                    </Box>
+                  )}
                   {/* Published/Draft Badge - Lower right */}
                   <Box
                     sx={{
@@ -522,7 +641,8 @@ const ContentItems = ({ loading, onRefresh }) => {
                     />
                   </Box>
                   {/* Test badge (SCORM or HTML5) - Lower left */}
-                  {canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
+                  {(canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
+                    canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)) && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -533,7 +653,14 @@ const ContentItems = ({ loading, onRefresh }) => {
                     >
                       <Chip
                         icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
-                        label="Test"
+                        label={
+                          canShowBuiltinTest(
+                            item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
+                            item
+                          )
+                            ? 'Preview'
+                            : 'Test'
+                        }
                         size="small"
                         sx={{
                           backgroundColor: `${theme.palette.success.main}e0`,
@@ -600,6 +727,18 @@ const ContentItems = ({ loading, onRefresh }) => {
           },
         }}
       >
+        {selectedItem && resolvedMenuType && canShowBuiltinTest(resolvedMenuType, selectedItem) && (
+          <MenuItem
+            onClick={handleTestBuiltin}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Preview Built-in Book
+          </MenuItem>
+        )}
         {selectedItem && resolvedMenuType && canTestHtml5(resolvedMenuType, selectedItem) && (
           <MenuItem
             onClick={handleTestHtml5}
@@ -682,6 +821,20 @@ const ContentItems = ({ loading, onRefresh }) => {
 
       {/* HTML5 Test Modal (admin/teacher, books with packageType html5) */}
       <AdminTestHtmlModal {...html5ModalProps} />
+
+      {/* Built-in CMS Book Test Modal */}
+      <CmsBooksModalTest
+        open={cmsTestModalOpen}
+        onClose={() => {
+          setCmsTestModalOpen(false);
+          setCmsTestPages([]);
+          clearPreloadState();
+        }}
+        pages={cmsTestPages}
+        isPreloading={Boolean(cmsPlayerLoading?.preload)}
+        preloadProgress={preloadProgress}
+        preloadSummary={preloadSummary}
+      />
     </Grid>
   );
 };

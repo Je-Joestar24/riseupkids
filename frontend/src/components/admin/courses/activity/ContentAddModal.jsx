@@ -24,7 +24,8 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
-import { CONTENT_TYPES } from '../../../../services/contentService';
+import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentService';
+import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
 /**
  * ContentAddModal Component
@@ -42,7 +43,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
   const theme = useTheme();
   const { createNewContent, loading, filters } = useContent();
 
-  const BOOK_DEFAULT_PACKAGE_TYPE = 'html5';
+  const BOOK_DEFAULT_PACKAGE_TYPE = BOOK_PACKAGE_TYPES.HTML5;
 
   // Initialize with initialContentType prop, or current content type from filters, or default
   const [contentType, setContentType] = useState(
@@ -73,6 +74,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     estimatedReadingTime: '',
     requiredReadingCount: 5,
     totalStarsAwarded: 50,
+    cmsBookId: '',
+    selectedCmsBook: null,
     // video-specific
     duration: '',
     // audio assignment-specific
@@ -89,6 +92,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     audio: null, // For chants
     instructionVideo: null, // For audio assignments & chants
   });
+  const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -115,6 +119,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       estimatedReadingTime: '',
       requiredReadingCount: 5,
       totalStarsAwarded: 50,
+      cmsBookId: '',
+      selectedCmsBook: null,
       duration: '',
       instructions: '',
       estimatedDuration: '',
@@ -156,12 +162,18 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       }
 
       if (contentType === CONTENT_TYPES.BOOK) {
-        if (!selectedFiles.scormFile) {
+        const bookPackageType =
+          formData.packageType === BOOK_PACKAGE_TYPES.BUILTIN
+            ? BOOK_PACKAGE_TYPES.BUILTIN
+            : BOOK_PACKAGE_TYPES.HTML5;
+        if (bookPackageType !== BOOK_PACKAGE_TYPES.BUILTIN && !selectedFiles.scormFile) {
           alert('Please upload a package file (ZIP) for the book. Choose SCORM or HTML5 above.');
           return;
         }
-        // Same endpoint POST /api/books for both SCORM and HTML5; backend uses packageType to decide handling
-        const bookPackageType = formData.packageType === 'html5' ? 'html5' : 'scorm';
+        if (bookPackageType === BOOK_PACKAGE_TYPES.BUILTIN && !formData.cmsBookId) {
+          alert('Please select a built-in book from the right drawer.');
+          return;
+        }
         fd.append('packageType', bookPackageType);
         fd.append('language', formData.language || 'en');
         fd.append('readingLevel', formData.readingLevel || 'beginner');
@@ -170,7 +182,11 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         }
         fd.append('requiredReadingCount', String(formData.requiredReadingCount ?? 5));
         fd.append('totalStarsAwarded', String(formData.totalStarsAwarded ?? 50));
-        fd.append('scormFile', selectedFiles.scormFile);
+        if (bookPackageType === BOOK_PACKAGE_TYPES.BUILTIN) {
+          fd.append('cmsBookId', formData.cmsBookId);
+        } else {
+          fd.append('scormFile', selectedFiles.scormFile);
+        }
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -279,13 +295,51 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               >
                 Package type
               </FormLabel>
-              <RadioGroup row value="html5">
-                <FormControlLabel value="html5" control={<Radio />} label="HTML5 (Captivate)" />
+              <RadioGroup
+                row
+                value={formData.packageType}
+                onChange={(e) => {
+                  const selectedType = e.target.value;
+                  handleInputChange('packageType', selectedType);
+                  if (selectedType !== BOOK_PACKAGE_TYPES.BUILTIN) {
+                    handleInputChange('cmsBookId', '');
+                    handleInputChange('selectedCmsBook', null);
+                  }
+                  if (selectedType === BOOK_PACKAGE_TYPES.BUILTIN) {
+                    setSelectedFiles((prev) => ({ ...prev, scormFile: null }));
+                  }
+                }}
+              >
+                <FormControlLabel value={BOOK_PACKAGE_TYPES.HTML5} control={<Radio />} label="HTML5 (Captivate)" />
+                <FormControlLabel value={BOOK_PACKAGE_TYPES.BUILTIN} control={<Radio />} label="Built-in (CMS book)" />
               </RadioGroup>
               <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
-                Books are created as HTML5 packages. Upload the HTML5 (Captivate) export ZIP below.
+                HTML5 mode uses ZIP upload. Built-in mode links to a published CMS book.
               </Typography>
             </FormControl>
+            {formData.packageType === BOOK_PACKAGE_TYPES.BUILTIN && (
+              <Box
+                sx={{
+                  border: `1px solid ${theme.palette.border.main}`,
+                  borderRadius: '10px',
+                  p: 1.5,
+                }}
+              >
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, mb: 0.5 }}>
+                  Built-in book source
+                </Typography>
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                  {formData.selectedCmsBook?.title || 'No built-in book selected'}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={() => setCmsBooksDrawerOpen(true)}
+                  sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                >
+                  {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
+                </Button>
+              </Box>
+            )}
             <FormControl fullWidth>
               <InputLabel>Language</InputLabel>
               <Select
@@ -579,52 +633,66 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
         {contentType === CONTENT_TYPES.BOOK && (
           <>
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Package file (ZIP) <span style={{ color: 'red' }}>*</span>
-              </Typography>
-              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
-                Upload an HTML5 (Captivate) export ZIP.
-              </Typography>
-              <input
-                accept=".zip,application/zip,application/x-zip-compressed"
-                style={{ display: 'none' }}
-                id="book-scorm-upload"
-                type="file"
-                onChange={(e) => handleFileChange('scormFile', e.target.files)}
-              />
-              <label htmlFor="book-scorm-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
+            {formData.packageType !== BOOK_PACKAGE_TYPES.BUILTIN ? (
+              <Box>
+                <Typography
+                  variant="subtitle2"
                   sx={{
-                    borderRadius: '10px',
                     fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 600,
+                    marginBottom: 1,
                   }}
                 >
-                  Upload HTML5 package (ZIP)
-                </Button>
-              </label>
-              {selectedFiles.scormFile && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.scormFile.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
+                  Package file (ZIP) <span style={{ color: 'red' }}>*</span>
+                </Typography>
+                <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                  Upload an HTML5 (Captivate) export ZIP.
+                </Typography>
+                <input
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  style={{ display: 'none' }}
+                  id="book-scorm-upload"
+                  type="file"
+                  onChange={(e) => handleFileChange('scormFile', e.target.files)}
+                />
+                <label htmlFor="book-scorm-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    fullWidth
+                    sx={{
+                      borderRadius: '10px',
+                      fontFamily: 'Quicksand, sans-serif',
+                    }}
+                  >
+                    Upload HTML5 package (ZIP)
+                  </Button>
+                </label>
+                {selectedFiles.scormFile && (
+                  <Box sx={{ marginTop: 1 }}>
+                    <Chip
+                      label={selectedFiles.scormFile.name}
+                      size="small"
+                      sx={{ margin: 0.5 }}
+                      onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
+                    />
+                  </Box>
+                )}
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  border: `1px dashed ${theme.palette.border.main}`,
+                  borderRadius: '10px',
+                  p: 1.5,
+                }}
+              >
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
+                  Built-in mode selected. No ZIP package upload is required.
+                </Typography>
+              </Box>
+            )}
           </>
         )}
 
@@ -1042,7 +1110,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             }}
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
-            <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5 / Built-in)</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
             <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>
@@ -1143,6 +1211,16 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           {loading ? 'Creating...' : 'Create'}
         </Button>
       </Box>
+      <CMSBooksSelectRightDrawer
+        open={cmsBooksDrawerOpen}
+        onClose={() => setCmsBooksDrawerOpen(false)}
+        selectedBookId={formData.cmsBookId}
+        onSelectBook={(book) => {
+          handleInputChange('cmsBookId', book?._id || '');
+          handleInputChange('selectedCmsBook', book || null);
+          setCmsBooksDrawerOpen(false);
+        }}
+      />
     </>
   );
 

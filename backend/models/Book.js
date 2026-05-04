@@ -51,11 +51,17 @@ const bookSchema = new mongoose.Schema(
       type: String, // File path or URL
       default: null,
     },
-    // Package type: admin chooses on upload (radio). One book = SCORM or HTML5, not both.
+    // Package type: SCORM zip, HTML5 zip, or built-in CMS book (CmsBook document — no zip).
     packageType: {
       type: String,
-      enum: ['scorm', 'html5'],
+      enum: ['scorm', 'html5', 'builtin'],
       default: 'scorm',
+    },
+    /** When packageType === 'builtin', points to the playable CmsBook (published builder content). */
+    cmsBookId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CmsBook',
+      default: null,
     },
     // SCORM file reference (required when packageType === 'scorm')
     scormFile: {
@@ -178,7 +184,7 @@ const bookSchema = new mongoose.Schema(
   }
 );
 
-// Validate: one package type per book (SCORM or HTML5; chosen by admin via radio)
+// Validate: one delivery mode per book (SCORM zip, HTML5 zip, or built-in CmsBook).
 bookSchema.pre('validate', function (next) {
   const type = this.packageType || 'scorm';
   if (type === 'scorm') {
@@ -189,6 +195,11 @@ bookSchema.pre('validate', function (next) {
   } else if (type === 'html5') {
     if (!this.html5PackageId || !this.html5PackageId.trim()) {
       next(new Error('HTML5 package requires html5PackageId'));
+      return;
+    }
+  } else if (type === 'builtin') {
+    if (!this.cmsBookId) {
+      next(new Error('Built-in book requires cmsBookId (link to a published CmsBook)'));
       return;
     }
   }
@@ -202,6 +213,7 @@ bookSchema.index({ language: 1 });
 bookSchema.index({ readingLevel: 1 });
 bookSchema.index({ scormFile: 1 });
 bookSchema.index({ packageType: 1 });
+bookSchema.index({ cmsBookId: 1 });
 bookSchema.index({ badgeAwarded: 1 });
 bookSchema.index({ isArchived: 1 });
 

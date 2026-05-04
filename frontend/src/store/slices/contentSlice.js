@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import contentService, { CONTENT_TYPES } from '../../services/contentService';
+import contentService, { CONTENT_TYPES, normalizeBookContent } from '../../services/contentService';
 
 /**
  * Async thunk for getting all content items
@@ -164,6 +164,7 @@ const initialState = {
       // Books
       language: undefined,
       readingLevel: undefined,
+      packageType: undefined,
       // Videos
       isActive: undefined,
       // Audio Assignments
@@ -220,7 +221,7 @@ const contentSlice = createSlice({
         if (contentType === CONTENT_TYPES.ACTIVITY) {
           items = response.data || [];
         } else if (contentType === CONTENT_TYPES.BOOK) {
-          items = response.data || [];
+          items = (response.data || []).map((book) => normalizeBookContent(book));
         } else if (contentType === CONTENT_TYPES.VIDEO) {
           // Transform videos: map thumbnail to coverImage for consistency
           items = (response.data || []).map(video => ({
@@ -258,6 +259,9 @@ const contentSlice = createSlice({
         // Add new content to the list
         if (response.data) {
           let newItem = { ...response.data, _contentType: contentType };
+          if (contentType === CONTENT_TYPES.BOOK) {
+            newItem = { ...normalizeBookContent(newItem), _contentType: contentType };
+          }
           // Transform videos: map thumbnail to coverImage
           if (contentType === CONTENT_TYPES.VIDEO) {
             newItem = { ...newItem, coverImage: newItem.thumbnail || newItem.coverImage };
@@ -283,7 +287,11 @@ const contentSlice = createSlice({
         const { contentType, response } = action.payload;
         
         if (response.data) {
-          state.currentContent = { ...response.data, _contentType: contentType };
+          const normalized =
+            contentType === CONTENT_TYPES.BOOK
+              ? normalizeBookContent(response.data)
+              : response.data;
+          state.currentContent = { ...normalized, _contentType: contentType };
         }
         state.error = null;
       })
@@ -302,6 +310,9 @@ const contentSlice = createSlice({
         state.loading = false;
         const { contentType, contentId, response } = action.payload;
         let updatedContent = response.data;
+        if (contentType === CONTENT_TYPES.BOOK && updatedContent) {
+          updatedContent = normalizeBookContent(updatedContent);
+        }
         // Transform videos: map thumbnail to coverImage
         if (contentType === CONTENT_TYPES.VIDEO && updatedContent) {
           updatedContent = { ...updatedContent, coverImage: updatedContent.thumbnail || updatedContent.coverImage };

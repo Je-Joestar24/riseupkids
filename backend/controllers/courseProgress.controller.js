@@ -327,9 +327,11 @@ const submitBookCompletion = async (req, res) => {
     // Validation: Check if completion requirements are met
     // SCORM books: keep stricter validation (score/time).
     // HTML5 books (CloudFront hosted): frontend may not reliably read score/time due to cross-origin restrictions.
-    // For HTML5 we require "passed" OR a passing score ratio (score/maxScore >= 0.75) when score is provided.
-    const isHtml5Book = (book.packageType || 'scorm') === 'html5';
-    const estimatedMinTime = isHtml5Book ? 0 : 60; // seconds
+    // Built-in CMS books: same relaxed timing as HTML5; completion signals come from the custom player.
+    // For HTML5 / built-in we require "passed" OR a passing score ratio (score/maxScore >= 0.75) when score is provided.
+    const pkg = book.packageType || 'scorm';
+    const isRelaxedPackage = pkg === 'html5' || pkg === 'builtin';
+    const estimatedMinTime = isRelaxedPackage ? 0 : 60; // seconds
     const minProgressRequired = 80; // 80% minimum progress
     const passThreshold = 0.75;
 
@@ -351,10 +353,10 @@ const submitBookCompletion = async (req, res) => {
     // HTML5: must be "passed" OR meet score threshold (when score is available).
     // If client sends a score, we will not accept 0 / failing scores via status "completed".
     const html5PassedValid = statusLower === 'passed' || passedByScore;
-    const canComplete = (isHtml5Book ? html5PassedValid : (scoreValid || statusValid)) && timeValid && progressValid;
+    const canComplete = (isRelaxedPackage ? html5PassedValid : (scoreValid || statusValid)) && timeValid && progressValid;
 
     console.log(`[Book Completion] Request ${requestId} - Validation:`, {
-      isHtml5Book,
+      isRelaxedPackage,
       scoreValid,
       statusValid,
       passedByScore,
@@ -372,8 +374,8 @@ const submitBookCompletion = async (req, res) => {
         message: 'Completion requirements not met. Please spend more time reading the book and ensure you have a valid score or status.',
         data: {
           requirements: {
-            score: scoreValid ? '✓' : (isHtml5Book ? `✗ Score must be >= ${Math.round(passThreshold * 100)}% (or status "passed")` : '✗ Score must be > 0'),
-            status: (isHtml5Book ? html5PassedValid : statusValid) ? '✓' : (isHtml5Book ? '✗ Status must be "passed" (or provide a passing score)' : '✗ Status must be "passed" or "completed"'),
+            score: scoreValid ? '✓' : (isRelaxedPackage ? `✗ Score must be >= ${Math.round(passThreshold * 100)}% (or status "passed")` : '✗ Score must be > 0'),
+            status: (isRelaxedPackage ? html5PassedValid : statusValid) ? '✓' : (isRelaxedPackage ? '✗ Status must be "passed" (or provide a passing score)' : '✗ Status must be "passed" or "completed"'),
             time: timeValid ? '✓' : `✗ Time must be >= ${estimatedMinTime}s (or max score reached)`,
             progress: progressValid ? '✓' : `✗ Progress must be >= ${minProgressRequired}% (or max score reached)`,
           },

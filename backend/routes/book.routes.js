@@ -20,7 +20,7 @@ const { uploadBook, uploadBookUpdate } = require('../middleware/upload');
  * All routes require authentication and admin/teacher role
  * 
  * Routes:
- * - POST / - Create new book (with SCORM file and cover image upload)
+ * - POST / - Create book: ZIP for scorm/html5, or packageType=builtin + cmsBookId (no ZIP)
  * - GET / - Get all books (with filtering and pagination)
  * - GET /:id - Get single book by ID
  * - PUT /:id - Update book (title, description, coverImage, reading settings, isPublished)
