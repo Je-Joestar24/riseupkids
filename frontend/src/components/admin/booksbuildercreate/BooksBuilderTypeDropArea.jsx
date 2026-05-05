@@ -37,7 +37,6 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const hasUploadedVideo = Boolean(page.videoUrl);
   const hasInteractiveBackground = Boolean(page.backgroundImageUrl);
   const hasPrimaryMedia = hasIntroImage || (isVideoUploadPage && hasUploadedVideo);
-  const [isSubtitleEditing, setIsSubtitleEditing] = useState(false);
   const contentAudioRef = useRef(null);
   const contentTimelineTrackRef = useRef(null);
   const [contentCurrentTime, setContentCurrentTime] = useState(0);
@@ -542,6 +541,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
             alignItems: 'center',
             p: { xs: 2, md: 3 },
             backgroundColor: '#fff',
+            gap: 1.2
           }}
         >
           {page.audioUrl ? (
@@ -590,93 +590,116 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
             ))}
           </Box>
 
-          {isSubtitleEditing ? (
-            <TextField
-              autoFocus
-              multiline
-              minRows={2}
-              value={page.subtitle || ''}
-              placeholder="Subtitle will appear here"
-              onChange={(event) => onPatch({ subtitle: event.target.value })}
-              onBlur={() => setIsSubtitleEditing(false)}
-              onClick={(event) => event.stopPropagation()}
-              aria-label="Edit content subtitle"
-              sx={{
-                width: '100%',
-                maxWidth: '88%',
-                '& .MuiOutlinedInput-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 800,
-                  fontSize: { xs: '2rem', md: '2.7rem' },
-                  textAlign: 'center',
-                },
-                '& .MuiOutlinedInput-input': {
-                  textAlign: 'center',
-                },
-                '& .MuiOutlinedInput-input::placeholder': {
-                  opacity: 1,
-                  textAlign: 'center',
-                },
-              }}
-            />
-          ) : (
+          <Box
+            sx={{
+              width: '100%',
+              maxWidth: '92%',
+              borderRadius: '14px',
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              px: 1.2,
+              py: 1,
+              mt: 'auto'
+            }}
+          >
             <Typography
-              role="button"
-              tabIndex={0}
-              aria-label="Edit subtitle"
-              onClick={() => setIsSubtitleEditing(true)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  setIsSubtitleEditing(true);
-                }
-              }}
+              variant="caption"
               sx={{
+                display: 'block',
+                textAlign: 'center',
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 800,
-                fontSize: { xs: '2rem', md: '2.7rem' },
-                color: '#141414',
-                textAlign: 'center',
-                px: 2,
-                cursor: 'text',
-                maxWidth: '88%',
+                color: 'text.secondary',
+                fontSize: { xs: '0.78rem', md: '0.86rem' },
+                letterSpacing: '0.01em',
+                mb: 0.9,
               }}
             >
-              {page.subtitle || 'Click here to edit subtitle'}
+              Transcript text editor (live playback coloring)
             </Typography>
-          )}
 
-          {contentTimingWords.length ? (
             <Box
-              role="group"
-              aria-label="Content sample transcript words"
               sx={{
-                mt: 1,
-                mb: 1,
-                px: 1,
-                display: 'flex',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
-                gap: 0.6,
+                position: 'relative',
+                minHeight: { xs: 108, md: 124 },
+                borderRadius: '12px',
+                border: `1px solid ${theme.palette.border.main}`,
+                backgroundColor: '#fff',
+                px: 1.2,
+                py: 1,
+                overflow: 'hidden',
               }}
             >
-              {contentTimingWords.map((word, index) => (
-                <Typography
-                  key={`builder-content-word-${index + 1}-${word?.w || 'word'}`}
-                  component="span"
-                  sx={{
+              <Box
+                aria-hidden
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 700,
+                  fontSize: { xs: '1.15rem', md: '1.4rem' },
+                  lineHeight: 1.45,
+                  textAlign: 'center',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  pointerEvents: 'none',
+                  minHeight: { xs: 92, md: 108 },
+                }}
+              >
+                {contentTimingWords.length
+                  ? contentTimingWords.map((word, index) => (
+                    <Box
+                      key={`editor-overlay-word-${index + 1}-${word?.w || 'word'}`}
+                      component="span"
+                      sx={{
+                        color: index === activeContentWordIndex ? 'accent.main' : '#141414',
+                        transition: 'color 150ms ease',
+                      }}
+                    >
+                      {`${word?.w || ''} `}
+                    </Box>
+                  ))
+                  : (contentReadingText || 'Type transcript text...')}
+              </Box>
+
+              <TextField
+                multiline
+                minRows={3}
+                maxRows={4}
+                value={page.subtitle || ''}
+                placeholder="Type transcript text..."
+                onChange={(event) => onPatch({ subtitle: event.target.value })}
+                onClick={(event) => event.stopPropagation()}
+                aria-label="Edit content transcript text"
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  '& .MuiOutlinedInput-root': {
+                    height: '100%',
+                    alignItems: 'stretch',
+                    p: 0,
+                    '& fieldset': {
+                      border: 'none',
+                    },
+                  },
+                  '& .MuiOutlinedInput-input': {
                     fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 800,
-                    fontSize: { xs: '0.95rem', md: '1.12rem' },
-                    color: index === activeContentWordIndex ? theme.palette.accent.main : '#141414',
-                    transition: 'color 160ms ease',
-                  }}
-                >
-                  {word?.w || ''}
-                </Typography>
-              ))}
+                    fontWeight: 700,
+                    fontSize: { xs: '1.15rem', md: '1.4rem' },
+                    lineHeight: 1.45,
+                    textAlign: 'center',
+                    color: 'transparent',
+                    caretColor: theme.palette.accent.main,
+                    px: 1.2,
+                    py: 1,
+                    minHeight: { xs: 92, md: 108 },
+                    boxSizing: 'border-box',
+                    textShadow: '0 0 0 rgba(0,0,0,0)',
+                  },
+                  '& .MuiOutlinedInput-input::placeholder': {
+                    color: 'transparent',
+                  },
+                }}
+              />
             </Box>
-          ) : null}
+          </Box>
 
           {contentTimingWords.length > 0 && contentDurationSec > 0 ? (
             <Box
@@ -693,8 +716,10 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                   display: 'block',
                   textAlign: 'center',
                   fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: 'text.secondary',
+                  fontSize: { xs: '0.76rem', md: '0.84rem' },
+                  letterSpacing: '0.01em',
                   mb: 0.7,
                 }}
               >
@@ -748,9 +773,9 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                         sx={{
                           fontFamily: 'Quicksand, sans-serif',
                           fontWeight: 800,
-                          fontSize: { xs: '0.66rem', md: '0.72rem' },
+                          fontSize: { xs: '0.72rem', md: '0.8rem' },
                           color: isActive ? 'accent.main' : 'text.primary',
-                          lineHeight: 1.1,
+                          lineHeight: 1.2,
                         }}
                       >
                         {word?.w || ''}
@@ -759,9 +784,9 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                         sx={{
                           fontFamily: 'Quicksand, sans-serif',
                           fontWeight: 700,
-                          fontSize: { xs: '0.58rem', md: '0.64rem' },
+                          fontSize: { xs: '0.62rem', md: '0.7rem' },
                           color: 'text.secondary',
-                          lineHeight: 1.1,
+                          lineHeight: 1.2,
                           mt: 0.2,
                         }}
                       >
@@ -826,7 +851,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
             </Box>
           ) : null}
 
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 'auto' }}>
             <IconButton
               onClick={toggleContentSamplePlayback}
               disabled={!page.audioUrl}
