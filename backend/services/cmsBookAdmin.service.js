@@ -17,6 +17,104 @@ function normalizeSearch(value) {
   return String(value || '').trim();
 }
 
+function normalizeTextTokens(text = '') {
+  return String(text)
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function buildWeightedWords(text, durationSec) {
+  const tokens = normalizeTextTokens(text);
+  const duration = Number(durationSec);
+  if (!tokens.length || !Number.isFinite(duration) || duration <= 0) return [];
+
+  const weights = tokens.map((token) => Math.max(String(token).length, 1));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (!totalWeight) return [];
+
+  let cursor = 0;
+  return tokens.map((token, index) => {
+    const raw = (weights[index] / totalWeight) * duration;
+    const end = index === tokens.length - 1 ? duration : Math.min(duration, cursor + raw);
+    const segment = {
+      w: token,
+      start: Number(cursor.toFixed(3)),
+      end: Number(end.toFixed(3)),
+    };
+    cursor = end;
+    return segment;
+  });
+}
+
+function normalizeReadingWords({ words, durationSec }) {
+  if (!Array.isArray(words) || words.length === 0) return [];
+  const duration = Number(durationSec);
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw createHttpError('reading.durationSec must be provided when reading.words is set', 400);
+  }
+
+  let previousEnd = 0;
+  return words.map((word, index) => {
+    const token = String(word?.w || '').trim();
+    const start = Number(word?.start);
+    const end = Number(word?.end);
+    if (!token) throw createHttpError(`reading.words[${index}].w is required`, 400);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      throw createHttpError(`reading.words[${index}] start/end must be numbers`, 400);
+    }
+    if (start < 0 || end <= start || end > duration) {
+      throw createHttpError(`reading.words[${index}] must satisfy 0 <= start < end <= durationSec`, 400);
+    }
+    if (index > 0 && start < previousEnd) {
+      throw createHttpError(`reading.words[${index}] must be ordered by start`, 400);
+    }
+    previousEnd = end;
+    return {
+      w: token,
+      start: Number(start.toFixed(3)),
+      end: Number(end.toFixed(3)),
+    };
+  });
+}
+
+function normalizeContentReading(page = {}) {
+  if (page?.type !== 'content') return page;
+  const next = { ...page };
+  const reading = page?.reading ? { ...page.reading } : {};
+  const text = String(reading.text || '').trim();
+  const durationSec = reading.durationSec == null ? null : Number(reading.durationSec);
+  const hasDuration = Number.isFinite(durationSec) && durationSec > 0;
+
+  if (text) reading.text = text;
+  else delete reading.text;
+
+  if (hasDuration) reading.durationSec = Number(durationSec.toFixed(3));
+  else delete reading.durationSec;
+
+  if (Array.isArray(reading.words) && reading.words.length) {
+    reading.words = normalizeReadingWords({ words: reading.words, durationSec: reading.durationSec });
+  } else if (reading.text && hasDuration) {
+    reading.words = buildWeightedWords(reading.text, reading.durationSec);
+  } else {
+    reading.words = [];
+  }
+
+  if (!reading.text && !reading.durationSec && reading.words.length === 0) {
+    next.reading = null;
+    return next;
+  }
+
+  next.reading = reading;
+  return next;
+}
+
+function normalizePages(pages) {
+  if (!Array.isArray(pages)) return pages;
+  return pages.map((page) => normalizeContentReading(page));
+}
+
 function collectBookMediaIds(book) {
   const pages = Array.isArray(book?.pages) ? book.pages : [];
   const ids = new Set();
@@ -53,8 +151,11 @@ async function createCmsBook({ userId, payload }) {
     throw createHttpError('Book title is required', 400);
   }
 
+  const safePayload = { ...(payload || {}) };
+  safePayload.pages = normalizePages(safePayload.pages);
+
   const created = await CmsBook.create({
-    ...payload,
+    ...safePayload,
     title: String(payload.title).trim(),
     status: 'published',
     createdBy: userId,
@@ -124,6 +225,7 @@ async function updateCmsBook({ bookId, userId, patch }) {
   delete safePatch.createdBy;
   delete safePatch.createdAt;
   delete safePatch.updatedAt;
+  safePatch.pages = normalizePages(safePatch.pages);
 
   Object.assign(book, safePatch, { updatedBy: userId });
   await book.save();

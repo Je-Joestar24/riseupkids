@@ -10,6 +10,7 @@ import BooksBuilderPageSection from './BooksBuilderPageSection';
 import BooksBuilderTypeMenu from './BooksBuilderTypeMenu';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 import {
+  buildWeightedWords,
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
   buildBuilderPageFromCms,
@@ -183,7 +184,38 @@ const BooksBuilderCreateMain = () => {
   }, [menuPosition, closeTypeMenu]);
 
   const updatePage = (pageIndex, patch) => {
-    patchBuilderPage(pageIndex, patch);
+    const currentPage = pages[pageIndex] || {};
+    const nextType = patch?.type || currentPage?.type;
+
+    if (nextType !== 'content') {
+      patchBuilderPage(pageIndex, patch);
+      return;
+    }
+
+    // Preserve manual timeline edits from drag/drop or explicit word timing updates.
+    // Auto regeneration should only happen when text/duration inputs change.
+    if (Object.prototype.hasOwnProperty.call(patch || {}, 'readingWords')) {
+      patchBuilderPage(pageIndex, {
+        ...patch,
+      });
+      return;
+    }
+
+    const nextSubtitle = patch?.subtitle ?? currentPage?.subtitle ?? '';
+    const nextReadingTextRaw = patch?.readingText ?? currentPage?.readingText ?? nextSubtitle;
+    const nextReadingText = String(nextReadingTextRaw || '').trim();
+    const nextDuration = Number(patch?.audioDurationSec ?? currentPage?.audioDurationSec);
+    const hasDuration = Number.isFinite(nextDuration) && nextDuration > 0;
+
+    const recalculatedWords = nextReadingText && hasDuration
+      ? buildWeightedWords(nextReadingText, nextDuration)
+      : [];
+
+    patchBuilderPage(pageIndex, {
+      ...patch,
+      readingText: nextReadingTextRaw,
+      readingWords: recalculatedWords,
+    });
   };
 
   const getSwappedPages = useCallback(
@@ -350,6 +382,16 @@ const BooksBuilderCreateMain = () => {
             title: `${page.title || 'Content'} audio`,
             existingMediaId: page.audioMediaId,
           });
+          const readingText = String(page.readingText || page.subtitle || '').trim();
+          const durationSec = Number(page.audioDurationSec);
+          pagePayload.reading = {
+            text: readingText || null,
+            durationSec: Number.isFinite(durationSec) && durationSec > 0 ? durationSec : null,
+            words:
+              readingText && Number.isFinite(durationSec) && durationSec > 0
+                ? buildWeightedWords(readingText, durationSec)
+                : [],
+          };
         } else if (page.type === 'interactive') {
           const isTwoAnswer = page.interactionMode === 'two_options_two_answers';
           pagePayload.media.backgroundImageMediaId = await ensureUploadedMediaId({

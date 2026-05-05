@@ -79,6 +79,24 @@ const pageScoringSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const pageReadingWordSchema = new mongoose.Schema(
+  {
+    w: { type: String, required: true, trim: true },
+    start: { type: Number, required: true, min: 0 },
+    end: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
+const pageReadingSchema = new mongoose.Schema(
+  {
+    text: { type: String, default: null, trim: true },
+    durationSec: { type: Number, default: null, min: 0 },
+    words: { type: [pageReadingWordSchema], default: [] },
+  },
+  { _id: false }
+);
+
 const bookPageSchema = new mongoose.Schema(
   {
     pageId: { type: String, required: true, trim: true },
@@ -87,6 +105,7 @@ const bookPageSchema = new mongoose.Schema(
     title: { type: String, default: null, trim: true, maxlength: 200 },
     subtitle: { type: String, default: null, trim: true, maxlength: 500 },
     media: { type: pageMediaSchema, default: () => ({}) },
+    reading: { type: pageReadingSchema, default: null },
     interaction: { type: interactionConfigSchema, default: null },
     navigation: { type: pageNavigationSchema, default: () => ({}) },
     scoring: { type: pageScoringSchema, default: () => ({}) },
@@ -155,6 +174,7 @@ function isInteractivePage(type) {
 
 function validatePageByType(page) {
   const media = page.media || {};
+  const reading = page.reading || null;
   const interaction = page.interaction || null;
   const options = Array.isArray(interaction?.options) ? interaction.options : [];
 
@@ -186,6 +206,36 @@ function validatePageByType(page) {
 
   if (page.type === 'reward' && !media.videoMediaId) {
     throw new Error('Reward page requires media.videoMediaId');
+  }
+
+  if (page.type === 'content' && reading) {
+    if (reading.durationSec != null && Number(reading.durationSec) <= 0) {
+      throw new Error('content page reading.durationSec must be greater than 0');
+    }
+
+    if (Array.isArray(reading.words) && reading.words.length) {
+      const duration = Number(reading.durationSec);
+      if (!Number.isFinite(duration) || duration <= 0) {
+        throw new Error('content page reading.words requires reading.durationSec');
+      }
+
+      let previousEnd = 0;
+      reading.words.forEach((word, index) => {
+        if (!word || !String(word.w || '').trim()) {
+          throw new Error(`content page reading.words[${index}] requires non-empty w`);
+        }
+        if (!Number.isFinite(word.start) || !Number.isFinite(word.end)) {
+          throw new Error(`content page reading.words[${index}] requires numeric start/end`);
+        }
+        if (word.start < 0 || word.end <= word.start || word.end > duration) {
+          throw new Error(`content page reading.words[${index}] must satisfy 0 <= start < end <= durationSec`);
+        }
+        if (index > 0 && word.start < previousEnd) {
+          throw new Error(`content page reading.words[${index}] must be ordered by start`);
+        }
+        previousEnd = word.end;
+      });
+    }
   }
 
   if (page.type === 'activity_drag_2x2') {

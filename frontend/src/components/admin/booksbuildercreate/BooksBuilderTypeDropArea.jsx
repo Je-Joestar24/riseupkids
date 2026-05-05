@@ -1,9 +1,9 @@
-import React, { useRef, useState } from 'react';
-import { Box, MenuItem, TextField, Typography } from '@mui/material';
+import React, { useMemo, useRef, useState } from 'react';
+import { Box, IconButton, MenuItem, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AddCircleOutline } from '@mui/icons-material';
+import { AddCircleOutline, PlayArrow, Stop } from '@mui/icons-material';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
-import { getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
+import { buildWeightedWords, getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import bigLogo from '../../../assets/images/big-logo.png';
 
 const interactiveSelectProps = {
@@ -12,6 +12,9 @@ const interactiveSelectProps = {
     keepMounted: false,
   },
 };
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const MIN_WORD_DURATION_SEC = 0.05;
 
 const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) => {
   const theme = useTheme();
@@ -35,6 +38,113 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const hasInteractiveBackground = Boolean(page.backgroundImageUrl);
   const hasPrimaryMedia = hasIntroImage || (isVideoUploadPage && hasUploadedVideo);
   const [isSubtitleEditing, setIsSubtitleEditing] = useState(false);
+  const contentAudioRef = useRef(null);
+  const contentTimelineTrackRef = useRef(null);
+  const [contentCurrentTime, setContentCurrentTime] = useState(0);
+  const [isContentPlaying, setIsContentPlaying] = useState(false);
+  const [timelineDragIndex, setTimelineDragIndex] = useState(-1);
+
+  const contentReadingText = useMemo(
+    () => String(page.readingText || page.subtitle || '').trim(),
+    [page.readingText, page.subtitle]
+  );
+
+  const contentTimingWords = useMemo(() => {
+    if (Array.isArray(page.readingWords) && page.readingWords.length) return page.readingWords;
+    if (Array.isArray(page.reading?.words) && page.reading.words.length) return page.reading.words;
+    const duration = Number(page.audioDurationSec);
+    if (contentReadingText && Number.isFinite(duration) && duration > 0) {
+      return buildWeightedWords(contentReadingText, duration);
+    }
+    return [];
+  }, [contentReadingText, page.audioDurationSec, page.reading?.words, page.readingWords]);
+
+  const activeContentWordIndex = useMemo(() => {
+    if (!contentTimingWords.length) return -1;
+    return contentTimingWords.findIndex(
+      (word) =>
+        Number.isFinite(Number(word?.start))
+        && Number.isFinite(Number(word?.end))
+        && contentCurrentTime >= Number(word.start)
+        && contentCurrentTime < Number(word.end)
+    );
+  }, [contentCurrentTime, contentTimingWords]);
+
+  const contentDurationSec = useMemo(() => {
+    const explicit = Number(page.audioDurationSec);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const fallbackEnd = contentTimingWords.length
+      ? Number(contentTimingWords[contentTimingWords.length - 1]?.end)
+      : 0;
+    return Number.isFinite(fallbackEnd) && fallbackEnd > 0 ? fallbackEnd : 0;
+  }, [contentTimingWords, page.audioDurationSec]);
+
+  const formatTimelineTime = (value) => {
+    const safe = Number(value);
+    if (!Number.isFinite(safe) || safe < 0) return '0.00s';
+    return `${safe.toFixed(2)}s`;
+  };
+
+  const updateTimelineBoundary = (boundaryIndex, clientX) => {
+    if (!contentTimingWords.length || !contentDurationSec) return;
+    if (boundaryIndex <= 0 || boundaryIndex >= contentTimingWords.length) return;
+
+    const track = contentTimelineTrackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+    const nextBoundary = ratio * contentDurationSec;
+    const previousWord = contentTimingWords[boundaryIndex - 1];
+    const nextWord = contentTimingWords[boundaryIndex];
+
+    const minBoundary = Number(previousWord.start) + MIN_WORD_DURATION_SEC;
+    const maxBoundary = Number(nextWord.end) - MIN_WORD_DURATION_SEC;
+    const safeBoundary = clamp(nextBoundary, minBoundary, maxBoundary);
+
+    const nextWords = contentTimingWords.map((word, index) => {
+      if (index === boundaryIndex - 1) {
+        return {
+          ...word,
+          end: Number(safeBoundary.toFixed(3)),
+        };
+      }
+      if (index === boundaryIndex) {
+        return {
+          ...word,
+          start: Number(safeBoundary.toFixed(3)),
+        };
+      }
+      return word;
+    });
+
+    onPatch({ readingWords: nextWords });
+  };
+
+  const startTimelineDrag = (boundaryIndex, startEvent) => {
+    startEvent.preventDefault();
+    setTimelineDragIndex(boundaryIndex);
+
+    if (Number.isFinite(startEvent?.clientX)) {
+      updateTimelineBoundary(boundaryIndex, startEvent.clientX);
+    }
+    document.body.style.cursor = 'ew-resize';
+
+    const handlePointerMove = (moveEvent) => {
+      updateTimelineBoundary(boundaryIndex, moveEvent.clientX);
+    };
+
+    const handlePointerUp = () => {
+      setTimelineDragIndex(-1);
+      document.body.style.cursor = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
 
   const handleIntroImageUpload = (event) => {
     const file = event.target.files?.[0];
@@ -103,6 +213,27 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
     };
     reader.readAsDataURL(file);
     event.target.value = '';
+  };
+
+  const toggleContentSamplePlayback = async () => {
+    if (!isContentPage || !page.audioUrl) return;
+    const audio = contentAudioRef.current;
+    if (!audio) return;
+
+    if (!isContentPlaying) {
+      try {
+        await audio.play();
+        setIsContentPlaying(true);
+      } catch (_error) {
+        setIsContentPlaying(false);
+      }
+      return;
+    }
+
+    audio.pause();
+    audio.currentTime = 0;
+    setContentCurrentTime(0);
+    setIsContentPlaying(false);
   };
 
   const buildInteractiveUploadHandler = (fieldKey) => (event) => {
@@ -413,6 +544,28 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
             backgroundColor: '#fff',
           }}
         >
+          {page.audioUrl ? (
+            <audio
+              ref={contentAudioRef}
+              src={page.audioUrl}
+              preload="metadata"
+              onTimeUpdate={(event) => {
+                setContentCurrentTime(Number(event.currentTarget?.currentTime || 0));
+              }}
+              onEnded={() => {
+                setIsContentPlaying(false);
+                setContentCurrentTime(0);
+              }}
+              onPause={() => {
+                if (contentAudioRef.current?.currentTime === 0) {
+                  setIsContentPlaying(false);
+                }
+              }}
+              style={{ display: 'none' }}
+              aria-label="Content sample audio"
+            />
+          ) : null}
+
           <Box
             aria-label="Decorative top dots"
             sx={{
@@ -492,6 +645,206 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
               {page.subtitle || 'Click here to edit subtitle'}
             </Typography>
           )}
+
+          {contentTimingWords.length ? (
+            <Box
+              role="group"
+              aria-label="Content sample transcript words"
+              sx={{
+                mt: 1,
+                mb: 1,
+                px: 1,
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 0.6,
+              }}
+            >
+              {contentTimingWords.map((word, index) => (
+                <Typography
+                  key={`builder-content-word-${index + 1}-${word?.w || 'word'}`}
+                  component="span"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 800,
+                    fontSize: { xs: '0.95rem', md: '1.12rem' },
+                    color: index === activeContentWordIndex ? theme.palette.accent.main : '#141414',
+                    transition: 'color 160ms ease',
+                  }}
+                >
+                  {word?.w || ''}
+                </Typography>
+              ))}
+            </Box>
+          ) : null}
+
+          {contentTimingWords.length > 0 && contentDurationSec > 0 ? (
+            <Box
+              sx={{
+                width: '100%',
+                px: 1.2,
+                mt: 0.4,
+                mb: 0.8,
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  display: 'block',
+                  textAlign: 'center',
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 700,
+                  color: 'text.secondary',
+                  mb: 0.7,
+                }}
+              >
+                Transcript timeline (drag dividers to retime words)
+              </Typography>
+              <Box
+                ref={contentTimelineTrackRef}
+                role="group"
+                aria-label="Transcript timeline editor"
+                sx={{
+                  position: 'relative',
+                  width: '100%',
+                  height: 58,
+                  borderRadius: '10px',
+                  border: `1px solid ${theme.palette.border.main}`,
+                  backgroundColor: '#fff',
+                  overflow: 'visible',
+                  display: 'flex',
+                  alignItems: 'stretch',
+                }}
+              >
+                {contentTimingWords.map((word, index) => {
+                  const safeStart = Number(word?.start);
+                  const safeEnd = Number(word?.end);
+                  const segmentDuration = Math.max(safeEnd - safeStart, MIN_WORD_DURATION_SEC);
+                  const widthPercent = (segmentDuration / contentDurationSec) * 100;
+                  const isActive = index === activeContentWordIndex;
+                  return (
+                    <Box
+                      key={`timeline-segment-${index + 1}-${word?.w || 'word'}`}
+                      sx={{
+                        width: `${widthPercent}%`,
+                        minWidth: '20px',
+                        height: '100%',
+                        position: 'relative',
+                        borderRight:
+                          index < contentTimingWords.length - 1
+                            ? `1px solid ${theme.palette.border.main}`
+                            : 'none',
+                        backgroundColor: isActive ? `${theme.palette.accent.main}1A` : 'transparent',
+                        transition: 'background-color 150ms ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        px: 0.35,
+                        textAlign: 'center',
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 800,
+                          fontSize: { xs: '0.66rem', md: '0.72rem' },
+                          color: isActive ? 'accent.main' : 'text.primary',
+                          lineHeight: 1.1,
+                        }}
+                      >
+                        {word?.w || ''}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          fontFamily: 'Quicksand, sans-serif',
+                          fontWeight: 700,
+                          fontSize: { xs: '0.58rem', md: '0.64rem' },
+                          color: 'text.secondary',
+                          lineHeight: 1.1,
+                          mt: 0.2,
+                        }}
+                      >
+                        {`${formatTimelineTime(safeStart)}-${formatTimelineTime(safeEnd)}`}
+                      </Typography>
+
+                      {index < contentTimingWords.length - 1 ? (
+                        <Box
+                          role="slider"
+                          aria-label={`Adjust divider between word ${index + 1} and word ${index + 2}`}
+                          tabIndex={0}
+                          onPointerDown={(event) => startTimelineDrag(index + 1, event)}
+                          onMouseDown={(event) => startTimelineDrag(index + 1, event)}
+                          onTouchStart={(event) => {
+                            const touch = event.touches?.[0];
+                            if (!touch) return;
+                            startTimelineDrag(index + 1, { ...event, clientX: touch.clientX, preventDefault: () => event.preventDefault() });
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                            event.preventDefault();
+                            const step = event.key === 'ArrowLeft' ? -0.05 : 0.05;
+                            const currentBoundary = Number(contentTimingWords[index]?.end || 0);
+                            const track = contentTimelineTrackRef.current;
+                            if (!track || !track.getBoundingClientRect().width) return;
+                            const targetBoundary = clamp(currentBoundary + step, 0, contentDurationSec);
+                            const rect = track.getBoundingClientRect();
+                            const fakeClientX = rect.left + (targetBoundary / contentDurationSec) * rect.width;
+                            updateTimelineBoundary(index + 1, fakeClientX);
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            top: 0,
+                            right: 0,
+                            transform: 'translateX(50%)',
+                            width: 14,
+                            height: '100%',
+                            cursor: 'ew-resize',
+                            zIndex: 2,
+                            touchAction: 'none',
+                            '&::before': {
+                              content: '""',
+                              position: 'absolute',
+                              top: 6,
+                              bottom: 6,
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              width: 3,
+                              borderRadius: '999px',
+                              backgroundColor:
+                                timelineDragIndex === index + 1
+                                  ? theme.palette.accent.main
+                                  : `${theme.palette.border.secondary}`,
+                            },
+                          }}
+                        />
+                      ) : null}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          ) : null}
+
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 0.5 }}>
+            <IconButton
+              onClick={toggleContentSamplePlayback}
+              disabled={!page.audioUrl}
+              aria-label={isContentPlaying ? 'Stop content sample playback' : 'Play content transcript sample'}
+              sx={{
+                borderRadius: '999px',
+                px: 2,
+                py: 0.75,
+                backgroundColor: page.audioUrl ? theme.palette.accent.main : 'rgba(0,0,0,0.12)',
+                color: '#fff',
+                '&:hover': {
+                  backgroundColor: page.audioUrl ? theme.palette.accent.dark : 'rgba(0,0,0,0.18)',
+                },
+              }}
+            >
+              {isContentPlaying ? <Stop /> : <PlayArrow />}
+            </IconButton>
+          </Box>
 
           <Box
             component="img"

@@ -13,7 +13,24 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        onPatch({ audioUrl: reader.result });
+        const objectUrl = URL.createObjectURL(file);
+        const audioEl = new Audio();
+        audioEl.preload = 'metadata';
+        audioEl.src = objectUrl;
+        audioEl.onloadedmetadata = () => {
+          const durationSec = Number.isFinite(audioEl.duration) && audioEl.duration > 0
+            ? Number(audioEl.duration.toFixed(3))
+            : null;
+          URL.revokeObjectURL(objectUrl);
+          onPatch({
+            audioUrl: reader.result,
+            audioDurationSec: durationSec,
+          });
+        };
+        audioEl.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          onPatch({ audioUrl: reader.result });
+        };
       }
     };
     reader.readAsDataURL(file);
@@ -64,6 +81,15 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
               value={page.title}
               onChange={(e) => onPatch({ title: e.target.value })}
             />
+            <TextField
+              label="Reading text"
+              multiline
+              minRows={3}
+              size="small"
+              value={page.readingText || page.subtitle || ''}
+              onChange={(e) => onPatch({ readingText: e.target.value, subtitle: e.target.value })}
+              sx={{ mt: 1 }}
+            />
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -93,6 +119,21 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
                   aria-label="Content audio player"
                   style={{ width: '100%' }}
                 />
+                {page.audioDurationSec ? (
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      position: 'absolute',
+                      left: 12,
+                      top: 10,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 700,
+                      color: 'text.secondary',
+                    }}
+                  >
+                    {`Duration: ${Number(page.audioDurationSec).toFixed(2)}s`}
+                  </Typography>
+                ) : null}
                 <Button
                   variant="contained"
                   size="small"

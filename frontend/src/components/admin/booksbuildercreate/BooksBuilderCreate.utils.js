@@ -1,5 +1,35 @@
 let tempPageCounter = 0;
 
+const normalizeTextTokens = (text = '') =>
+  String(text)
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+export const buildWeightedWords = (text, durationSec) => {
+  const tokens = normalizeTextTokens(text);
+  const duration = Number(durationSec);
+  if (!tokens.length || !Number.isFinite(duration) || duration <= 0) return [];
+
+  const weights = tokens.map((token) => Math.max(String(token).length, 1));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (!totalWeight) return [];
+
+  let cursor = 0;
+  return tokens.map((token, index) => {
+    const raw = (weights[index] / totalWeight) * duration;
+    const end = index === tokens.length - 1 ? duration : Math.min(duration, cursor + raw);
+    const segment = {
+      w: token,
+      start: Number(cursor.toFixed(3)),
+      end: Number(end.toFixed(3)),
+    };
+    cursor = end;
+    return segment;
+  });
+};
+
 export const createEmptyPage = (index) => {
   tempPageCounter += 1;
   return {
@@ -7,6 +37,9 @@ export const createEmptyPage = (index) => {
     type: '',
     title: '',
     subtitle: '',
+    readingText: '',
+    audioDurationSec: null,
+    readingWords: [],
     imageUrl: '',
     backgroundImageUrl: '',
     audioUrl: '',
@@ -25,6 +58,9 @@ export const createEmptyPage = (index) => {
 
 export const resetPageByType = {
   subtitle: '',
+  readingText: '',
+  audioDurationSec: null,
+  readingWords: [],
   imageUrl: '',
   backgroundImageUrl: '',
   audioUrl: '',
@@ -52,7 +88,8 @@ export const isPageComplete = (page) => {
   if (page.type === 'demo') return Boolean(page.videoUrl?.trim());
   if (page.type === 'reward') return Boolean(page.videoUrl?.trim());
   if (page.type === 'content') {
-    return Boolean(page.subtitle?.trim() && page.imageUrl?.trim() && page.audioUrl?.trim());
+    const readableText = page.readingText?.trim() || page.subtitle?.trim();
+    return Boolean(readableText && page.imageUrl?.trim() && page.audioUrl?.trim());
   }
   if (page.type === 'interactive') {
     if (!page.backgroundImageUrl?.trim()) return false;
@@ -163,6 +200,7 @@ export const buildCmsPageSkeleton = ({ page, index }) => ({
   title: page?.title?.trim() || null,
   subtitle: page?.subtitle?.trim() || null,
   media: {},
+  reading: null,
   interaction: null,
   navigation: {
     allowBack: true,
@@ -199,6 +237,9 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     type: builderType,
     title: page.title || '',
     subtitle: page.subtitle || '',
+    readingText: page?.reading?.text || page.subtitle || '',
+    audioDurationSec: page?.reading?.durationSec ?? null,
+    readingWords: Array.isArray(page?.reading?.words) ? page.reading.words : [],
     imageUrl: toMediaUrl(media.imageMedia) || '',
     backgroundImageUrl: toMediaUrl(media.backgroundImageMedia) || '',
     audioUrl: toMediaUrl(media.audioMedia) || '',

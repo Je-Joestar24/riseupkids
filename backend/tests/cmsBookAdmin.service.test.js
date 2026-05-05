@@ -107,6 +107,70 @@ describe('cmsBookAdmin.service', () => {
     expect(doc.save).toHaveBeenCalled();
   });
 
+  it('auto-generates reading words for content page when text and durationSec are provided', async () => {
+    const doc = makeDoc({
+      pages: [
+        {
+          pageId: 'p-1',
+          order: 1,
+          type: 'content',
+          reading: { text: 'I am a starfish', durationSec: 4.2 },
+        },
+      ],
+    });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: {
+        pages: [
+          {
+            pageId: 'p-1',
+            order: 1,
+            type: 'content',
+            reading: { text: 'I am a starfish', durationSec: 4.2 },
+          },
+        ],
+      },
+    });
+
+    expect(result.pages[0].reading.words).toHaveLength(4);
+    expect(result.pages[0].reading.words[0]).toMatchObject({
+      w: 'I',
+      start: 0,
+    });
+    expect(result.pages[0].reading.words[result.pages[0].reading.words.length - 1].end).toBe(4.2);
+  });
+
+  it('throws validation error when reading.words is set without durationSec', async () => {
+    const doc = makeDoc();
+    CmsBook.findById.mockResolvedValue(doc);
+
+    await expect(
+      service.updateCmsBook({
+        bookId: 'book-1',
+        userId: 'admin-1',
+        patch: {
+          pages: [
+            {
+              pageId: 'p-1',
+              order: 1,
+              type: 'content',
+              reading: {
+                text: 'hello world',
+                words: [
+                  { w: 'hello', start: 0, end: 1 },
+                  { w: 'world', start: 1, end: 2 },
+                ],
+              },
+            },
+          ],
+        },
+      })
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+
   it('publishes book', async () => {
     const doc = makeDoc({ status: 'draft' });
     CmsBook.findById.mockResolvedValue(doc);

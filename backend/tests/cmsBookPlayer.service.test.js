@@ -93,6 +93,47 @@ describe('cmsBookPlayer.service', () => {
     expect(result.pages[1].pageId).toBe('p2');
   });
 
+  it('returns reading metadata and auto-generates words when missing', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Animals 1',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [
+          {
+            pageId: 'p1',
+            order: 1,
+            type: 'content',
+            title: 'Reading page',
+            media: { audioMediaId: 'a1' },
+            reading: { text: 'I am a starfish', durationSec: 4.2 },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+        ],
+      }),
+    });
+
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'a1', type: 'audio', url: 'https://cdn/audio/page1.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+      ]),
+    });
+
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
+    expect(result.pages[0].reading).toBeTruthy();
+    expect(result.pages[0].reading.words).toHaveLength(4);
+    expect(result.pages[0].media.audioMedia).toMatchObject({
+      id: 'a1',
+      type: 'audio',
+      url: 'https://cdn/audio/page1.mp3',
+    });
+  });
+
   it('allows teacher access for play by id', async () => {
     CmsBook.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
