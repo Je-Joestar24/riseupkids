@@ -83,8 +83,8 @@ export const getOppositeInteractiveOption = (optionId) => {
 };
 
 export const isPageComplete = (page) => {
-  if (!page?.type || !page?.title?.trim()) return false;
-  if (page.type === 'intro') return Boolean(page.imageUrl?.trim());
+  if (!page?.type) return false;
+  if (page.type === 'intro') return Boolean(page.title?.trim() && page.imageUrl?.trim());
   if (page.type === 'demo') return Boolean(page.videoUrl?.trim());
   if (page.type === 'reward') return Boolean(page.videoUrl?.trim());
   if (page.type === 'content') {
@@ -167,8 +167,8 @@ export const isValidPageSequence = (pages) => {
 
 export const buildCmsBookCreatePayload = (pages = [], cmsPages = []) => {
   const safePages = Array.isArray(pages) ? pages : [];
-  const firstTitledPage = safePages.find((page) => String(page?.title || '').trim());
-  const title = firstTitledPage?.title?.trim() || `Built-in Book ${new Date().toISOString().slice(0, 10)}`;
+  const introPage = safePages.find((page) => page?.type === 'intro');
+  const title = introPage?.title?.trim() || `Built-in Book ${new Date().toISOString().slice(0, 10)}`;
   const typedPageCount = safePages.filter((page) => Boolean(page?.type)).length;
 
   return {
@@ -197,7 +197,7 @@ export const buildCmsPageSkeleton = ({ page, index }) => ({
   pageId: page?.id || `page-${index + 1}`,
   order: index + 1,
   type: toCmsPageType(page?.type, page?.interactionMode),
-  title: page?.title?.trim() || null,
+  title: page?.type === 'intro' ? page?.title?.trim() || null : null,
   subtitle: page?.subtitle?.trim() || null,
   media: {},
   reading: null,

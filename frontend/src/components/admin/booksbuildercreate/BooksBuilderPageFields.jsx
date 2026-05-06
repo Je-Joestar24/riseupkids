@@ -39,7 +39,7 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
 
   return (
     <Stack spacing={1.5} sx={{ width: '100%', alignSelf: 'center', pt: 1 }}>
-      {page.type !== 'content' ? (
+      {page.type === 'intro' ? (
         <TextField
           label="Page title"
           size="small"
@@ -69,18 +69,6 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
               justifyContent: 'center',
             }}
           >
-            <Typography
-              variant="caption"
-              sx={{ fontFamily: 'Quicksand, sans-serif', color: 'text.secondary', fontWeight: 700, mb: 1 }}
-            >
-              Content title
-            </Typography>
-            <TextField
-              label="Page title"
-              size="small"
-              value={page.title}
-              onChange={(e) => onPatch({ title: e.target.value })}
-            />
             <TextField
               label="Reading text"
               multiline

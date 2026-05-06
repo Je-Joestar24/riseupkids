@@ -113,6 +113,8 @@ app.get('/favicon.ico', (req, res) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Email assets (logo for emails – must be at public URL for email clients)
 app.use('/email-assets', express.static(path.join(__dirname, 'assets', 'email')));
+// Seeded CMS book UI assets (e.g., reward home button icon)
+app.use('/book-seeds', express.static(path.join(__dirname, 'assets', 'seeds', 'books')));
 
 // Serve extracted SCORM packages
 app.use('/scorm', express.static(path.join(__dirname, 'uploads/scorm')));

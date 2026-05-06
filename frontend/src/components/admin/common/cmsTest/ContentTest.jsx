@@ -113,6 +113,7 @@ const ContentTest = ({
           <Box sx={{ width: '100%', maxWidth: '92%', alignSelf: 'flex-end', mt: 'auto', mb: 'auto' }}>
             <Typography
               aria-label="Content subtitle"
+              component="div"
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 800,
@@ -120,45 +121,32 @@ const ContentTest = ({
                 color: '#141414',
                 textAlign: 'center',
                 px: 1,
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 0.8,
               }}
             >
-              {readingText || 'Subtitle'}
-            </Typography>
-
-            {words.length ? (
-              <Box
-                role="group"
-                aria-label="Word-by-word highlighted reading text"
-                sx={{
-                  mt: 1.2,
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  justifyContent: 'center',
-                  gap: 0.8,
-                  px: 1,
-                }}
-              >
-                {words.map((word, index) => (
+              {words.length
+                ? words.map((word, index) => (
                   <Typography
-                    key={`reading-word-${index + 1}-${word?.w || 'word'}`}
+                    key={`inline-reading-word-${index + 1}-${word?.w || 'word'}`}
                     component="span"
                     sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 800,
-                      fontSize: { xs: '1.05rem', md: '1.35rem' },
-                      color: index === activeWordIndex ? '#ffffff' : '#141414',
-                      backgroundColor: index === activeWordIndex ? 'orange.main' : 'transparent',
-                      borderRadius: '10px',
-                      px: 0.7,
-                      py: 0.1,
+                      fontFamily: 'inherit',
+                      fontWeight: 'inherit',
+                      fontSize: 'inherit',
+                      color: index === activeWordIndex ? 'accent.main' : '#141414',
+                      px: 0.2,
                       transition: 'all 160ms ease',
                     }}
                   >
                     {word?.w || ''}
                   </Typography>
-                ))}
-              </Box>
-            ) : null}
+                ))
+                : (readingText || 'Subtitle')}
+            </Typography>
           </Box>
 
           <Box

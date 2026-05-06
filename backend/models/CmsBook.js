@@ -307,6 +307,10 @@ cmsBookSchema.pre('validate', function (next) {
 
       validatePageByType(page);
 
+      if (page.type === 'cover' && !String(page.title || '').trim()) {
+        throw new Error('Cover page requires title');
+      }
+
       if (isInteractivePage(page.type)) {
         const previousPage = pages[i - 1];
         const hasValidPreviousPage = previousPage

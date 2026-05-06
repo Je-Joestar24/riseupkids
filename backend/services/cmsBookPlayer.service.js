@@ -18,9 +18,9 @@ function parsePositiveInt(value, fallback) {
 }
 
 function ensurePlayerAccess(userRole) {
-  const allowedRoles = ['parent', 'admin', 'teacher'];
+  const allowedRoles = ['parent', 'admin', 'teacher', 'child'];
   if (!allowedRoles.includes(userRole)) {
-    throw createHttpError('Only parent/admin/teacher can access book player', 403);
+    throw createHttpError('Only parent/admin/teacher/child can access book player', 403);
   }
 }
 

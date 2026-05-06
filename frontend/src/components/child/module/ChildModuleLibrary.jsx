@@ -5,6 +5,10 @@ import ChildModuleCards from './ChildModuleCards';
 import { useCourseProgress } from '../../../hooks/courseProgressHook';
 import { useParams } from 'react-router-dom';
 import Html5Player from '../common/html5Player';
+import CmsPlayer from '../common/cmsPLayer';
+import CmsCompletionDialog from '../common/cmsCompletionDialog';
+import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
+import { completeHtml5Book } from '../common/html5CompletionHandler';
 
 /**
  * ChildModuleLibrary Component
@@ -19,6 +23,20 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
 
   const [html5Open, setHtml5Open] = useState(false);
   const [selectedHtml5Book, setSelectedHtml5Book] = useState(null);
+  const [cmsOpen, setCmsOpen] = useState(false);
+  const [selectedCmsBook, setSelectedCmsBook] = useState(null);
+  const [cmsPages, setCmsPages] = useState([]);
+  const [sessionStartedAt, setSessionStartedAt] = useState(null);
+  const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
+  const [cmsCompletionData, setCmsCompletionData] = useState(null);
+  const {
+    loadPlayableBookById,
+    preloadBookMedia,
+    clearPreloadState,
+    preloadProgress,
+    preloadSummary,
+    loading: cmsPlayerLoading,
+  } = useCmsBookPlayer();
 
   const selectedBookId = useMemo(() => {
     if (!selectedHtml5Book) return null;
@@ -33,8 +51,19 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
 
   const canOpenHtml5 = useCallback((book) => {
     if (!book) return false;
-    // Only HTML5 books are supported on frontend now; SCORM is ignored.
     return book.packageType === 'html5' && !!book.html5PackageId;
+  }, []);
+
+  const canOpenCmsBuiltin = useCallback((book) => {
+    if (!book) return false;
+    return (
+      book.packageType === 'builtin'
+      && Boolean(
+        (typeof book.cmsBookId === 'string' && book.cmsBookId)
+        || book.cmsBookId?._id
+        || book.cmsBook?._id
+      )
+    );
   }, []);
 
   const handleOpenHtml5 = useCallback(
@@ -50,6 +79,89 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
     setHtml5Open(false);
     setSelectedHtml5Book(null);
   }, []);
+
+  const handleOpenCmsBuiltin = useCallback(async (book) => {
+    if (!canOpenCmsBuiltin(book)) return;
+    const cmsBookId =
+      (typeof book.cmsBookId === 'string' && book.cmsBookId)
+      || book.cmsBookId?._id
+      || book.cmsBook?._id;
+    if (!cmsBookId) return;
+
+    try {
+      clearPreloadState();
+      const response = await loadPlayableBookById(cmsBookId);
+      const playablePages = Array.isArray(response?.data?.pages) ? response.data.pages : [];
+      setSelectedCmsBook(book);
+      setCmsPages(playablePages);
+      setCmsOpen(true);
+      setSessionStartedAt(Date.now());
+      if (playablePages.length > 0) {
+        await preloadBookMedia({ bookId: cmsBookId, pages: playablePages });
+      }
+    } catch (error) {
+      console.error('Error loading CMS built-in book:', error);
+    }
+  }, [canOpenCmsBuiltin, clearPreloadState, loadPlayableBookById, preloadBookMedia]);
+
+  const handleCloseCms = useCallback(() => {
+    setCmsOpen(false);
+    setCmsPages([]);
+    setSelectedCmsBook(null);
+    setSessionStartedAt(null);
+    clearPreloadState();
+  }, [clearPreloadState]);
+
+  const handleCmsSessionComplete = useCallback(
+    async ({
+      score = 0,
+      maxScore = 0,
+      attemptCount = 0,
+      trigger = 'close',
+    } = {}) => {
+      const bookId = selectedCmsBook?._contentId || selectedCmsBook?._id || selectedCmsBook?.contentId || null;
+      if (!courseId || !childId || !bookId) return;
+
+      const elapsedMs = sessionStartedAt ? Math.max(0, Date.now() - sessionStartedAt) : 0;
+      const timeSpentSeconds = Math.round(elapsedMs / 1000);
+      let completionResponse = null;
+
+      try {
+        completionResponse = await completeHtml5Book({
+          courseId,
+          childId,
+          bookId,
+          score,
+          maxScore: maxScore || null,
+          status: 'completed',
+          timeSpent: timeSpentSeconds,
+          progress: 100,
+        });
+      } catch (error) {
+        console.error('Error saving CMS book completion:', error);
+      } finally {
+        fetchBookReadings();
+      }
+
+      if (trigger === 'home') {
+        setCmsCompletionData({
+          score,
+          maxScore,
+          attemptCount,
+          ...(completionResponse?.data || {}),
+        });
+        setCmsCompletionOpen(true);
+      }
+
+      console.log('[CMS Player Result]', {
+        score,
+        maxScore,
+        attemptCount,
+        trigger,
+      });
+    },
+    [childId, courseId, selectedCmsBook, sessionStartedAt]
+  );
 
   // Fetch book reading statuses for all books
   const fetchBookReadings = async () => {
@@ -216,9 +328,11 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
                 isCompleted={isBookCompleted(book)}
                 progressCircles={getBookProgress(book)}
                 onCardClick={() => {
-                  // HTML5-only: open player here, ignore SCORM books.
                   if (canOpenHtml5(book)) {
                     handleOpenHtml5(book);
+                  }
+                  if (canOpenCmsBuiltin(book)) {
+                    handleOpenCmsBuiltin(book);
                   }
                   // Keep external hook if parent still needs it (optional)
                   if (onBookClick) {
@@ -244,6 +358,23 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
           // Refresh reading progress UI after completion attempt
           fetchBookReadings();
         }}
+      />
+      <CmsPlayer
+        open={cmsOpen}
+        onClose={handleCloseCms}
+        pages={cmsPages}
+        isPreloading={Boolean(cmsPlayerLoading?.preload)}
+        preloadProgress={preloadProgress}
+        preloadSummary={preloadSummary}
+        onSessionComplete={handleCmsSessionComplete}
+      />
+      <CmsCompletionDialog
+        open={cmsCompletionOpen}
+        onClose={() => {
+          setCmsCompletionOpen(false);
+          setCmsCompletionData(null);
+        }}
+        data={cmsCompletionData}
       />
     </>
   );
