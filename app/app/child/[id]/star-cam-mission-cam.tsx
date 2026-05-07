@@ -1,7 +1,7 @@
 import { useCameraPermissions } from 'expo-camera';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
@@ -53,6 +53,7 @@ export default function StarCamMissionCamRoute() {
   });
   const [isAdvancing, setIsAdvancing] = useState(false);
   const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const detectInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!cameraPermission) {
@@ -101,32 +102,55 @@ export default function StarCamMissionCamRoute() {
 
   const onCaptureAndDetect = useCallback(async () => {
     if (!childId || !missionSlug) return;
+    if (detectInFlightRef.current) return;
     if (!hasCameraPermission) {
-      Alert.alert('Camera needed', 'Please allow camera permission first.');
+      if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+      setNotificationState({
+        visible: true,
+        tone: 'retry',
+        title: 'Try again!',
+        message: '',
+      });
+      notificationTimerRef.current = setTimeout(() => {
+        setNotificationState((prev) => ({ ...prev, visible: false }));
+      }, 1200);
       return;
     }
+    detectInFlightRef.current = true;
     try {
       const photo = await cameraRef.current?.takePictureAsync?.({
-        quality: 0.7,
+        quality: 0.45,
         skipProcessing: true,
       });
       if (!photo?.uri) {
-        Alert.alert('Capture failed', 'Please try taking the photo again.');
+        if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+        setNotificationState({
+          visible: true,
+          tone: 'retry',
+          title: 'Try again!',
+          message: '',
+        });
+        notificationTimerRef.current = setTimeout(() => {
+          setNotificationState((prev) => ({ ...prev, visible: false }));
+          detectInFlightRef.current = false;
+        }, 1200);
+        detectInFlightRef.current = false;
         return;
       }
-      if (__DEV__) {
-        console.log('[StarCamDetectDebug][app] captured-photo', {
-          hasUri: Boolean(photo?.uri),
-          uriPreview: String(photo.uri).slice(0, 80),
-        });
-      }
+      // Reduce payload for faster network + Google Vision processing.
+      const optimizedPhoto = await manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 640 } }],
+        { compress: 0.55, format: SaveFormat.JPEG }
+      );
+      // Debug logs intentionally suppressed for child runtime UX.
 
       // Phase 1: keep it linear and deterministic for quick backend validation.
       const detection = await detectObject(
         childId,
         missionSlug,
         {
-          uri: photo.uri,
+          uri: optimizedPhoto.uri,
           name: `star-cam-${Date.now()}.jpg`,
           type: 'image/jpeg',
         },
@@ -134,7 +158,18 @@ export default function StarCamMissionCamRoute() {
       );
 
       if (!detection) {
-        Alert.alert('Detection failed', 'No response from detector. Please try again.');
+        if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+        setNotificationState({
+          visible: true,
+          tone: 'retry',
+          title: 'Try again!',
+          message: '',
+        });
+        notificationTimerRef.current = setTimeout(() => {
+          setNotificationState((prev) => ({ ...prev, visible: false }));
+          detectInFlightRef.current = false;
+        }, 1200);
+        detectInFlightRef.current = false;
         return;
       }
 
@@ -160,6 +195,7 @@ export default function StarCamMissionCamRoute() {
             setCurrentItemIndex((prev) => Math.min(prev + 1, Math.max(0, totalObjects - 1)));
           }
           setIsAdvancing(false);
+          detectInFlightRef.current = false;
         }, 1500);
         return;
       }
@@ -172,10 +208,21 @@ export default function StarCamMissionCamRoute() {
       });
       notificationTimerRef.current = setTimeout(() => {
         setNotificationState((prev) => ({ ...prev, visible: false }));
+        detectInFlightRef.current = false;
       }, 1200);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Detection failed. Please try again.';
-      Alert.alert('Error', message);
+      // Suppress technical logs/alerts in child runtime UX.
+      if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+      setNotificationState({
+        visible: true,
+        tone: 'retry',
+        title: 'Try again!',
+        message: '',
+      });
+      notificationTimerRef.current = setTimeout(() => {
+        setNotificationState((prev) => ({ ...prev, visible: false }));
+      }, 1200);
+      detectInFlightRef.current = false;
     }
   }, [childId, missionSlug, hasCameraPermission, detectObject, currentItemIndex, targetLabel, totalObjects, id, router, categoryKey, missionFlow?.mission?.title]);
 

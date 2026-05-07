@@ -1,6 +1,7 @@
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useEffect, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,10 +29,29 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
   onBack,
   onComplete,
 }: StarCamPracticeModeScreenProps) {
+  const isFocused = useIsFocused();
+  const videoRef = useRef<Video | null>(null);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   useEffect(() => {
     setVideoLoadFailed(false);
   }, [items]);
+
+  useEffect(() => {
+    if (isFocused) return;
+    const stopAndUnload = async () => {
+      try {
+        await videoRef.current?.stopAsync?.();
+      } catch {
+        // no-op; stopping can throw when video isn't loaded yet
+      }
+      try {
+        await videoRef.current?.unloadAsync?.();
+      } catch {
+        // no-op; unloading can throw when already unloaded
+      }
+    };
+    void stopAndUnload();
+  }, [isFocused]);
 
   const {
     current,
@@ -91,11 +111,12 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
               <View style={styles.mediaFrame}>
                 {hasPlayableVideo ? (
                   <Video
+                    ref={videoRef}
                     key={`${passNumber}-${progressText}-${pronunciationVideoUrl ?? 'no-video'}`}
                     source={{ uri: pronunciationVideoUrl || '' }}
                     style={StyleSheet.absoluteFill}
                     resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay={!isShowingNextIntro}
+                    shouldPlay={isFocused && !isShowingNextIntro}
                     isLooping={false}
                     rate={playbackRate}
                     shouldCorrectPitch

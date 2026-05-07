@@ -1,6 +1,7 @@
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -91,12 +92,31 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   onBack,
   onStartMission,
 }: StarCamMissionStartScreenProps) {
+  const isFocused = useIsFocused();
+  const videoRef = useRef<Video | null>(null);
   const resolvedImageUrl = resolveImageUrl(introImageUrl);
   const resolvedVideoUrl = resolveImageUrl(introVideoUrl || null);
   const [videoFailed, setVideoFailed] = useState(false);
   const defaultButtonColor = lightenColor(accentColor, 0.12);
   const pressedAccentColor = darkenColor(accentColor, 0.23);
   const hasPlayableIntroVideo = Boolean(resolvedVideoUrl) && !videoFailed;
+
+  useEffect(() => {
+    if (isFocused) return;
+    const stopAndUnload = async () => {
+      try {
+        await videoRef.current?.stopAsync?.();
+      } catch {
+        // no-op
+      }
+      try {
+        await videoRef.current?.unloadAsync?.();
+      } catch {
+        // no-op
+      }
+    };
+    void stopAndUnload();
+  }, [isFocused]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -116,10 +136,11 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
           <View style={styles.imageFrame}>
             {hasPlayableIntroVideo ? (
               <Video
+                ref={videoRef}
                 source={{ uri: resolvedVideoUrl || '' }}
                 style={styles.image}
-                shouldPlay
-                isLooping
+                shouldPlay={isFocused}
+                isLooping={isFocused}
                 resizeMode={ResizeMode.COVER}
                 useNativeControls={false}
                 onError={() => setVideoFailed(true)}

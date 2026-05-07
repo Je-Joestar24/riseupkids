@@ -1,6 +1,8 @@
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -67,17 +69,39 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
   onGoToStarCam,
   onTryAgain,
 }: StarCamMissionSuccessScreenProps) {
+  const isFocused = useIsFocused();
   const [isVideoFailed, setIsVideoFailed] = useState(false);
   const [isAudioAvailable, setIsAudioAvailable] = useState(Boolean(rewardAudioUrl));
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [cachedRewardVideoUrl, setCachedRewardVideoUrl] = useState<string | null>(null);
+  const [cachedRewardAudioUrl, setCachedRewardAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<Audio.Sound | null>(null);
+  const videoRef = useRef<Video | null>(null);
+  const hasAutoPlayedRewardAudioRef = useRef(false);
   const glowAnim = useRef(new Animated.Value(0)).current;
   const confettiAnims = useRef(CONFETTI_ITEMS.map(() => new Animated.Value(0))).current;
   const mainEmojiBounce = useRef(new Animated.Value(0)).current;
   const wiggleAnims = useRef([new Animated.Value(0), new Animated.Value(0), new Animated.Value(0)]).current;
 
-  const hasVideo = Boolean(rewardVideoUrl) && !isVideoFailed;
+  const effectiveRewardVideoUrl = cachedRewardVideoUrl || rewardVideoUrl || null;
+  const effectiveRewardAudioUrl = cachedRewardAudioUrl || rewardAudioUrl || null;
+  const hasVideo = Boolean(effectiveRewardVideoUrl) && !isVideoFailed;
+
+  const cacheRemoteMedia = async (url: string, keyPrefix: 'reward-video' | 'reward-audio') => {
+    const baseDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (!baseDir) return url;
+    const safeKey = `${keyPrefix}-${encodeURIComponent(url).replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+    const targetPath = `${baseDir}${safeKey}`;
+    try {
+      const info = await FileSystem.getInfoAsync(targetPath);
+      if (info.exists) return targetPath;
+      const download = await FileSystem.downloadAsync(url, targetPath);
+      return download.uri || url;
+    } catch {
+      return url;
+    }
+  };
 
   useEffect(() => {
     const glowLoop = Animated.loop(
@@ -177,19 +201,47 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
     };
   }, [hasVideo, mainEmojiBounce, wiggleAnims]);
 
+  useEffect(() => {
+    let active = true;
+    const cacheMedia = async () => {
+      if (rewardVideoUrl) {
+        const localVideo = await cacheRemoteMedia(rewardVideoUrl, 'reward-video');
+        if (active) setCachedRewardVideoUrl(localVideo);
+      } else if (active) {
+        setCachedRewardVideoUrl(null);
+      }
+      if (rewardAudioUrl) {
+        const localAudio = await cacheRemoteMedia(rewardAudioUrl, 'reward-audio');
+        if (active) setCachedRewardAudioUrl(localAudio);
+      } else if (active) {
+        setCachedRewardAudioUrl(null);
+      }
+    };
+    void cacheMedia();
+    return () => {
+      active = false;
+    };
+  }, [rewardVideoUrl, rewardAudioUrl]);
+
   const ensureLoadedAndPlayAudio = async () => {
-    if (!rewardAudioUrl) return;
+    if (!effectiveRewardAudioUrl) return;
     try {
       setIsAudioLoading(true);
       if (!audioRef.current) {
         const { sound } = await Audio.Sound.createAsync(
-          { uri: rewardAudioUrl },
-          { shouldPlay: true, isLooping: true, volume: 1 }
+          { uri: effectiveRewardAudioUrl },
+          { shouldPlay: false, isLooping: false, volume: 1 }
         );
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setIsAudioPlaying(false);
+            void sound.unloadAsync();
+            audioRef.current = null;
+          }
+        });
         audioRef.current = sound;
-      } else {
-        await audioRef.current.playAsync();
       }
+      await audioRef.current.playAsync();
       setIsAudioPlaying(true);
     } catch {
       setIsAudioAvailable(false);
@@ -208,14 +260,35 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
   };
 
   useEffect(() => {
-    if (!rewardAudioUrl) {
+    if (!effectiveRewardAudioUrl) {
       setIsAudioAvailable(false);
       return;
     }
+    if (hasAutoPlayedRewardAudioRef.current) return;
+    hasAutoPlayedRewardAudioRef.current = true;
     void ensureLoadedAndPlayAudio();
-    // We intentionally run this only when reward audio URL changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rewardAudioUrl]);
+  }, [effectiveRewardAudioUrl]);
+
+  useEffect(() => {
+    if (isFocused) return;
+    const stopAndUnload = async () => {
+      try {
+        await audioRef.current?.stopAsync?.();
+      } catch {}
+      try {
+        await audioRef.current?.unloadAsync?.();
+      } catch {}
+      audioRef.current = null;
+      setIsAudioPlaying(false);
+      try {
+        await videoRef.current?.stopAsync?.();
+      } catch {}
+      try {
+        await videoRef.current?.unloadAsync?.();
+      } catch {}
+    };
+    void stopAndUnload();
+  }, [isFocused]);
 
   const mediaCardScale = glowAnim.interpolate({
     inputRange: [0, 1],
@@ -296,10 +369,12 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
           <Animated.View style={[styles.mediaCard, { transform: [{ scale: mediaCardScale }], opacity: mediaCardOpacity }]}>
             {hasVideo ? (
               <Video
-                source={{ uri: rewardVideoUrl || '' }}
+                ref={videoRef}
+                source={{ uri: effectiveRewardVideoUrl || '' }}
                 style={styles.video}
-                shouldPlay
-                isLooping
+                shouldPlay={isFocused}
+                isLooping={false}
+                isMuted
                 resizeMode={ResizeMode.COVER}
                 useNativeControls
                 onError={() => setIsVideoFailed(true)}

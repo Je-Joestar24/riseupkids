@@ -79,7 +79,12 @@ function getVisionClient() {
 
 function getRequestTimeoutMs() {
   const n = Number(process.env.VISION_REQUEST_TIMEOUT_MS);
-  return Number.isFinite(n) && n > 0 ? n : 6000;
+  return Number.isFinite(n) && n > 0 ? n : 10000;
+}
+
+function getLabelMaxResults() {
+  const n = Number(process.env.VISION_LABEL_MAX_RESULTS);
+  return Number.isFinite(n) && n > 0 ? Math.min(20, Math.floor(n)) : 8;
 }
 
 /**
@@ -101,14 +106,19 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
   }
 
   const timeoutMs = getRequestTimeoutMs();
+  const maxResults = getLabelMaxResults();
   logVisionDebug('vision:request:start', {
     imageBytes: imageBuffer.length,
     timeoutMs,
+    maxResults,
     projectId: process.env.GOOGLE_VISION_PROJECT_ID || null,
     hasClientEmail: Boolean(process.env.GOOGLE_VISION_CLIENT_EMAIL),
     hasPrivateKey: Boolean(process.env.GOOGLE_VISION_PRIVATE_KEY),
   });
-  const detectionPromise = client.labelDetection({ image: { content: imageBuffer } });
+  const detectionPromise = client.annotateImage({
+    image: { content: imageBuffer },
+    features: [{ type: 'LABEL_DETECTION', maxResults }],
+  });
 
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
