@@ -1,5 +1,8 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import exploreService from '../../services/exploreServices';
+
+/** Dispatched during multipart upload so UI can show determinate progress (0–100). */
+const setExploreUploadProgress = createAction('explore/setExploreUploadProgress');
 
 /**
  * Async thunk for getting all explore content
@@ -17,13 +20,27 @@ export const fetchAllExploreContent = createAsyncThunk(
 );
 
 /**
- * Async thunk for creating explore content
+ * Async thunk for creating explore content (multipart).
+ * Pass `FormData` or `{ formData, onUploadProgress }`.
  */
 export const createExploreContent = createAsyncThunk(
   'explore/createExploreContent',
-  async (formData, { rejectWithValue }) => {
+  async (arg, { rejectWithValue, dispatch }) => {
+    const { formData, onUploadProgress } =
+      arg instanceof FormData ? { formData: arg, onUploadProgress: undefined } : arg;
+
+    const handleProgress = (event) => {
+      if (event.total) {
+        const percent = Math.min(100, Math.round((event.loaded * 100) / event.total));
+        dispatch(setExploreUploadProgress(percent));
+      }
+      onUploadProgress?.(event);
+    };
+
     try {
-      const response = await exploreService.createExploreContent(formData);
+      const response = await exploreService.createExploreContent(formData, {
+        onUploadProgress: handleProgress,
+      });
       return response;
     } catch (error) {
       return rejectWithValue(error || 'Failed to create explore content');
@@ -47,13 +64,24 @@ export const fetchExploreContentById = createAsyncThunk(
 );
 
 /**
- * Async thunk for updating explore content
+ * Async thunk for updating explore content (multipart when files present).
+ * Pass `{ contentId, formData }` or `{ contentId, formData, onUploadProgress }`.
  */
 export const updateExploreContent = createAsyncThunk(
   'explore/updateExploreContent',
-  async ({ contentId, formData }, { rejectWithValue }) => {
+  async ({ contentId, formData, onUploadProgress }, { rejectWithValue, dispatch }) => {
+    const handleProgress = (event) => {
+      if (event.total) {
+        const percent = Math.min(100, Math.round((event.loaded * 100) / event.total));
+        dispatch(setExploreUploadProgress(percent));
+      }
+      onUploadProgress?.(event);
+    };
+
     try {
-      const response = await exploreService.updateExploreContent(contentId, formData);
+      const response = await exploreService.updateExploreContent(contentId, formData, {
+        onUploadProgress: handleProgress,
+      });
       return { contentId, response };
     } catch (error) {
       return rejectWithValue(error || 'Failed to update explore content');
@@ -151,6 +179,10 @@ const initialState = {
   },
   loading: false,
   error: null,
+  /** True while create/update multipart request is in flight (list `loading` stays false). */
+  uploadingExplore: false,
+  /** 0–100 when total size is known; null during upload if indeterminate. */
+  uploadProgressPercent: null,
 };
 
 // Explore slice
@@ -175,6 +207,11 @@ const exploreSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    builder.addCase(setExploreUploadProgress, (state, action) => {
+      state.uploadProgressPercent =
+        typeof action.payload === 'number' ? action.payload : null;
+    });
+
     // Fetch All Explore Content
     builder
       .addCase(fetchAllExploreContent.pending, (state) => {
@@ -197,22 +234,18 @@ const exploreSlice = createSlice({
     // Create Explore Content
     builder
       .addCase(createExploreContent.pending, (state) => {
-        state.loading = true;
+        state.uploadingExplore = true;
+        state.uploadProgressPercent = null;
         state.error = null;
       })
-      .addCase(createExploreContent.fulfilled, (state, action) => {
-        state.loading = false;
-        const response = action.payload;
-        
-        // Add new content to the list
-        if (response.data) {
-          state.exploreContent.unshift(response.data);
-          state.pagination.total += 1;
-        }
+      .addCase(createExploreContent.fulfilled, (state) => {
+        state.uploadingExplore = false;
+        state.uploadProgressPercent = null;
         state.error = null;
       })
       .addCase(createExploreContent.rejected, (state, action) => {
-        state.loading = false;
+        state.uploadingExplore = false;
+        state.uploadProgressPercent = null;
         state.error = action.payload;
       });
 
@@ -239,24 +272,24 @@ const exploreSlice = createSlice({
     // Update Explore Content
     builder
       .addCase(updateExploreContent.pending, (state) => {
-        state.loading = true;
+        state.uploadingExplore = true;
+        state.uploadProgressPercent = null;
         state.error = null;
       })
       .addCase(updateExploreContent.fulfilled, (state, action) => {
-        state.loading = false;
+        state.uploadingExplore = false;
+        state.uploadProgressPercent = null;
         const { contentId, response } = action.payload;
         const updatedContent = response.data;
-        
+
         if (updatedContent) {
-          // Update in explore content list
           const index = state.exploreContent.findIndex(
             (content) => content._id === contentId
           );
           if (index !== -1) {
             state.exploreContent[index] = updatedContent;
           }
-          
-          // Update current content if it's the same
+
           if (state.currentExploreContent?._id === contentId) {
             state.currentExploreContent = updatedContent;
           }
@@ -264,7 +297,8 @@ const exploreSlice = createSlice({
         state.error = null;
       })
       .addCase(updateExploreContent.rejected, (state, action) => {
-        state.loading = false;
+        state.uploadingExplore = false;
+        state.uploadProgressPercent = null;
         state.error = action.payload;
       });
 

@@ -35,6 +35,8 @@ export const useExplore = () => {
     filters,
     loading,
     error,
+    uploadingExplore,
+    uploadProgressPercent,
   } = useSelector((state) => state.explore);
 
   /**
@@ -365,6 +367,8 @@ export const useExplore = () => {
     filters,
     loading,
     error,
+    uploadingExplore,
+    uploadProgressPercent,
     // Methods
     fetchExploreContent,
     fetchContent,

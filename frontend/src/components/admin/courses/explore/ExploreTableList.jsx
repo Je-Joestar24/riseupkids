@@ -30,7 +30,9 @@ import {
   BookOutlined as BookOutlinedIcon,
   AssignmentOutlined as AssignmentOutlinedIcon,
 } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreEditModal from './ExploreEditModa';
 
 /**
@@ -40,6 +42,7 @@ import ExploreEditModal from './ExploreEditModa';
  */
 const ExploreTableList = () => {
   const theme = useTheme();
+  const [, setSearchParams] = useSearchParams();
   const {
     exploreContent,
     loading,
@@ -50,6 +53,7 @@ const ExploreTableList = () => {
     getContentTypeLabel,
     getVideoTypeLabel,
     getCoverImageUrl,
+    updateFilters,
   } = useExplore();
 
   const [anchorEl, setAnchorEl] = useState(null);
@@ -77,11 +81,17 @@ const ExploreTableList = () => {
     handleMenuClose();
   };
 
-  const handleEditModalClose = () => {
+  const handleEditModalClose = (syncPayload) => {
     setEditModalOpen(false);
     setContentToEdit(null);
-    // Refresh list
-    fetchExploreContent();
+    if (syncPayload?.videoType) {
+      const newFilters = { ...filters, videoType: syncPayload.videoType, page: 1 };
+      updateFilters(newFilters);
+      setSearchParams(buildExploreAdminSearchParams(newFilters));
+      fetchExploreContent(newFilters);
+    } else {
+      fetchExploreContent();
+    }
   };
 
   const handleDeleteClick = () => {
@@ -580,7 +590,6 @@ const ExploreTableList = () => {
         open={editModalOpen}
         onClose={handleEditModalClose}
         contentId={contentToEdit?._id}
-        onSuccess={handleEditModalClose}
       />
     </>
   );

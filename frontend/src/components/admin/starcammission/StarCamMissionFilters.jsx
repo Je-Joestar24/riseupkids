@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, MenuItem, Paper, TextField } from '@mui/material';
+import { Box, CircularProgress, InputAdornment, MenuItem, Paper, TextField } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
 const StarCamMissionFilters = ({
@@ -7,6 +7,7 @@ const StarCamMissionFilters = ({
   status = '',
   categoryId = '',
   categories = [],
+  categoriesLoading = false,
   onSearchChange,
   onStatusChange,
   onCategoryChange,
@@ -30,8 +31,16 @@ const StarCamMissionFilters = ({
           placeholder="Search by mission id or title"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
+          inputProps={{ 'aria-label': 'Search missions by id or title' }}
         />
-        <TextField size="small" label="Status" select value={status} onChange={(e) => onStatusChange(e.target.value)}>
+        <TextField
+          size="small"
+          label="Status"
+          select
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+          inputProps={{ 'aria-label': 'Filter missions by status' }}
+        >
           <MenuItem value="">All</MenuItem>
           <MenuItem value="draft">Draft</MenuItem>
           <MenuItem value="published">Published</MenuItem>
@@ -43,6 +52,15 @@ const StarCamMissionFilters = ({
           select
           value={categoryId}
           onChange={(e) => onCategoryChange(e.target.value)}
+          disabled={categoriesLoading}
+          SelectProps={{
+            endAdornment: categoriesLoading ? (
+              <InputAdornment position="end" sx={{ mr: 2 }}>
+                <CircularProgress color="inherit" size={18} aria-label="Loading categories" />
+              </InputAdornment>
+            ) : undefined,
+          }}
+          inputProps={{ 'aria-label': 'Filter missions by category' }}
         >
           <MenuItem value="">All</MenuItem>
           {categories.map((category) => (

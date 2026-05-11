@@ -49,7 +49,9 @@ const AdminStarCamMissions = () => {
   const [editingMission, setEditingMission] = React.useState(null);
 
   useEffect(() => {
-    loadCategories();
+    void loadCategories().catch(() => {
+      /* runThunk already surfaces errors; avoid unhandled rejection */
+    });
   }, [loadCategories]);
 
   useEffect(() => {
@@ -186,13 +188,19 @@ const AdminStarCamMissions = () => {
     dispatch(showNotification({ message: 'Mission upload completed successfully', type: 'success' }));
   };
 
-  const handleOpenCreateMissionModal = () => {
+  const handleOpenCreateMissionModal = async () => {
     setEditingMission(null);
+    await loadCategories().catch(() => {
+      /* runThunk already surfaces errors */
+    });
     setOpenCreateModal(true);
   };
 
   const handleOpenEditMissionModal = async (mission) => {
     if (!mission?._id) return;
+    await loadCategories().catch(() => {
+      /* runThunk already surfaces errors */
+    });
     const response = await loadMissionById(mission._id);
     setEditingMission(response?.data || mission);
     setOpenCreateModal(true);
@@ -219,6 +227,7 @@ const AdminStarCamMissions = () => {
         status={filters.status}
         categoryId={filters.categoryId}
         categories={categories}
+        categoriesLoading={loading.categories}
         onSearchChange={(value) => updateFilters({ search: value, page: 1 })}
         onStatusChange={(value) => updateFilters({ status: value, page: 1 })}
         onCategoryChange={(value) => updateFilters({ categoryId: value, page: 1 })}
@@ -286,6 +295,7 @@ const AdminStarCamMissions = () => {
         open={openCreateModal}
         onClose={handleCloseMissionModal}
         categories={categories}
+        categoriesLoading={loading.categories}
         onCreateMission={handleCreateMission}
         onEditMission={handleEditMission}
         editingMission={editingMission}

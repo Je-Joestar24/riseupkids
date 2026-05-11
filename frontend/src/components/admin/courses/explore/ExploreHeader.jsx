@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { Box, Typography, Paper, Button, Stack } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Add as AddIcon, Reorder as ReorderIcon } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreAddModal from './ExploreAddModal';
 import ExploreReorderModal from './ExploreReorderModal';
 
@@ -13,7 +15,8 @@ import ExploreReorderModal from './ExploreReorderModal';
  */
 const ExploreHeader = () => {
   const theme = useTheme();
-  const { pagination, fetchExploreContent, exploreContent, filters } = useExplore();
+  const [, setSearchParams] = useSearchParams();
+  const { pagination, fetchExploreContent, exploreContent, filters, updateFilters } = useExplore();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [reorderModalOpen, setReorderModalOpen] = useState(false);
 
@@ -25,10 +28,13 @@ const ExploreHeader = () => {
     setAddModalOpen(false);
   };
 
-  const handleAddSuccess = () => {
+  const handleAddSuccess = ({ videoType } = {}) => {
     setAddModalOpen(false);
-    // Refresh explore content list
-    fetchExploreContent();
+    const nextVideoType = videoType || filters.videoType || 'replay';
+    const newFilters = { ...filters, videoType: nextVideoType, page: 1 };
+    updateFilters(newFilters);
+    setSearchParams(buildExploreAdminSearchParams(newFilters));
+    fetchExploreContent(newFilters);
   };
 
   const handleReorderClick = () => {

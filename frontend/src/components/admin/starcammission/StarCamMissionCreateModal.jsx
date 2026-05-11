@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   Divider,
   Grid,
+  InputAdornment,
   MenuItem,
   Paper,
   Stack,
@@ -15,6 +18,22 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+
+/** Square Star Cam preview: crop wide video sides (object-fit cover), no re-encoding. */
+const starCamVideoSquareContainerSx = {
+  width: '100%',
+  maxWidth: 420,
+  aspectRatio: '1 / 1',
+  overflow: 'hidden',
+};
+
+const starCamVideoSquareMediaSx = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  display: 'block',
+  pointerEvents: 'none',
+};
 
 const initialForm = {
   title: '',
@@ -29,6 +48,7 @@ const StarCamMissionCreateModal = ({
   open,
   onClose,
   categories = [],
+  categoriesLoading = false,
   onCreateMission,
   onEditMission,
   editingMission = null,
@@ -149,6 +169,12 @@ const StarCamMissionCreateModal = ({
           <Typography variant="body2" color="text.secondary">
             Fill out mission details first, then upload optional media assets. The layout is compact and optimized for faster authoring.
           </Typography>
+          {!categoriesLoading && categories.length === 0 ? (
+            <Alert severity="warning" role="status">
+              No Star Cam categories were returned from the server. Ensure you are signed in as an admin or teacher, then run the
+              category seeder from the backend: <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace' }}>npm run seed:starcam-categories</Typography>.
+            </Alert>
+          ) : null}
           <Grid container spacing={1} >
             <Grid item xs={12}>
               <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px' }}>
@@ -161,6 +187,7 @@ const StarCamMissionCreateModal = ({
                       value={form.title}
                       onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))}
                       fullWidth
+                      inputProps={{ 'aria-label': 'Mission title' }}
                     />
                   </Grid>
                   <Grid item xs={12} md={4}>
@@ -171,6 +198,22 @@ const StarCamMissionCreateModal = ({
                       value={form.categoryId}
                       onChange={(e) => setForm((prev) => ({ ...prev, categoryId: e.target.value }))}
                       fullWidth
+                      disabled={categoriesLoading || categories.length === 0}
+                      helperText={
+                        categoriesLoading
+                          ? 'Loading categories…'
+                          : categories.length === 0
+                            ? 'Add categories in the database to continue.'
+                            : undefined
+                      }
+                      SelectProps={{
+                        endAdornment: categoriesLoading ? (
+                          <InputAdornment position="end" sx={{ mr: 3 }}>
+                            <CircularProgress color="inherit" size={18} aria-label="Loading categories" />
+                          </InputAdornment>
+                        ) : undefined,
+                      }}
+                      inputProps={{ 'aria-label': 'Mission category' }}
                     >
                       {categories.map((category) => (
                         <MenuItem key={category._id} value={category._id}>
@@ -189,7 +232,7 @@ const StarCamMissionCreateModal = ({
                   <Box>
                     <Typography sx={{ fontWeight: 700 }}>Mission Image</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      Recommended square image for cleaner table previews.
+                      Preview is a square crop (cover): non-square images fill the frame and center automatically.
                     </Typography>
                   </Box>
                   <input
@@ -226,7 +269,14 @@ const StarCamMissionCreateModal = ({
                           component="img"
                           src={imagePreviewUrl}
                           alt="Mission image preview"
-                          sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            objectPosition: 'center',
+                            display: 'block',
+                            pointerEvents: 'none',
+                          }}
                         />
                         <Button
                           size="small"
@@ -322,31 +372,32 @@ const StarCamMissionCreateModal = ({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') videoInputRef.current?.click();
                       }}
+                      className="star-cam-video-container"
+                      aria-label={videoPreviewUrl ? 'Mission short video preview, click to change file' : 'Upload mission short video'}
                       sx={{
-                        width: '100%',
-                      maxWidth: 420,
-                        aspectRatio: '1 / 1',
+                        ...starCamVideoSquareContainerSx,
                         borderRadius: '10px',
                         border: videoPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        overflow: 'hidden',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      backgroundColor: theme.palette.background.paper,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        backgroundColor: theme.palette.background.paper,
                       }}
                     >
                       {videoPreviewUrl ? (
                         <>
                           <Box
                             component="video"
+                            className="star-cam-video-container__media"
                             src={videoPreviewUrl}
                             autoPlay
                             muted
                             loop
                             playsInline
-                            sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                            aria-hidden="true"
+                            sx={starCamVideoSquareMediaSx}
                           />
                           <Button
                             size="small"
@@ -387,16 +438,15 @@ const StarCamMissionCreateModal = ({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') rewardVideoInputRef.current?.click();
                       }}
+                      className="star-cam-video-container"
+                      aria-label={rewardVideoPreviewUrl ? 'Reward video preview, click to change file' : 'Upload reward video'}
                       sx={{
-                        width: '100%',
-                        maxWidth: 420,
-                        aspectRatio: '1 / 1',
+                        ...starCamVideoSquareContainerSx,
                         borderRadius: '10px',
                         border: rewardVideoPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        overflow: 'hidden',
                         cursor: 'pointer',
                         position: 'relative',
                         backgroundColor: theme.palette.background.paper,
@@ -406,12 +456,14 @@ const StarCamMissionCreateModal = ({
                         <>
                           <Box
                             component="video"
+                            className="star-cam-video-container__media"
                             src={rewardVideoPreviewUrl}
                             autoPlay
                             muted
                             loop
                             playsInline
-                            sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                            aria-hidden="true"
+                            sx={starCamVideoSquareMediaSx}
                           />
                           <Button
                             size="small"

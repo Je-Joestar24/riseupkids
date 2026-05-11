@@ -1,4 +1,8 @@
 const { ChildProfile, StarCamCategory, StarCamMission } = require('../models');
+const {
+  isStarCamCategoryActiveDoc,
+  isStarCamCategoryExplicitlyInactive,
+} = require('../utils/starCamCategoryQuery');
 const { isVisionConfigured } = require('./googleVision.service');
 
 function asTrimmed(value) {
@@ -74,9 +78,10 @@ async function assertChildOwnership(parentUserId, childId) {
 async function getAvailableCategoriesForChild({ parentUserId, childId }) {
   await assertChildOwnership(parentUserId, childId);
 
-  const categories = await StarCamCategory.find({ isActive: true })
+  const rawCategories = await StarCamCategory.find({})
     .sort({ sortOrder: 1, name: 1, _id: 1 })
     .lean();
+  const categories = rawCategories.filter((c) => isStarCamCategoryActiveDoc(c));
 
   const items = [];
   for (const category of categories) {
@@ -110,10 +115,10 @@ async function getLatestMissionsByCategoryForChild({
     throw err;
   }
 
-  const category = await StarCamCategory.findOne({ key: safeKey, isActive: true })
-    .select('_id key name description')
+  const category = await StarCamCategory.findOne({ key: safeKey })
+    .select('_id key name description isActive')
     .lean();
-  if (!category) {
+  if (!category || isStarCamCategoryExplicitlyInactive(category)) {
     const err = new Error('Category not found');
     err.statusCode = 404;
     throw err;

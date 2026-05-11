@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 
+/** Must match the collection where category documents live (restart API after changing .env). */
+const STARCAM_CATEGORY_COLLECTION =
+  (typeof process !== 'undefined' && process.env.STARCAM_CATEGORY_COLLECTION?.trim()) || 'starcamcategories';
+
 const starCamCategorySchema = new mongoose.Schema(
   {
     key: {
@@ -44,6 +48,7 @@ const starCamCategorySchema = new mongoose.Schema(
     },
   },
   {
+    collection: STARCAM_CATEGORY_COLLECTION,
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },

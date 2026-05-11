@@ -21,8 +21,10 @@ import {
   Visibility as VisibilityIcon,
   Star as StarIcon,
 } from '@mui/icons-material';
+import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
 import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
+import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreEditModal from './ExploreEditModa';
 
 /**
@@ -35,6 +37,7 @@ import ExploreEditModal from './ExploreEditModa';
  */
 const ExploreCards = () => {
   const theme = useTheme();
+  const [, setSearchParams] = useSearchParams();
   const {
     exploreContent,
     loading,
@@ -43,6 +46,7 @@ const ExploreCards = () => {
     deleteExploreContentData,
     fetchExploreContent,
     getCoverImageUrl,
+    updateFilters,
   } = useExplore();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -50,10 +54,17 @@ const ExploreCards = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [contentToEdit, setContentToEdit] = useState(null);
 
-  const handleEditModalClose = () => {
+  const handleEditModalClose = (syncPayload) => {
     setEditModalOpen(false);
     setContentToEdit(null);
-    fetchExploreContent();
+    if (syncPayload?.videoType) {
+      const newFilters = { ...filters, videoType: syncPayload.videoType, page: 1 };
+      updateFilters(newFilters);
+      setSearchParams(buildExploreAdminSearchParams(newFilters));
+      fetchExploreContent(newFilters);
+    } else {
+      fetchExploreContent();
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -518,7 +529,6 @@ const ExploreCards = () => {
         open={editModalOpen}
         onClose={handleEditModalClose}
         contentId={contentToEdit?._id}
-        onSuccess={handleEditModalClose}
       />
     </>
   );

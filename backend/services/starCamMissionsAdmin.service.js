@@ -1,5 +1,9 @@
 const mongoose = require('mongoose');
 const { StarCamMission, Media, StarCamCategory } = require('../models');
+const {
+  isStarCamCategoryActiveDoc,
+  isStarCamCategoryExplicitlyInactive,
+} = require('../utils/starCamCategoryQuery');
 const s3Service = require('./s3.service');
 
 function parsePositiveInt(value, fallback) {
@@ -156,8 +160,8 @@ async function createMission({ userId, missionId, title, categoryId } = {}) {
   if (!t) throw new Error('title is required');
   let categoryKey = null;
   if (cId) {
-    const category = await StarCamCategory.findOne({ _id: cId, isActive: true }).select('_id key').lean();
-    if (!category) {
+    const category = await StarCamCategory.findById(cId).select('_id key isActive').lean();
+    if (!category || isStarCamCategoryExplicitlyInactive(category)) {
       const err = new Error('categoryId not found');
       err.statusCode = 404;
       throw err;
@@ -217,8 +221,8 @@ async function updateMission({ id, userId, patch } = {}) {
   if (patch.category !== undefined || patch.categoryId !== undefined) {
     const cId = ensureObjectId(patch.categoryId ?? patch.category, 'categoryId');
     if (cId) {
-      const category = await StarCamCategory.findOne({ _id: cId, isActive: true }).select('_id').lean();
-      if (!category) {
+      const category = await StarCamCategory.findById(cId).select('_id isActive').lean();
+      if (!category || isStarCamCategoryExplicitlyInactive(category)) {
         const err = new Error('categoryId not found');
         err.statusCode = 404;
         throw err;
@@ -435,8 +439,8 @@ async function publishMission({ id, userId } = {}) {
     err.statusCode = 400;
     throw err;
   }
-  const category = await StarCamCategory.findOne({ _id: doc.category, isActive: true }).select('_id').lean();
-  if (!category) {
+  const category = await StarCamCategory.findById(doc.category).select('_id isActive').lean();
+  if (!category || isStarCamCategoryExplicitlyInactive(category)) {
     const err = new Error('category is not found or inactive');
     err.statusCode = 400;
     throw err;
@@ -502,8 +506,53 @@ async function archiveMission({ id, userId } = {}) {
 }
 
 async function listCategories({ includeInactive = false } = {}) {
-  const query = includeInactive ? {} : { isActive: true };
-  const items = await StarCamCategory.find(query).sort({ sortOrder: 1, name: 1, _id: 1 }).lean();
+  const collName = StarCamCategory.collection?.name || 'starcamcategories';
+  const sortSpec = { sortOrder: 1, name: 1, _id: 1 };
+
+  let all = await StarCamCategory.find({}).sort(sortSpec).lean();
+
+  // Same collection via native driver (rules out rare Mongoose middleware / query oddities)
+  if (all.length === 0 && mongoose.connection.db && StarCamCategory.collection) {
+    const raw = await mongoose.connection.db.collection(collName).find({}).sort(sortSpec).toArray();
+    if (raw.length) {
+      console.warn('[StarCam][listCategories] Mongoose find was empty but native driver returned rows; using native.', {
+        collection: collName,
+        count: raw.length,
+      });
+      all = raw;
+    }
+  }
+
+  const items = includeInactive ? all : all.filter((doc) => isStarCamCategoryActiveDoc(doc));
+
+  if (items.length === 0) {
+    const dbName = mongoose.connection.db?.databaseName;
+    if (all.length === 0) {
+      let relatedCollections = [];
+      if (mongoose.connection.db) {
+        relatedCollections = (await mongoose.connection.db.listCollections().toArray())
+          .map((c) => c.name)
+          .filter((n) => /categor|starcam|star_cam/i.test(n))
+          .sort();
+      }
+      console.warn('[StarCam][listCategories] No category documents in model collection.', {
+        db: dbName,
+        modelCollection: collName,
+        hint:
+          'Confirm Compass uses the same database as MONGODB_URI. If categories live under another collection name, set STARCAM_CATEGORY_COLLECTION to that exact name and restart the API.',
+        relatedCollections,
+      });
+    } else {
+      console.warn('[StarCam][listCategories] All rows treated as inactive after filter.', {
+        db: dbName,
+        collection: collName,
+        totalDocs: all.length,
+        sampleIsActive: all[0]?.isActive,
+        sampleIsActiveType: all[0] ? typeof all[0].isActive : 'n/a',
+      });
+    }
+  }
+
   return { items };
 }
 

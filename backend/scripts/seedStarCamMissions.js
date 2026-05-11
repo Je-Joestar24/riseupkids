@@ -3,6 +3,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const { StarCamCategory, StarCamMission, Media, User } = require('../models');
+const { isStarCamCategoryActiveDoc } = require('../utils/starCamCategoryQuery');
 
 dotenv.config();
 
@@ -237,10 +238,11 @@ async function seedStarCamMissions() {
     });
     console.log(`[StarCamMissionSeeder] MongoDB Connected: ${conn.connection.host}`);
 
-    const categories = await StarCamCategory.find({ isActive: true })
-      .select('_id key name targets')
+    const rawCategories = await StarCamCategory.find({})
+      .select('_id key name targets isActive')
       .sort({ sortOrder: 1, name: 1 })
       .lean();
+    const categories = rawCategories.filter((c) => isStarCamCategoryActiveDoc(c));
 
     if (!categories.length) {
       throw new Error('No active StarCam categories found. Run seed:starcam-categories first.');

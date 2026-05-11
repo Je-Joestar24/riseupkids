@@ -14,6 +14,7 @@ import { Clear as ClearIcon } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
 import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
+import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 
 /**
  * ExploreFilters Component
@@ -27,34 +28,8 @@ const ExploreFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { filters, updateFilters, resetFilters, fetchExploreContent } = useExplore();
 
-  // Update URL params when filters change
   const updateUrlParams = (newFilters) => {
-    const params = new URLSearchParams();
-    
-    // Only track videoType in URL (not type, which is always 'video')
-    // Default to 'replay' if not specified
-    const videoType = newFilters.videoType || 'replay';
-    params.set('videoType', videoType);
-    if (newFilters.search) {
-      params.set('search', newFilters.search);
-    }
-    if (newFilters.isPublished !== undefined) {
-      params.set('isPublished', String(newFilters.isPublished));
-    }
-    if (newFilters.isFeatured !== undefined) {
-      params.set('isFeatured', String(newFilters.isFeatured));
-    }
-    if (newFilters.sortBy) {
-      params.set('sortBy', newFilters.sortBy);
-    }
-    if (newFilters.page && newFilters.page > 1) {
-      params.set('page', String(newFilters.page));
-    }
-    if (newFilters.limit && newFilters.limit !== 10) {
-      params.set('limit', String(newFilters.limit));
-    }
-    
-    setSearchParams(params);
+    setSearchParams(buildExploreAdminSearchParams(newFilters));
   };
 
   const handleSearchChange = (event) => {

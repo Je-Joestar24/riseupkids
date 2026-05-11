@@ -45,7 +45,10 @@ async function seedStarCamCategories() {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+    const dbName = mongoose.connection.db?.databaseName;
+    const collName = StarCamCategory.collection.name;
     console.log(`[StarCamCategorySeeder] MongoDB Connected: ${conn.connection.host}`);
+    console.log(`[StarCamCategorySeeder] Database: ${dbName || '(unknown)'}  Collection: ${collName}`);
 
     let created = 0;
     let updated = 0;

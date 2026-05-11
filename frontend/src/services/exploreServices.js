@@ -1,4 +1,27 @@
 import api from '../api/axios';
+import { TIMEOUT } from '../constants/timeout';
+
+/**
+ * The shared axios instance sets `Content-Type: application/json`. For FormData, axios
+ * would otherwise JSON-stringify the payload (see axios defaults transformRequest), so
+ * multer never receives files. Normalize headers before the default transform runs.
+ *
+ * @param {unknown} data
+ * @param {*} headers — axios AxiosHeaders (mutable)
+ */
+function fixExploreMultipartHeaders(data, headers) {
+  if (typeof FormData === 'undefined' || !(data instanceof FormData)) {
+    return data;
+  }
+  const ct = String(headers.get('Content-Type') || '');
+  if (ct.includes('application/json')) {
+    headers.delete('Content-Type');
+  }
+  if (!String(headers.get('Content-Type') || '').trim()) {
+    headers.set('Content-Type', 'multipart/form-data');
+  }
+  return data;
+}
 
 /**
  * Explore Service
@@ -42,14 +65,20 @@ const exploreService = {
   /**
    * Create new explore content with optional files
    * @param {FormData} formData - Explore content data with files
+   * @param {Object} [options]
+   * @param {(progressEvent: ProgressEvent) => void} [options.onUploadProgress]
+   * @param {number} [options.timeout] - Defaults to app TIMEOUT (large uploads)
    * @returns {Promise} API response with created explore content data
    */
-  createExploreContent: async (formData) => {
+  createExploreContent: async (formData, options = {}) => {
+    const { onUploadProgress, timeout = TIMEOUT } = options;
     try {
       const response = await api.post('/explore', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        transformRequest: [fixExploreMultipartHeaders],
+        onUploadProgress,
+        timeout,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
       });
       return response.data;
     } catch (error) {
@@ -75,14 +104,20 @@ const exploreService = {
    * Update explore content
    * @param {String} contentId - Explore content's ID
    * @param {FormData} formData - Explore content data with optional files
+   * @param {Object} [options]
+   * @param {(progressEvent: ProgressEvent) => void} [options.onUploadProgress]
+   * @param {number} [options.timeout] - Defaults to app TIMEOUT
    * @returns {Promise} API response with updated explore content data
    */
-  updateExploreContent: async (contentId, formData) => {
+  updateExploreContent: async (contentId, formData, options = {}) => {
+    const { onUploadProgress, timeout = TIMEOUT } = options;
     try {
       const response = await api.put(`/explore/${contentId}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        transformRequest: [fixExploreMultipartHeaders],
+        onUploadProgress,
+        timeout,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
       });
       return response.data;
     } catch (error) {

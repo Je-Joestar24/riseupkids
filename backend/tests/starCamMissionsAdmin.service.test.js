@@ -11,6 +11,7 @@ jest.mock('../models', () => ({
   StarCamCategory: {
     find: jest.fn(),
     findOne: jest.fn(),
+    findById: jest.fn(),
     create: jest.fn(),
   },
 }));
@@ -66,10 +67,12 @@ function makeDoc(overrides = {}) {
 describe('starCamMissionsAdmin.service', () => {
   beforeEach(() => {
     jest.resetAllMocks();
-    StarCamCategory.findOne.mockReturnValue({
+    const categoryLookup = {
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
-    });
+    };
+    StarCamCategory.findOne.mockReturnValue(categoryLookup);
+    StarCamCategory.findById.mockReturnValue(categoryLookup);
   });
 
   it('lists missions with pagination', async () => {
@@ -103,7 +106,7 @@ describe('starCamMissionsAdmin.service', () => {
     StarCamMission.create.mockResolvedValue({
       toObject: () => ({ missionId: 'reading_20260101010101', status: 'draft' }),
     });
-    StarCamCategory.findOne.mockReturnValue({
+    StarCamCategory.findById.mockReturnValue({
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue({ _id: categoryId, key: 'reading', isActive: true }),
     });
@@ -244,7 +247,7 @@ describe('starCamMissionsAdmin.service', () => {
       vocab: vocab7,
       items: items7,
     });
-    StarCamCategory.findOne.mockReturnValue({
+    StarCamCategory.findById.mockReturnValue({
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
     });

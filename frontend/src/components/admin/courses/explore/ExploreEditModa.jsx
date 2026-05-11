@@ -17,6 +17,7 @@ import {
   IconButton,
   Checkbox,
   FormControlLabel,
+  LinearProgress,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
@@ -31,7 +32,7 @@ import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
  * isFeatured, isPublished, duration, coverImage (replay only), activityIcon (activity only)
  * Note: Video file cannot be changed after creation
  */
-const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
+const ExploreEditModal = ({ open, onClose, contentId }) => {
   const theme = useTheme();
   const {
     fetchContent,
@@ -41,6 +42,8 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
     clearContent,
     getCoverImageUrl,
     prepareExploreFormData,
+    uploadingExplore,
+    uploadProgressPercent,
   } = useExplore();
 
   const [formData, setFormData] = useState({
@@ -160,29 +163,35 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
         selectedFiles.coverImage
       );
 
-      await updateExploreContentData(contentId, formDataToSend);
-      
-      if (onSuccess) {
-        onSuccess();
-      }
-      handleClose();
+      const result = await updateExploreContentData(contentId, formDataToSend);
+      const savedVideoType = result?.response?.data?.videoType || formData.videoType;
+      handleClose({ videoType: savedVideoType });
     } catch (error) {
       console.error('Error updating explore content:', error);
     }
   };
 
-  const handleClose = () => {
+  /** @param {{ videoType?: string } | void} syncPayload When present after save, parent syncs filters/URL to this video type. */
+  const handleClose = (syncPayload) => {
     setIsInitialized(false);
     setImagePreviewUrl(null);
     setCurrentCoverImageUrl(null);
-    onClose();
+    onClose(syncPayload);
+  };
+
+  const handleDialogClose = (_event, reason) => {
+    if (uploadingExplore && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+      return;
+    }
+    handleClose();
   };
 
   if (!currentExploreContent && open && contentId) {
     return (
       <Dialog
         open={open}
-        onClose={handleClose}
+        onClose={handleDialogClose}
+        disableEscapeKeyDown={uploadingExplore}
         maxWidth="md"
         fullWidth
         PaperProps={{
@@ -210,7 +219,8 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
   return (
     <Dialog
       open={open}
-      onClose={handleClose}
+      onClose={handleDialogClose}
+      disableEscapeKeyDown={uploadingExplore}
       maxWidth="md"
       fullWidth
       PaperProps={{
@@ -242,6 +252,8 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
         </Typography>
         <IconButton
           onClick={handleClose}
+          disabled={uploadingExplore}
+          aria-label="Close edit explore dialog"
           sx={{
             color: theme.palette.text.secondary,
             '&:hover': {
@@ -433,6 +445,23 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
             )}
           </Box>
 
+          {uploadingExplore && (
+            <Box role="status" aria-live="polite">
+              <Typography
+                variant="body2"
+                sx={{ fontFamily: 'Quicksand, sans-serif', marginBottom: 1 }}
+              >
+                Saving…
+                {uploadProgressPercent != null ? ` ${uploadProgressPercent}%` : ''}
+              </Typography>
+              <LinearProgress
+                variant={uploadProgressPercent != null ? 'determinate' : 'indeterminate'}
+                value={uploadProgressPercent ?? 0}
+                sx={{ borderRadius: 1 }}
+              />
+            </Box>
+          )}
+
           {/* Checkboxes */}
           <Stack direction="row" spacing={2}>
             <FormControlLabel
@@ -441,6 +470,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                   checked={formData.isPublished}
                   onChange={(e) => handleInputChange('isPublished', e.target.checked)}
                   color="primary"
+                  disabled={uploadingExplore}
                 />
               }
               label="Published"
@@ -456,6 +486,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
                   checked={formData.isFeatured}
                   onChange={(e) => handleInputChange('isFeatured', e.target.checked)}
                   color="primary"
+                  disabled={uploadingExplore}
                 />
               }
               label="Featured"
@@ -477,6 +508,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
       >
         <Button
           onClick={handleClose}
+          disabled={uploadingExplore}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,
@@ -488,7 +520,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
         <Button
           onClick={handleSubmit}
           variant="contained"
-          disabled={loading}
+          disabled={loading || uploadingExplore}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,
@@ -499,7 +531,7 @@ const ExploreEditModal = ({ open, onClose, contentId, onSuccess }) => {
             },
           }}
         >
-          {loading ? 'Updating...' : 'Update'}
+          {uploadingExplore ? 'Uploading…' : loading ? 'Loading…' : 'Update'}
         </Button>
       </DialogActions>
     </Dialog>
