@@ -158,12 +158,12 @@ export const cmsBooksPlayerService = {
       language?: string;
     }
   ): Promise<ApiResponse<CmsPlayableBooksResult>> =>
-    api.get<ApiResponse<CmsPlayableBooksResult>>('/cms-book-player/playable', {
+    api.get<ApiResponse<CmsPlayableBooksResult>>('/parent/cms-books/playable', {
       params,
     }),
 
   getPlayableBook: (bookId: string): Promise<ApiResponse<CmsPlayableBookDetail>> =>
-    api.get<ApiResponse<CmsPlayableBookDetail>>(`/cms-book-player/${bookId}/play`),
+    api.get<ApiResponse<CmsPlayableBookDetail>>(`/parent/cms-books/${bookId}/play`),
 
   submitBuiltInBookCompletion: (
     courseId: string,

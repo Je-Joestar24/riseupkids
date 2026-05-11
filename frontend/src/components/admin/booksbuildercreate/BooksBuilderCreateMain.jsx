@@ -384,12 +384,24 @@ const BooksBuilderCreateMain = () => {
           });
           const readingText = String(page.readingText || page.subtitle || '').trim();
           const durationSec = Number(page.audioDurationSec);
+          const hasValidDuration = Number.isFinite(durationSec) && durationSec > 0;
+          const timelineWords = Array.isArray(page.readingWords) ? page.readingWords : [];
+          const hasSavedTimeline =
+            timelineWords.length > 0
+            && timelineWords.every(
+              (w) =>
+                String(w?.w || '').trim()
+                && Number.isFinite(Number(w?.start))
+                && Number.isFinite(Number(w?.end))
+            );
           pagePayload.reading = {
             text: readingText || null,
-            durationSec: Number.isFinite(durationSec) && durationSec > 0 ? durationSec : null,
+            durationSec: hasValidDuration ? durationSec : null,
             words:
-              readingText && Number.isFinite(durationSec) && durationSec > 0
-                ? buildWeightedWords(readingText, durationSec)
+              readingText && hasValidDuration
+                ? hasSavedTimeline
+                  ? timelineWords
+                  : buildWeightedWords(readingText, durationSec)
                 : [],
           };
         } else if (page.type === 'interactive') {

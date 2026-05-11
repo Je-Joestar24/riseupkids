@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import {
   cmsBooksPlayerService,
+  type ApiResponse,
   type BuiltInBookCompletionPayload,
   type CmsPlayableBookDetail,
   type CmsPlayableBookSummary,
@@ -30,7 +31,7 @@ interface CmsBookPlayerActions {
     childId: string,
     bookId: string,
     payload: BuiltInBookCompletionPayload
-  ) => Promise<boolean>;
+  ) => Promise<ApiResponse<unknown>>;
   setSelectedBook: (book: CmsPlayableBookDetail | null) => void;
   clearScoreSubmitted: () => void;
   clearError: () => void;
@@ -92,7 +93,13 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
   },
 
   submitBuiltInBookScore: async (courseId, childId, bookId, payload) => {
-    if (!courseId || !childId || !bookId) return false;
+    const fail = (message: string): ApiResponse<unknown> => ({
+      success: false,
+      message,
+    });
+    if (!courseId || !childId || !bookId) {
+      return fail('Missing course, child, or book');
+    }
     set({ isSubmittingScore: true, error: null, scoreSubmitted: false });
     try {
       const response = await cmsBooksPlayerService.submitBuiltInBookCompletion(
@@ -107,7 +114,7 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
         scoreSubmitted: ok,
         error: ok ? null : response?.message ?? 'Failed to submit built-in book score',
       });
-      return ok;
+      return response ?? fail('No response');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       set({
@@ -115,7 +122,7 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
         scoreSubmitted: false,
         error: message,
       });
-      return false;
+      return fail(message);
     }
   },
 

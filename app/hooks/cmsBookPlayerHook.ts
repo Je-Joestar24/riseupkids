@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 
 import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
 import type {
+  ApiResponse,
   BuiltInBookCompletionPayload,
   CmsPlayableBookDetail,
   CmsPlayableBookSummary,
@@ -30,7 +31,7 @@ export interface UseCmsBookPlayerReturn {
   submitScore: (
     bookId: string,
     payload: BuiltInBookCompletionPayload
-  ) => Promise<boolean>;
+  ) => Promise<ApiResponse<unknown>>;
   setSelectedBook: (book: CmsPlayableBookDetail | null) => void;
   clearScoreSubmitted: () => void;
   clearError: () => void;
@@ -64,7 +65,12 @@ export function useCmsBookPlayer({
 
   const submitScore = useCallback(
     (bookId: string, payload: BuiltInBookCompletionPayload) => {
-      if (!childId || !courseId) return Promise.resolve(false);
+      if (!childId || !courseId) {
+        return Promise.resolve<ApiResponse<unknown>>({
+          success: false,
+          message: 'Missing child or course',
+        });
+      }
       return submitBuiltInBookScoreAction(courseId, childId, bookId, payload);
     },
     [childId, courseId, submitBuiltInBookScoreAction]

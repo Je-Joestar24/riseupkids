@@ -8,6 +8,7 @@ import { useGlobalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   View,
@@ -15,6 +16,15 @@ import {
 
 import { AudioModal } from '@/components/child/common/audio-modal';
 import { ChantModal } from '@/components/child/common/chant-modal';
+import {
+  CmsCompletionDialog,
+  type CmsCompletionDialogData,
+} from '@/components/child/common/cms-completion-dialog';
+import {
+  CmsPlayerModal,
+  lockLandscapeForCmsBookPlayer,
+  type CmsSessionPayload,
+} from '@/components/child/common/cms-player-modal';
 import { Html5Modal } from '@/components/child/common/html5-modal';
 import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
 import { ModuleAudioAssignments } from '@/components/child/module/module-audio-assignments';
@@ -24,13 +34,20 @@ import { ModuleChants } from '@/components/child/module/module-chants';
 import { ModuleFooter } from '@/components/child/module/module-footer';
 import { ModuleHeader } from '@/components/child/module/module-header';
 import { ModuleProgress } from '@/components/child/module/module-progress';
-import { getCoverImageUrl } from '@/components/child/module/module-utils';
+import {
+  getBuiltinCmsBookId,
+  getCoverImageUrl,
+  isBuiltinCmsBook,
+} from '@/components/child/module/module-utils';
 import { ModuleVideos } from '@/components/child/module/module-videos';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
+import { useCmsBookPlayer } from '@/hooks/cmsBookPlayerHook';
+import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
 import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
+import type { BuiltInBookCompletionPayload } from '@/services/cmsBooksPlayerService';
 import type { PopulatedContentItem } from '@/services/moduleService';
 
 function getContentId(item: PopulatedContentItem): string {
@@ -45,6 +62,9 @@ export default function ChildModuleScreen() {
   const [videoModal, setVideoModal] = useState<PopulatedContentItem | null>(null);
   const [chantModal, setChantModal] = useState<PopulatedContentItem | null>(null);
   const [audioModal, setAudioModal] = useState<PopulatedContentItem | null>(null);
+  const [cmsModalBook, setCmsModalBook] = useState<PopulatedContentItem | null>(null);
+  const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
+  const [cmsCompletionData, setCmsCompletionData] = useState<CmsCompletionDialogData | null>(null);
 
   const {
     open: html5Open,
@@ -55,16 +75,6 @@ export default function ChildModuleScreen() {
     loading: html5Loading,
     error: html5Error,
   } = useHtml5Modal();
-
-  const handleBookPress = useCallback(
-    (book: PopulatedContentItem) => {
-      if (isHtml5Book(book)) {
-        openHtml5Modal(book);
-      }
-      // SCORM not supported in app; tap does nothing for non-HTML5 books
-    },
-    [openHtml5Modal]
-  );
 
   const {
     course,
@@ -80,6 +90,7 @@ export default function ChildModuleScreen() {
     fetchModuleDetails,
     clearModule,
     refreshVideoWatches,
+    updateContentProgress,
     getBookProgressCircles,
     isBookCompleted,
     getVideoProgressCircles,
@@ -87,6 +98,123 @@ export default function ChildModuleScreen() {
     isChantCompleted,
     getAudioStatus,
   } = useModule();
+
+  const {
+    selectedBook: cmsPlayableBook,
+    openBook: openCmsPlayableBook,
+    resetPlayer: resetCmsPlayer,
+    submitScore: submitBuiltinBookScore,
+    isLoadingBook: isCmsBookLoading,
+  } = useCmsBookPlayer({
+    childId: childId ?? null,
+    courseId: courseId ?? null,
+  });
+
+  const mapCmsSessionToCompletion = useCallback(
+    (payload: CmsSessionPayload): BuiltInBookCompletionPayload => {
+      const maxScore = Math.max(0, payload.maxScore);
+      const score = Math.min(payload.score, maxScore > 0 ? maxScore : payload.score);
+      const ratio = maxScore > 0 ? score / maxScore : 1;
+      const passedRatio = ratio >= 0.75;
+      const fullMarks = maxScore > 0 && score >= maxScore;
+      const progress = fullMarks
+        ? 100
+        : passedRatio
+          ? Math.max(80, Math.round(ratio * 100))
+          : Math.min(100, Math.round(ratio * 100));
+      return {
+        score: maxScore > 0 ? score : 1,
+        maxScore: maxScore > 0 ? maxScore : 1,
+        status: passedRatio || fullMarks ? 'passed' : 'completed',
+        timeSpent: Math.max(1, payload.attemptCount * 5 + (payload.trigger === 'home' ? 30 : 5)),
+        progress,
+      };
+    },
+    []
+  );
+
+  const handleCmsSessionComplete = useCallback(
+    async (payload: CmsSessionPayload) => {
+      if (!cmsModalBook || !childId || !courseId) return;
+      const libraryBookId = getContentId(cmsModalBook);
+      const maxScore = Math.max(0, payload.maxScore);
+      const score = Math.min(payload.score, maxScore > 0 ? maxScore : payload.score);
+      const ratio = maxScore > 0 ? score / maxScore : 1;
+      const worthSubmitting =
+        ratio >= 0.75
+        || (maxScore > 0 && score >= maxScore)
+        || maxScore === 0
+        || payload.trigger === 'home';
+      if (!worthSubmitting) return;
+
+      const body = mapCmsSessionToCompletion(payload);
+      const completionRes = await submitBuiltinBookScore(libraryBookId, body);
+      if (completionRes?.success) {
+        await updateContentProgress(courseId, childId, libraryBookId, 'book');
+      }
+      await fetchModuleDetails(courseId, childId);
+
+      if (payload.trigger === 'home') {
+        const raw = completionRes?.data;
+        const apiData =
+          raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>)
+            : {};
+        setCmsCompletionData({
+          score,
+          maxScore,
+          attemptCount: payload.attemptCount,
+          starsAwarded: Boolean(apiData.starsAwarded),
+          starsToAward: Number(apiData.starsToAward) || 0,
+          totalStars:
+            apiData.totalStars !== undefined && apiData.totalStars !== null
+              ? Number(apiData.totalStars)
+              : undefined,
+          readingCount: Number(apiData.readingCount) || 0,
+          requiredReadingCount: Number(apiData.requiredReadingCount) || 5,
+          requirementMet: Boolean(apiData.requirementMet),
+        });
+        setCmsCompletionOpen(true);
+      }
+    },
+    [
+      cmsModalBook,
+      childId,
+      courseId,
+      mapCmsSessionToCompletion,
+      submitBuiltinBookScore,
+      updateContentProgress,
+      fetchModuleDetails,
+    ]
+  );
+
+  const handleBookPress = useCallback(
+    (book: PopulatedContentItem) => {
+      if (isHtml5Book(book)) {
+        openHtml5Modal(book);
+        return;
+      }
+      if (isBuiltinCmsBook(book)) {
+        const cmsId = getBuiltinCmsBookId(book);
+        if (!cmsId) return;
+        lockLandscapeForCmsBookPlayer();
+        resetCmsPlayer();
+        setCmsModalBook(book);
+        void (async () => {
+          const detail = await openCmsPlayableBook(cmsId);
+          if (!detail?.pages?.length) {
+            setCmsModalBook(null);
+            const msg =
+              useCmsPlayerStore.getState().error ?? 'Could not load this built-in book.';
+            Alert.alert('Book unavailable', msg);
+          }
+        })();
+        return;
+      }
+      // SCORM not supported in app; tap does nothing for other books
+    },
+    [openHtml5Modal, openCmsPlayableBook, resetCmsPlayer]
+  );
 
   const getBookStarPoints = (book: PopulatedContentItem) =>
     (bookReadingsByBookId[getContentId(book)] as { starsAwarded?: boolean } | undefined)?.starsAwarded ? 1 : 0;
@@ -233,6 +361,28 @@ export default function ChildModuleScreen() {
         onAfterComplete={() => {
           if (courseId && childId) fetchModuleDetails(courseId, childId);
         }}
+      />
+      <CmsPlayerModal
+        open={Boolean(cmsModalBook)}
+        onClose={() => {
+          setCmsModalBook(null);
+          resetCmsPlayer();
+        }}
+        pages={cmsPlayableBook?.pages ?? []}
+        isPreloading={
+          cmsModalBook && (isCmsBookLoading || !(cmsPlayableBook?.pages?.length ?? 0))
+            ? true
+            : undefined
+        }
+        onSessionComplete={handleCmsSessionComplete}
+      />
+      <CmsCompletionDialog
+        open={cmsCompletionOpen}
+        onClose={() => {
+          setCmsCompletionOpen(false);
+          setCmsCompletionData(null);
+        }}
+        data={cmsCompletionData}
       />
     </ScrollView>
   );

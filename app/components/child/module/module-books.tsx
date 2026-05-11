@@ -1,6 +1,9 @@
 /**
  * Module Library – books in a 2-column grid with square covers.
  * Each card: square cover, completion check, star badge, time, 5 progress circles.
+ *
+ * Taps call `onBookPress(book)`; the parent screen should open HTML5, built-in CMS, etc.
+ * (Built-in detection uses `packageType === 'builtin'` + `cmsBookId` — see `module-utils`.)
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
