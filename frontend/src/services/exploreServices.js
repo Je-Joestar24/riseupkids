@@ -1,5 +1,5 @@
 import api from '../api/axios';
-import { TIMEOUT } from '../constants/timeout';
+import { EXPLORE_UPLOAD_TIMEOUT_MS } from '../constants/timeout';
 
 /**
  * The shared axios instance sets `Content-Type: application/json`. For FormData, axios
@@ -71,7 +71,7 @@ const exploreService = {
    * @returns {Promise} API response with created explore content data
    */
   createExploreContent: async (formData, options = {}) => {
-    const { onUploadProgress, timeout = TIMEOUT } = options;
+    const { onUploadProgress, timeout = EXPLORE_UPLOAD_TIMEOUT_MS } = options;
     try {
       const response = await api.post('/explore', formData, {
         transformRequest: [fixExploreMultipartHeaders],
@@ -110,7 +110,7 @@ const exploreService = {
    * @returns {Promise} API response with updated explore content data
    */
   updateExploreContent: async (contentId, formData, options = {}) => {
-    const { onUploadProgress, timeout = TIMEOUT } = options;
+    const { onUploadProgress, timeout = EXPLORE_UPLOAD_TIMEOUT_MS } = options;
     try {
       const response = await api.put(`/explore/${contentId}`, formData, {
         transformRequest: [fixExploreMultipartHeaders],

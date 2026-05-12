@@ -18,7 +18,7 @@ const exploreService = require('../services/explore.services');
  * - isPublished: Boolean (optional, default: false)
  * - tags: JSON String (optional) - Array of tag strings
  * - duration: Number (optional) - Video duration in seconds
- * - videoFile: File (required for video type) - Video file
+ * - videoFile: File (required for video type) — large HD uploads supported (disk + S3 stream; default limit ~1.5GB, see EXPLORE_VIDEO_MAX_BYTES)
  * - coverImage: File (optional) - Cover photo/thumbnail (for all video types)
  */
 const createExploreContent = async (req, res) => {

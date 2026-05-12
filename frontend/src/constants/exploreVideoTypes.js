@@ -51,3 +51,6 @@ export const getVideoTypeOptions = () => {
     label: VIDEO_TYPE_LABELS[value],
   }));
 };
+
+/** Align with backend default `exploreVideoMaxFileBytes` / env `EXPLORE_VIDEO_MAX_BYTES` (1.5 GiB). */
+export const EXPLORE_VIDEO_MAX_BYTES = 1536 * 1024 * 1024;

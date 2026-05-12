@@ -1,6 +1,21 @@
 const { ExploreContent, Media } = require('../models');
 const path = require('path');
+const fs = require('fs');
 const s3Service = require('./s3.service');
+
+/** Collect temp disk paths from multer (diskStorage) for cleanup after S3/DB work. */
+const collectMulterDiskPaths = (files) => {
+  const out = [];
+  if (!files || typeof files !== 'object') return out;
+  for (const key of ['videoFile', 'coverImage']) {
+    const arr = files[key];
+    if (!Array.isArray(arr)) continue;
+    for (const f of arr) {
+      if (f && f.path) out.push(f.path);
+    }
+  }
+  return out;
+};
 
 /**
  * Create Explore Content Service
@@ -14,6 +29,9 @@ const s3Service = require('./s3.service');
  * @throws {Error} If validation fails
  */
 const createExploreContent = async (userId, contentData, files = {}) => {
+  const tempDiskPaths = collectMulterDiskPaths(files);
+
+  try {
   const {
     title,
     description,
@@ -54,6 +72,15 @@ const createExploreContent = async (userId, contentData, files = {}) => {
 
   if (files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0) {
     const videoFile = files.videoFile[0];
+    let videoByteSize = typeof videoFile.size === 'number' ? videoFile.size : 0;
+    if ((!videoByteSize || videoByteSize < 0) && videoFile.path) {
+      try {
+        const st = await fs.promises.stat(videoFile.path);
+        videoByteSize = st.size;
+      } catch (_) {
+        videoByteSize = 0;
+      }
+    }
     const { url: videoUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
     videoFileUrl = videoUrl;
     videoFilePath = videoS3Key;
@@ -64,7 +91,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
       filePath: videoS3Key,
       url: videoFileUrl,
       mimeType: videoFile.mimetype,
-      size: videoFile.size,
+      size: videoByteSize,
       duration: duration ? parseInt(duration, 10) : null,
       starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
       isPublished: isPublished === 'true' || isPublished === true,
@@ -124,6 +151,13 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     .lean();
 
   return createdContent;
+  } finally {
+    await Promise.all(
+      tempDiskPaths.map((p) =>
+        fs.promises.unlink(p).catch(() => {})
+      )
+    );
+  }
 };
 
 /**

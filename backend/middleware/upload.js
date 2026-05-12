@@ -25,7 +25,8 @@ const generateFileName = (originalname) => {
 /**
  * File Upload Middleware
  *
- * Uses memory storage; files are uploaded to S3 by services (s3.service.js).
+ * Default: memory storage; services upload to S3 (s3.service.js).
+ * Explore video uploads use disk storage so large files stream to S3 without exhausting RAM.
  * CloudFront base URL from env: AWS_S3_BASE_URL
  */
 
@@ -43,6 +44,8 @@ const ensureUploadDirs = () => {
     path.join(__dirname, '../uploads/html5'),
     path.join(__dirname, '../uploads/media/images'),
     path.join(__dirname, '../uploads/media/videos'),
+    path.join(__dirname, '../uploads/media/videos/explore-temp'),
+    path.join(__dirname, '../uploads/media/images/explore-temp'),
     path.join(__dirname, '../uploads/media/audio'),
     path.join(__dirname, '../uploads/media/other'),
     path.join(__dirname, '../uploads/courses'),
@@ -57,6 +60,32 @@ const ensureUploadDirs = () => {
 };
 
 ensureUploadDirs();
+
+/** Max size per file for explore create (video + cover). Override with EXPLORE_VIDEO_MAX_BYTES (bytes). Capped at 5GB (S3 single-object practical limit). */
+const DEFAULT_EXPLORE_VIDEO_MAX_BYTES = 1536 * 1024 * 1024; // 1.5 GB — supports ~600MB–1GB production videos with headroom
+const _parsedExploreMax = parseInt(process.env.EXPLORE_VIDEO_MAX_BYTES || '', 10);
+const exploreVideoMaxFileBytes =
+  Number.isFinite(_parsedExploreMax) && _parsedExploreMax > 0
+    ? Math.min(_parsedExploreMax, 5 * 1024 * 1024 * 1024)
+    : DEFAULT_EXPLORE_VIDEO_MAX_BYTES;
+
+const exploreTempVideoDir = path.join(__dirname, '../uploads/media/videos/explore-temp');
+const exploreTempImageDir = path.join(__dirname, '../uploads/media/images/explore-temp');
+
+const exploreUploadDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (file.fieldname === 'videoFile') {
+      cb(null, exploreTempVideoDir);
+    } else if (file.fieldname === 'coverImage') {
+      cb(null, exploreTempImageDir);
+    } else {
+      cb(new Error(`Unknown explore upload field: ${file.fieldname}`));
+    }
+  },
+  filename: (req, file, cb) => {
+    cb(null, generateFileName(file.originalname));
+  },
+});
 
 const storage = memoryStorage;
 
@@ -474,8 +503,9 @@ const uploadChantUpdate = multer({
 const uploadRecordedAudio = upload.single('recordedAudio');
 
 // Middleware for explore content uploads (video file + cover photo for all video types)
+// Disk storage: large videos stream to S3 from disk (see s3.service uploadFileFromMulter).
 const uploadExplore = multer({
-  storage: memoryStorage,
+  storage: exploreUploadDiskStorage,
   fileFilter: function (req, file, cb) {
     if (file.fieldname === 'videoFile') {
       if (file.mimetype.startsWith('video/')) {
@@ -494,7 +524,7 @@ const uploadExplore = multer({
     }
   },
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB max file size
+    fileSize: exploreVideoMaxFileBytes,
   },
 }).fields([
   { name: 'videoFile', maxCount: 1 },

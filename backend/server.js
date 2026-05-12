@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -219,7 +220,14 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = http.createServer(app);
+  // Node's default request timeout (~5m) aborts slow large multipart uploads (e.g. explore videos).
+  const requestTimeoutMs = parseInt(process.env.HTTP_REQUEST_TIMEOUT_MS || '0', 10);
+  server.requestTimeout = Number.isFinite(requestTimeoutMs) && requestTimeoutMs >= 0 ? requestTimeoutMs : 0;
+  if (server.requestTimeout > 0) {
+    server.headersTimeout = server.requestTimeout + 120000;
+  }
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  Backend is running.`);
     console.log(`  Local:   http://localhost:${PORT}/api`);
     console.log(`  Network: http://0.0.0.0:${PORT}/api`);

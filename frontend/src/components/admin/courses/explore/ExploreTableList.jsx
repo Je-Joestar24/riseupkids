@@ -34,6 +34,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
 import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreEditModal from './ExploreEditModa';
+import ExploreVideoTestPlayerModal from './ExploreVideoTestPlayerModal';
 
 /**
  * ExploreTableList Component
@@ -62,6 +63,20 @@ const ExploreTableList = () => {
   const [contentToDelete, setContentToDelete] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [contentToEdit, setContentToEdit] = useState(null);
+  const [testPlayerOpen, setTestPlayerOpen] = useState(false);
+  const [testPlayerContent, setTestPlayerContent] = useState(null);
+
+  const handleTestPlayerClose = () => {
+    setTestPlayerOpen(false);
+    setTestPlayerContent(null);
+  };
+
+  const handleRowClick = (event, content) => {
+    if (event.target.closest('button')) return;
+    if (content.type !== 'video') return;
+    setTestPlayerContent(content);
+    setTestPlayerOpen(true);
+  };
 
   const handleMenuOpen = (event, content) => {
     setAnchorEl(event.currentTarget);
@@ -77,6 +92,14 @@ const ExploreTableList = () => {
     if (selectedContent) {
       setContentToEdit(selectedContent);
       setEditModalOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleTestPlayback = () => {
+    if (selectedContent) {
+      setTestPlayerContent(selectedContent);
+      setTestPlayerOpen(true);
     }
     handleMenuClose();
   };
@@ -322,11 +345,19 @@ const ExploreTableList = () => {
             {exploreContent.map((content) => (
               <TableRow
                 key={content._id}
+                hover
+                onClick={(e) => handleRowClick(e, content)}
                 sx={{
+                  cursor: content.type === 'video' ? 'pointer' : 'default',
                   '&:hover': {
                     backgroundColor: theme.palette.custom.bgTertiary,
                   },
                 }}
+                aria-label={
+                  content.type === 'video'
+                    ? `Open test playback for ${content.title || 'explore video'}`
+                    : undefined
+                }
               >
                 <TableCell>
                   {content.coverImage ? (
@@ -480,7 +511,11 @@ const ExploreTableList = () => {
                 </TableCell>
                 <TableCell align="right">
                   <IconButton
-                    onClick={(e) => handleMenuOpen(e, content)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMenuOpen(e, content);
+                    }}
+                    aria-label={`Actions for ${content.title || 'explore item'}`}
                     sx={{
                       color: theme.palette.text.secondary,
                       '&:hover': {
@@ -510,6 +545,16 @@ const ExploreTableList = () => {
           },
         }}
       >
+        <MenuItem
+          onClick={handleTestPlayback}
+          disabled={!selectedContent || selectedContent.type !== 'video'}
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+          }}
+        >
+          <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} aria-hidden />
+          Test playback
+        </MenuItem>
         <MenuItem
           onClick={handleEdit}
           sx={{
@@ -590,6 +635,12 @@ const ExploreTableList = () => {
         open={editModalOpen}
         onClose={handleEditModalClose}
         contentId={contentToEdit?._id}
+      />
+
+      <ExploreVideoTestPlayerModal
+        open={testPlayerOpen}
+        onClose={handleTestPlayerClose}
+        content={testPlayerContent}
       />
     </>
   );

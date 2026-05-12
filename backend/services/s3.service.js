@@ -101,6 +101,40 @@ const uploadBuffer = async (buffer, s3Folder, originalname, contentType) => {
 };
 
 /**
+ * Upload a local file to S3 using a read stream (avoids loading large files into memory).
+ * @param {string} filePath - Absolute path on disk
+ * @param {string} s3Folder - Folder prefix (e.g. 'media/videos')
+ * @param {string} originalname - Original filename (for extension)
+ * @param {string} contentType - MIME type
+ * @returns {Promise<{ url: string, s3Key: string }>}
+ */
+const uploadFileFromPathStream = async (filePath, s3Folder, originalname, contentType) => {
+  if (!filePath) throw new Error('filePath is required');
+  const client = getClient();
+  const bucket = getConfig().bucket;
+  const filename = generateFileName(originalname || 'file');
+  const key = `${s3Folder.replace(/\/$/, '')}/${filename}`;
+  const stat = await fs.promises.stat(filePath);
+  const stream = fs.createReadStream(filePath);
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: stream,
+        ContentType: contentType || 'application/octet-stream',
+        ContentLength: stat.size,
+      })
+    );
+  } catch (err) {
+    stream.destroy();
+    throw err;
+  }
+  const url = getPublicUrl(key);
+  return { url, s3Key: key };
+};
+
+/**
  * Upload a buffer to an exact S3 key (overwrites).
  * @param {Buffer} buffer
  * @param {string} key - full S3 key (e.g. 'html5/abc/index.html')
@@ -124,21 +158,28 @@ const putObjectBuffer = async (buffer, key, contentType) => {
 };
 
 /**
- * Upload from a Multer file object (must have .buffer, .originalname, .mimetype).
- * @param {Object} file - Multer file (memory storage: file.buffer, file.originalname, file.mimetype)
+ * Upload from a Multer file object.
+ * Supports memory storage (.buffer) or disk storage (.path) — disk + stream is used for large files.
+ * @param {Object} file - Multer file
  * @param {string} s3Folder - S3 prefix (e.g. 'media/images')
  * @returns {Promise<{ url: string, s3Key: string }>}
  */
 const uploadFileFromMulter = async (file, s3Folder) => {
-  if (!file || !file.buffer) {
-    throw new Error('Invalid multer file: buffer required (use memoryStorage)');
+  if (!file) {
+    throw new Error('Invalid multer file: file missing');
   }
-  return uploadBuffer(
-    file.buffer,
-    s3Folder,
-    file.originalname || 'file',
-    file.mimetype
-  );
+  if (file.path) {
+    return uploadFileFromPathStream(
+      file.path,
+      s3Folder,
+      file.originalname || 'file',
+      file.mimetype
+    );
+  }
+  if (file.buffer) {
+    return uploadBuffer(file.buffer, s3Folder, file.originalname || 'file', file.mimetype);
+  }
+  throw new Error('Invalid multer file: buffer or path required');
 };
 
 /**
@@ -339,6 +380,7 @@ module.exports = {
   getPublicUrl,
   uploadBuffer,
   putObjectBuffer,
+  uploadFileFromPathStream,
   uploadFileFromMulter,
   getObjectBuffer,
   uploadDirectory,

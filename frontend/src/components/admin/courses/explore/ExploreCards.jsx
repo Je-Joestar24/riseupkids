@@ -23,9 +23,9 @@ import {
 } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
-import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
 import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreEditModal from './ExploreEditModa';
+import ExploreVideoTestPlayerModal from './ExploreVideoTestPlayerModal';
 
 /**
  * ExploreCards Component
@@ -53,6 +53,20 @@ const ExploreCards = () => {
   const [contentToDelete, setContentToDelete] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [contentToEdit, setContentToEdit] = useState(null);
+  const [testPlayerOpen, setTestPlayerOpen] = useState(false);
+  const [testPlayerContent, setTestPlayerContent] = useState(null);
+
+  const handleTestPlayerClose = () => {
+    setTestPlayerOpen(false);
+    setTestPlayerContent(null);
+  };
+
+  const handleCardClick = (event, content) => {
+    if (event.target.closest('button')) return;
+    if (content.type !== 'video') return;
+    setTestPlayerContent(content);
+    setTestPlayerOpen(true);
+  };
 
   const handleEditModalClose = (syncPayload) => {
     setEditModalOpen(false);
@@ -106,6 +120,7 @@ const ExploreCards = () => {
     return (
       <Card
         key={content._id}
+        onClick={(e) => handleCardClick(e, content)}
         sx={{
           height: '100%',
           display: 'flex',
@@ -115,6 +130,7 @@ const ExploreCards = () => {
           border: `1px solid ${theme.palette.border.main}`,
           boxShadow: theme.shadows[2],
           transition: 'all 0.3s ease',
+          cursor: content.type === 'video' ? 'pointer' : 'default',
           '&:hover': {
             boxShadow: theme.shadows[6],
             transform: 'translateY(-4px)',
@@ -122,6 +138,8 @@ const ExploreCards = () => {
           position: 'relative',
           backgroundColor: 'white',
         }}
+        elevation={0}
+        title={content.type === 'video' ? 'Click anywhere on the card to test video playback' : undefined}
       >
         {/* Cover Image - Rectangular */}
         <Box
@@ -529,6 +547,12 @@ const ExploreCards = () => {
         open={editModalOpen}
         onClose={handleEditModalClose}
         contentId={contentToEdit?._id}
+      />
+
+      <ExploreVideoTestPlayerModal
+        open={testPlayerOpen}
+        onClose={handleTestPlayerClose}
+        content={testPlayerContent}
       />
     </>
   );

@@ -24,7 +24,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
-import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
+import { getVideoTypeOptions, EXPLORE_VIDEO_MAX_BYTES } from '../../../../constants/exploreVideoTypes';
 
 /**
  * ExploreAddModal — create explore video with bento layout and in-modal video preview (Star Cam–style).
@@ -127,6 +127,16 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
 
   const handleVideoFileChange = (fileList) => {
     const file = fileList && fileList[0] ? fileList[0] : null;
+    if (file && typeof file.size === 'number' && file.size > EXPLORE_VIDEO_MAX_BYTES) {
+      window.alert(
+        `This video is too large (${(file.size / (1024 * 1024)).toFixed(0)} MB). Maximum is about ${Math.round(EXPLORE_VIDEO_MAX_BYTES / (1024 * 1024))} MB.`
+      );
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
+      }
+      setSelectedFiles((prev) => ({ ...prev, videoFile: null }));
+      return;
+    }
     setSelectedFiles((prev) => ({ ...prev, videoFile: file }));
   };
 
@@ -238,7 +248,8 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
       <DialogContent sx={{ padding: 3, pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontFamily: 'Quicksand, sans-serif' }}>
           Choose a video in the preview area, then complete details on the right. Large uploads show progress below
-          the preview.
+          the preview. Main video can be up to about {Math.round(EXPLORE_VIDEO_MAX_BYTES / (1024 * 1024))} MB (server
+          limit); uploads may take a while on slower connections.
         </Typography>
 
         <Grid container spacing={2}>
