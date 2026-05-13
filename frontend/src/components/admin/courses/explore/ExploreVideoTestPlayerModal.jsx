@@ -14,9 +14,11 @@ import { useTheme } from '@mui/material/styles';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 
 /**
  * Resolve playable URL for admin explore list items (lean + populated shapes).
+ * For Bunny embeds this is the iframe page URL (use iframe, not <video>).
  * @param {object|null} content
  * @param {(raw: string) => string|null} getVideoFileUrl
  * @returns {string|null}
@@ -29,11 +31,18 @@ export function resolveExploreAdminVideoSrc(content, getVideoFileUrl) {
 }
 
 /**
- * Modal admin test player: verify explore video uploaded and reachable (S3 / CDN URL).
- *
- * @param {boolean} open
- * @param {() => void} onClose
- * @param {object|null} content — explore row from API (expects videoFileUrl or populated videoFile.url)
+ * True when this explore row should use Bunny iframe embed playback.
+ * @param {object|null} content
+ */
+export function isExploreAdminBunnyEmbed(content) {
+  if (!content) return false;
+  if (content.videoFile?.videoSource === 'embed') return true;
+  const raw = content.videoFileUrl || content.videoFile?.url;
+  return typeof raw === 'string' && looksLikeBunnyExploreEmbedUrl(raw);
+}
+
+/**
+ * Modal admin test player: uploaded file uses &lt;video&gt;; Bunny embed uses &lt;iframe&gt;.
  */
 const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
   const theme = useTheme();
@@ -45,6 +54,8 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
     () => resolveExploreAdminVideoSrc(content, getVideoFileUrl),
     [content, getVideoFileUrl]
   );
+
+  const isEmbed = useMemo(() => isExploreAdminBunnyEmbed(content), [content]);
 
   const displayTitle = content?.title?.trim() || 'Explore video';
 
@@ -62,11 +73,17 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
 
   useEffect(() => {
     setPlaybackError(null);
-  }, [content?._id, videoSrc]);
+  }, [content?._id, videoSrc, isEmbed]);
 
   const handleVideoError = () => {
     setPlaybackError(
       'Playback failed. Confirm the file finished uploading, the URL is reachable, and CORS allows your admin origin if required.'
+    );
+  };
+
+  const handleIframeError = () => {
+    setPlaybackError(
+      'The embed could not load in this frame. Try Open in new tab, or check Bunny Stream / browser settings.'
     );
   };
 
@@ -153,28 +170,53 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
               overflow: 'hidden',
             }}
           >
-            <Box
-              component="video"
-              ref={videoRef}
-              key={videoSrc}
-              src={videoSrc}
-              controls
-              playsInline
-              preload="metadata"
-              onError={handleVideoError}
-              sx={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-              }}
-              aria-label={`Test playback for ${displayTitle}`}
-            />
+            {isEmbed ? (
+              <Box
+                component="iframe"
+                key={videoSrc}
+                src={videoSrc}
+                title={`Bunny embed — ${displayTitle}`}
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                allowFullScreen
+                onError={handleIframeError}
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  border: 0,
+                }}
+                aria-label={`Bunny embed test playback for ${displayTitle}`}
+              />
+            ) : (
+              <Box
+                component="video"
+                ref={videoRef}
+                key={videoSrc}
+                src={videoSrc}
+                controls
+                playsInline
+                preload="metadata"
+                onError={handleVideoError}
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                }}
+                aria-label={`Test playback for ${displayTitle}`}
+              />
+            )}
           </Box>
         ) : null}
-        {content?.videoFile?.mimeType ? (
+        {isEmbed && videoSrc ? (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
+            Bunny Stream embed (iframe)
+          </Typography>
+        ) : content?.videoFile?.mimeType ? (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
             {content.videoFile.mimeType}
             {typeof content.videoFile.size === 'number' && content.videoFile.size > 0
@@ -193,7 +235,7 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
             onClick={handleOpenInNewTab}
             variant="outlined"
             sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
-            aria-label="Open video URL in new tab"
+            aria-label="Open media URL in new tab"
           >
             Open in new tab
           </Button>

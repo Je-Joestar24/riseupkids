@@ -88,7 +88,7 @@ export const useContent = () => {
   /**
    * Create new content item
    * @param {String} contentType - Content type
-   * @param {FormData} formData - Content data with files
+   * @param {FormData} formData - Content data with files (videos: optional `videoSource` / `embedUrl` for Bunny iframe)
    * @returns {Promise} Create result
    */
   const createNewContent = async (contentType, formData) => {

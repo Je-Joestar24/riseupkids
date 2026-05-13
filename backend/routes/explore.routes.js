@@ -21,7 +21,7 @@ const { uploadExplore, uploadExploreUpdate } = require('../middleware/upload');
  * Video Types: replay, arts_crafts, cooking, music, movement_fitness, story_time, manners_etiquette
  * 
  * Routes:
- * - POST / - Create new explore content (admin/teacher only, with file uploads)
+ * - POST / - Create explore content (multipart: video file **or** Bunny embed via videoSource + embedUrl)
  * - POST /reorder - Reorder explore content (admin/teacher only)
  * - GET / - Get all explore content (with filtering and pagination)
  * - GET /featured - Get featured explore content

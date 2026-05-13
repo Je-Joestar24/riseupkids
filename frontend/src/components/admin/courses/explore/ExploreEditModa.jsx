@@ -20,9 +20,10 @@ import {
   LinearProgress,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudUpload as CloudUploadIcon, InsertLink as InsertLinkIcon } from '@mui/icons-material';
 import { useExplore } from '../../../../hooks/exploreHook';
 import { getVideoTypeOptions } from '../../../../constants/exploreVideoTypes';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 
 /**
  * ExploreEditModal Component
@@ -54,6 +55,7 @@ const ExploreEditModal = ({ open, onClose, contentId }) => {
     duration: '',
     isFeatured: false,
     isPublished: false,
+    embedUrl: '',
   });
   const [selectedFiles, setSelectedFiles] = useState({
     coverImage: null,
@@ -102,6 +104,14 @@ const ExploreEditModal = ({ open, onClose, contentId }) => {
         duration: currentExploreContent.duration || '',
         isFeatured: currentExploreContent.isFeatured || false,
         isPublished: currentExploreContent.isPublished || false,
+        ...(currentExploreContent.videoFile?.videoSource === 'embed'
+          ? {
+              embedUrl:
+                currentExploreContent.videoFile.embedUrl ||
+                currentExploreContent.videoFile.url ||
+                '',
+            }
+          : {}),
       });
       
       // Set existing cover image URL (for all video types)
@@ -154,6 +164,19 @@ const ExploreEditModal = ({ open, onClose, contentId }) => {
       if (!formData.title.trim()) {
         alert('Title cannot be empty');
         return;
+      }
+
+      if (currentExploreContent?.videoFile?.videoSource === 'embed') {
+        if (!formData.embedUrl?.trim()) {
+          alert('Please enter the Bunny embed URL.');
+          return;
+        }
+        if (!looksLikeBunnyExploreEmbedUrl(formData.embedUrl)) {
+          alert(
+            'Embed URL must be HTTPS and look like:\nhttps://iframe.mediadelivery.net/embed/...'
+          );
+          return;
+        }
       }
 
       // Prepare FormData (no videoFile for edit)
@@ -317,6 +340,48 @@ const ExploreEditModal = ({ open, onClose, contentId }) => {
               ))}
             </Select>
           </FormControl>
+
+          {currentExploreContent?.videoFile?.videoSource === 'embed' && (
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Bunny iframe URL
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  color: theme.palette.text.secondary,
+                  display: 'block',
+                  marginBottom: 1,
+                }}
+              >
+                Must be https://iframe.mediadelivery.net/embed/… (same format Bunny gives for iframe embeds).
+              </Typography>
+              <TextField
+                label="Embed URL"
+                value={formData.embedUrl ?? ''}
+                onChange={(e) => handleInputChange('embedUrl', e.target.value)}
+                fullWidth
+                multiline
+                minRows={2}
+                disabled={uploadingExplore}
+                inputProps={{ 'aria-label': 'Bunny Stream iframe embed URL' }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  },
+                }}
+              />
+            </Box>
+          )}
 
           {/* Duration */}
           <TextField
@@ -531,7 +596,7 @@ const ExploreEditModal = ({ open, onClose, contentId }) => {
             },
           }}
         >
-          {uploadingExplore ? 'Uploading…' : loading ? 'Loading…' : 'Update'}
+          {uploadingExplore ? 'Saving…' : loading ? 'Loading…' : 'Update'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -6,7 +6,7 @@ import { TIMEOUT } from '../constants/timeout';
  * Unified service for managing all content types:
  * - Activities (SCORM-based)
  * - Books (SCORM, HTML5, or builtin CMS-linked: same endpoint POST /api/books; formData.packageType selects handling)
- * - Videos (playable video + SCORM)
+ * - Videos (uploaded file + optional SCORM, or Bunny iframe embed via `videoSource` + `embedUrl`; embed disallows SCORM)
  * - Audio Assignments (reference audio)
  * - Chants (optional audio and SCORM files)
  *
@@ -100,7 +100,7 @@ const contentService = {
   /**
    * Create new content item with file uploads
    * @param {String} contentType - Content type
-   * @param {FormData} formData - Content data with files
+   * @param {FormData} formData - Content data with files; for `video`, may include `videoSource` (`upload`|`embed`) and `embedUrl` (Bunny iframe URL)
    * @returns {Promise} API response with created content data
    */
   createContent: async (contentType, formData) => {

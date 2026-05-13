@@ -21,6 +21,7 @@ export const fetchAllExploreContent = createAsyncThunk(
 
 /**
  * Async thunk for creating explore content (multipart).
+ * FormData may include `videoSource` (`upload` | `embed`) and `embedUrl` for Bunny iframe embeds.
  * Pass `FormData` or `{ formData, onUploadProgress }`.
  */
 export const createExploreContent = createAsyncThunk(

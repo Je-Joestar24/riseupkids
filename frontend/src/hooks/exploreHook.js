@@ -225,8 +225,10 @@ export const useExplore = () => {
   /**
    * Prepare FormData for explore content creation/update
    * @param {Object} contentData - Explore content data object
-   * @param {File} videoFile - Optional video file
-   * @param {File} coverImageFile - Optional cover photo file
+   * @param {('upload'|'embed')} [contentData.videoSource] - Create: upload (default) or Bunny iframe embed
+   * @param {string} [contentData.embedUrl] - Create (embed) or update (embed items only)
+   * @param {File|null} videoFile - Video file when videoSource is upload
+   * @param {File|null} coverImageFile - Optional cover photo file
    * @returns {FormData} FormData object ready for API call
    */
   const prepareExploreFormData = (
@@ -235,7 +237,7 @@ export const useExplore = () => {
     coverImageFile = null
   ) => {
     const formData = new FormData();
-    
+
     // Add basic fields
     if (contentData.title) formData.append('title', contentData.title);
     if (contentData.description) formData.append('description', contentData.description);
@@ -254,7 +256,20 @@ export const useExplore = () => {
     if (contentData.isPublished !== undefined) {
       formData.append('isPublished', contentData.isPublished);
     }
-    
+
+    const hasEmbedUrlProp = Object.prototype.hasOwnProperty.call(contentData, 'embedUrl');
+
+    if (contentData.videoSource === 'embed') {
+      formData.append('videoSource', 'embed');
+      const trimmedEmbed = String(contentData.embedUrl ?? '').trim();
+      if (trimmedEmbed) formData.append('embedUrl', trimmedEmbed);
+    } else if (contentData.videoSource === 'upload') {
+      formData.append('videoSource', 'upload');
+    } else if (hasEmbedUrlProp) {
+      const trimmedEmbed = String(contentData.embedUrl ?? '').trim();
+      if (trimmedEmbed) formData.append('embedUrl', trimmedEmbed);
+    }
+
     // Add files if provided
     if (videoFile) {
       formData.append('videoFile', videoFile);
@@ -262,7 +277,7 @@ export const useExplore = () => {
     if (coverImageFile) {
       formData.append('coverImage', coverImageFile);
     }
-    
+
     return formData;
   };
 

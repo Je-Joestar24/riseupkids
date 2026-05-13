@@ -18,7 +18,7 @@ const { uploadVideo, uploadVideoUpdate } = require('../middleware/upload');
  * All routes require authentication and admin/teacher role
  * 
  * Routes:
- * - POST / - Create new video (with video file, SCORM file, and cover image upload)
+ * - POST / - Create video (multipart: uploaded file **or** Bunny embed via `videoSource` + `embedUrl`; SCORM only with upload)
  * - GET / - Get all videos (with filtering and pagination)
  * - GET /:id - Get single video by ID
  * - PUT /:id - Update video (title, description, coverImage, duration, starsAwarded)

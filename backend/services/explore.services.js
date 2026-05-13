@@ -1,7 +1,11 @@
 const { ExploreContent, Media } = require('../models');
-const path = require('path');
 const fs = require('fs');
 const s3Service = require('./s3.service');
+const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
+
+/** Fields returned on populated explore `videoFile` (upload + Bunny embed). */
+const VIDEO_FILE_POPULATE_SELECT =
+  'type title url mimeType size duration thumbnail videoSource embedUrl';
 
 /** Collect temp disk paths from multer (diskStorage) for cleanup after S3/DB work. */
 const collectMulterDiskPaths = (files) => {
@@ -20,7 +24,7 @@ const collectMulterDiskPaths = (files) => {
 /**
  * Create Explore Content Service
  * 
- * Creates new explore content with video file and optional cover photo (for all video types)
+ * Creates new explore content with either an uploaded video file or a Bunny Stream iframe embed URL.
  * 
  * @param {String} userId - Admin user's MongoDB ID
  * @param {Object} contentData - Content data
@@ -37,6 +41,8 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     description,
     type = 'video',
     videoType = 'replay',
+    videoSource: videoSourceRaw,
+    embedUrl: embedUrlRaw,
     category,
     starsAwarded,
     totalItems,
@@ -46,6 +52,11 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     tags,
     duration,
   } = contentData;
+
+  const videoSource =
+    typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'embed'
+      ? 'embed'
+      : 'upload';
 
   // Validate videoType for new enum values
   const validVideoTypes = ['replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'];
@@ -58,19 +69,42 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     throw new Error('Please provide a title');
   }
 
-  // For video type, video file is required
+  const hasVideoFile =
+    files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0;
+
+  // For video type, require either upload or validated Bunny embed URL
   if (type === 'video') {
-    if (!files.videoFile || !Array.isArray(files.videoFile) || files.videoFile.length === 0) {
+    if (videoSource === 'embed') {
+      if (hasVideoFile) {
+        throw new Error('Do not attach a video file when using videoSource embed');
+      }
+    } else if (!hasVideoFile) {
       throw new Error('Please provide a video file');
     }
   }
 
-  // Process video file and create Media record
+  // Process video (upload or embed) and create Media record
   let videoMedia = null;
   let videoFilePath = null;
   let videoFileUrl = null;
 
-  if (files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0) {
+  if (type === 'video' && videoSource === 'embed') {
+    const canonicalEmbed = assertBunnyIframeEmbedUrl(embedUrlRaw);
+    videoFileUrl = canonicalEmbed;
+    videoFilePath = null;
+    videoMedia = await Media.create({
+      type: 'video',
+      videoSource: 'embed',
+      embedUrl: canonicalEmbed,
+      cloudUrl: canonicalEmbed,
+      title: title?.trim() || 'Embedded video',
+      description: description?.trim() || null,
+      duration: duration ? parseInt(duration, 10) : null,
+      starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
+      isPublished: isPublished === 'true' || isPublished === true,
+      uploadedBy: userId,
+    });
+  } else if (hasVideoFile) {
     const videoFile = files.videoFile[0];
     let videoByteSize = typeof videoFile.size === 'number' ? videoFile.size : 0;
     if ((!videoByteSize || videoByteSize < 0) && videoFile.path) {
@@ -86,6 +120,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
     videoFilePath = videoS3Key;
     videoMedia = await Media.create({
       type: 'video',
+      videoSource: 'upload',
       title: title?.trim() || videoFile.originalname,
       description: description?.trim() || null,
       filePath: videoS3Key,
@@ -145,7 +180,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
 
   // Get created content with populated data
   const createdContent = await ExploreContent.findById(exploreContent._id)
-    .populate('videoFile', 'type title url mimeType size duration')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .populate('createdBy', 'name email')
     .lean();
@@ -229,7 +264,7 @@ const getAllExploreContent = async (queryParams = {}) => {
 
   // Get explore content
   const exploreContent = await ExploreContent.find(query)
-    .populate('videoFile', 'type title url mimeType size duration thumbnail')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .populate('createdBy', 'name email')
     .sort(sortObject)
@@ -262,7 +297,7 @@ const getAllExploreContent = async (queryParams = {}) => {
  */
 const getExploreContentById = async (contentId) => {
   const content = await ExploreContent.findById(contentId)
-    .populate('videoFile', 'type title url mimeType size duration thumbnail')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .populate('createdBy', 'name email')
     .lean();
@@ -277,8 +312,8 @@ const getExploreContentById = async (contentId) => {
 /**
  * Update Explore Content Service
  * 
- * Updates explore content fields: title, description, cover photo, etc.
- * Video file cannot be changed after creation
+ * Updates explore content fields: title, description, cover photo, optional embedUrl (Bunny embed only), etc.
+ * Uploaded video file cannot be swapped after creation.
  * 
  * @param {String} contentId - Explore content's MongoDB ID
  * @param {String} userId - Admin user's MongoDB ID (for verification)
@@ -292,6 +327,7 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
     title,
     description,
     videoType,
+    embedUrl,
     category,
     starsAwarded,
     totalItems,
@@ -384,6 +420,27 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
     content.tags = parsedTags.filter(t => t && t.trim()).map(t => t.trim());
   }
 
+  if (embedUrl !== undefined && content.type === 'video') {
+    if (!content.videoFile) {
+      throw new Error('Cannot update embedUrl: linked video media is missing');
+    }
+    const mediaRecord = await Media.findById(content.videoFile);
+    if (!mediaRecord) {
+      throw new Error('Linked media not found');
+    }
+    if ((mediaRecord.videoSource || 'upload') !== 'embed') {
+      throw new Error('embedUrl can only be updated for Bunny embed videos');
+    }
+    const canonical = assertBunnyIframeEmbedUrl(
+      typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? '')
+    );
+    mediaRecord.embedUrl = canonical;
+    mediaRecord.cloudUrl = canonical;
+    mediaRecord.url = canonical;
+    await mediaRecord.save();
+    content.videoFileUrl = canonical;
+  }
+
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     if (content.coverImage) {
       try {
@@ -402,7 +459,7 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
 
   // Get updated content with populated data
   const updatedContent = await ExploreContent.findById(contentId)
-    .populate('videoFile', 'type title url mimeType size duration thumbnail')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .populate('createdBy', 'name email')
     .lean();
@@ -438,7 +495,9 @@ const deleteExploreContent = async (contentId) => {
   if (content.videoFile) {
     try {
       const mediaRecord = await Media.findById(content.videoFile);
-      if (mediaRecord && mediaRecord.filePath) await s3Service.deleteByKey(mediaRecord.filePath);
+      if (mediaRecord && (mediaRecord.videoSource || 'upload') !== 'embed' && mediaRecord.filePath) {
+        await s3Service.deleteByKey(mediaRecord.filePath);
+      }
       await Media.findByIdAndDelete(content.videoFile);
     } catch (error) {
       console.error('Error deleting media record:', error);
@@ -504,7 +563,7 @@ const getExploreContentByType = async (type, videoType = null, queryParams = {})
 
   // Get explore content
   const exploreContent = await ExploreContent.find(query)
-    .populate('videoFile', 'type title url mimeType size duration thumbnail')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .select('-createdBy') // Don't expose creator for public endpoint
     .sort({ order: 1, createdAt: -1 })
@@ -539,7 +598,7 @@ const getFeaturedExploreContent = async (limit = 10) => {
     isPublished: true,
     isFeatured: true,
   })
-    .populate('videoFile', 'type title url mimeType size duration thumbnail')
+    .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
     .select('-createdBy')
     .sort({ order: 1, createdAt: -1 })

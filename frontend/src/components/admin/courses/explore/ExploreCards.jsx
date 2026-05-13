@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -298,6 +299,17 @@ const ExploreCards = () => {
           >
             {content.title}
           </Typography>
+
+          {content.videoFile?.videoSource === 'embed' && (
+            <Chip
+              label="Bunny embed"
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{ alignSelf: 'flex-start', mb: 0.5, fontFamily: 'Quicksand, sans-serif' }}
+              aria-label="This explore item uses a Bunny iframe embed"
+            />
+          )}
 
           {/* Description */}
           {content.description && (

@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
-const path = require('path');
+
+const isEmbedVideo = function () {
+  return this.type === 'video' && this.videoSource === 'embed';
+};
 
 const mediaSchema = new mongoose.Schema(
   {
@@ -7,6 +10,19 @@ const mediaSchema = new mongoose.Schema(
       type: String,
       enum: ['image', 'video', 'audio'],
       required: [true, 'Please provide media type'],
+    },
+    /** File upload (default) vs Bunny Stream-style iframe embed for videos. */
+    videoSource: {
+      type: String,
+      enum: ['upload', 'embed'],
+      default: 'upload',
+    },
+    /** Canonical iframe embed page URL when videoSource is embed (e.g. Bunny). */
+    embedUrl: {
+      type: String,
+      trim: true,
+      maxlength: [2048, 'Embed URL cannot exceed 2048 characters'],
+      default: null,
     },
     title: {
       type: String,
@@ -18,10 +34,12 @@ const mediaSchema = new mongoose.Schema(
       trim: true,
       maxlength: [500, 'Description cannot exceed 500 characters'],
     },
-    // Local file storage path (for MVP)
+    // Local / S3 object key (not used for iframe embed videos)
     filePath: {
       type: String,
-      required: [true, 'Please provide file path'],
+      required: function () {
+        return !isEmbedVideo.call(this);
+      },
     },
     // Future: Cloud storage URL (when migrating to Cloudinary/S3)
     cloudUrl: {
@@ -36,11 +54,15 @@ const mediaSchema = new mongoose.Schema(
     },
     mimeType: {
       type: String,
-      required: [true, 'Please provide MIME type'],
+      required: function () {
+        return !isEmbedVideo.call(this);
+      },
     },
     size: {
       type: Number, // in bytes
-      required: [true, 'Please provide file size'],
+      required: function () {
+        return !isEmbedVideo.call(this);
+      },
     },
     duration: {
       type: Number, // in seconds (for video/audio)
@@ -131,6 +153,7 @@ const mediaSchema = new mongoose.Schema(
 
 // Indexes
 mediaSchema.index({ type: 1 });
+mediaSchema.index({ videoSource: 1 });
 mediaSchema.index({ uploadedBy: 1 });
 mediaSchema.index({ isActive: 1 });
 mediaSchema.index({ isPublished: 1 });

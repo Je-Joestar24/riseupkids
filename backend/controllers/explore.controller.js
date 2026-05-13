@@ -1,5 +1,13 @@
 const exploreService = require('../services/explore.services');
 
+/** Map common validation failures to HTTP 400 (embed URL rules, missing fields, etc.). */
+function isExploreBadRequest(message) {
+  const m = String(message || '');
+  return /invalid|required|provide|embedurl|https|do not attach|must be|not a valid|too long|path must|cannot update|cannot be empty|only be updated|linked media|linked video media is missing/i.test(
+    m
+  );
+}
+
 /**
  * @desc    Create new explore content
  * @route   POST /api/explore
@@ -10,6 +18,8 @@ const exploreService = require('../services/explore.services');
  * - description: String (optional)
  * - type: String (optional, default: 'video') - Content type
  * - videoType: String (optional, default: 'replay') - One of: 'replay', 'arts_crafts', 'cooking', 'music', 'movement_fitness', 'story_time', 'manners_etiquette'
+ * - videoSource: String (optional, default: 'upload') - 'upload' | 'embed' (Bunny iframe embed)
+ * - embedUrl: String (required when videoSource is embed) - HTTPS URL on iframe.mediadelivery.net with path starting with /embed/
  * - category: String (optional) - Category for grouping (deprecated, kept for backward compatibility)
  * - starsAwarded: Number (optional, default: 10)
  * - totalItems: Number (optional, default: 0)
@@ -18,7 +28,7 @@ const exploreService = require('../services/explore.services');
  * - isPublished: Boolean (optional, default: false)
  * - tags: JSON String (optional) - Array of tag strings
  * - duration: Number (optional) - Video duration in seconds
- * - videoFile: File (required for video type) — large HD uploads supported (disk + S3 stream; default limit ~1.5GB, see EXPLORE_VIDEO_MAX_BYTES)
+ * - videoFile: File (required when type is video and videoSource is upload) — large HD uploads supported (disk + S3 stream; default limit ~1.5GB, see EXPLORE_VIDEO_MAX_BYTES)
  * - coverImage: File (optional) - Cover photo/thumbnail (for all video types)
  */
 const createExploreContent = async (req, res) => {
@@ -41,7 +51,7 @@ const createExploreContent = async (req, res) => {
       data: content,
     });
   } catch (error) {
-    const statusCode = error.message.includes('Invalid') || error.message.includes('required') || error.message.includes('provide') ? 400 : 500;
+    const statusCode = isExploreBadRequest(error.message) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to create explore content',
@@ -137,6 +147,7 @@ const getExploreContentById = async (req, res) => {
  * - isPublished: Boolean (optional)
  * - tags: JSON String (optional)
  * - duration: Number (optional)
+ * - embedUrl: String (optional) - New Bunny embed URL; only allowed when the item was created as videoSource embed
  * - coverImage: File (optional) - New cover photo (for all video types)
  */
 const updateExploreContent = async (req, res) => {
@@ -160,7 +171,8 @@ const updateExploreContent = async (req, res) => {
       data: content,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') || error.message.includes('Invalid') || error.message.includes('empty') ? 400 : 500;
+    const msg = error.message || '';
+    const statusCode = msg.includes('not found') ? 404 : isExploreBadRequest(msg) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to update explore content',

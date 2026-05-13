@@ -17,7 +17,7 @@ export const fetchAllContent = createAsyncThunk(
 );
 
 /**
- * Async thunk for creating content
+ * Async thunk for creating content (multipart). Video FormData may include `videoSource` + `embedUrl` for Bunny embed.
  */
 export const createContent = createAsyncThunk(
   'content/createContent',

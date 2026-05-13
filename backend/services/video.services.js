@@ -1,13 +1,13 @@
 const { Media, Badge } = require('../models');
-const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
+const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 
 /**
  * Create Video Service
  * 
- * Creates a new video with playable video file, optional SCORM file (from Adobe), and cover image
- * Videos can be video-only or video + SCORM interactive
+ * Creates a new video with either an uploaded playable file or a Bunny Stream iframe embed URL,
+ * optional SCORM (upload path only), and optional cover image.
  * 
  * @param {String} userId - Admin user's MongoDB ID
  * @param {Object} videoData - Video data
@@ -25,20 +25,38 @@ const createVideo = async (userId, videoData, files = {}) => {
     tags,
     isPublished,
     requiredWatchCount,
+    videoSource: videoSourceRaw,
+    embedUrl: embedUrlRaw,
   } = videoData;
+
+  const videoSource =
+    typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'embed'
+      ? 'embed'
+      : 'upload';
+
+  const hasVideoFile =
+    files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0;
+  const hasScormFile =
+    files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0;
 
   // Validate required fields
   if (!title || !title.trim()) {
     throw new Error('Please provide a video title');
   }
 
-  // Validate video file is provided
-  if (!files.videoFile || !Array.isArray(files.videoFile) || files.videoFile.length === 0) {
+  if (videoSource === 'embed') {
+    if (hasVideoFile) {
+      throw new Error('Do not attach a video file when using videoSource embed');
+    }
+    if (hasScormFile) {
+      throw new Error('SCORM file is not supported when using Bunny embed; use upload for SCORM packages');
+    }
+  } else if (!hasVideoFile) {
     throw new Error('Please provide a video file');
   }
 
-  const videoFile = files.videoFile[0];
-  const scormFile = files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0 ? files.scormFile[0] : null;
+  const videoFile = hasVideoFile ? files.videoFile[0] : null;
+  const scormFile = hasScormFile ? files.scormFile[0] : null;
 
   // Validate badge if provided
   if (badgeAwarded) {
@@ -48,22 +66,41 @@ const createVideo = async (userId, videoData, files = {}) => {
     }
   }
 
-  // Upload video to S3 and create Media record
-  const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
-  const videoMedia = await Media.create({
-    type: 'video',
-    title: title?.trim() || videoFile.originalname,
-    description: description?.trim() || null,
-    filePath: videoS3Key,
-    url: videoFileUrl,
-    mimeType: videoFile.mimetype,
-    size: videoFile.size,
-    duration: duration ? parseInt(duration, 10) : null,
-    starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
-    requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
-    isPublished: isPublished === 'true' || isPublished === true,
-    uploadedBy: userId,
-  });
+  let videoMedia;
+
+  if (videoSource === 'embed') {
+    const canonicalEmbed = assertBunnyIframeEmbedUrl(embedUrlRaw);
+    videoMedia = await Media.create({
+      type: 'video',
+      videoSource: 'embed',
+      embedUrl: canonicalEmbed,
+      cloudUrl: canonicalEmbed,
+      title: title?.trim() || 'Embedded video',
+      description: description?.trim() || null,
+      duration: duration ? parseInt(duration, 10) : null,
+      starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
+      requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
+      isPublished: isPublished === 'true' || isPublished === true,
+      uploadedBy: userId,
+    });
+  } else {
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
+    videoMedia = await Media.create({
+      type: 'video',
+      videoSource: 'upload',
+      title: title?.trim() || videoFile.originalname,
+      description: description?.trim() || null,
+      filePath: videoS3Key,
+      url: videoFileUrl,
+      mimeType: videoFile.mimetype,
+      size: videoFile.size,
+      duration: duration ? parseInt(duration, 10) : null,
+      starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
+      requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
+      isPublished: isPublished === 'true' || isPublished === true,
+      uploadedBy: userId,
+    });
+  }
 
   if (badgeAwarded) {
     videoMedia.badgeAwarded = badgeAwarded;
@@ -235,8 +272,8 @@ const getVideoById = async (videoId) => {
 /**
  * Update Video Service
  * 
- * Updates video fields: title, description, thumbnail (cover image), duration, starsAwarded
- * Video file and SCORM file cannot be changed
+ * Updates video fields: title, description, thumbnail (cover image), duration, starsAwarded, optional embedUrl (Bunny embed only)
+ * Main video file and SCORM file cannot be swapped after creation
  * 
  * @param {String} videoId - Video's MongoDB ID
  * @param {String} userId - Admin user's MongoDB ID (for verification)
@@ -254,6 +291,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     badgeAwarded,
     isPublished,
     requiredWatchCount,
+    embedUrl,
   } = updateData;
 
   // Find video (SCORM is optional)
@@ -321,6 +359,19 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     }
   }
 
+  // Update embed URL (Bunny iframe only)
+  if (embedUrl !== undefined) {
+    if ((video.videoSource || 'upload') !== 'embed') {
+      throw new Error('embedUrl can only be updated for Bunny embed videos');
+    }
+    const canonical = assertBunnyIframeEmbedUrl(
+      typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? '')
+    );
+    video.embedUrl = canonical;
+    video.cloudUrl = canonical;
+    video.url = canonical;
+  }
+
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
@@ -361,7 +412,9 @@ const deleteVideo = async (videoId) => {
   }
 
   try {
-    if (video.filePath) await s3Service.deleteByKey(video.filePath);
+    if ((video.videoSource || 'upload') !== 'embed' && video.filePath) {
+      await s3Service.deleteByKey(video.filePath);
+    }
   } catch (error) {
     console.error('Error deleting video file from S3:', error);
   }

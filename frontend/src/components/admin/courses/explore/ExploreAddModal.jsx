@@ -21,10 +21,15 @@ import {
   Grid,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import {
+  Close as CloseIcon,
+  CloudUpload as CloudUploadIcon,
+  InsertLink as InsertLinkIcon,
+} from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
 import { getVideoTypeOptions, EXPLORE_VIDEO_MAX_BYTES } from '../../../../constants/exploreVideoTypes';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 
 /**
  * ExploreAddModal — create explore video with bento layout and in-modal video preview (Star Cam–style).
@@ -53,6 +58,8 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
     description: '',
     type: 'video',
     videoType: 'replay',
+    videoSource: 'upload',
+    embedUrl: '',
     starsAwarded: 10,
     duration: '',
     isFeatured: false,
@@ -73,6 +80,8 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
       description: '',
       type: 'video',
       videoType: 'replay',
+      videoSource: 'upload',
+      embedUrl: '',
       starsAwarded: 10,
       duration: '',
       isFeatured: false,
@@ -125,6 +134,25 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleVideoSourceChange = (value) => {
+    if (value === 'embed') {
+      setSelectedFiles((prev) => ({ ...prev, videoFile: null }));
+      if (videoInputRef.current) {
+        videoInputRef.current.value = '';
+      }
+      setFormData((prev) => ({
+        ...prev,
+        videoSource: 'embed',
+      }));
+      return;
+    }
+    setFormData((prev) => ({
+      ...prev,
+      videoSource: 'upload',
+      embedUrl: '',
+    }));
+  };
+
   const handleVideoFileChange = (fileList) => {
     const file = fileList && fileList[0] ? fileList[0] : null;
     if (file && typeof file.size === 'number' && file.size > EXPLORE_VIDEO_MAX_BYTES) {
@@ -152,14 +180,25 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
         return;
       }
 
-      if (!selectedFiles.videoFile) {
+      if (formData.videoSource === 'embed') {
+        if (!formData.embedUrl?.trim()) {
+          alert('Please paste the Bunny embed link (iframe URL).');
+          return;
+        }
+        if (!looksLikeBunnyExploreEmbedUrl(formData.embedUrl)) {
+          alert(
+            'Embed link must be HTTPS and look like:\nhttps://iframe.mediadelivery.net/embed/...'
+          );
+          return;
+        }
+      } else if (!selectedFiles.videoFile) {
         alert('Please upload a video file');
         return;
       }
 
       const formDataToSend = prepareExploreFormData(
         formData,
-        selectedFiles.videoFile,
+        formData.videoSource === 'upload' ? selectedFiles.videoFile : null,
         selectedFiles.coverImage
       );
 
@@ -247,9 +286,17 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
 
       <DialogContent sx={{ padding: 3, pt: 2 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontFamily: 'Quicksand, sans-serif' }}>
-          Choose a video in the preview area, then complete details on the right. Large uploads show progress below
-          the preview. Main video can be up to about {Math.round(EXPLORE_VIDEO_MAX_BYTES / (1024 * 1024))} MB (server
-          limit); uploads may take a while on slower connections.
+          Pick how you add the main video (upload file or Bunny iframe link), then complete details on the right.
+          {formData.videoSource === 'upload' ? (
+            <>
+              {' '}
+              Large uploads show progress below the preview. Maximum file size is about{' '}
+              {Math.round(EXPLORE_VIDEO_MAX_BYTES / (1024 * 1024))} MB (aligned with server); slow connections may take
+              longer.
+            </>
+          ) : (
+            <> Embed uses Bunny&apos;s hosted player in an iframe; no file upload.</>
+          )}
         </Typography>
 
         <Grid container spacing={2}>
@@ -257,110 +304,205 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
           <Grid item xs={12} md={7}>
             <Paper variant="outlined" sx={paperSx}>
               <Stack spacing={1.5}>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
-                    Main video <Typography component="span" color="error.main">*</Typography>
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                    Click the box to pick a file. Preview plays here before upload (muted).
-                  </Typography>
-                </Box>
+                <FormControl fullWidth disabled={uploadingExplore}>
+                  <InputLabel id="explore-add-video-source-label">Main video</InputLabel>
+                  <Select
+                    labelId="explore-add-video-source-label"
+                    id="explore-add-video-source"
+                    value={formData.videoSource}
+                    label="Main video"
+                    onChange={(e) => handleVideoSourceChange(e.target.value)}
+                    aria-label="How to add the main explore video"
+                    sx={{
+                      borderRadius: '10px',
+                      fontFamily: 'Quicksand, sans-serif',
+                    }}
+                  >
+                    <MenuItem value="upload">
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <CloudUploadIcon fontSize="small" aria-hidden />
+                        <span>Upload video file</span>
+                      </Stack>
+                    </MenuItem>
+                    <MenuItem value="embed">
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <InsertLinkIcon fontSize="small" aria-hidden />
+                        <span>Bunny embed link (iframe)</span>
+                      </Stack>
+                    </MenuItem>
+                  </Select>
+                </FormControl>
 
-                <input
-                  ref={videoInputRef}
-                  accept="video/*"
-                  style={{ display: 'none' }}
-                  id="explore-add-video-file"
-                  type="file"
-                  aria-label="Select video file to upload"
-                  onChange={(e) => handleVideoFileChange(e.target.files)}
-                />
-
-                <Box
-                  role="button"
-                  tabIndex={uploadingExplore ? -1 : 0}
-                  aria-label={videoPreviewUrl ? 'Change explore video file' : 'Upload explore video file'}
-                  onClick={() => !uploadingExplore && videoInputRef.current?.click()}
-                  onKeyDown={(e) => {
-                    if (uploadingExplore) return;
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      videoInputRef.current?.click();
-                    }
-                  }}
-                  sx={{
-                    width: '100%',
-                    aspectRatio: '16 / 9',
-                    borderRadius: '12px',
-                    border: videoPreviewUrl
-                      ? `1px solid ${theme.palette.divider}`
-                      : `2px dashed ${theme.palette.divider}`,
-                    overflow: 'hidden',
-                    backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: uploadingExplore ? 'not-allowed' : 'pointer',
-                    position: 'relative',
-                    opacity: uploadingExplore ? 0.85 : 1,
-                  }}
-                >
-                  {videoPreviewUrl ? (
-                    <>
-                      <Box
-                        component="video"
-                        src={videoPreviewUrl}
-                        controls
-                        muted
-                        playsInline
-                        sx={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'contain',
-                          display: 'block',
-                        }}
-                      />
-                      <Button
-                        size="small"
-                        variant="contained"
-                        disabled={uploadingExplore}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          videoInputRef.current?.click();
-                        }}
-                        sx={{
-                          position: 'absolute',
-                          top: 10,
-                          right: 10,
-                          minWidth: 'unset',
-                          px: 1.25,
-                          py: 0.5,
-                          fontFamily: 'Quicksand, sans-serif',
-                        }}
-                      >
-                        Change video
-                      </Button>
-                    </>
-                  ) : (
-                    <Stack alignItems="center" spacing={1} sx={{ px: 2, textAlign: 'center' }}>
-                      <CloudUploadIcon color="action" sx={{ fontSize: 40 }} aria-hidden />
-                      <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                        Click to upload video
+                {formData.videoSource === 'upload' ? (
+                  <>
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
+                        Video file <Typography component="span" color="error.main">*</Typography>
                       </Typography>
-                    </Stack>
-                  )}
-                </Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        Click the box to pick a file. Preview plays here before upload (muted).
+                      </Typography>
+                    </Box>
 
-                {selectedFiles.videoFile && (
-                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
-                    Selected: {selectedFiles.videoFile.name}
-                  </Typography>
+                    <input
+                      ref={videoInputRef}
+                      accept="video/*"
+                      style={{ display: 'none' }}
+                      id="explore-add-video-file"
+                      type="file"
+                      aria-label="Select video file to upload"
+                      onChange={(e) => handleVideoFileChange(e.target.files)}
+                    />
+
+                    <Box
+                      role="button"
+                      tabIndex={uploadingExplore ? -1 : 0}
+                      aria-label={videoPreviewUrl ? 'Change explore video file' : 'Upload explore video file'}
+                      onClick={() => !uploadingExplore && videoInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (uploadingExplore) return;
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          videoInputRef.current?.click();
+                        }
+                      }}
+                      sx={{
+                        width: '100%',
+                        aspectRatio: '16 / 9',
+                        borderRadius: '12px',
+                        border: videoPreviewUrl
+                          ? `1px solid ${theme.palette.divider}`
+                          : `2px dashed ${theme.palette.divider}`,
+                        overflow: 'hidden',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: uploadingExplore ? 'not-allowed' : 'pointer',
+                        position: 'relative',
+                        opacity: uploadingExplore ? 0.85 : 1,
+                      }}
+                    >
+                      {videoPreviewUrl ? (
+                        <>
+                          <Box
+                            component="video"
+                            src={videoPreviewUrl}
+                            controls
+                            muted
+                            playsInline
+                            sx={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'contain',
+                              display: 'block',
+                            }}
+                          />
+                          <Button
+                            size="small"
+                            variant="contained"
+                            disabled={uploadingExplore}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              videoInputRef.current?.click();
+                            }}
+                            sx={{
+                              position: 'absolute',
+                              top: 10,
+                              right: 10,
+                              minWidth: 'unset',
+                              px: 1.25,
+                              py: 0.5,
+                              fontFamily: 'Quicksand, sans-serif',
+                            }}
+                          >
+                            Change video
+                          </Button>
+                        </>
+                      ) : (
+                        <Stack alignItems="center" spacing={1} sx={{ px: 2, textAlign: 'center' }}>
+                          <CloudUploadIcon color="action" sx={{ fontSize: 40 }} aria-hidden />
+                          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                            Click to upload video
+                          </Typography>
+                        </Stack>
+                      )}
+                    </Box>
+
+                    {selectedFiles.videoFile && (
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        Selected: {selectedFiles.videoFile.name}
+                      </Typography>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Box>
+                      <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
+                        Bunny iframe URL <Typography component="span" color="error.main">*</Typography>
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        Paste the link from Bunny (must start with https://iframe.mediadelivery.net/embed/)
+                      </Typography>
+                    </Box>
+                    <TextField
+                      value={formData.embedUrl}
+                      onChange={(e) => handleInputChange('embedUrl', e.target.value)}
+                      placeholder="https://iframe.mediadelivery.net/embed/…"
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      disabled={uploadingExplore}
+                      inputProps={{ 'aria-label': 'Bunny Stream iframe embed URL' }}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: '10px',
+                          fontFamily: 'Quicksand, sans-serif',
+                        },
+                      }}
+                    />
+                    <Box
+                      sx={{
+                        width: '100%',
+                        aspectRatio: '16 / 9',
+                        borderRadius: '12px',
+                        border: `1px solid ${theme.palette.divider}`,
+                        overflow: 'hidden',
+                        backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.100',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      role="region"
+                      aria-label="Bunny embed preview"
+                    >
+                      {looksLikeBunnyExploreEmbedUrl(formData.embedUrl) ? (
+                        <Box
+                          component="iframe"
+                          title="Bunny embed preview"
+                          src={formData.embedUrl.trim()}
+                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                          allowFullScreen
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            border: 0,
+                            display: 'block',
+                          }}
+                        />
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ px: 2, textAlign: 'center', fontFamily: 'Quicksand, sans-serif' }}>
+                          Enter a valid embed URL to see a preview here
+                        </Typography>
+                      )}
+                    </Box>
+                  </>
                 )}
 
                 {uploadingExplore && (
                   <Box sx={{ mt: 0.5 }} role="status" aria-live="polite">
                     <Typography variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', mb: 1 }}>
-                      Uploading video…
+                      {formData.videoSource === 'embed' ? 'Saving…' : 'Uploading video…'}
                       {uploadProgressPercent != null ? ` ${uploadProgressPercent}%` : ''}
                     </Typography>
                     <LinearProgress
@@ -611,7 +753,7 @@ const ExploreAddModal = ({ open, onClose, onSuccess }) => {
             },
           }}
         >
-          {uploadingExplore ? 'Uploading…' : 'Create'}
+          {uploadingExplore ? (formData.videoSource === 'embed' ? 'Saving…' : 'Uploading…') : 'Create'}
         </Button>
       </DialogActions>
     </Dialog>

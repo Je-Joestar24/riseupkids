@@ -27,7 +27,7 @@ function fixExploreMultipartHeaders(data, headers) {
  * Explore Service
  * 
  * Service for managing Explore Content resources:
- * - Create explore content with video files and cover photos
+ * - Create explore content with video file upload or Bunny iframe embed (`videoSource` + `embedUrl`)
  * - List explore content with filtering and pagination
  * - Get explore content by ID
  * - Get explore content by type (video, lesson, etc.)
@@ -64,7 +64,7 @@ const exploreService = {
 
   /**
    * Create new explore content with optional files
-   * @param {FormData} formData - Explore content data with files
+   * @param {FormData} formData - Explore content data with files; may include `videoSource` and `embedUrl` for Bunny iframe
    * @param {Object} [options]
    * @param {(progressEvent: ProgressEvent) => void} [options.onUploadProgress]
    * @param {number} [options.timeout] - Defaults to app TIMEOUT (large uploads)

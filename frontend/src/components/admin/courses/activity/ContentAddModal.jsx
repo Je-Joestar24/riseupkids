@@ -22,9 +22,10 @@ import {
   RadioGroup,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudUpload as CloudUploadIcon, InsertLink as InsertLinkIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentService';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
 /**
@@ -33,7 +34,7 @@ import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
  * Unified modal for creating content items:
  * - Activity (SCORM)
  * - Book (SCORM + reading logic)
- * - Video (video + SCORM)
+ * - Video (uploaded file + optional SCORM, or Bunny iframe embed)
  * - Audio Assignment (reference audio)
  * - Chant (optional audio and SCORM files)
  * 
@@ -78,6 +79,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     selectedCmsBook: null,
     // video-specific
     duration: '',
+    videoSource: 'upload',
+    embedUrl: '',
     // audio assignment-specific
     instructions: '',
     estimatedDuration: '',
@@ -122,6 +125,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       cmsBookId: '',
       selectedCmsBook: null,
       duration: '',
+      videoSource: 'upload',
+      embedUrl: '',
       instructions: '',
       estimatedDuration: '',
       isStarAssignment: false,
@@ -193,19 +198,35 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       }
 
       if (contentType === CONTENT_TYPES.VIDEO) {
-        if (!selectedFiles.videoFile) {
-          alert('Please upload a video file.');
-          return;
+        const isEmbed = formData.videoSource === 'embed';
+        if (isEmbed) {
+          if (!formData.embedUrl?.trim()) {
+            alert('Please paste the Bunny iframe embed URL.');
+            return;
+          }
+          if (!looksLikeBunnyExploreEmbedUrl(formData.embedUrl)) {
+            alert(
+              'Embed URL must be HTTPS and look like:\nhttps://iframe.mediadelivery.net/embed/...'
+            );
+            return;
+          }
+          fd.append('videoSource', 'embed');
+          fd.append('embedUrl', formData.embedUrl.trim());
+        } else {
+          if (!selectedFiles.videoFile) {
+            alert('Please upload a video file.');
+            return;
+          }
+          fd.append('videoSource', 'upload');
+          fd.append('videoFile', selectedFiles.videoFile);
+          if (selectedFiles.scormFile) {
+            fd.append('scormFile', selectedFiles.scormFile);
+          }
         }
-        // SCORM file is now optional for videos
-        if (formData.duration) {
-          fd.append('duration', formData.duration);
+        if (formData.duration !== '' && formData.duration != null) {
+          fd.append('duration', String(formData.duration));
         }
         fd.append('starsAwarded', formData.starsAwarded || 10);
-        fd.append('videoFile', selectedFiles.videoFile);
-        if (selectedFiles.scormFile) {
-          fd.append('scormFile', selectedFiles.scormFile);
-        }
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -418,11 +439,61 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       case CONTENT_TYPES.VIDEO:
         return (
           <>
+            <FormControl component="fieldset" fullWidth>
+              <FormLabel
+                component="legend"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                Main video
+              </FormLabel>
+              <RadioGroup
+                row
+                value={formData.videoSource}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  handleInputChange('videoSource', v);
+                  if (v === 'embed') {
+                    setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
+                  } else {
+                    handleInputChange('embedUrl', '');
+                  }
+                }}
+                aria-label="How to add the main video for this content"
+              >
+                <FormControlLabel
+                  value="upload"
+                  control={<Radio />}
+                  label={
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <CloudUploadIcon fontSize="small" aria-hidden />
+                      <span>Upload file</span>
+                    </Stack>
+                  }
+                />
+                <FormControlLabel
+                  value="embed"
+                  control={<Radio />}
+                  label={
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <InsertLinkIcon fontSize="small" aria-hidden />
+                      <span>Bunny embed (iframe)</span>
+                    </Stack>
+                  }
+                />
+              </RadioGroup>
+              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
+                Bunny embed uses iframe.mediadelivery.net; SCORM ZIP is only available with file upload.
+              </Typography>
+            </FormControl>
             <TextField
               label="Duration (seconds)"
               type="number"
               value={formData.duration}
-              onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || 0)}
+              onChange={(e) => handleInputChange('duration', e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0)}
               inputProps={{ min: 0 }}
               fullWidth
               sx={{
@@ -436,7 +507,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               label="Stars Awarded"
               type="number"
               value={formData.starsAwarded}
-              onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
+              onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value, 10) || 0)}
               inputProps={{ min: 0 }}
               fullWidth
               sx={{
@@ -698,95 +769,166 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
         {contentType === CONTENT_TYPES.VIDEO && (
           <>
-            {/* Video file (required) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Video File <span style={{ color: 'red' }}>*</span>
-              </Typography>
-              <input
-                accept="video/*"
-                style={{ display: 'none' }}
-                id="video-upload"
-                type="file"
-                onChange={(e) => handleFileChange('videoFile', e.target.files)}
-              />
-              <label htmlFor="video-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Video
-                </Button>
-              </label>
-              {selectedFiles.videoFile && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.videoFile.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, videoFile: null }))}
+            {formData.videoSource === 'upload' ? (
+              <>
+                <Box>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      marginBottom: 1,
+                    }}
+                  >
+                    Video file <span style={{ color: 'red' }}>*</span>
+                  </Typography>
+                  <input
+                    accept="video/*"
+                    style={{ display: 'none' }}
+                    id="video-upload"
+                    type="file"
+                    aria-label="Select video file to upload"
+                    onChange={(e) => handleFileChange('videoFile', e.target.files)}
                   />
+                  <label htmlFor="video-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUploadIcon />}
+                      fullWidth
+                      sx={{
+                        borderRadius: '10px',
+                        fontFamily: 'Quicksand, sans-serif',
+                      }}
+                    >
+                      Upload video
+                    </Button>
+                  </label>
+                  {selectedFiles.videoFile && (
+                    <Box sx={{ marginTop: 1 }}>
+                      <Chip
+                        label={selectedFiles.videoFile.name}
+                        size="small"
+                        sx={{ margin: 0.5 }}
+                        onDelete={() => setSelectedFiles((prev) => ({ ...prev, videoFile: null }))}
+                      />
+                    </Box>
+                  )}
                 </Box>
-              )}
-            </Box>
 
-            {/* SCORM file for video (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Video SCORM File (Optional)
-              </Typography>
-              <input
-                accept=".zip,application/zip,application/x-zip-compressed"
-                style={{ display: 'none' }}
-                id="video-scorm-upload"
-                type="file"
-                onChange={(e) => handleFileChange('scormFile', e.target.files)}
-              />
-              <label htmlFor="video-scorm-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
+                <Box>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 600,
+                      marginBottom: 1,
+                    }}
+                  >
+                    Video SCORM file (optional)
+                  </Typography>
+                  <input
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: 'none' }}
+                    id="video-scorm-upload"
+                    type="file"
+                    aria-label="Select optional SCORM ZIP for video"
+                    onChange={(e) => handleFileChange('scormFile', e.target.files)}
+                  />
+                  <label htmlFor="video-scorm-upload">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUploadIcon />}
+                      fullWidth
+                      sx={{
+                        borderRadius: '10px',
+                        fontFamily: 'Quicksand, sans-serif',
+                      }}
+                    >
+                      Upload video SCORM (ZIP)
+                    </Button>
+                  </label>
+                  {selectedFiles.scormFile && (
+                    <Box sx={{ marginTop: 1 }}>
+                      <Chip
+                        label={selectedFiles.scormFile.name}
+                        size="small"
+                        sx={{ margin: 0.5 }}
+                        onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
+                      />
+                    </Box>
+                  )}
+                </Box>
+              </>
+            ) : (
+              <Box>
+                <Typography
+                  variant="subtitle2"
                   sx={{
-                    borderRadius: '10px',
                     fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 600,
+                    marginBottom: 1,
                   }}
                 >
-                  Upload Video SCORM File (ZIP)
-                </Button>
-              </label>
-              {selectedFiles.scormFile && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.scormFile.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                  />
+                  Bunny iframe URL <span style={{ color: 'red' }}>*</span>
+                </Typography>
+                <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                  Paste the embed URL from Bunny (https://iframe.mediadelivery.net/embed/…).
+                </Typography>
+                <TextField
+                  value={formData.embedUrl}
+                  onChange={(e) => handleInputChange('embedUrl', e.target.value)}
+                  placeholder="https://iframe.mediadelivery.net/embed/…"
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  inputProps={{ 'aria-label': 'Bunny Stream iframe embed URL' }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '10px',
+                      fontFamily: 'Quicksand, sans-serif',
+                    },
+                  }}
+                />
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    width: '100%',
+                    aspectRatio: '16 / 9',
+                    borderRadius: '10px',
+                    border: `1px solid ${theme.palette.divider}`,
+                    overflow: 'hidden',
+                    bgcolor: 'action.hover',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  role="region"
+                  aria-label="Bunny embed preview"
+                >
+                  {looksLikeBunnyExploreEmbedUrl(formData.embedUrl) ? (
+                    <Box
+                      component="iframe"
+                      title="Bunny embed preview"
+                      src={formData.embedUrl.trim()}
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                      allowFullScreen
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        border: 0,
+                        display: 'block',
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ px: 2, textAlign: 'center', fontFamily: 'Quicksand, sans-serif' }}>
+                      Enter a valid embed URL to preview the player
+                    </Typography>
+                  )}
                 </Box>
-              )}
-            </Box>
+              </Box>
+            )}
           </>
         )}
 
@@ -1099,9 +1241,19 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             label="Content Type"
             onChange={(e) => {
               const nextType = e.target.value;
+              const prevType = contentType;
               setContentType(nextType);
               if (nextType === CONTENT_TYPES.BOOK) {
                 handleInputChange('packageType', BOOK_DEFAULT_PACKAGE_TYPE);
+              }
+              if (nextType === CONTENT_TYPES.VIDEO) {
+                handleInputChange('videoSource', 'upload');
+                handleInputChange('embedUrl', '');
+                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
+              } else if (prevType === CONTENT_TYPES.VIDEO) {
+                handleInputChange('videoSource', 'upload');
+                handleInputChange('embedUrl', '');
+                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
               }
             }}
             sx={{
@@ -1111,7 +1263,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
             <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5 / Built-in)</MenuItem>
-            <MenuItem value={CONTENT_TYPES.VIDEO}>Video + SCORM</MenuItem>
+            <MenuItem value={CONTENT_TYPES.VIDEO}>Video (upload or Bunny embed)</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
             <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>
           </Select>

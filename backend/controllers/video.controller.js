@@ -1,5 +1,12 @@
 const videoService = require('../services/video.services');
 
+function isVideoBadRequest(message) {
+  const m = String(message || '');
+  return /invalid|required|provide|embedurl|https|do not attach|must be|not a valid|too long|path must|not supported|empty|cannot|only be updated/i.test(
+    m
+  );
+}
+
 /**
  * @desc    Create new video
  * @route   POST /api/videos
@@ -13,8 +20,10 @@ const videoService = require('../services/video.services');
  * - requiredWatchCount: Number (optional, default: 5) - Number of times video must be watched to earn stars
  * - badgeAwarded: String (optional) - Badge ID
  * - tags: JSON String (optional) - Array of tag strings
- * - videoFile: File (required) - Playable video file
- * - scormFile: File (optional) - SCORM ZIP file from Adobe (optional for video-only lessons)
+ * - videoSource: String (optional, default: upload) - `upload` | `embed` (Bunny iframe)
+ * - embedUrl: String (required when videoSource is embed) - HTTPS iframe.mediadelivery.net/embed/…
+ * - videoFile: File (required when videoSource is upload) - Playable video file
+ * - scormFile: File (optional, upload only) - SCORM ZIP (not allowed with embed)
  * - coverImage: File (optional) - Cover image/thumbnail for the video
  */
 const createVideo = async (req, res) => {
@@ -37,7 +46,7 @@ const createVideo = async (req, res) => {
       data: video,
     });
   } catch (error) {
-    const statusCode = error.message.includes('Invalid') || error.message.includes('required') ? 400 : 500;
+    const statusCode = isVideoBadRequest(error.message) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to create video',
@@ -128,6 +137,7 @@ const getVideoById = async (req, res) => {
  * - starsAwarded: Number (optional)
  * - requiredWatchCount: Number (optional) - Number of times video must be watched to earn stars
  * - coverImage: File (optional) - New cover image/thumbnail
+ * - embedUrl: String (optional) - New Bunny embed URL (only when the video was created as embed)
  */
 const updateVideo = async (req, res) => {
   try {
@@ -150,7 +160,8 @@ const updateVideo = async (req, res) => {
       data: video,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') || error.message.includes('Invalid') || error.message.includes('empty') ? 400 : 500;
+    const msg = error.message || '';
+    const statusCode = msg.includes('not found') ? 404 : isVideoBadRequest(msg) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to update video',
