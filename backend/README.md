@@ -84,6 +84,22 @@ http://localhost:5000/api
 
 See `.env.example` for all available environment variables.
 
+### CMS book audio silence trim
+
+CMS book admin audio uploads (`POST /api/admin/cms-books/media` with `mediaType=audio`) can remove **leading and trailing silence** before files are stored on S3/CloudFront.
+
+- Enabled by default (`AUDIO_SILENCE_TRIM_ENABLED=true`). Set to `false` to disable.
+- Uses FFmpeg via `@ffmpeg-installer/ffmpeg` (installed with `npm install`). No separate system install is required on most hosts.
+- Tunables: `AUDIO_SILENCE_TRIM_THRESHOLD_DB`, `AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC`, `AUDIO_SILENCE_TRIM_PAD_MS` (see `.env.example`).
+- API response includes `duration` (seconds after trim) and `trimMeta` for the book builder to keep reading word highlights aligned.
+
+**Staging QA checklist**
+
+1. Upload a narration clip with ~1–2s silence at the start and end in the CMS book builder.
+2. Save the book and confirm the CloudFront audio is shorter than the original.
+3. Play the book as a child user — word highlights should stay in sync with speech.
+4. Upload interactive option audio and confirm playback works (no reading timeline on those clips).
+
 ## 🔒 Security Notes
 
 - Never commit `.env` file to version control

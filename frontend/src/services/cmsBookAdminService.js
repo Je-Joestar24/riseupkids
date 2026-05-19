@@ -44,6 +44,10 @@ const cmsBookAdminService = {
     }
   },
 
+  /**
+   * Upload CMS book media. Audio uploads may return `duration` and `trimMeta`
+   * when server-side silence trim is applied.
+   */
   uploadBookMedia: async ({ file, mediaType, title, description }) => {
     try {
       if (!file) throw new Error('File is required');

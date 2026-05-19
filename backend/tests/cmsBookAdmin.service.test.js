@@ -10,15 +10,21 @@ jest.mock('../models', () => ({
   Media: {
     find: jest.fn(),
     deleteMany: jest.fn(),
+    create: jest.fn(),
   },
 }));
 jest.mock('../services/s3.service', () => ({
   deleteByKey: jest.fn(),
   getS3KeyFromUrl: jest.fn((value) => value),
+  uploadFileFromMulter: jest.fn(),
+}));
+jest.mock('../utils/audioSilenceTrim.util', () => ({
+  trimLeadingTrailingSilence: jest.fn(),
 }));
 
 const { CmsBook, Media } = require('../models');
 const s3Service = require('../services/s3.service');
+const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const service = require('../services/cmsBookAdmin.service');
 
 function makeDoc(overrides = {}) {
@@ -227,5 +233,73 @@ describe('cmsBookAdmin.service', () => {
     expect(s3Service.deleteByKey).toHaveBeenCalledTimes(4);
     expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['m-1', 'm-2', 'm-3', 'm-4'] } });
     expect(CmsBook.findByIdAndDelete).toHaveBeenCalledWith('book-1');
+  });
+
+  it('uploads trimmed audio with duration and trimMeta', async () => {
+    const trimmedBuffer = Buffer.from('trimmed-audio');
+    trimLeadingTrailingSilence.mockResolvedValue({
+      buffer: trimmedBuffer,
+      mimetype: 'audio/mpeg',
+      size: trimmedBuffer.length,
+      durationSec: 4.2,
+      trimMeta: {
+        applied: true,
+        originalDurationSec: 6,
+        trimmedDurationSec: 4.2,
+        trimmedStartSec: 1.5,
+        trimmedEndSec: 0.3,
+      },
+    });
+    s3Service.uploadFileFromMulter.mockResolvedValue({
+      url: 'https://cdn.example.com/audio/trimmed.mp3',
+      s3Key: 'media/audio/trimmed.mp3',
+    });
+    Media.create.mockResolvedValue({
+      _id: 'media-audio-1',
+      type: 'audio',
+      duration: 4.2,
+      toObject() {
+        return {
+          _id: 'media-audio-1',
+          type: 'audio',
+          duration: 4.2,
+        };
+      },
+    });
+
+    const inputFile = {
+      buffer: Buffer.from('raw-audio'),
+      mimetype: 'audio/mpeg',
+      originalname: 'narration.mp3',
+      size: 12,
+    };
+
+    const result = await service.uploadCmsBookMedia({
+      userId: 'admin-1',
+      file: inputFile,
+      mediaType: 'audio',
+      title: 'Narration',
+    });
+
+    expect(trimLeadingTrailingSilence).toHaveBeenCalledWith(inputFile);
+    expect(s3Service.uploadFileFromMulter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buffer: trimmedBuffer,
+        mimetype: 'audio/mpeg',
+        size: trimmedBuffer.length,
+      }),
+      'media/audio'
+    );
+    expect(Media.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'audio',
+        duration: 4.2,
+      })
+    );
+    expect(result).toMatchObject({
+      _id: 'media-audio-1',
+      duration: 4.2,
+      trimMeta: expect.objectContaining({ applied: true }),
+    });
   });
 });

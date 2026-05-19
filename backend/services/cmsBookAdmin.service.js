@@ -1,5 +1,6 @@
 const { CmsBook, Media } = require('../models');
 const s3Service = require('./s3.service');
+const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 
 function createHttpError(message, statusCode) {
   const err = new Error(message);
@@ -336,7 +337,23 @@ async function uploadCmsBookMedia({
       ? 'media/audio'
       : 'media/videos';
 
-  const { url, s3Key } = await s3Service.uploadFileFromMulter(file, folder);
+  let uploadFile = file;
+  let audioDurationSec = null;
+  let trimMeta = null;
+
+  if (normalizedType === 'audio') {
+    const trimmed = await trimLeadingTrailingSilence(file);
+    uploadFile = {
+      ...file,
+      buffer: trimmed.buffer,
+      size: trimmed.size,
+      mimetype: trimmed.mimetype,
+    };
+    audioDurationSec = trimmed.durationSec;
+    trimMeta = trimmed.trimMeta;
+  }
+
+  const { url, s3Key } = await s3Service.uploadFileFromMulter(uploadFile, folder);
   const media = await Media.create({
     type: normalizedType,
     title: title?.trim() || file.originalname,
@@ -344,13 +361,18 @@ async function uploadCmsBookMedia({
     filePath: s3Key,
     cloudUrl: url,
     url,
-    mimeType: file.mimetype,
-    size: file.size,
+    mimeType: uploadFile.mimetype,
+    size: uploadFile.size,
+    duration: audioDurationSec,
     uploadedBy: userId,
     isPublished: true,
   });
 
-  return media;
+  const mediaObject = typeof media.toObject === 'function' ? media.toObject() : media;
+  if (trimMeta) {
+    return { ...mediaObject, trimMeta };
+  }
+  return mediaObject;
 }
 
 module.exports = {

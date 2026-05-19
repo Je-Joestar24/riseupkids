@@ -10,6 +10,7 @@ import BooksBuilderPageSection from './BooksBuilderPageSection';
 import BooksBuilderTypeMenu from './BooksBuilderTypeMenu';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 import {
+  adjustReadingWordsForTrim,
   buildWeightedWords,
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
@@ -324,9 +325,11 @@ const BooksBuilderCreateMain = () => {
       return new File([blob], filename, { type: blob.type || fallbackMime || 'application/octet-stream' });
     };
 
+    const emptyUploadResult = { mediaId: null, durationSec: null, trimMeta: null };
+
     const ensureUploadedMediaId = async ({ source, mediaType, title, existingMediaId = null }) => {
-      if (!source) return null;
-      if (typeof source !== 'string') return null;
+      if (!source) return emptyUploadResult;
+      if (typeof source !== 'string') return emptyUploadResult;
       if (mediaCache.has(source)) return mediaCache.get(source);
 
       let fileToUpload = null;
@@ -334,7 +337,11 @@ const BooksBuilderCreateMain = () => {
         const fallbackMime = mediaType === 'image' ? 'image/png' : mediaType === 'audio' ? 'audio/mpeg' : 'video/mp4';
         fileToUpload = await dataUrlToFile(source, `${mediaType}-${Date.now()}`, fallbackMime);
       } else {
-        return existingMediaId || null;
+        return {
+          mediaId: existingMediaId || null,
+          durationSec: null,
+          trimMeta: null,
+        };
       }
 
       const uploadResponse = await uploadBookMedia({
@@ -342,9 +349,14 @@ const BooksBuilderCreateMain = () => {
         mediaType,
         title,
       });
-      const mediaId = uploadResponse?.data?._id || uploadResponse?.data?.id || null;
-      mediaCache.set(source, mediaId);
-      return mediaId;
+      const uploadData = uploadResponse?.data || {};
+      const uploadResult = {
+        mediaId: uploadData._id || uploadData.id || null,
+        durationSec: Number.isFinite(Number(uploadData.duration)) ? Number(uploadData.duration) : null,
+        trimMeta: uploadData.trimMeta || null,
+      };
+      mediaCache.set(source, uploadResult);
+      return uploadResult;
     };
 
     try {
@@ -356,34 +368,40 @@ const BooksBuilderCreateMain = () => {
         const pagePayload = buildCmsPageSkeleton({ page, index });
 
         if (page.type === 'intro') {
-          pagePayload.media.imageMediaId = await ensureUploadedMediaId({
+          pagePayload.media.imageMediaId = (await ensureUploadedMediaId({
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Cover'} image`,
             existingMediaId: page.imageMediaId,
-          });
+          })).mediaId;
         } else if (page.type === 'demo' || page.type === 'reward') {
-          pagePayload.media.videoMediaId = await ensureUploadedMediaId({
+          pagePayload.media.videoMediaId = (await ensureUploadedMediaId({
             source: page.videoUrl,
             mediaType: 'video',
             title: `${page.title || 'Video'} video`,
             existingMediaId: page.videoMediaId,
-          });
+          })).mediaId;
         } else if (page.type === 'content') {
-          pagePayload.media.imageMediaId = await ensureUploadedMediaId({
+          pagePayload.media.imageMediaId = (await ensureUploadedMediaId({
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Content'} image`,
             existingMediaId: page.imageMediaId,
-          });
-          pagePayload.media.audioMediaId = await ensureUploadedMediaId({
+          })).mediaId;
+          const audioUpload = await ensureUploadedMediaId({
             source: page.audioUrl,
             mediaType: 'audio',
             title: `${page.title || 'Content'} audio`,
             existingMediaId: page.audioMediaId,
           });
+          pagePayload.media.audioMediaId = audioUpload.mediaId;
           const readingText = String(page.readingText || page.subtitle || '').trim();
-          const durationSec = Number(page.audioDurationSec);
+          const trimmedDurationSec = Number(audioUpload.durationSec);
+          const fallbackDurationSec = Number(page.audioDurationSec);
+          const durationSec =
+            Number.isFinite(trimmedDurationSec) && trimmedDurationSec > 0
+              ? trimmedDurationSec
+              : fallbackDurationSec;
           const hasValidDuration = Number.isFinite(durationSec) && durationSec > 0;
           const timelineWords = Array.isArray(page.readingWords) ? page.readingWords : [];
           const hasSavedTimeline =
@@ -394,72 +412,81 @@ const BooksBuilderCreateMain = () => {
                 && Number.isFinite(Number(w?.start))
                 && Number.isFinite(Number(w?.end))
             );
+          const trimOffsetSec = audioUpload.trimMeta?.applied
+            ? Number(audioUpload.trimMeta?.trimmedStartSec) || 0
+            : 0;
+          let readingWords = [];
+          if (readingText && hasValidDuration) {
+            if (hasSavedTimeline) {
+              readingWords = adjustReadingWordsForTrim(timelineWords, {
+                durationSec,
+                trimmedStartSec: trimOffsetSec,
+              });
+            } else {
+              readingWords = buildWeightedWords(readingText, durationSec);
+            }
+          }
           pagePayload.reading = {
             text: readingText || null,
             durationSec: hasValidDuration ? durationSec : null,
-            words:
-              readingText && hasValidDuration
-                ? hasSavedTimeline
-                  ? timelineWords
-                  : buildWeightedWords(readingText, durationSec)
-                : [],
+            words: readingWords,
           };
         } else if (page.type === 'interactive') {
           const isTwoAnswer = page.interactionMode === 'two_options_two_answers';
-          pagePayload.media.backgroundImageMediaId = await ensureUploadedMediaId({
+          pagePayload.media.backgroundImageMediaId = (await ensureUploadedMediaId({
             source: page.backgroundImageUrl,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} background`,
             existingMediaId: page.backgroundImageMediaId,
-          });
+          })).mediaId;
 
           if (isTwoAnswer) {
-            const guideOne = await ensureUploadedMediaId({
+            const guideOne = (await ensureUploadedMediaId({
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide one`,
               existingMediaId: page.guideImageMediaIds?.[0] || page.guideImageMediaId,
-            });
-            const guideTwo = await ensureUploadedMediaId({
+            })).mediaId;
+            const guideTwo = (await ensureUploadedMediaId({
               source: page.guideImageTwo,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide two`,
               existingMediaId: page.guideImageMediaIds?.[1] || null,
-            });
+            })).mediaId;
             pagePayload.media.guideImageMediaIds = [guideOne, guideTwo].filter(Boolean);
           } else {
-            pagePayload.media.guideImageMediaId = await ensureUploadedMediaId({
+            pagePayload.media.guideImageMediaId = (await ensureUploadedMediaId({
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide`,
               existingMediaId: page.guideImageMediaId || page.guideImageMediaIds?.[0] || null,
-            });
+            })).mediaId;
           }
 
-          const optionOneImageId = await ensureUploadedMediaId({
+          const optionOneImageId = (await ensureUploadedMediaId({
             source: page.optionImageOne,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option one image`,
             existingMediaId: page.optionOneImageMediaId,
-          });
-          const optionOneAudioId = await ensureUploadedMediaId({
+          })).mediaId;
+          const optionOneAudioId = (await ensureUploadedMediaId({
             source: page.optionAudioOne,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option one audio`,
             existingMediaId: page.optionOneAudioMediaId,
-          });
-          const optionTwoImageId = await ensureUploadedMediaId({
+          })).mediaId;
+          const optionTwoImageId = (await ensureUploadedMediaId({
             source: page.optionImageTwo,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option two image`,
             existingMediaId: page.optionTwoImageMediaId,
-          });
-          const optionTwoAudioId = await ensureUploadedMediaId({
+          })).mediaId;
+          const optionTwoAudioId = (await ensureUploadedMediaId({
             source: page.optionAudioTwo,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option two audio`,
             existingMediaId: page.optionTwoAudioMediaId,
-          });
+          })).mediaId;
 
           pagePayload.interaction = {
             kind: isTwoAnswer ? 'drag_2x2' : 'drag_2x1',

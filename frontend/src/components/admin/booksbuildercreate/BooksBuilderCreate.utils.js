@@ -7,6 +7,29 @@ const normalizeTextTokens = (text = '') =>
     .map((token) => token.trim())
     .filter(Boolean);
 
+export const adjustReadingWordsForTrim = (words, { durationSec, trimmedStartSec = 0 }) => {
+  if (!Array.isArray(words) || !words.length) return [];
+  const duration = Number(durationSec);
+  const offset = Number(trimmedStartSec) || 0;
+  if (!Number.isFinite(duration) || duration <= 0) return words;
+
+  return words
+    .map((word) => {
+      const start = Number(word?.start);
+      const end = Number(word?.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+      const nextStart = Number(Math.max(0, start - offset).toFixed(3));
+      const nextEnd = Number(Math.min(duration, end - offset).toFixed(3));
+      return {
+        ...word,
+        w: String(word?.w || '').trim(),
+        start: nextStart,
+        end: nextEnd,
+      };
+    })
+    .filter((word) => word && word.w && word.end > word.start);
+};
+
 export const buildWeightedWords = (text, durationSec) => {
   const tokens = normalizeTextTokens(text);
   const duration = Number(durationSec);

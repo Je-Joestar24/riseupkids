@@ -3,6 +3,7 @@ import { Box, IconButton, MenuItem, TextField, Typography } from '@mui/material'
 import { useTheme } from '@mui/material/styles';
 import { AddCircleOutline, PlayArrow, Stop } from '@mui/icons-material';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
+import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import { buildWeightedWords, getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import bigLogo from '../../../assets/images/big-logo.png';
 
@@ -18,6 +19,7 @@ const MIN_WORD_DURATION_SEC = 0.05;
 
 const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) => {
   const theme = useTheme();
+  const { isTrimming: isOptionAudioTrimming, processAudioFile } = useAudioFileWithSilenceTrim();
   const introImageInputRef = useRef(null);
   const contentImageInputRef = useRef(null);
   const demoVideoInputRef = useRef(null);
@@ -235,18 +237,14 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
     setIsContentPlaying(false);
   };
 
-  const buildInteractiveUploadHandler = (fieldKey) => (event) => {
+  const buildInteractiveUploadHandler = (fieldKey) => async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onPatch({ [fieldKey]: reader.result });
-      }
-    };
-    reader.readAsDataURL(file);
     event.target.value = '';
+
+    const trimmed = await processAudioFile(file);
+    if (!trimmed?.audioUrl) return;
+    onPatch({ [fieldKey]: trimmed.audioUrl });
   };
 
   const interactiveOptionChoices = [

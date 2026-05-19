@@ -1,40 +1,25 @@
 import React, { useRef } from 'react';
-import { Box, Button, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import { isPageComplete } from './BooksBuilderCreate.utils';
 
 const BooksBuilderPageFields = ({ page, onPatch }) => {
   if (!page?.type) return null;
   const contentAudioInputRef = useRef(null);
+  const { isTrimming, processAudioFile } = useAudioFileWithSilenceTrim();
 
-  const handleContentAudioUpload = (event) => {
+  const handleContentAudioUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        const objectUrl = URL.createObjectURL(file);
-        const audioEl = new Audio();
-        audioEl.preload = 'metadata';
-        audioEl.src = objectUrl;
-        audioEl.onloadedmetadata = () => {
-          const durationSec = Number.isFinite(audioEl.duration) && audioEl.duration > 0
-            ? Number(audioEl.duration.toFixed(3))
-            : null;
-          URL.revokeObjectURL(objectUrl);
-          onPatch({
-            audioUrl: reader.result,
-            audioDurationSec: durationSec,
-          });
-        };
-        audioEl.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          onPatch({ audioUrl: reader.result });
-        };
-      }
-    };
-    reader.readAsDataURL(file);
     event.target.value = '';
+
+    const trimmed = await processAudioFile(file);
+    if (!trimmed?.audioUrl) return;
+
+    onPatch({
+      audioUrl: trimmed.audioUrl,
+      audioDurationSec: trimmed.durationSec,
+    });
   };
 
   return (
@@ -125,9 +110,10 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
                 <Button
                   variant="contained"
                   size="small"
+                  disabled={isTrimming}
                   onClick={(event) => {
                     event.stopPropagation();
-                    contentAudioInputRef.current?.click();
+                    if (!isTrimming) contentAudioInputRef.current?.click();
                   }}
                   aria-label="Change content audio"
                   sx={{
@@ -150,9 +136,12 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
             ) : (
               <Box
                 role="button"
-                tabIndex={0}
+                tabIndex={isTrimming ? -1 : 0}
                 aria-label="Upload content audio"
-                onClick={() => contentAudioInputRef.current?.click()}
+                aria-busy={isTrimming}
+                onClick={() => {
+                  if (!isTrimming) contentAudioInputRef.current?.click();
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
@@ -173,7 +162,7 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
                 }}
               >
                 <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, fontSize: '0.9rem' }}>
-                  Click to upload audio
+                  {isTrimming ? 'Trimming silence...' : 'Click to upload audio'}
                 </Typography>
               </Box>
             )}
