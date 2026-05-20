@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const dns = require('dns');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
@@ -8,6 +9,9 @@ const path = require('path');
 
 // Load environment variables
 dotenv.config();
+// Prefer IPv4 for DNS lookups — on some Windows networks IPv6 DNS (e.g. router ::1) refuses
+// Node's SRV resolution while `nslookup` still works, causing querySrv ECONNREFUSED.
+dns.setDefaultResultOrder('ipv4first');
 const mailConfig = require('./config/mail');
 
 // Import routes
@@ -204,10 +208,7 @@ app.use(errorHandler);
 // Database connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/riseupkids', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/riseupkids');
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error('Database connection error:', error.message);
