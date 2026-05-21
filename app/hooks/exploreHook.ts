@@ -16,6 +16,11 @@ import type {
   ExploreWatchStatus,
 } from '@/services/exploreService';
 import { useExploreStore, exploreCacheKey } from '@/store/exploreStore';
+import {
+  isExploreBunnyEmbed,
+  resolveExploreVideoPlayback,
+  type ExploreVideoPlayback,
+} from '@/utils/exploreVideoPlayback';
 
 // ---------------------------------------------------------------------------
 // Helpers: build full URL for media (backend serves from same origin, no /api for uploads)
@@ -73,6 +78,9 @@ export interface UseExploreReturn {
   // Helpers for components
   getCoverImageUrl: (coverImagePath: string | null | undefined) => string | null;
   getVideoFileUrl: (item: ExploreContentItem) => string | null;
+  /** Upload file URL or Bunny embed iframe URL */
+  resolveExploreVideoPlayback: (item: ExploreContentItem) => ExploreVideoPlayback;
+  isExploreBunnyEmbed: (item: ExploreContentItem) => boolean;
   getVideoTypeLabel: (videoType: string) => string;
   /** Build cache key (for when components need a stable key) */
   cacheKey: typeof exploreCacheKey;
@@ -134,12 +142,21 @@ export function useExplore(): UseExploreReturn {
     return buildMediaUrl(coverImagePath);
   }, []);
 
-  const getVideoFileUrl = useCallback((item: ExploreContentItem): string | null => {
-    const file = item?.videoFile;
-    if (file?.url) return buildMediaUrl(file.url) ?? file.url;
-    if (item?.videoFileUrl) return buildMediaUrl(item.videoFileUrl) ?? item.videoFileUrl;
-    return null;
-  }, []);
+  const resolveExplorePlayback = useCallback(
+    (item: ExploreContentItem): ExploreVideoPlayback =>
+      resolveExploreVideoPlayback(item, buildMediaUrl),
+    []
+  );
+
+  const getVideoFileUrl = useCallback(
+    (item: ExploreContentItem): string | null => resolveExplorePlayback(item).url,
+    [resolveExplorePlayback]
+  );
+
+  const checkExploreBunnyEmbed = useCallback(
+    (item: ExploreContentItem): boolean => isExploreBunnyEmbed(item),
+    []
+  );
 
   const getVideoTypeLabel = useCallback((videoType: string): string => {
     return getVideoTypeLabelConst(videoType);
@@ -164,6 +181,8 @@ export function useExplore(): UseExploreReturn {
       isLoadingByType,
       getCoverImageUrl,
       getVideoFileUrl,
+      resolveExploreVideoPlayback: resolveExplorePlayback,
+      isExploreBunnyEmbed: checkExploreBunnyEmbed,
       getVideoTypeLabel,
       cacheKey: exploreCacheKey,
     }),
@@ -185,6 +204,8 @@ export function useExplore(): UseExploreReturn {
       isLoadingByType,
       getCoverImageUrl,
       getVideoFileUrl,
+      resolveExplorePlayback,
+      checkExploreBunnyEmbed,
       getVideoTypeLabel,
     ]
   );

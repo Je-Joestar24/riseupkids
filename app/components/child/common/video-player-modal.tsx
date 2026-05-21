@@ -28,6 +28,7 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { moduleService } from '@/services/moduleService';
+import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 
@@ -88,7 +89,7 @@ export function VideoPlayerModal({
     isLoadingVideo,
   } = useContentProgress({ childId, courseId: isExploreVideo ? undefined : courseId });
 
-  const { markExploreVideoWatched } = useExploreVideoWatch(childId);
+  const { markExploreVideoWatched, getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
   const videoRef = useRef<Video>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -97,6 +98,7 @@ export function VideoPlayerModal({
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false);
+  const [wasAlreadyWatched, setWasAlreadyWatched] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [watchResult, setWatchResult] = useState<{
     starsJustAwarded?: boolean;
@@ -143,11 +145,30 @@ export function VideoPlayerModal({
       setVideoUrl(url ?? null);
       setVideoEnded(false);
       setHasRecordedWatch(false);
+      setWasAlreadyWatched(false);
       setShowCompletionDialog(false);
       setWatchResult(null);
       setWatchStatusBefore(null);
     }
   }, [open, video]);
+
+  useEffect(() => {
+    if (!open || !isExploreVideo || !childId || !exploreContentId) {
+      setWasAlreadyWatched(false);
+      return;
+    }
+    let cancelled = false;
+    getExploreVideoWatchStatus(exploreContentId)
+      .then((status) => {
+        if (!cancelled) setWasAlreadyWatched(isExploreContentAlreadyWatched(status));
+      })
+      .catch(() => {
+        if (!cancelled) setWasAlreadyWatched(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isExploreVideo, childId, exploreContentId, getExploreVideoWatchStatus]);
 
   useEffect(() => {
     if (open && childId && videoId && !isExploreVideo) {
@@ -277,10 +298,6 @@ export function VideoPlayerModal({
     [handleVideoEnd, videoEnded]
   );
 
-  const handleCloseAttempt = useCallback(() => {
-    setShowConfirmClose(true);
-  }, []);
-
   const handleConfirmedClose = useCallback(() => {
     exitFullscreen();
     setShowConfirmClose(false);
@@ -289,6 +306,17 @@ export function VideoPlayerModal({
     if (video) onVideoComplete?.(video);
     onClose();
   }, [exitFullscreen, onVideoComplete, video, onClose]);
+
+  const skipCloseConfirm =
+    isExploreVideo && (wasAlreadyWatched || hasRecordedWatch);
+
+  const handleCloseAttempt = useCallback(() => {
+    if (skipCloseConfirm) {
+      handleConfirmedClose();
+      return;
+    }
+    setShowConfirmClose(true);
+  }, [skipCloseConfirm, handleConfirmedClose]);
 
   const handleCompletionDialogClose = useCallback(() => {
     setShowCompletionDialog(false);

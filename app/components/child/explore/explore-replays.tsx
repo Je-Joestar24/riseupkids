@@ -13,8 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
-import type { ExploreVideoInput } from '@/components/child/common/video-player-modal';
+import { ExploreVideoPlayerModal } from '@/components/child/common/explore-video-player-modal';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -28,7 +27,7 @@ export interface ExploreReplaysProps {
 
 export function ExploreReplays({ childId }: ExploreReplaysProps) {
   const router = useRouter();
-  const { fetchByType, getCoverImageUrl, getVideoFileUrl, isLoadingByType } = useExplore();
+  const { fetchByType, getCoverImageUrl, isLoadingByType } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
   const [replayContent, setReplayContent] = useState<ExploreContentItem[]>([]);
@@ -99,14 +98,6 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
     }
   }, [selectedContent, childId, getExploreVideoWatchStatus]);
 
-  const videoForModal: ExploreVideoInput | null = selectedContent
-    ? {
-        _id: selectedContent.videoFile?._id ?? selectedContent._id,
-        title: selectedContent.title,
-        url: getVideoFileUrl(selectedContent),
-      }
-    : null;
-
   if (loading && replayContent.length === 0) {
     return (
       <View style={styles.loadingWrap}>
@@ -155,18 +146,16 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
           />
         ))}
       </ScrollView>
-      {videoForModal && (
-        <VideoPlayerModal
+      {selectedContent ? (
+        <ExploreVideoPlayerModal
           open={modalOpen}
           onClose={handleCloseModal}
-          video={videoForModal}
+          content={selectedContent}
           childId={childId}
-          isExploreVideo
-          exploreContentId={selectedContent?._id}
           videoType="replay"
           onVideoComplete={handleVideoComplete}
         />
-      )}
+      ) : null}
     </View>
   );
 }

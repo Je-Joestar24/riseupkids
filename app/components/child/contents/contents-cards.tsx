@@ -14,8 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
-import type { ExploreVideoInput } from '@/components/child/common/video-player-modal';
+import { ExploreVideoPlayerModal } from '@/components/child/common/explore-video-player-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ContentsEmpty } from '@/components/child/contents/contents-empty';
 import { colors } from '@/config/theme/colors';
@@ -42,7 +41,7 @@ function truncateDescription(text: string | null | undefined, maxLen = 150): str
 }
 
 export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
-  const { fetchByType, getCoverImageUrl, getVideoFileUrl } = useExplore();
+  const { fetchByType, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
   const [videos, setVideos] = useState<ExploreContentItem[]>([]);
@@ -160,15 +159,6 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
     [selected, getExploreVideoWatchStatus, videoType]
   );
 
-  const videoForModal: ExploreVideoInput | null = useMemo(() => {
-    if (!selected) return null;
-    return {
-      _id: selected.videoFile?._id ?? selected._id,
-      title: selected.title,
-      url: getVideoFileUrl(selected),
-    };
-  }, [selected, getVideoFileUrl]);
-
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
@@ -252,18 +242,16 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
         })}
       </View>
 
-      {videoForModal && (
-        <VideoPlayerModal
+      {selected ? (
+        <ExploreVideoPlayerModal
           open={modalOpen}
           onClose={handleClose}
-          video={videoForModal}
+          content={selected}
           childId={childId}
-          isExploreVideo
-          exploreContentId={selected?._id}
           videoType={videoType}
           onVideoComplete={handleVideoComplete}
         />
-      )}
+      ) : null}
     </>
   );
 }

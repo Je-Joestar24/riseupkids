@@ -4,7 +4,7 @@
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -14,8 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
-import type { ExploreVideoInput } from '@/components/child/common/video-player-modal';
+import { ExploreVideoPlayerModal } from '@/components/child/common/explore-video-player-modal';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -41,7 +40,7 @@ function formatViewCount(count: number): string {
 }
 
 export function ReplaysCards({ childId }: ReplaysCardsProps) {
-  const { fetchByType, getCoverImageUrl, getVideoFileUrl } = useExplore();
+  const { fetchByType, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
   const [videos, setVideos] = useState<ExploreContentItem[]>([]);
@@ -115,15 +114,6 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
       // ignore
     }
   }, [selected, getExploreVideoWatchStatus]);
-
-  const videoForModal: ExploreVideoInput | null = useMemo(() => {
-    if (!selected) return null;
-    return {
-      _id: selected.videoFile?._id ?? selected._id,
-      title: selected.title,
-      url: getVideoFileUrl(selected),
-    };
-  }, [selected, getVideoFileUrl]);
 
   if (loading) {
     return (
@@ -205,18 +195,16 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
         })}
       </View>
 
-      {videoForModal && (
-        <VideoPlayerModal
+      {selected ? (
+        <ExploreVideoPlayerModal
           open={modalOpen}
           onClose={handleClose}
-          video={videoForModal}
+          content={selected}
           childId={childId}
-          isExploreVideo
-          exploreContentId={selected?._id}
           videoType="replay"
           onVideoComplete={handleVideoComplete}
         />
-      )}
+      ) : null}
     </>
   );
 }

@@ -36,12 +36,16 @@ export interface ExplorePagination {
   pages: number;
 }
 
-/** Populated videoFile from backend */
+/** Populated videoFile from backend (upload + Bunny embed) */
 export interface ExploreVideoFile {
   _id: string;
   type?: string;
   title?: string;
   url?: string;
+  /** `upload` (default) or `embed` (Bunny iframe) */
+  videoSource?: 'upload' | 'embed';
+  /** Canonical Bunny iframe URL when videoSource is embed */
+  embedUrl?: string;
   mimeType?: string;
   size?: number;
   duration?: number;
