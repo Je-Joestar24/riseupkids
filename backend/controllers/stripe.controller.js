@@ -338,10 +338,16 @@ exports.handleWebhook = async (req, res, next) => {
           }
           const childCount = parseInt(session.metadata.childCount, 10) || 1;
           const region = session.metadata.region || 'us';
+          const now = new Date();
+          const oneYearLater = new Date(now);
+          oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
           user.planKidsLimit = Math.min(10, Math.max(1, childCount));
           user.planRegion = ['br', 'us', 'eu'].includes(region) ? region : 'us';
           user.subscriptionStatus = 'active';
           user.subscriptionPlan = 'yearly'; // Family Plan is annual program
+          user.subscriptionStartDate = user.subscriptionStartDate || now;
+          user.subscriptionCurrentPeriodEnd = oneYearLater;
+          user.paymentProvider = 'stripe';
           user.stripeCustomerId = typeof session.customer === 'string' ? session.customer : session.customer?.id || user.stripeCustomerId;
           user.stripeSubscriptionId = session.id; // Checkout Session ID (no subscription for one-time payment; keep for reference)
           user.termsAcceptedAt = new Date();

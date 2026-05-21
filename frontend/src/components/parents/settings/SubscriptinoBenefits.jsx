@@ -2,21 +2,12 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { CheckCircle } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
+import { FAMILY_PLAN_BENEFITS } from '../../../services/checkoutService';
 
 /**
- * SubscriptionBenefits Component
- * 
- * Lists all premium benefits included in the subscription
+ * Benefits included in the Family Plan (aligned with sale checkout summary).
  */
 const SubscriptionBenefits = () => {
-  const benefits = [
-    'Access to all learning paths',
-    'Live lessons with expert teachers',
-    'Progress reports & analytics',
-    'Unlimited practice activities',
-    'Ad-free experience',
-  ];
-
   return (
     <Box
       sx={{
@@ -27,7 +18,6 @@ const SubscriptionBenefits = () => {
         marginBottom: { xs: '20px', sm: '24px' },
       }}
     >
-      {/* Title */}
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
@@ -37,14 +27,13 @@ const SubscriptionBenefits = () => {
           marginBottom: { xs: '20px', sm: '24px' },
         }}
       >
-        Premium Benefits
+        What&apos;s included
       </Typography>
 
-      {/* Benefits List */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: '14px', sm: '16px' } }}>
-        {benefits.map((benefit, index) => (
+        {FAMILY_PLAN_BENEFITS.map((benefit) => (
           <Box
-            key={index}
+            key={benefit}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -57,6 +46,7 @@ const SubscriptionBenefits = () => {
                 color: themeColors.primary,
                 flexShrink: 0,
               }}
+              aria-hidden
             />
             <Typography
               sx={{

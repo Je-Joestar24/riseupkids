@@ -2,26 +2,26 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 
 /**
- * SubscriptionHeader Component
- * 
- * Header showing current subscription plan and status
+ * Header showing Family Plan status and access period.
  */
-const SubscriptionHeader = ({ subscriptionData }) => {
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+const SubscriptionHeader = ({ plan }) => {
+  const formatDate = (date) => {
+    if (!date) return null;
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
   };
 
   const getStatusText = () => {
-    if (!subscriptionData.currentPeriodEnd) {
-      return 'No active subscription';
+    if (!plan.isActive) {
+      return 'No active enrollment';
     }
-    return `Active until ${formatDate(subscriptionData.currentPeriodEnd)}`;
+    if (plan.accessEndDate) {
+      return `Active until ${formatDate(plan.accessEndDate)}`;
+    }
+    return 'Active — 12 months of program access';
   };
 
   return (
@@ -40,17 +40,28 @@ const SubscriptionHeader = ({ subscriptionData }) => {
           fontFamily: 'Quicksand, sans-serif',
           fontSize: { xs: '1.5rem', sm: '1.75rem' },
           fontWeight: 700,
+          marginBottom: { xs: '4px', sm: '6px' },
+        }}
+      >
+        {plan.programTitle}
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: 'Quicksand, sans-serif',
+          fontSize: { xs: '14px', sm: '16px' },
+          fontWeight: 500,
+          opacity: 0.9,
           marginBottom: { xs: '8px', sm: '10px' },
         }}
       >
-        Premium Plan
+        {plan.programSubtitle}
       </Typography>
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontSize: { xs: '16px', sm: '18px' },
-          fontWeight: 500,
-          opacity: 0.9,
+          fontWeight: 600,
+          opacity: 0.95,
         }}
       >
         {getStatusText()}

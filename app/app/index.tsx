@@ -167,23 +167,6 @@ export default function LoginScreen() {
                 <ThemedText style={styles.signInText}>Sign In</ThemedText>
               )}
             </Pressable>
-
-            {/* Forgot Password
-            <Pressable style={styles.linkWrap} hitSlop={8}>
-              <ThemedText type="link">Forgot Password?</ThemedText>
-            </Pressable>
-            
-            Divider 
-            <View style={styles.divider} />
-
-            <Pressable
-              onPress={() => router.push('/signup')}
-              style={styles.linkWrap}
-              hitSlop={8}>
-              <ThemedText style={styles.createAccountText}>
-                New here? Create Account
-              </ThemedText>
-            </Pressable>*/}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -302,19 +285,5 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: typography.sizes.lg,
     fontFamily: 'Quicksand_600SemiBold',
-  },
-  linkWrap: {
-    alignSelf: 'center',
-    paddingVertical: spacing[2],
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: spacing[4],
-  },
-  createAccountText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textMuted,
   },
 });

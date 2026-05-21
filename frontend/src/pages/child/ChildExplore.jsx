@@ -48,7 +48,7 @@ const ChildExplore = ({ childId }) => {
                 <ExploreReplays childId={childId} />
                 <ExploreSomething />
                 <ExploreVideoCollectionsCards onVideoTypeClick={handleVideoTypeClick} childId={childId} />
-                <ExploreStarCam />
+                {/* <ExploreStarCam /> */}
                 {/* <ExploreFooter /> */}
             </Box>
         </Box>

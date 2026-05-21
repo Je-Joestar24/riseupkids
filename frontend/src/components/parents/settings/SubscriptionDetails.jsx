@@ -3,37 +3,58 @@ import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 
 /**
- * SubscriptionDetails Component
- * 
- * Shows plan details like cost, billing date, and cancellation availability
+ * Family Plan details: children enrolled, pricing, access period.
  */
-const SubscriptionDetails = ({ subscriptionData, canCancel, user }) => {
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+const SubscriptionDetails = ({ plan }) => {
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
   };
 
-  const getCancellationStatus = () => {
-    if (!subscriptionData.currentPeriodEnd) {
-      return 'N/A';
-    }
-    if (canCancel) {
-      return 'Available';
-    }
-    // Calculate when cancellation will be available (1 year from subscription start)
-    // Note: This uses createdAt as proxy until subscriptionStartDate is available
-    return 'After one-year commitment';
-  };
+  const regionLabel = (() => {
+    const map = { br: 'Brazil', us: 'United States', eu: 'Europe' };
+    return map[plan.userRegion] || null;
+  })();
 
   const details = [
-    { label: 'Monthly Cost', value: '$9.99/mo', highlight: true },
-    { label: 'Next Billing Date', value: formatDate(subscriptionData.currentPeriodEnd), highlight: false },
-    { label: 'Cancellation Available', value: getCancellationStatus(), highlight: false },
+    ...(plan.isFamilyPlan
+      ? [{
+          label: 'Children enrolled',
+          value: plan.childrenLabel,
+          highlight: false,
+        }]
+      : []),
+    {
+      label: plan.isFamilyPlan ? 'Plan price' : 'Monthly cost',
+      value: plan.planPricing.line1,
+      subValue: plan.priceLine2,
+      highlight: true,
+    },
+    ...(plan.isFamilyPlan && plan.planPricing.discountFormatted
+      ? [{ label: 'Founding families savings', value: plan.planPricing.discountFormatted, highlight: false }]
+      : []),
+    {
+      label: 'Billing',
+      value: plan.isFamilyPlan ? 'Annual program (12 months)' : 'Monthly subscription',
+      highlight: false,
+    },
+    ...(regionLabel
+      ? [{ label: 'Region', value: regionLabel, highlight: false }]
+      : []),
+    {
+      label: plan.isFamilyPlan ? 'Access until' : 'Next billing date',
+      value: formatDate(plan.accessEndDate),
+      highlight: false,
+    },
+    {
+      label: 'Cancellation',
+      value: plan.cancellationStatus,
+      highlight: false,
+    },
   ];
 
   return (
@@ -46,7 +67,6 @@ const SubscriptionDetails = ({ subscriptionData, canCancel, user }) => {
         marginBottom: { xs: '20px', sm: '24px' },
       }}
     >
-      {/* Title */}
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
@@ -59,15 +79,15 @@ const SubscriptionDetails = ({ subscriptionData, canCancel, user }) => {
         Plan Details
       </Typography>
 
-      {/* Details List */}
       <Box sx={{ display: 'flex', flexDirection: 'column' }}>
         {details.map((detail, index) => (
           <Box
-            key={index}
+            key={detail.label}
             sx={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'flex-start',
               justifyContent: 'space-between',
+              gap: 2,
               padding: { xs: '12px 0', sm: '14px 0' },
               borderBottom: index < details.length - 1 ? `1px solid ${themeColors.border}` : 'none',
             }}
@@ -82,16 +102,31 @@ const SubscriptionDetails = ({ subscriptionData, canCancel, user }) => {
             >
               {detail.label}
             </Typography>
-            <Typography
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontSize: { xs: '16px', sm: '18px' },
-                fontWeight: detail.highlight ? 600 : 500,
-                color: detail.highlight ? themeColors.secondary : themeColors.textSecondary,
-              }}
-            >
-              {detail.value}
-            </Typography>
+            <Box sx={{ textAlign: 'right', maxWidth: '60%' }}>
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontSize: { xs: '16px', sm: '18px' },
+                  fontWeight: detail.highlight ? 700 : 500,
+                  color: detail.highlight ? themeColors.secondary : themeColors.textSecondary,
+                }}
+              >
+                {detail.value}
+              </Typography>
+              {detail.subValue && (
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontSize: { xs: '13px', sm: '14px' },
+                    fontWeight: 500,
+                    color: themeColors.textSecondary,
+                    mt: 0.25,
+                  }}
+                >
+                  {detail.subValue}
+                </Typography>
+              )}
+            </Box>
           </Box>
         ))}
       </Box>

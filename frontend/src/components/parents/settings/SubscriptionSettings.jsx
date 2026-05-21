@@ -5,52 +5,23 @@ import SubscriptionDetails from './SubscriptionDetails';
 import SubscriptionBenefits from './SubscriptinoBenefits';
 import SubscriptionActions from './SubscriptionActions';
 import useAuth from '../../../hooks/userHook';
+import useSubscriptionPlan from '../../../hooks/useSubscriptionPlan';
 import stripeService from '../../../services/stripeService';
 import { useDispatch } from 'react-redux';
 import { showNotification } from '../../../store/slices/uiSlice';
 import { getCurrentUser } from '../../../store/slices/userSlice';
 
 /**
- * SubscriptionSettings Component
- * 
- * Main subscription management page
- * Shows current plan, details, benefits, and management options
- * Uses real subscription data from user
+ * Subscription settings — Family Plan (checkout) display and legacy Stripe cancel.
  */
 const SubscriptionSettings = () => {
   const { user } = useAuth();
   const dispatch = useDispatch();
+  const plan = useSubscriptionPlan(user);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
-  const subscriptionData = {
-    status: user?.subscriptionStatus || 'inactive',
-    startDate: user?.subscriptionStartDate || null,
-    currentPeriodEnd: user?.subscriptionCurrentPeriodEnd || null,
-    stripeSubscriptionId: user?.stripeSubscriptionId || null,
-  };
-
-  // Calculate if cancellation is available (must be at least 1 year old)
-  const canCancel = (() => {
-    if (!subscriptionData.currentPeriodEnd || subscriptionData.status !== 'active') {
-      return false;
-    }
-    // Use subscriptionStartDate if available, otherwise fallback to createdAt
-    const subscriptionStartDate = subscriptionData.startDate 
-      ? new Date(subscriptionData.startDate)
-      : user?.createdAt 
-        ? new Date(user.createdAt)
-        : null;
-    
-    if (!subscriptionStartDate) {
-      return false;
-    }
-    
-    const oneYearFromStart = new Date(subscriptionStartDate);
-    oneYearFromStart.setFullYear(oneYearFromStart.getFullYear() + 1);
-    const now = new Date();
-    return now >= oneYearFromStart;
-  })();
+  const planWithRegion = { ...plan, userRegion: user?.planRegion };
 
   const handleCancelPlan = () => {
     setCancelDialogOpen(true);
@@ -64,7 +35,6 @@ const SubscriptionSettings = () => {
         message: 'Subscription will be cancelled at the end of the current billing period.',
         type: 'success',
       }));
-      // Refresh user data to get updated subscription info
       dispatch(getCurrentUser());
       setCancelDialogOpen(false);
     } catch (error) {
@@ -87,23 +57,20 @@ const SubscriptionSettings = () => {
           width: '100%',
         }}
       >
-        {/* Header with Plan Status */}
-        <SubscriptionHeader subscriptionData={subscriptionData} />
+        <SubscriptionHeader plan={planWithRegion} />
 
-        {/* Plan Details */}
-        <SubscriptionDetails subscriptionData={subscriptionData} canCancel={canCancel} user={user} />
+        <SubscriptionDetails plan={planWithRegion} />
 
-        {/* Premium Benefits */}
         <SubscriptionBenefits />
 
-        {/* Action Buttons */}
-        <SubscriptionActions
-          onCancelPlan={handleCancelPlan}
-          canCancel={canCancel}
-        />
+        {plan.isLegacyStripeSubscription && (
+          <SubscriptionActions
+            onCancelPlan={handleCancelPlan}
+            canCancel={plan.canCancelSubscription}
+          />
+        )}
       </Box>
 
-      {/* Cancel Confirmation Dialog */}
       <Dialog
         open={cancelDialogOpen}
         onClose={() => !cancelling && setCancelDialogOpen(false)}
@@ -115,7 +82,7 @@ const SubscriptionSettings = () => {
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="cancel-dialog-description">
-            Your subscription will remain active until the end of the current billing period. 
+            Your subscription will remain active until the end of the current billing period.
             After that, you will lose access to premium features. Are you sure you want to cancel?
           </DialogContentText>
         </DialogContent>
