@@ -38,6 +38,7 @@ import {
 import useMeetings from '../../../hooks/meetingHooks';
 import MeetingUpdateModal from './MeetingUpdateModal';
 import { themeColors } from '../../../config/themeColors';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * MeetingList Component
@@ -334,6 +335,9 @@ const MeetingList = () => {
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
+                Cover
+              </TableCell>
+              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
                 Title
               </TableCell>
               <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
@@ -354,7 +358,9 @@ const MeetingList = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {meetings.map((meeting) => (
+            {meetings.map((meeting) => {
+              const coverUrl = getCoverImageUrl(meeting.coverImage);
+              return (
               <TableRow
                 key={meeting._id}
                 sx={{
@@ -363,6 +369,26 @@ const MeetingList = () => {
                   },
                 }}
               >
+                <TableCell>
+                  {coverUrl ? (
+                    <Box
+                      component="img"
+                      src={coverUrl}
+                      alt={meeting.title ? `${meeting.title} cover` : 'Meeting cover'}
+                      sx={{
+                        width: 56,
+                        height: 40,
+                        objectFit: 'cover',
+                        borderRadius: '6px',
+                        border: `1px solid ${theme.palette.border.main}`,
+                      }}
+                    />
+                  ) : (
+                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                      —
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                   <Stack spacing={0.5}>
                     <Typography
@@ -504,7 +530,8 @@ const MeetingList = () => {
                   </IconButton>
                 </TableCell>
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

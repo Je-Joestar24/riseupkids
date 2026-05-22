@@ -13,6 +13,7 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { homeService } from '@/services/homeService';
+import { getCoverImageUrl } from '@/components/child/module/module-utils';
 
 const LIVE_ICON = require('@/assets/images/live.png');
 const LIVE_CLASS_IMAGE = require('@/assets/images/liveclass.jpeg');
@@ -73,6 +74,9 @@ export function LiveClasses({ loading, nextMeeting, activeLive }: LiveClassesPro
     return embedUrl || watchUrl || null;
   }, [activeLive]);
 
+  const youtubeCoverUrl = getCoverImageUrl(activeLive?.coverImage ?? undefined);
+  const meetingCoverUrl = getCoverImageUrl(nextMeeting?.coverImage ?? undefined);
+
   if (!hasAny && !loading) return null;
 
   return (
@@ -88,6 +92,14 @@ export function LiveClasses({ loading, nextMeeting, activeLive }: LiveClassesPro
             </View>
           </View>
 
+          {youtubeCoverUrl ? (
+            <Image
+              source={{ uri: youtubeCoverUrl }}
+              style={styles.youtubeCover}
+              resizeMode="cover"
+              accessibilityLabel={activeLive?.title ? `${activeLive.title} cover` : 'Live stream cover'}
+            />
+          ) : null}
           <Pressable
             onPress={() => openExternal(liveUrl)}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.primaryButtonPressed]}
@@ -122,7 +134,12 @@ export function LiveClasses({ loading, nextMeeting, activeLive }: LiveClassesPro
 
           {/* Row 3: pic (thumbnail + time pill) */}
           <View style={styles.preview}>
-            <Image source={LIVE_CLASS_IMAGE} style={styles.previewImg} resizeMode="cover" />
+            <Image
+              source={meetingCoverUrl ? { uri: meetingCoverUrl } : LIVE_CLASS_IMAGE}
+              style={styles.previewImg}
+              resizeMode="cover"
+              accessibilityLabel={nextMeeting?.title ? `${nextMeeting.title} cover` : 'Next live class cover'}
+            />
             <View style={styles.previewOverlay} />
             <View style={styles.previewPill}>
               <MaterialCommunityIcons name="clock-outline" size={16} color={colors.secondary} />
@@ -199,6 +216,12 @@ const styles = StyleSheet.create({
     color: colors.orange,
     marginTop: spacing[1],
   },
+  youtubeCover: {
+    width: '100%',
+    height: 320,
+    marginBottom: spacing[4],
+    borderRadius: radii.none,
+  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -262,7 +285,7 @@ const styles = StyleSheet.create({
   },
   preview: {
     width: '100%',
-    height: 160,
+    height: 320,
     overflow: 'hidden',
     borderRadius: radii.sm,
     position: 'relative',

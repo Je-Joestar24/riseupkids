@@ -1,5 +1,6 @@
 const googleOAuth = require('../services/googleOAuth.service');
 const googleMeet = require('../services/googleMeet.service');
+const { uploadCoverFromFiles } = require('../utils/coverImage.util');
 
 /**
  * Google Meet Controller
@@ -137,7 +138,17 @@ const disconnectGoogle = async (req, res) => {
 const createMeeting = async (req, res) => {
   try {
     const userId = req.user._id.toString();
-    const { summary, description, startTime, endTime, timeZone, attendees } = req.body;
+    const { summary, description, startTime, endTime, timeZone, attendees: attendeesRaw } = req.body;
+
+    let attendees = [];
+    if (attendeesRaw) {
+      try {
+        attendees = typeof attendeesRaw === 'string' ? JSON.parse(attendeesRaw) : attendeesRaw;
+        if (!Array.isArray(attendees)) attendees = [];
+      } catch {
+        attendees = String(attendeesRaw).split(',').map((e) => e.trim()).filter(Boolean);
+      }
+    }
 
     // Validate required fields
     if (!summary || !startTime || !endTime || !timeZone) {
@@ -147,6 +158,8 @@ const createMeeting = async (req, res) => {
       });
     }
 
+    const coverImage = await uploadCoverFromFiles(req.files);
+
     const meeting = await googleMeet.createMeeting(userId, {
       summary,
       description,
@@ -154,6 +167,7 @@ const createMeeting = async (req, res) => {
       endTime,
       timeZone,
       attendees: attendees || [],
+      coverImage,
     });
 
     res.status(201).json({

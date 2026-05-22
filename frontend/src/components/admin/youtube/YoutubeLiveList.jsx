@@ -23,6 +23,7 @@ import {
     Videocam as VideocamIcon,
 } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * YoutubeLiveList Component
@@ -136,6 +137,16 @@ const YoutubeLiveList = ({
                                 color: theme.palette.text.primary,
                             }}
                         >
+                            Cover
+                        </TableCell>
+                        <TableCell
+                            sx={{
+                                fontFamily: 'Quicksand, sans-serif',
+                                fontWeight: 700,
+                                fontSize: '0.875rem',
+                                color: theme.palette.text.primary,
+                            }}
+                        >
                             Title
                         </TableCell>
                         <TableCell
@@ -184,6 +195,7 @@ const YoutubeLiveList = ({
                 <TableBody>
                     {lives.map((live) => {
                         const id = live._id || live.id;
+                        const coverUrl = getCoverImageUrl(live.coverImage);
                         return (
                             <TableRow
                                 key={id}
@@ -193,6 +205,26 @@ const YoutubeLiveList = ({
                                     fontFamily: 'Quicksand, sans-serif',
                                 }}
                             >
+                                <TableCell>
+                                    {coverUrl ? (
+                                        <Box
+                                            component="img"
+                                            src={coverUrl}
+                                            alt={live.title ? `${live.title} cover` : 'Live cover'}
+                                            sx={{
+                                                width: 56,
+                                                height: 40,
+                                                objectFit: 'cover',
+                                                borderRadius: '6px',
+                                                border: `1px solid ${border}`,
+                                            }}
+                                        />
+                                    ) : (
+                                        <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                                            —
+                                        </Typography>
+                                    )}
+                                </TableCell>
                                 <TableCell
                                     sx={{
                                         fontFamily: 'Quicksand, sans-serif',

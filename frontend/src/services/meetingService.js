@@ -1,4 +1,5 @@
 import api from '../api/axios';
+import { multipartRequestConfig } from '../utils/coverImageUrl';
 
 /**
  * Meeting Service
@@ -64,7 +65,26 @@ const meetingService = {
    */
   createGoogleMeeting: async (meetingData) => {
     try {
-      const response = await api.post('/google/meetings', meetingData);
+      const { coverImage: coverFile, attendees, ...fields } = meetingData;
+      const payload =
+        coverFile instanceof File
+          ? (() => {
+              const formData = new FormData();
+              Object.entries(fields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                  formData.append(key, String(value));
+                }
+              });
+              if (attendees?.length) {
+                formData.append('attendees', JSON.stringify(attendees));
+              }
+              formData.append('coverImage', coverFile);
+              return formData;
+            })()
+          : meetingData;
+
+      const config = coverFile instanceof File ? multipartRequestConfig : {};
+      const response = await api.post('/google/meetings', payload, config);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -74,12 +94,28 @@ const meetingService = {
   /**
    * Create a manual meeting (title, description, link only - no Google OAuth)
    * Use when Google account cannot be connected.
-   * @param {Object} data - { title, description?, meetLink }
+   * @param {Object} data - { title, description?, meetLink, coverImage? (File) }
    * @returns {Promise} API response with meeting data
    */
   createManualMeeting: async (data) => {
     try {
-      const response = await api.post('/meetings/manual', data);
+      const { coverImage: coverFile, ...fields } = data;
+      const payload =
+        coverFile instanceof File
+          ? (() => {
+              const formData = new FormData();
+              Object.entries(fields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                  formData.append(key, String(value));
+                }
+              });
+              formData.append('coverImage', coverFile);
+              return formData;
+            })()
+          : data;
+
+      const config = coverFile instanceof File ? multipartRequestConfig : {};
+      const response = await api.post('/meetings/manual', payload, config);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -143,7 +179,30 @@ const meetingService = {
    */
   updateMeeting: async (id, updates) => {
     try {
-      const response = await api.patch(`/meetings/${id}`, updates);
+      const { coverImage: coverFile, attendees, ...fields } = updates;
+      const payload =
+        coverFile instanceof File
+          ? (() => {
+              const formData = new FormData();
+              Object.entries(fields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                  if (Array.isArray(value)) {
+                    formData.append(key, JSON.stringify(value));
+                  } else {
+                    formData.append(key, String(value));
+                  }
+                }
+              });
+              if (attendees?.length) {
+                formData.append('attendees', JSON.stringify(attendees));
+              }
+              formData.append('coverImage', coverFile);
+              return formData;
+            })()
+          : updates;
+
+      const config = coverFile instanceof File ? multipartRequestConfig : {};
+      const response = await api.patch(`/meetings/${id}`, payload, config);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;

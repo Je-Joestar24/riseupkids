@@ -15,6 +15,7 @@ import {
   Divider,
   Link,
   Paper,
+  Grid,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -26,6 +27,13 @@ import {
 } from '@mui/icons-material';
 import useYouTubeLive from '../../../hooks/youtubeHook';
 import { themeColors } from '../../../config/themeColors';
+import CoverImageUpload from '../../common/CoverImageUpload';
+import {
+  getContentFormFieldSx,
+  getContentFormPaperSx,
+  getContentFormPrimaryButtonSx,
+  CONTENT_FORM_MODAL_MAX_WIDTH,
+} from '../../common/contentFormBento';
 
 /**
  * YoutubeLiveCreateModal Component
@@ -50,6 +58,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
     title: '',
     description: '',
   });
+  const [coverImageFile, setCoverImageFile] = useState(null);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
 
@@ -94,6 +103,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
         privacyStatus: 'public',
         enableAutoStart: true,
         enableAutoStop: true,
+        ...(coverImageFile ? { coverImage: coverImageFile } : {}),
       };
 
       const result = await createLiveStream(streamData);
@@ -114,6 +124,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
       title: '',
       description: '',
     });
+    setCoverImageFile(null);
     setErrors({});
     setSubmitError(null);
     clearStreamError();
@@ -142,12 +153,14 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth={createdStream ? "md" : "sm"}
+      maxWidth={createdStream ? 'md' : 'lg'}
       fullWidth
       PaperProps={{
+        elevation: 8,
         sx: {
-          borderRadius: '16px',
+          borderRadius: '20px',
           fontFamily: 'Quicksand, sans-serif',
+          maxWidth: createdStream ? 720 : CONTENT_FORM_MODAL_MAX_WIDTH,
         },
       }}
     >
@@ -365,57 +378,70 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
 
           {/* Show form only if stream not created yet */}
           {!createdStream && (
-            <form onSubmit={handleSubmit} id="stream-create-form">
-              <Stack spacing={2.5}>
-                <TextField
-                  label="Stream Title"
-                  name="title"
-                  value={formData.title}
-                  onChange={handleInputChange}
-                  required
-                  fullWidth
-                  error={!!errors.title}
-                  helperText={errors.title}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                />
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                Upload a portrait cover for the child home card, then set stream details.
+              </Typography>
+              <form onSubmit={handleSubmit} id="stream-create-form">
+                <Grid container spacing={2} alignItems="stretch" sx={{ mt: 0.5 }}>
+                  <Grid item xs={12} md={5}>
+                    <CoverImageUpload
+                      label="Cover photo"
+                      file={coverImageFile}
+                      onFileChange={setCoverImageFile}
+                      disabled={streamLoading}
+                      inputId="youtube-live-create-cover"
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={7}>
+                    <Paper
+                      variant="outlined"
+                      sx={{ ...getContentFormPaperSx(theme), display: 'flex', flexDirection: 'column', gap: 2 }}
+                    >
+                      <TextField
+                        label="Stream Title"
+                        name="title"
+                        value={formData.title}
+                        onChange={handleInputChange}
+                        required
+                        fullWidth
+                        error={!!errors.title}
+                        helperText={errors.title}
+                        sx={getContentFormFieldSx()}
+                      />
 
-                <TextField
-                  label="Description (Optional)"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  multiline
-                  rows={3}
-                  fullWidth
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                />
-              </Stack>
-            </form>
+                      <TextField
+                        label="Description (Optional)"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        multiline
+                        rows={5}
+                        fullWidth
+                        sx={getContentFormFieldSx()}
+                      />
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </form>
+            </>
           )}
         </Stack>
       </DialogContent>
 
       <DialogActions
         sx={{
-          padding: 2,
-          borderTop: `1px solid ${theme.palette.border.main}`,
+          padding: 3,
+          borderTop: `2px solid ${theme.palette.border.main}`,
         }}
       >
         <Button
           onClick={handleClose}
+          disabled={streamLoading}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: '10px',
           }}
         >
           {createdStream ? 'Close' : 'Cancel'}
@@ -430,17 +456,9 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
               !formData.title ||
               !connectionStatus.connected
             }
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              textTransform: 'none',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.orange?.main || theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: theme.palette.orange?.dark || theme.palette.primary.dark,
-              },
-            }}
+            sx={getContentFormPrimaryButtonSx(theme)}
           >
-            {streamLoading ? <CircularProgress size={20} /> : 'Create Stream'}
+            {streamLoading ? <CircularProgress size={20} color="inherit" /> : 'Create Stream'}
           </Button>
         )}
         {createdStream && onSuccess && (
@@ -450,15 +468,7 @@ const YoutubeLiveCreateModal = ({ open, onClose, onSuccess }) => {
               handleClose();
               onSuccess(createdStream);
             }}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              textTransform: 'none',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.orange?.main || theme.palette.primary.main,
-              '&:hover': {
-                backgroundColor: theme.palette.orange?.dark || theme.palette.primary.dark,
-              },
-            }}
+            sx={getContentFormPrimaryButtonSx(theme)}
           >
             Done
           </Button>

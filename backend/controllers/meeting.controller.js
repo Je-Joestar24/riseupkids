@@ -1,4 +1,5 @@
 const meetingService = require('../services/meeting.service');
+const { uploadCoverFromFiles } = require('../utils/coverImage.util');
 
 /**
  * Meeting Controller
@@ -31,10 +32,13 @@ const createManualMeeting = async (req, res) => {
       });
     }
 
+    const coverImage = await uploadCoverFromFiles(req.files);
+
     const meeting = await meetingService.createManualMeeting(userId, {
       title: title.trim(),
       description: description == null ? '' : String(description).trim(),
       meetLink: meetLink.trim(),
+      coverImage,
     });
 
     res.status(201).json({
@@ -205,7 +209,7 @@ const updateMeeting = async (req, res) => {
       });
     }
 
-    const updatedMeeting = await meetingService.updateMeeting(id, updates);
+    const updatedMeeting = await meetingService.updateMeeting(id, updates, req.files);
 
     res.status(200).json({
       success: true,

@@ -691,8 +691,12 @@ const uploadStarCamDetectImage = multer({
   },
 }).single('image');
 
+// Cover image only (live streams, meetings, courses, etc.)
+const uploadCoverImage = uploadCourse;
+
 module.exports = {
   upload,
+  uploadCoverImage,
   uploadActivityMedia,
   uploadScorm,
   uploadActivity,

@@ -1,6 +1,7 @@
 const youtubeOAuth = require('../services/youtubeOAuth.service');
 const youtubeLive = require('../services/youtubeLive.service');
 const YouTubeLive = require('../models/YouTubeLive');
+const { uploadCoverFromFiles, deleteCoverByUrl } = require('../utils/coverImage.util');
 
 /**
  * YouTube Live Controller
@@ -171,6 +172,8 @@ const createLiveStream = async (req, res) => {
       });
     }
 
+    const coverImage = await uploadCoverFromFiles(req.files);
+
     const stream = await youtubeLive.createLiveStream(userId, {
       title,
       description,
@@ -194,6 +197,7 @@ const createLiveStream = async (req, res) => {
           embedUrl: stream.embedUrl || '',
           title: stream.title,
           description: stream.description || '',
+          coverImage: coverImage || null,
           privacyStatus: stream.privacyStatus || 'public',
           scheduledStartTime: stream.scheduledStartTime ? new Date(stream.scheduledStartTime) : null,
           status: stream.status || 'created',
@@ -256,7 +260,7 @@ const getActiveLive = async (req, res) => {
     })
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name role')
-      .select('title description watchUrl embedUrl status createdAt createdBy')
+      .select('title description watchUrl embedUrl coverImage status createdAt createdBy')
       .lean();
 
     if (!live) {
@@ -486,7 +490,7 @@ const deleteLive = async (req, res) => {
     const userId = req.user._id.toString();
     const { id } = req.params;
 
-    const live = await YouTubeLive.findOneAndDelete({ _id: id, createdBy: userId });
+    const live = await YouTubeLive.findOne({ _id: id, createdBy: userId });
 
     if (!live) {
       return res.status(404).json({
@@ -494,6 +498,9 @@ const deleteLive = async (req, res) => {
         message: 'Live stream not found',
       });
     }
+
+    if (live.coverImage) await deleteCoverByUrl(live.coverImage);
+    await YouTubeLive.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,

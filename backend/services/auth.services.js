@@ -254,10 +254,10 @@ Proin vitae suscipit libero. Aliquam erat volutpat. Duis sollicitudin nunc nec e
 const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;
 
 /**
- * Forgot password: if user exists, generate 6-digit code, store with 1-min expiry, send email.
- * Always returns success (same message whether user exists or not) to avoid email enumeration.
+ * Forgot password: user must exist; generate 6-digit code, store with expiry, send email.
  * @param {string} email - User's email
- * @returns {Promise<{ sent: boolean }>} sent true only when email was actually sent
+ * @returns {Promise<{ sent: boolean }>}
+ * @throws {Error} When email is invalid or no account exists for that email
  */
 const forgotPassword = async (email) => {
   const normalized = (email || '').toString().trim().toLowerCase();
@@ -267,8 +267,7 @@ const forgotPassword = async (email) => {
 
   const user = await User.findOne({ email: normalized });
   if (!user) {
-    console.warn(`[Auth:forgotPassword] No user found for email=${normalized}`);
-    return { sent: false };
+    throw new Error('No account exists with this email address.');
   }
 
   const code = String(crypto.randomInt(100000, 1000000));

@@ -15,10 +15,19 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Grid,
+  Paper,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import useMeetings from '../../../hooks/meetingHooks';
+import CoverImageUpload from '../../common/CoverImageUpload';
+import {
+  getContentFormFieldSx,
+  getContentFormPaperSx,
+  getContentFormPrimaryButtonSx,
+  CONTENT_FORM_MODAL_MAX_WIDTH,
+} from '../../common/contentFormBento';
 
 /**
  * MeetingUpdateModal Component
@@ -52,6 +61,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
   const [fetching, setFetching] = useState(false);
+  const [coverImageFile, setCoverImageFile] = useState(null);
 
   // Helper function to populate form from meeting data
   const populateForm = React.useCallback((meeting) => {
@@ -216,6 +226,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
         timeZone: formData.timeZone,
         status: formData.status,
         attendees: attendees.length > 0 ? attendees : undefined,
+        ...(coverImageFile ? { coverImage: coverImageFile } : {}),
       };
 
       // Get the meeting ID from the meeting object (preferred) or meetingId prop
@@ -250,6 +261,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
     setErrors({});
     setSubmitError(null);
     setFetching(false);
+    setCoverImageFile(null);
     // Clear current meeting from Redux when modal closes
     clearCurrent();
     onClose();
@@ -279,12 +291,14 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="sm"
+      maxWidth="lg"
       fullWidth
       PaperProps={{
+        elevation: 8,
         sx: {
-          borderRadius: '16px',
+          borderRadius: '20px',
           fontFamily: 'Quicksand, sans-serif',
+          maxWidth: CONTENT_FORM_MODAL_MAX_WIDTH,
         },
       }}
     >
@@ -294,7 +308,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: 3,
-          borderBottom: `1px solid ${theme.palette.border.main}`,
+          borderBottom: `2px solid ${theme.palette.border.main}`,
         }}
       >
         <Typography
@@ -329,7 +343,19 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
             )}
 
             <form onSubmit={handleSubmit} id="meeting-update-form">
-              <Stack spacing={2.5}>
+              <Grid container spacing={2} alignItems="stretch">
+                <Grid item xs={12} md={5}>
+                  <CoverImageUpload
+                    label="Cover photo"
+                    file={coverImageFile}
+                    onFileChange={setCoverImageFile}
+                    existingCoverPath={meeting?.coverImage}
+                    disabled={loading || fetching}
+                    inputId="meeting-update-cover"
+                  />
+                </Grid>
+                <Grid item xs={12} md={7}>
+                  <Paper variant="outlined" sx={{ ...getContentFormPaperSx(theme), display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <TextField
                   label="Meeting Title"
                   name="title"
@@ -339,12 +365,7 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   fullWidth
                   error={!!errors.title}
                   helperText={errors.title}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  sx={getContentFormFieldSx()}
                 />
 
                 <TextField
@@ -353,14 +374,9 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   value={formData.description}
                   onChange={handleInputChange}
                   multiline
-                  rows={3}
+                  rows={4}
                   fullWidth
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  sx={getContentFormFieldSx()}
                 />
 
                 <TextField
@@ -373,13 +389,8 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   fullWidth
                   error={!!errors.startTime}
                   helperText={errors.startTime}
-                  InputLabelProps={{
-                    shrink: true,
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  InputLabelProps={{ shrink: true }}
+                  sx={getContentFormFieldSx()}
                 />
 
                 <TextField
@@ -392,13 +403,8 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   fullWidth
                   error={!!errors.endTime}
                   helperText={errors.endTime}
-                  InputLabelProps={{
-                    shrink: true,
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  InputLabelProps={{ shrink: true }}
+                  sx={getContentFormFieldSx()}
                 />
 
                 <TextField
@@ -410,24 +416,16 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   fullWidth
                   error={!!errors.timeZone}
                   helperText={errors.timeZone || 'e.g., America/New_York, Europe/London'}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  sx={getContentFormFieldSx()}
                 />
 
-                <FormControl fullWidth>
-                  <InputLabel sx={{ fontFamily: 'Quicksand, sans-serif' }}>Status</InputLabel>
+                <FormControl fullWidth sx={getContentFormFieldSx()}>
+                  <InputLabel>Status</InputLabel>
                   <Select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
                     label="Status"
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                    }}
                   >
                     <MenuItem value="scheduled" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
                       Scheduled
@@ -450,14 +448,11 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
                   placeholder="email1@example.com, email2@example.com"
                   helperText={errors.attendees || 'Comma-separated email addresses'}
                   error={!!errors.attendees}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  sx={getContentFormFieldSx()}
                 />
-              </Stack>
+                  </Paper>
+                </Grid>
+              </Grid>
             </form>
           </Stack>
         )}
@@ -465,15 +460,17 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
 
       <DialogActions
         sx={{
-          padding: 2,
-          borderTop: `1px solid ${theme.palette.border.main}`,
+          padding: 3,
+          borderTop: `2px solid ${theme.palette.border.main}`,
         }}
       >
         <Button
           onClick={handleClose}
+          disabled={loading}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: '10px',
           }}
         >
           Cancel
@@ -483,13 +480,9 @@ const MeetingUpdateModal = ({ open, onClose, meeting: meetingProp, meetingId, on
           form="meeting-update-form"
           variant="contained"
           disabled={loading || fetching || !formData.title || !formData.startTime || !formData.endTime}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            textTransform: 'none',
-            borderRadius: '8px',
-          }}
+          sx={getContentFormPrimaryButtonSx(theme)}
         >
-          {loading ? <CircularProgress size={20} /> : 'Update Meeting'}
+          {loading ? <CircularProgress size={20} color="inherit" /> : 'Save changes'}
         </Button>
       </DialogActions>
     </Dialog>

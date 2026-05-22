@@ -47,12 +47,12 @@ describe('auth.services – reset code (forgot password)', () => {
       expect(mailService.sendResetCode).not.toHaveBeenCalled();
     });
 
-    it('returns { sent: false } when user does not exist and does not send email', async () => {
+    it('throws when user does not exist and does not send email', async () => {
       global.__resetCodeMockUser = null;
 
-      const result = await forgotPassword('nobody@example.com');
-
-      expect(result).toEqual({ sent: false });
+      await expect(forgotPassword('nobody@example.com')).rejects.toThrow(
+        'No account exists with this email address.'
+      );
       expect(User.findOne).toHaveBeenCalledWith({ email: 'nobody@example.com' });
       expect(PasswordResetToken.deleteMany).not.toHaveBeenCalled();
       expect(PasswordResetToken.create).not.toHaveBeenCalled();
@@ -60,11 +60,12 @@ describe('auth.services – reset code (forgot password)', () => {
     });
 
     it('normalizes email (trim and lowercase) when looking up user', async () => {
-      global.__resetCodeMockUser = null;
+      global.__resetCodeMockUser = { _id: 'user123', email: 'user@example.com' };
 
       await forgotPassword('  User@Example.COM  ');
 
       expect(User.findOne).toHaveBeenCalledWith({ email: 'user@example.com' });
+      expect(mailService.sendResetCode).toHaveBeenCalled();
     });
 
     it('when user exists: deletes old tokens, creates token, sends email, returns { sent: true }', async () => {

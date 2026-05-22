@@ -13,10 +13,19 @@ import {
   CircularProgress,
   ToggleButtonGroup,
   ToggleButton,
+  Grid,
+  Paper,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, Link as LinkIcon, VideoCall as VideoCallIcon } from '@mui/icons-material';
 import useMeetings from '../../../hooks/meetingHooks';
+import CoverImageUpload from '../../common/CoverImageUpload';
+import {
+  getContentFormFieldSx,
+  getContentFormPaperSx,
+  getContentFormPrimaryButtonSx,
+  CONTENT_FORM_MODAL_MAX_WIDTH,
+} from '../../common/contentFormBento';
 
 const CREATE_MODE_GOOGLE = 'google';
 const CREATE_MODE_MANUAL = 'manual';
@@ -45,6 +54,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
   });
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
+  const [coverImageFile, setCoverImageFile] = useState(null);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -103,6 +113,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
           title: formData.summary.trim(),
           description: formData.description?.trim() || '',
           meetLink: formData.meetLink.trim(),
+          ...(coverImageFile ? { coverImage: coverImageFile } : {}),
         });
         handleClose();
         if (onSuccess) onSuccess(result);
@@ -126,6 +137,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
         endTime: new Date(formData.endTime).toISOString(),
         timeZone: formData.timeZone,
         attendees: attendees.length > 0 ? attendees : undefined,
+        ...(coverImageFile ? { coverImage: coverImageFile } : {}),
       };
 
       const result = await createGoogleMeeting(meetingData);
@@ -152,6 +164,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
     });
     setErrors({});
     setSubmitError(null);
+    setCoverImageFile(null);
     onClose();
   };
 
@@ -159,12 +172,14 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="sm"
+      maxWidth="lg"
       fullWidth
       PaperProps={{
+        elevation: 8,
         sx: {
-          borderRadius: '16px',
+          borderRadius: '20px',
           fontFamily: 'Quicksand, sans-serif',
+          maxWidth: CONTENT_FORM_MODAL_MAX_WIDTH,
         },
       }}
     >
@@ -174,7 +189,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: 3,
-          borderBottom: `1px solid ${theme.palette.border.main}`,
+          borderBottom: `2px solid ${theme.palette.border.main}`,
         }}
       >
         <Typography
@@ -192,8 +207,12 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ padding: 3 }}>
-        <Stack spacing={3} sx={{ marginTop: 1 }}>
+      <DialogContent sx={{ padding: 3, pt: 2 }}>
+        <Stack spacing={2}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+            Add a cover for the child home card, then fill in meeting details. Cover uses a portrait 6×4 ratio.
+          </Typography>
+
           {submitError && (
             <Alert severity="error" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
               {submitError}
@@ -227,7 +246,18 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
           </ToggleButtonGroup>
 
           <form onSubmit={handleSubmit} id="meeting-create-form">
-            <Stack spacing={2.5}>
+            <Grid container spacing={2} alignItems="stretch">
+              <Grid item xs={12} md={5}>
+                <CoverImageUpload
+                  label="Cover photo"
+                  file={coverImageFile}
+                  onFileChange={setCoverImageFile}
+                  disabled={loading}
+                  inputId="meeting-create-cover"
+                />
+              </Grid>
+              <Grid item xs={12} md={7}>
+                <Paper variant="outlined" sx={{ ...getContentFormPaperSx(theme), display: 'flex', flexDirection: 'column', gap: 2 }}>
               <TextField
                 label={createMode === CREATE_MODE_MANUAL ? 'Title' : 'Meeting Title'}
                 name="summary"
@@ -237,12 +267,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                 fullWidth
                 error={!!errors.summary}
                 helperText={errors.summary}
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputLabelProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
+                sx={getContentFormFieldSx()}
               />
 
               <TextField
@@ -251,14 +276,9 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                 value={formData.description}
                 onChange={handleInputChange}
                 multiline
-                rows={3}
+                rows={4}
                 fullWidth
-                InputProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
-                InputLabelProps={{
-                  sx: { fontFamily: 'Quicksand, sans-serif' },
-                }}
+                sx={getContentFormFieldSx()}
               />
 
               {createMode === CREATE_MODE_MANUAL && (
@@ -272,12 +292,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                   placeholder="https://meet.google.com/xxx-xxxx-xxx or any video link"
                   error={!!errors.meetLink}
                   helperText={errors.meetLink}
-                  InputProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
-                  InputLabelProps={{
-                    sx: { fontFamily: 'Quicksand, sans-serif' },
-                  }}
+                  sx={getContentFormFieldSx()}
                 />
               )}
 
@@ -293,13 +308,8 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                     fullWidth
                     error={!!errors.startTime}
                     helperText={errors.startTime}
-                    InputLabelProps={{
-                      shrink: true,
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
-                    InputProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
+                    InputLabelProps={{ shrink: true }}
+                    sx={getContentFormFieldSx()}
                   />
 
                   <TextField
@@ -312,13 +322,8 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                     fullWidth
                     error={!!errors.endTime}
                     helperText={errors.endTime}
-                    InputLabelProps={{
-                      shrink: true,
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
-                    InputProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
+                    InputLabelProps={{ shrink: true }}
+                    sx={getContentFormFieldSx()}
                   />
 
                   <TextField
@@ -330,12 +335,7 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                     fullWidth
                     error={!!errors.timeZone}
                     helperText={errors.timeZone || 'e.g., America/New_York, Europe/London'}
-                    InputProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
-                    InputLabelProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
+                    sx={getContentFormFieldSx()}
                   />
 
                   <TextField
@@ -347,31 +347,30 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
                     placeholder="email1@example.com, email2@example.com"
                     helperText={errors.attendees || 'Comma-separated email addresses'}
                     error={!!errors.attendees}
-                    InputProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
-                    InputLabelProps={{
-                      sx: { fontFamily: 'Quicksand, sans-serif' },
-                    }}
+                    sx={getContentFormFieldSx()}
                   />
                 </>
               )}
-            </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
           </form>
         </Stack>
       </DialogContent>
 
       <DialogActions
         sx={{
-          padding: 2,
-          borderTop: `1px solid ${theme.palette.border.main}`,
+          padding: 3,
+          borderTop: `2px solid ${theme.palette.border.main}`,
         }}
       >
         <Button
           onClick={handleClose}
+          disabled={loading}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: '10px',
           }}
         >
           Cancel
@@ -389,13 +388,9 @@ const MeetingCreateModal = ({ open, onClose, onSuccess }) => {
               (connectionStatus?.oAuthEnabled && !connectionStatus?.connected)
             ))
           }
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            textTransform: 'none',
-            borderRadius: '8px',
-          }}
+          sx={getContentFormPrimaryButtonSx(theme)}
         >
-          {loading ? <CircularProgress size={20} /> : 'Create Meeting'}
+          {loading ? <CircularProgress size={20} color="inherit" /> : 'Create Meeting'}
         </Button>
       </DialogActions>
     </Dialog>

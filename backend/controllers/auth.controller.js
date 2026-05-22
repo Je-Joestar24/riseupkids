@@ -350,7 +350,7 @@ const getTerms = async (req, res) => {
  * @route   POST /api/auth/forgot-password
  * @access  Public
  * Body: { "email": "user@example.com" }
- * Returns same message whether the user exists or not (avoids email enumeration).
+ * Returns 404 when no user exists for the email.
  */
 const forgotPassword = async (req, res) => {
   try {
@@ -364,10 +364,11 @@ const forgotPassword = async (req, res) => {
     await authService.forgotPassword(email.trim());
     res.status(200).json({
       success: true,
-      message: 'If an account exists for this email, you will receive a reset code shortly.',
+      message: 'A reset code has been sent to your email.',
     });
   } catch (error) {
-    res.status(400).json({
+    const isNotFound = error.message === 'No account exists with this email address.';
+    res.status(isNotFound ? 404 : 400).json({
       success: false,
       message: error.message || 'Invalid request',
     });

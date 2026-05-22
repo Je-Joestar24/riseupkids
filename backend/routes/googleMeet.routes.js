@@ -11,6 +11,7 @@ const {
   getMeeting,
 } = require('../controllers/googleMeet.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { uploadCoverImage } = require('../middleware/upload');
 
 /**
  * Google Meet Routes
@@ -37,7 +38,7 @@ router.get('/status', protect, authorize('teacher', 'admin'), getConnectionStatu
 router.post('/disconnect', protect, authorize('teacher', 'admin'), disconnectGoogle);
 
 // Meeting management routes
-router.post('/meetings', protect, authorize('teacher', 'admin'), createMeeting);
+router.post('/meetings', protect, authorize('teacher', 'admin'), uploadCoverImage, createMeeting);
 router.patch('/meetings/:eventId', protect, authorize('teacher', 'admin'), updateMeeting);
 router.delete('/meetings/:eventId', protect, authorize('teacher', 'admin'), cancelMeeting);
 // Note: Parents can join meetings via link (no API needed)

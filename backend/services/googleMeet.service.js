@@ -189,6 +189,7 @@ const createMeeting = async (userId, meetingData) => {
         relatedCourse: meetingData.relatedCourse,
         relatedLesson: meetingData.relatedLesson,
         metadata: meetingData.metadata || {},
+        coverImage: meetingData.coverImage || null,
       });
     } catch (dbError) {
       console.error('[GoogleMeet] Error saving meeting to database:', dbError);

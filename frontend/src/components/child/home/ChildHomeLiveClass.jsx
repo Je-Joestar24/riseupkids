@@ -6,6 +6,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import StopIcon from '@mui/icons-material/Stop';
 import liveIcon from '../../../assets/images/live.png';
 import liveClassImage from '../../../assets/images/liveclass.jpeg';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import { themeColors } from '../../../config/themeColors';
 import meetingService from '../../../services/meetingService';
 import youtubeService from '../../../services/youtubeService';
@@ -166,6 +167,9 @@ const ChildHomeLiveClass = () => {
     ? activeYoutubeLive.watchUrl.replace(/\/watch\?v=/, '/embed/').split('&')[0]
     : null);
 
+  const youtubeCoverUrl = getCoverImageUrl(activeYoutubeLive?.coverImage);
+  const meetingCoverUrl = getCoverImageUrl(nextMeeting?.coverImage);
+
   return (
     <Box sx={{ marginTop: '16px' }}>
       {/* Live now: YouTube embed + End stream (teacher/admin) */}
@@ -221,6 +225,21 @@ const ChildHomeLiveClass = () => {
               </Button>
             )}
           </Box>
+          {youtubeCoverUrl && (
+            <Box
+              component="img"
+              src={youtubeCoverUrl}
+              alt={activeYoutubeLive.title ? `${activeYoutubeLive.title} cover` : 'Live stream cover'}
+              sx={{
+                width: '100%',
+                maxHeight: embedUrl ? 320 : 480,
+                aspectRatio: '6 / 4',
+                objectFit: 'cover',
+                marginBottom: 2,
+                borderRadius: 0,
+              }}
+            />
+          )}
           {embedUrl && (
             <Box
               sx={{
@@ -310,11 +329,21 @@ const ChildHomeLiveClass = () => {
               </Box>
             </Box>
             <Box sx={{ flexShrink: 0, width: { xs: '100%', md: 'auto' } }}>
-              <Box sx={{ position: 'relative', width: { xs: '100%', md: 192 }, height: 128, overflow: 'hidden', marginBottom: 1 }}>
-                <img
-                  src={liveClassImage}
-                  alt="Live class"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              <Box
+                sx={{
+                  position: 'relative',
+                  width: { xs: '100%', md: 384 },
+                  maxWidth: '100%',
+                  aspectRatio: '6 / 4',
+                  overflow: 'hidden',
+                  marginBottom: 1,
+                }}
+              >
+                <Box
+                  component="img"
+                  src={meetingCoverUrl || liveClassImage}
+                  alt={nextMeeting?.title ? `${nextMeeting.title} cover` : 'Live class'}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 />
                 <Box
                   sx={{

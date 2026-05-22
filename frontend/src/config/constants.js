@@ -15,6 +15,9 @@ export const BACKEND_BASE_URL = useRemoteApi
 export const APP_NAME = 'Rise Up Kids';
 export const APP_VERSION = '1.0.0';
 
+/** External parent signup / checkout (marketing site). */
+export const RISEUP_CHECKOUT_URL = 'https://riseup.kids/checkout';
+
 // User Roles
 export const USER_ROLES = {
   ADMIN: 'admin',

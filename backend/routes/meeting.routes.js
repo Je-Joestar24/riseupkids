@@ -12,6 +12,7 @@ const {
   deleteMeeting,
 } = require('../controllers/meeting.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { uploadCoverImage } = require('../middleware/upload');
 
 /**
  * Meeting Routes
@@ -25,7 +26,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.get('/upcoming', protect, authorize('parent', 'child', 'teacher', 'admin'), getUpcomingMeetings);
 
 // Create manual meeting (title, description, link only - no Google OAuth)
-router.post('/manual', protect, authorize('teacher', 'admin'), createManualMeeting);
+router.post('/manual', protect, authorize('teacher', 'admin'), uploadCoverImage, createManualMeeting);
 
 // Get all meetings with filters and pagination (teacher/admin only)
 router.get('/', protect, authorize('teacher', 'admin'), getAllMeetings);
@@ -34,7 +35,7 @@ router.get('/', protect, authorize('teacher', 'admin'), getAllMeetings);
 router.get('/:id', protect, authorize('teacher', 'admin'), getMeetingById);
 
 // Update meeting
-router.patch('/:id', protect, authorize('teacher', 'admin'), updateMeeting);
+router.patch('/:id', protect, authorize('teacher', 'admin'), uploadCoverImage, updateMeeting);
 
 // Archive meeting
 router.post('/:id/archive', protect, authorize('teacher', 'admin'), archiveMeeting);

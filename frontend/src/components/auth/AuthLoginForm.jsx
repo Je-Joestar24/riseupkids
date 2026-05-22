@@ -14,6 +14,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import useAuth from '../../hooks/userHook';
+import { RISEUP_CHECKOUT_URL } from '../../config/constants';
 
 /**
  * AuthLoginForm Component
@@ -203,10 +204,15 @@ const AuthLoginForm = () => {
       <Divider/>
 
       {/* Create Account Link */}
-      <Box className="auth-create-account-container" 
-        sx={{marginTop: '5px'}}>
-        <Link onClick={() => window.location.assign('/parent/signup')} className="auth-create-account-link"
-        sx={{borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none'}}>
+      <Box className="auth-create-account-container" sx={{ marginTop: '5px' }}>
+        <Link
+          href={RISEUP_CHECKOUT_URL}
+          className="auth-create-account-link"
+          sx={{ borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none' }}
+          rel="noopener noreferrer"
+          aria-label="Create a new account on Rise Up Kids checkout"
+          target="_blank"
+        >
           New here? Create Account
         </Link>
       </Box>

@@ -38,6 +38,10 @@ const meetingSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    coverImage: {
+      type: String,
+      default: null,
+    },
     startTime: {
       type: Date,
       required: false,

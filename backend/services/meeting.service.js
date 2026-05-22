@@ -18,7 +18,7 @@ const Meeting = require('../models/Meeting');
  * @returns {Object} Created meeting
  */
 const createManualMeeting = async (userId, data) => {
-  const { title, description = '', meetLink } = data;
+  const { title, description = '', meetLink, coverImage = null } = data;
 
   if (!title || !title.trim()) {
     throw new Error('Title is required');
@@ -43,6 +43,7 @@ const createManualMeeting = async (userId, data) => {
     attendees: [],
     status: 'scheduled',
     isArchived: false,
+    coverImage: coverImage || null,
   });
 
   return meeting;
@@ -80,6 +81,7 @@ const createMeeting = async (userId, meetingData) => {
     relatedCourse,
     relatedLesson,
     metadata = {},
+    coverImage = null,
   } = meetingData;
 
   // Check if meeting already exists (by googleEventId)
@@ -96,6 +98,7 @@ const createMeeting = async (userId, meetingData) => {
     existingMeeting.calendarLink = calendarLink || existingMeeting.calendarLink;
     if (relatedCourse) existingMeeting.relatedCourse = relatedCourse;
     if (relatedLesson) existingMeeting.relatedLesson = relatedLesson;
+    if (coverImage) existingMeeting.coverImage = coverImage;
     if (Object.keys(metadata).length > 0) {
       existingMeeting.metadata = new Map(Object.entries(metadata));
     }
@@ -120,6 +123,7 @@ const createMeeting = async (userId, meetingData) => {
     metadata: new Map(Object.entries(metadata)),
     status: 'scheduled',
     isArchived: false,
+    coverImage: coverImage || null,
   });
 
   return meeting;
@@ -230,10 +234,17 @@ const getMeetingByGoogleEventId = async (googleEventId) => {
  * @returns {Object} Updated meeting
  * @throws {Error} If meeting not found
  */
-const updateMeeting = async (meetingId, updates) => {
+const updateMeeting = async (meetingId, updates, files = null) => {
   const meeting = await Meeting.findById(meetingId);
   if (!meeting) {
     throw new Error('Meeting not found');
+  }
+
+  const { uploadCoverFromFiles, deleteCoverByUrl } = require('../utils/coverImage.util');
+  const newCoverUrl = await uploadCoverFromFiles(files);
+  if (newCoverUrl) {
+    if (meeting.coverImage) await deleteCoverByUrl(meeting.coverImage);
+    meeting.coverImage = newCoverUrl;
   }
 
   // Update allowed fields
@@ -309,11 +320,15 @@ const cancelMeeting = async (meetingId) => {
  * @throws {Error} If meeting not found
  */
 const deleteMeeting = async (meetingId) => {
-  const meeting = await Meeting.findByIdAndDelete(meetingId);
+  const meeting = await Meeting.findById(meetingId);
   if (!meeting) {
     throw new Error('Meeting not found');
   }
 
+  const { deleteCoverByUrl } = require('../utils/coverImage.util');
+  if (meeting.coverImage) await deleteCoverByUrl(meeting.coverImage);
+
+  await Meeting.findByIdAndDelete(meetingId);
   return true;
 };
 

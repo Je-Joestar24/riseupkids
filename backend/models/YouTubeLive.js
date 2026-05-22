@@ -53,6 +53,10 @@ const youtubeLiveSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    coverImage: {
+      type: String,
+      default: null,
+    },
     privacyStatus: {
       type: String,
       enum: ['public', 'unlisted', 'private'],

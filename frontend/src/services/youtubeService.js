@@ -1,4 +1,5 @@
 import api from '../api/axios';
+import { multipartRequestConfig } from '../utils/coverImageUrl';
 
 /**
  * YouTube Live Service
@@ -58,11 +59,28 @@ const youtubeService = {
    * @param {String} streamData.privacyStatus - Always 'public' (fixed in UI)
    * @param {Boolean} streamData.enableAutoStart - Always true (fixed in UI)
    * @param {Boolean} streamData.enableAutoStop - Always true (fixed in UI)
+   * @param {File} [streamData.coverImage] - Optional cover photo
    * @returns {Promise} API response with stream data (streamKey, rtmpUrl, watchUrl, id, etc.)
    */
   createLiveStream: async (streamData) => {
     try {
-      const response = await api.post('/youtube/live/create', streamData);
+      const { coverImage: coverFile, ...fields } = streamData;
+      const payload =
+        coverFile instanceof File
+          ? (() => {
+              const formData = new FormData();
+              Object.entries(fields).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                  formData.append(key, String(value));
+                }
+              });
+              formData.append('coverImage', coverFile);
+              return formData;
+            })()
+          : streamData;
+
+      const config = coverFile instanceof File ? multipartRequestConfig : {};
+      const response = await api.post('/youtube/live/create', payload, config);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;

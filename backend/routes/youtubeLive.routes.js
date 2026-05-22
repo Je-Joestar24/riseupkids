@@ -14,6 +14,7 @@ const {
   deleteLive,
 } = require('../controllers/youtubeLive.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { uploadCoverImage } = require('../middleware/upload');
 
 /**
  * YouTube Live Routes
@@ -42,7 +43,7 @@ router.get('/status', protect, authorize('teacher', 'admin'), getConnectionStatu
 router.post('/disconnect', protect, authorize('admin'), disconnectYouTube); // Admin only
 
 // Live stream routes (order: list before :id, /active before /:id)
-router.post('/live/create', protect, authorize('teacher', 'admin'), createLiveStream);
+router.post('/live/create', protect, authorize('teacher', 'admin'), uploadCoverImage, createLiveStream);
 router.get('/live/active', protect, getActiveLive); // Any authenticated user (child, parent, teacher, admin)
 router.get('/live', protect, authorize('teacher', 'admin'), getAllLives);
 router.get('/live/:id', protect, authorize('teacher', 'admin'), getLiveById);

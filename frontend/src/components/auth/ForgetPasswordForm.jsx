@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import forgetPasswordService from '../../services/forgetPasswordService';
+import { RISEUP_CHECKOUT_URL } from '../../config/constants';
 
 /**
  * Forgot password form: email input and Send code button.
@@ -48,7 +49,7 @@ const ForgetPasswordForm = () => {
     try {
       const data = await forgetPasswordService.requestCode(email);
       if (data?.success) {
-        setSuccessMessage(data.message || 'If an account exists for this email, you will receive a reset code shortly.');
+        setSuccessMessage(data.message || 'A reset code has been sent to your email.');
         setTimeout(() => {
           navigate('/sendcode', { state: { email: email.trim() } });
         }, 1500);
@@ -56,8 +57,14 @@ const ForgetPasswordForm = () => {
         setErrorMessage(data?.message || 'Something went wrong.');
       }
     } catch (err) {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to send code. Please try again.';
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to send code. Please try again.';
       setErrorMessage(msg);
+      if (err?.response?.status === 404) {
+        setFormErrors({ email: msg });
+      }
     } finally {
       setLoading(false);
     }
@@ -145,11 +152,11 @@ const ForgetPasswordForm = () => {
 
       <Box className="auth-create-account-container" sx={{ marginTop: '5px' }}>
         <Link
-          component="button"
-          type="button"
+          href={RISEUP_CHECKOUT_URL}
           className="auth-create-account-link"
-          sx={{ borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none', cursor: 'pointer' }}
-          onClick={() => navigate('/parent/signup')}
+          sx={{ borderRadius: '0px', fontSize: '16px', fontWeight: '600', textDecoration: 'none' }}
+          rel="noopener noreferrer"
+          aria-label="Create a new account on Rise Up Kids checkout"
         >
           New here? Create Account
         </Link>

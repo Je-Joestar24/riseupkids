@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import useYouTubeLive from '../../../hooks/youtubeHook';
 import { themeColors } from '../../../config/themeColors';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * YoutubeViewModal Component
@@ -172,6 +173,20 @@ const YoutubeViewModal = ({ open, liveId, onClose, onEnd, onArchive, onDelete, o
 
           {currentLive && !detailLoading && (
             <>
+              {getCoverImageUrl(currentLive.coverImage) && (
+                <Box
+                  component="img"
+                  src={getCoverImageUrl(currentLive.coverImage)}
+                  alt={currentLive.title ? `${currentLive.title} cover` : 'Live cover'}
+                  sx={{
+                    width: '100%',
+                    maxHeight: 200,
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                    border: `1px solid ${border}`,
+                  }}
+                />
+              )}
               <Box>
                 <Typography
                   variant="subtitle2"
