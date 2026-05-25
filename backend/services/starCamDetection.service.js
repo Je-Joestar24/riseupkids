@@ -128,6 +128,28 @@ function resolveHuntItem(items, { itemOrder, sortOrder }) {
   return null;
 }
 
+function findVocabByTarget(vocab = [], target) {
+  const safeTarget = normalizeLabelToken(target);
+  if (!safeTarget) return null;
+  return (vocab || []).find((v) => normalizeLabelToken(v?.target) === safeTarget) || null;
+}
+
+function isSeedPlaceholderAudioUrl(url) {
+  const safeUrl = String(url || '').toLowerCase();
+  return safeUrl.includes('/starcam_seed_') && safeUrl.includes('_temp.');
+}
+
+function pickRealAudioUrl(...mediaDocs) {
+  const fallback = [];
+  for (const media of mediaDocs) {
+    const url = media?.url || null;
+    if (!url) continue;
+    if (!isSeedPlaceholderAudioUrl(url)) return url;
+    fallback.push(url);
+  }
+  return fallback[0] || null;
+}
+
 /**
  * Star Cam hunt-step object detection using Google Vision label detection.
  *
@@ -164,7 +186,14 @@ async function detectMissionObjectForChild({
   }
 
   const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
-    .select('missionId title items')
+    .select('missionId title items vocab')
+    .populate({ path: 'items.questionAudio', select: 'url type duration' })
+    .populate({ path: 'items.tryAgainAudio', select: 'url type duration' })
+    .populate({ path: 'items.successAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.audio', select: 'url type duration' })
+    .populate({ path: 'vocab.introAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })
+    .populate({ path: 'vocab.successAudio', select: 'url type duration' })
     .lean();
 
   if (!mission) {
@@ -182,6 +211,7 @@ async function detectMissionObjectForChild({
   }
 
   const target = asTrimmed(huntItem.target).toLowerCase();
+  const matchingVocab = findVocabByTarget(mission.vocab || [], target);
   const threshold = getConfidenceThreshold();
 
   const { labels } = await googleVisionService.detectLabelsFromImageBuffer(imageBuffer);
@@ -194,12 +224,14 @@ async function detectMissionObjectForChild({
     ? {
         title: 'Great job!',
         message: asTrimmed(huntItem.successText) || asTrimmed(huntItem.success) || 'You found the right object.',
+        audioUrl: pickRealAudioUrl(huntItem.successAudio, matchingVocab?.successAudio),
         tone: 'success',
         nextAction: 'continue',
       }
     : {
-        title: 'Almost there!',
+        title: 'Try again!',
         message: asTrimmed(huntItem.tryAgainText) || asTrimmed(huntItem.fail) || 'Try again and find the object one more time.',
+        audioUrl: pickRealAudioUrl(huntItem.tryAgainAudio, matchingVocab?.tryAgainAudio),
         tone: 'retry',
         nextAction: 'retry',
       };

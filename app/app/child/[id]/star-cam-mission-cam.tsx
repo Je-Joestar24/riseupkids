@@ -115,7 +115,7 @@ export default function StarCamMissionCamRoute() {
   const [foundCount, setFoundCount] = useState(0);
   const [notificationState, setNotificationState] = useState<{
     visible: boolean;
-    tone: 'success' | 'retry';
+    tone: 'success' | 'retry' | 'checking';
     title: string;
     message: string;
   }>({
@@ -124,6 +124,7 @@ export default function StarCamMissionCamRoute() {
     title: '',
     message: '',
   });
+  const [isCheckingScan, setIsCheckingScan] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
   const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectInFlightRef = useRef(false);
@@ -297,6 +298,11 @@ export default function StarCamMissionCamRoute() {
     void playAudio(questionAudioUrl);
   }, [playAudio, questionAudioUrl]);
 
+  const playQuestionAudioForScan = useCallback(() => {
+    if (!questionAudioUrl) return wait(700);
+    return playAudio(questionAudioUrl, { waitForFinish: true, fallbackMs: 2500 });
+  }, [playAudio, questionAudioUrl]);
+
   const onBack = () => {
     if (!id) {
       router.back();
@@ -324,6 +330,15 @@ export default function StarCamMissionCamRoute() {
       return;
     }
     detectInFlightRef.current = true;
+    setIsCheckingScan(true);
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+    setNotificationState({
+      visible: true,
+      tone: 'checking',
+      title: '?',
+      message: questionPrompt,
+    });
+    const questionAudioPromise = playQuestionAudioForScan();
     try {
       const photo = await cameraRef.current?.takePictureAsync?.({
         quality: 0.45,
@@ -337,10 +352,13 @@ export default function StarCamMissionCamRoute() {
           title: 'Scan again',
           message: 'The camera did not capture a photo.',
         });
+        await questionAudioPromise;
         notificationTimerRef.current = setTimeout(() => {
           setNotificationState((prev) => ({ ...prev, visible: false }));
+          setIsCheckingScan(false);
           detectInFlightRef.current = false;
         }, 1200);
+        setIsCheckingScan(false);
         detectInFlightRef.current = false;
         return;
       }
@@ -365,6 +383,7 @@ export default function StarCamMissionCamRoute() {
       );
 
       if (!detection) {
+        await questionAudioPromise;
         if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
         setNotificationState({
           visible: true,
@@ -374,15 +393,20 @@ export default function StarCamMissionCamRoute() {
         });
         notificationTimerRef.current = setTimeout(() => {
           setNotificationState((prev) => ({ ...prev, visible: false }));
+          setIsCheckingScan(false);
           detectInFlightRef.current = false;
         }, 1200);
+        setIsCheckingScan(false);
         detectInFlightRef.current = false;
         return;
       }
 
+      await questionAudioPromise;
+      const feedbackAudioUrl = resolveMediaUrl(detection.ui?.audioUrl);
       if (detection.result?.isMatch) {
         if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
         setIsAdvancing(true);
+        setIsCheckingScan(false);
         setFoundCount((prev) => Math.max(prev, currentItemIndex + 1));
         const isLastObject = currentItemIndex >= totalObjects - 1;
         setNotificationState({
@@ -391,7 +415,7 @@ export default function StarCamMissionCamRoute() {
           title: detection.ui?.title || 'Great job!',
           message: detection.ui?.message || successText || `Yes, that is a ${targetLabel}.`,
         });
-        await playAudio(successAudioUrl, { waitForFinish: true, fallbackMs: 1500 });
+        await playAudio(feedbackAudioUrl || successAudioUrl, { waitForFinish: true, fallbackMs: 1500 });
         setNotificationState((prev) => ({ ...prev, visible: false }));
         if (isLastObject && id) {
           setFoundCount(totalObjects);
@@ -405,6 +429,7 @@ export default function StarCamMissionCamRoute() {
         detectInFlightRef.current = false;
         return;
       }
+      setIsCheckingScan(false);
       if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
       setNotificationState({
         visible: true,
@@ -412,10 +437,12 @@ export default function StarCamMissionCamRoute() {
         title: detection.ui?.title || 'Try again!',
         message: detection.ui?.message || tryAgainText,
       });
-      await playAudio(tryAgainAudioUrl, { waitForFinish: true, fallbackMs: 1200 });
+      await playAudio(feedbackAudioUrl || tryAgainAudioUrl, { waitForFinish: true, fallbackMs: 1200 });
       setNotificationState((prev) => ({ ...prev, visible: false }));
       detectInFlightRef.current = false;
     } catch (error) {
+      await questionAudioPromise;
+      setIsCheckingScan(false);
       const scanFailure = getScanFailureCopy(error);
       if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
       setNotificationState({
@@ -429,7 +456,7 @@ export default function StarCamMissionCamRoute() {
       }, 1800);
       detectInFlightRef.current = false;
     }
-  }, [childId, missionSlug, hasCameraPermission, detectObject, currentItemIndex, targetLabel, totalObjects, id, router, categoryKey, missionFlow?.mission?.title, playAudio, successAudioUrl, successText, tryAgainAudioUrl, tryAgainText]);
+  }, [childId, missionSlug, hasCameraPermission, detectObject, currentItemIndex, targetLabel, totalObjects, id, router, categoryKey, missionFlow?.mission?.title, playAudio, playQuestionAudioForScan, questionPrompt, successAudioUrl, successText, tryAgainAudioUrl, tryAgainText]);
 
   return (
     <StarCamMissionCamScreen
@@ -443,7 +470,7 @@ export default function StarCamMissionCamRoute() {
       totalStars={totalObjects}
       isLoadingCameraPermission={isLoadingCameraPermission}
       hasCameraPermission={hasCameraPermission}
-      isDetecting={isDetectingObject || isAdvancing}
+      isDetecting={isCheckingScan || isDetectingObject || isAdvancing}
       notificationVisible={notificationState.visible}
       notificationTone={notificationState.tone}
       notificationTitle={notificationState.title}

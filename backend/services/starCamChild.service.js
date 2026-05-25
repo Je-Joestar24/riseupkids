@@ -63,6 +63,22 @@ function findVocabByTarget(vocab = [], target) {
   return (vocab || []).find((v) => normalizeTarget(v?.target) === safeTarget) || null;
 }
 
+function isSeedPlaceholderAudioUrl(url) {
+  const safeUrl = String(url || '').toLowerCase();
+  return safeUrl.includes('/starcam_seed_') && safeUrl.includes('_temp.');
+}
+
+function pickRealAudioUrl(...mediaDocs) {
+  const fallback = [];
+  for (const media of mediaDocs) {
+    const url = media?.url || null;
+    if (!url) continue;
+    if (!isSeedPlaceholderAudioUrl(url)) return url;
+    fallback.push(url);
+  }
+  return fallback[0] || null;
+}
+
 function getScanQuestionText(item, vocab) {
   const explicit = asTrimmed(item?.questionText) || asTrimmed(item?.prompt);
   if (explicit) return explicit;
@@ -225,13 +241,13 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
         target: it.target,
         prompt: questionText,
         questionText,
-        questionAudioUrl: it.questionAudio?.url || vocab?.introAudio?.url || vocab?.audio?.url || null,
+        questionAudioUrl: pickRealAudioUrl(it.questionAudio, vocab?.introAudio, vocab?.audio),
         success: successText,
         successText,
-        successAudioUrl: it.successAudio?.url || vocab?.successAudio?.url || null,
+        successAudioUrl: pickRealAudioUrl(it.successAudio, vocab?.successAudio),
         fail: tryAgainText,
         tryAgainText,
-        tryAgainAudioUrl: it.tryAgainAudio?.url || vocab?.tryAgainAudio?.url || null,
+        tryAgainAudioUrl: pickRealAudioUrl(it.tryAgainAudio, vocab?.tryAgainAudio),
         showSampleImage: false,
       };
     });

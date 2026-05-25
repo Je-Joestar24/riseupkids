@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Fonts } from '@/constants/theme';
@@ -7,7 +7,7 @@ import { colors } from '@/config/theme/colors';
 
 export interface StarCamMissionNotificationsProps {
   visible: boolean;
-  tone: 'success' | 'retry';
+  tone: 'success' | 'retry' | 'checking';
   title: string;
   message?: string;
 }
@@ -68,14 +68,21 @@ export const StarCamMissionNotifications = memo(function StarCamMissionNotificat
 
   if (!visible) return null;
 
-  const titleColor = tone === 'success' ? colors.secondary : colors.orange;
+  const isChecking = tone === 'checking';
+  const titleColor = tone === 'success' ? colors.secondary : isChecking ? colors.primary : colors.orange;
   const showMessage = Boolean(message?.trim());
 
   return (
     <View pointerEvents="none" style={styles.overlay}>
       <Animated.View style={[styles.card, { opacity: opacityAnim, transform: [{ translateY: floatAnim }] }]}>
         <ThemedText style={[styles.title, { color: titleColor }]}>{title}</ThemedText>
-        {showMessage ? <ThemedText style={[styles.message, { color: titleColor }]}>{message}</ThemedText> : null}
+        {/* {showMessage ? <ThemedText style={[styles.message, { color: titleColor }]}>{message}</ThemedText> : null} */}
+        {isChecking ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator color={titleColor} size="small" />
+            <ThemedText style={[styles.loadingText, { color: titleColor }]}>Checking...</ThemedText>
+          </View>
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -118,6 +125,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 24,
     lineHeight: 30,
+  },
+  loadingRow: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontFamily: Fonts.semiBold,
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
 

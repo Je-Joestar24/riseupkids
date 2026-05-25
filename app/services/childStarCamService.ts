@@ -208,6 +208,7 @@ export interface StarCamDetectObjectPayload {
   ui: {
     title: string;
     message: string;
+    audioUrl?: string | null;
     tone: 'success' | 'retry';
     nextAction: 'continue' | 'retry';
   };

@@ -25,7 +25,7 @@ export interface StarCamMissionCamScreenProps {
   hasCameraPermission: boolean;
   isDetecting?: boolean;
   notificationVisible?: boolean;
-  notificationTone?: 'success' | 'retry';
+  notificationTone?: 'success' | 'retry' | 'checking';
   notificationTitle?: string;
   notificationMessage?: string;
   cameraRef?: React.RefObject<CameraView | null>;
@@ -55,7 +55,7 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   onReplayPromptAudio,
   onBack,
 }: StarCamMissionCamScreenProps) {
-  const displayPrompt = promptText?.trim() || `Is this a ${targetLabel}?`;
+  const displayPrompt = promptText?.trim() || `Ca you find a ${targetLabel}?`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>

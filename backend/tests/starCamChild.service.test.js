@@ -212,5 +212,59 @@ describe('starCamChild.service', () => {
       order: 7,
     });
   });
+
+  it('prefers real vocab audio over seeded item placeholder audio in start flow', async () => {
+    StarCamMission.findOne.mockReturnValue({
+      populate: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({
+        _id: 'mission-1',
+        missionId: 'reading_seed_1',
+        title: 'Reading',
+        category: { key: 'reading', name: 'Reading' },
+        introText: '',
+        missionImage: null,
+        introImage: null,
+        missionShortVideo: null,
+        rewardImage: null,
+        rewardAudio: null,
+        rewardVideo: null,
+        vocab: [
+          {
+            displayText: 'Headphones',
+            target: 'headphones',
+            image: null,
+            pronunciationVideo: null,
+            audio: { url: '/uploads/media/audio/starcam_seed_vocabulary_audio_temp.mp3' },
+            introAudio: { url: 'https://cdn.example.com/headphones-question.m4a' },
+            tryAgainAudio: { url: 'https://cdn.example.com/headphones-try.m4a' },
+            successAudio: { url: 'https://cdn.example.com/headphones-success.m4a' },
+            order: 1,
+          },
+        ],
+        items: [
+          {
+            target: 'headphones',
+            sortOrder: 0,
+            questionText: 'Can you find headphones?',
+            questionAudio: { url: '/uploads/media/audio/starcam_seed_scan_question_audio_temp.mp3' },
+            tryAgainText: 'Try again.',
+            tryAgainAudio: { url: '/uploads/media/audio/starcam_seed_vocabulary_audio_temp.mp3' },
+            successText: 'Great job.',
+            successAudio: { url: '/uploads/media/audio/starcam_seed_vocabulary_audio_temp.mp3' },
+          },
+        ],
+      }),
+    });
+
+    const result = await getMissionStartFlowForChild({
+      parentUserId: 'parent-1',
+      childId: 'child-1',
+      missionId: 'reading_seed_1',
+    });
+
+    expect(result.flow.starCam.items[0].questionAudioUrl).toBe('https://cdn.example.com/headphones-question.m4a');
+    expect(result.flow.starCam.items[0].tryAgainAudioUrl).toBe('https://cdn.example.com/headphones-try.m4a');
+    expect(result.flow.starCam.items[0].successAudioUrl).toBe('https://cdn.example.com/headphones-success.m4a');
+  });
 });
 
