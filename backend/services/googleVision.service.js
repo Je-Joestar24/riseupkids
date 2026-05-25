@@ -79,7 +79,7 @@ function getVisionClient() {
 
 function getRequestTimeoutMs() {
   const n = Number(process.env.VISION_REQUEST_TIMEOUT_MS);
-  return Number.isFinite(n) && n > 0 ? n : 10000;
+  return Number.isFinite(n) && n > 0 ? n : 25000;
 }
 
 function getLabelMaxResults() {
@@ -115,16 +115,20 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
     hasClientEmail: Boolean(process.env.GOOGLE_VISION_CLIENT_EMAIL),
     hasPrivateKey: Boolean(process.env.GOOGLE_VISION_PRIVATE_KEY),
   });
-  const detectionPromise = client.annotateImage({
-    image: { content: imageBuffer },
-    features: [{ type: 'LABEL_DETECTION', maxResults }],
-  });
+  const detectionPromise = client.annotateImage(
+    {
+      image: { content: imageBuffer },
+      features: [{ type: 'LABEL_DETECTION', maxResults }],
+    },
+    { timeout: timeoutMs }
+  );
 
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       const e = new Error('Vision API request timed out');
-      e.statusCode = 503;
+      e.statusCode = 504;
+      e.code = 'STARCAM_VISION_TIMEOUT';
       reject(e);
     }, timeoutMs);
     if (timeoutId && typeof timeoutId.unref === 'function') timeoutId.unref();
@@ -142,13 +146,17 @@ async function detectLabelsFromImageBuffer(imageBuffer) {
       errorStatus: e?.status || null,
       errorStatusCode: e?.statusCode || null,
     });
-    if (e.statusCode) throw e;
+    if (e.statusCode) {
+      if (!e.code) e.code = 'STARCAM_VISION_TIMEOUT';
+      throw e;
+    }
     const err = new Error(
       isVisionErrorVerboseEnabled()
         ? `Vision API request failed: ${buildVisionProviderErrorMessage(e)}`
         : 'Vision API request failed'
     );
     err.statusCode = 503;
+    err.code = 'STARCAM_VISION_UNAVAILABLE';
     err.cause = e;
     throw err;
   } finally {

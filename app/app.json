@@ -36,6 +36,18 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rise Up Kids needs photo library access so children can choose images to share."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Rise Up Kids needs microphone access for audio recording activities."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/lms-logo.png",

@@ -27,6 +27,32 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
+export type StarCamDetectErrorCode =
+  | 'STARCAM_UPLOAD_TIMEOUT'
+  | 'STARCAM_NETWORK_ERROR'
+  | 'STARCAM_IMAGE_REQUIRED'
+  | 'STARCAM_VISION_TIMEOUT'
+  | 'STARCAM_VISION_UNAVAILABLE'
+  | 'STARCAM_INVALID_STEP'
+  | 'STARCAM_DETECT_FAILED';
+
+export class StarCamDetectObjectError extends Error {
+  statusCode?: number;
+  code: StarCamDetectErrorCode;
+  details?: unknown;
+
+  constructor(
+    message: string,
+    options: { statusCode?: number; code?: StarCamDetectErrorCode; details?: unknown } = {}
+  ) {
+    super(message);
+    this.name = 'StarCamDetectObjectError';
+    this.statusCode = options.statusCode;
+    this.code = options.code ?? 'STARCAM_DETECT_FAILED';
+    this.details = options.details;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Categories
 // ---------------------------------------------------------------------------
@@ -95,6 +121,10 @@ export interface StarCamPracticeItem {
   imageUrl: string | null;
   pronunciationVideoUrl?: string | null;
   audioUrl: string | null;
+  /** Main Star Cam question audio, e.g. "Can you find a book?". */
+  introAudioUrl?: string | null;
+  tryAgainAudioUrl?: string | null;
+  successAudioUrl?: string | null;
   /** Default voice line suggestion (can be ignored by UI if audio file already contains it). */
   audioPrompt: string;
   /** Placeholder for future AI detection in practice screen. */
@@ -189,6 +219,38 @@ export interface StarCamDetectObjectPayload {
     threshold: number;
     topLabels?: { description: string; score: number }[];
   };
+}
+
+type StarCamDetectApiResponse = ApiResponse<StarCamDetectObjectPayload> & {
+  code?: StarCamDetectErrorCode;
+  details?: unknown;
+};
+
+const DETECT_UPLOAD_TIMEOUT_MS = 45000;
+
+function mapDetectErrorCode(status: number, message?: string): StarCamDetectErrorCode {
+  const safeMessage = String(message || '').toLowerCase();
+  if (status === 400 && safeMessage.includes('image file is required')) return 'STARCAM_IMAGE_REQUIRED';
+  if (status === 400 && safeMessage.includes('invalid hunt step')) return 'STARCAM_INVALID_STEP';
+  if (status === 503 || status === 504) {
+    if (safeMessage.includes('timed out') || safeMessage.includes('timeout')) return 'STARCAM_VISION_TIMEOUT';
+    if (safeMessage.includes('not available') || safeMessage.includes('not enabled')) return 'STARCAM_VISION_UNAVAILABLE';
+  }
+  return 'STARCAM_DETECT_FAILED';
+}
+
+async function parseDetectResponse(response: Response): Promise<StarCamDetectApiResponse | null> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as StarCamDetectApiResponse;
+  } catch {
+    return {
+      success: false,
+      data: null as never,
+      message: text,
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -289,20 +351,54 @@ export const childStarCamService = {
           uriPreview: normalizedUri.slice(0, 80),
         });
       }
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body: formData,
-      });
+      const abortController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, DETECT_UPLOAD_TIMEOUT_MS);
+      let response: Response;
+      try {
+        response = await fetch(`${API_BASE_URL}${endpoint}`, {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: formData,
+          signal: abortController.signal,
+        });
+      } catch (err) {
+        const isAbort = err instanceof Error && err.name === 'AbortError';
+        if (__DEV__) {
+          console.log('[StarCamDetectDebug][app] upload-error', {
+            endpoint,
+            errorName: err instanceof Error ? err.name : null,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+        }
+        throw new StarCamDetectObjectError(
+          isAbort
+            ? 'The scan took too long. Please check your connection and try again.'
+            : 'The scan could not reach the server. Please check your connection and try again.',
+          {
+            statusCode: isAbort ? 408 : undefined,
+            code: isAbort ? 'STARCAM_UPLOAD_TIMEOUT' : 'STARCAM_NETWORK_ERROR',
+          }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
       if (__DEV__) {
         console.log('[StarCamDetectDebug][app] upload-response', {
           status: response.status,
           ok: response.ok,
         });
       }
-      const payload = (await response.json()) as ApiResponse<StarCamDetectObjectPayload>;
+      const payload = await parseDetectResponse(response);
       if (!response.ok || !payload?.success) {
-        throw new Error(payload?.message || `Request failed (${response.status})`);
+        const message = payload?.message || `Request failed (${response.status})`;
+        throw new StarCamDetectObjectError(message, {
+          statusCode: response.status,
+          code: payload?.code ?? mapDetectErrorCode(response.status, message),
+          details: payload?.details,
+        });
       }
       return payload;
     })();

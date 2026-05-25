@@ -16,6 +16,7 @@ import 'react-native-reanimated';
 import { GlobalDialog } from '@/components/ui/global-dialog';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/authHook';
+import { useStartupPermissions } from '@/hooks/useStartupPermissions';
 import { setTokenGetter } from '@/services/tokenBridge';
 import { useAuthStore } from '@/store/useAuthStore';
 
@@ -35,6 +36,7 @@ export default function RootLayout() {
     Quicksand_600SemiBold,
     Quicksand_700Bold,
   });
+  useStartupPermissions(fontsLoaded);
 
   useEffect(() => {
     if (fontsLoaded) {

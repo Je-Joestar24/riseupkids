@@ -40,6 +40,7 @@ function buildVisionDebugDetails(error) {
   return {
     errorName: error?.name || null,
     errorMessage: error?.message || null,
+    errorCode: error?.code || null,
     errorStatusCode: error?.statusCode || null,
     causeName: cause?.name || null,
     causeMessage: cause?.message || null,
@@ -138,6 +139,7 @@ async function postChildMissionDetectObject(req, res) {
     const response = {
       success: false,
       message: error.message || 'Object detection failed',
+      code: error.code || 'STARCAM_DETECT_FAILED',
     };
     if (shouldExposeDetectErrorDetails()) {
       response.details = buildVisionDebugDetails(error);

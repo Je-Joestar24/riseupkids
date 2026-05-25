@@ -159,6 +159,7 @@ async function detectMissionObjectForChild({
   if (!googleVisionService.isVisionConfigured()) {
     const err = new Error('Object detection is not available. Please try again later.');
     err.statusCode = 503;
+    err.code = 'STARCAM_VISION_UNAVAILABLE';
     throw err;
   }
 
@@ -176,6 +177,7 @@ async function detectMissionObjectForChild({
   if (!huntItem || !asTrimmed(huntItem.target)) {
     const err = new Error('Invalid hunt step: provide itemOrder (1-7) or sortOrder (0-6)');
     err.statusCode = 400;
+    err.code = 'STARCAM_INVALID_STEP';
     throw err;
   }
 
