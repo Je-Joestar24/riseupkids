@@ -27,11 +27,13 @@ const StarCamCreateVocabularyModa = ({
 }) => {
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const introAudioInputRef = useRef(null);
   const tryAgainAudioInputRef = useRef(null);
   const successAudioInputRef = useRef(null);
   const pronunciationVideoInputRef = useRef(null);
   const [imagePreview, setImagePreview] = useState('');
   const [audioPreview, setAudioPreview] = useState('');
+  const [introAudioPreview, setIntroAudioPreview] = useState('');
   const [tryAgainAudioPreview, setTryAgainAudioPreview] = useState('');
   const [successAudioPreview, setSuccessAudioPreview] = useState('');
   const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
@@ -40,6 +42,7 @@ const StarCamCreateVocabularyModa = ({
     const hasRequiredFilesFromExisting = Boolean(
       existingVocabMedia?.imageUrl &&
         existingVocabMedia?.audioUrl &&
+        existingVocabMedia?.introAudioUrl &&
         existingVocabMedia?.tryAgainAudioUrl &&
         existingVocabMedia?.successAudioUrl
     );
@@ -49,6 +52,7 @@ const StarCamCreateVocabularyModa = ({
         String(newVocab?.target || '').trim() &&
         (newVocab?.imageFile || !isCreateMode || hasRequiredFilesFromExisting) &&
         (newVocab?.audioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
+        (newVocab?.introAudioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
         (newVocab?.tryAgainAudioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
         (newVocab?.successAudioFile || !isCreateMode || hasRequiredFilesFromExisting)
     );
@@ -75,6 +79,17 @@ const StarCamCreateVocabularyModa = ({
     setAudioPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [newVocab?.audioFile, existingVocabMedia?.audioUrl]);
+
+  useEffect(() => {
+    const file = newVocab?.introAudioFile;
+    if (!file) {
+      setIntroAudioPreview(existingVocabMedia?.introAudioUrl || '');
+      return undefined;
+    }
+    const url = URL.createObjectURL(file);
+    setIntroAudioPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [newVocab?.introAudioFile, existingVocabMedia?.introAudioUrl]);
 
   useEffect(() => {
     const file = newVocab?.tryAgainAudioFile;
@@ -127,7 +142,10 @@ const StarCamCreateVocabularyModa = ({
               Audio guide:
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Main audio (question): "Can you find a book?"
+              Main audio: "Can you find a book?"
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              Scan question audio: "Is this a book?"
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               Try again audio: "Ow that's not a book, let's try again."
@@ -253,17 +271,26 @@ const StarCamCreateVocabularyModa = ({
                   <Stack spacing={1}>
                     <Typography sx={{ fontWeight: 700 }}>Audio Set</Typography>
                     <input ref={audioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('audioFile', e.target.files?.[0] || null)} />
+                    <input ref={introAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('introAudioFile', e.target.files?.[0] || null)} />
                     <input ref={tryAgainAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('tryAgainAudioFile', e.target.files?.[0] || null)} />
                     <input ref={successAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('successAudioFile', e.target.files?.[0] || null)} />
 
                     {[
                       {
-                        label: 'Main Audio (Question)',
+                        label: 'Main Audio',
                         hint: 'Sample: "Can you find a book?"',
                         preview: audioPreview,
                         ref: audioInputRef,
-                        empty: 'Click to upload main question audio',
-                        ariaLabel: 'Upload or change main question audio',
+                        empty: 'Click to upload main audio',
+                        ariaLabel: 'Upload or change main audio',
+                      },
+                      {
+                        label: 'Scan Question Audio',
+                        hint: 'Sample: "Is this a book?"',
+                        preview: introAudioPreview,
+                        ref: introAudioInputRef,
+                        empty: 'Click to upload scan question audio',
+                        ariaLabel: 'Upload or change scan question audio',
                       },
                       {
                         label: 'Try Again Audio',

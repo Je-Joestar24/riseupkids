@@ -13,9 +13,9 @@ import {
 
 const INITIAL_FORM = {
   target: '',
-  prompt: '',
-  success: '',
-  fail: '',
+  questionText: '',
+  successText: '',
+  tryAgainText: '',
 };
 
 const StarCamMissionItemEditModal = ({
@@ -36,9 +36,9 @@ const StarCamMissionItemEditModal = ({
     }
     setForm({
       target: String(item.target || ''),
-      prompt: String(item.prompt || ''),
-      success: String(item.success || ''),
-      fail: String(item.fail || ''),
+      questionText: String(item.questionText || item.prompt || ''),
+      successText: String(item.successText || item.success || ''),
+      tryAgainText: String(item.tryAgainText || item.fail || ''),
     });
   }, [open, item]);
 
@@ -46,9 +46,9 @@ const StarCamMissionItemEditModal = ({
     () =>
       Boolean(
         String(form.target || '').trim() &&
-          String(form.prompt || '').trim() &&
-          String(form.success || '').trim() &&
-          String(form.fail || '').trim()
+          String(form.questionText || '').trim() &&
+          String(form.successText || '').trim() &&
+          String(form.tryAgainText || '').trim()
       ),
     [form]
   );
@@ -62,9 +62,9 @@ const StarCamMissionItemEditModal = ({
     if (!item || !isValid || mutating) return;
     await onSave?.({
       target: String(form.target || '').trim().toLowerCase(),
-      prompt: String(form.prompt || '').trim(),
-      success: String(form.success || '').trim(),
-      fail: String(form.fail || '').trim(),
+      questionText: String(form.questionText || '').trim(),
+      successText: String(form.successText || '').trim(),
+      tryAgainText: String(form.tryAgainText || '').trim(),
     });
   };
 
@@ -75,7 +75,7 @@ const StarCamMissionItemEditModal = ({
 
   return (
     <Dialog open={open} onClose={mutating ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 700 }}>Edit Mission Object</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>Edit Scan Question</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 0.5 }}>
           <Box>
@@ -92,39 +92,43 @@ const StarCamMissionItemEditModal = ({
             required
             disabled={mutating}
             inputProps={{ maxLength: 60 }}
+            helperText="Must match one vocabulary detect target so audio can be resolved."
           />
           <TextField
-            label="Prompt"
-            value={form.prompt}
-            onChange={handleChange('prompt')}
+            label="Question Text"
+            value={form.questionText}
+            onChange={handleChange('questionText')}
             fullWidth
             required
             disabled={mutating}
             inputProps={{ maxLength: 200 }}
+            helperText='Example: "Is this a book?"'
           />
           <TextField
-            label="Success Message"
-            value={form.success}
-            onChange={handleChange('success')}
+            label="Success Text"
+            value={form.successText}
+            onChange={handleChange('successText')}
             fullWidth
             required
             disabled={mutating}
             inputProps={{ maxLength: 200 }}
+            helperText='Example: "That is a book, yeyy."'
           />
           <TextField
-            label="Fail Message"
-            value={form.fail}
-            onChange={handleChange('fail')}
+            label="Try Again Text"
+            value={form.tryAgainText}
+            onChange={handleChange('tryAgainText')}
             fullWidth
             required
             disabled={mutating}
             inputProps={{ maxLength: 200 }}
+            helperText='Example: "Ow that is not a book, let us try again."'
           />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2.2, justifyContent: 'space-between' }}>
         <Button color="error" onClick={handleDelete} disabled={mutating}>
-          Delete Object
+          Delete Scan Item
         </Button>
         <Stack direction="row" spacing={1}>
           <Button onClick={onClose} disabled={mutating}>

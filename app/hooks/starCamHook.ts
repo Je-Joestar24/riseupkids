@@ -33,6 +33,7 @@ export interface UseStarCamReturn {
   isLoadingPracticeMaterial: boolean;
   isDetectingObject: boolean;
   error: string | null;
+  lastDetection: StarCamDetectObjectPayload | null;
   // Derived
   hasCategories: boolean;
   hasMissions: boolean;
@@ -73,6 +74,7 @@ export function useStarCam(): UseStarCamReturn {
   const isLoadingPracticeMaterial = useStarCamStore((s) => s.isLoadingPracticeMaterial);
   const isDetectingObject = useStarCamStore((s) => s.isDetectingObject);
   const error = useStarCamStore((s) => s.error);
+  const lastDetection = useStarCamStore((s) => s.lastDetection);
 
   const fetchCategories = useStarCamStore((s) => s.fetchCategories);
   const selectCategory = useStarCamStore((s) => s.selectCategory);
@@ -153,6 +155,7 @@ export function useStarCam(): UseStarCamReturn {
       isLoadingPracticeMaterial,
       isDetectingObject,
       error,
+      lastDetection,
       hasCategories: categories.length > 0,
       hasMissions: missions.length > 0,
       practiceItems,
@@ -181,6 +184,7 @@ export function useStarCam(): UseStarCamReturn {
       isLoadingPracticeMaterial,
       isDetectingObject,
       error,
+      lastDetection,
       practiceItems,
       huntItems,
       loadCategories,

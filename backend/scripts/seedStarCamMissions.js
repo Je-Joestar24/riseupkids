@@ -160,6 +160,7 @@ function buildMissionPayload({
   missionImageId,
   vocabImageId,
   vocabAudioId,
+  questionAudioId,
   sampleVideoId,
 }) {
   const words = isReadingCategory(category)
@@ -173,6 +174,8 @@ function buildMissionPayload({
       target: normalizeWord(word),
       image: vocabImageId,
       audio: vocabAudioId,
+      // Scan question audio uses a separate slot from the main guide/pronunciation audio.
+      introAudio: questionAudioId,
       // Required by schema for published missions; keep placeholders until real audio is uploaded.
       tryAgainAudio: vocabAudioId,
       successAudio: vocabAudioId,
@@ -185,9 +188,15 @@ function buildMissionPayload({
     const readable = titleCase(word.replace(/_/g, ' '));
     return {
       target: normalizeWord(word),
-      prompt: `Can you find a ${readable.toLowerCase()}?`,
+      prompt: `Is this a ${readable.toLowerCase()}?`,
+      questionText: `Is this a ${readable.toLowerCase()}?`,
+      questionAudio: questionAudioId,
       success: `Great! You found the ${readable.toLowerCase()}!`,
+      successText: `Great! You found the ${readable.toLowerCase()}!`,
+      successAudio: vocabAudioId,
       fail: `Not quite. Try to find the ${readable.toLowerCase()}.`,
+      tryAgainText: `Not quite. Try to find the ${readable.toLowerCase()}.`,
+      tryAgainAudio: vocabAudioId,
       sortOrder: idx,
     };
   });
@@ -222,6 +231,7 @@ async function seedStarCamMissions() {
     missionImage: path.join(backendRoot, 'assets', 'seeds', 'mission_image_temp.png'),
     vocabImage: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_image_temp.png'),
     vocabAudio: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_audio_temp.mp3'),
+    questionAudio: path.join(backendRoot, 'assets', 'seeds', 'vocabulary_audio_temp.mp3'),
     sampleVideo: path.join(backendRoot, 'assets', 'seeds', 'sample_video.mp4'),
   };
 
@@ -249,7 +259,7 @@ async function seedStarCamMissions() {
     }
 
     const seederUserId = await resolveSeederUserId();
-    const [missionImageId, vocabImageId, vocabAudioId, sampleVideoId] = await Promise.all([
+    const [missionImageId, vocabImageId, vocabAudioId, questionAudioId, sampleVideoId] = await Promise.all([
       ensureSeedMedia({
         type: 'image',
         title: 'starcam_seed_mission_image_temp',
@@ -275,6 +285,14 @@ async function seedStarCamMissions() {
         uploadedBy: seederUserId,
       }),
       ensureSeedMedia({
+        type: 'audio',
+        title: 'starcam_seed_scan_question_audio_temp',
+        sourceFilePath: seedFiles.questionAudio,
+        destinationRelativeUrl: '/uploads/media/audio/starcam_seed_scan_question_audio_temp.mp3',
+        mimeType: 'audio/mpeg',
+        uploadedBy: seederUserId,
+      }),
+      ensureSeedMedia({
         type: 'video',
         title: 'starcam_seed_sample_video',
         sourceFilePath: seedFiles.sampleVideo,
@@ -296,6 +314,7 @@ async function seedStarCamMissions() {
           missionImageId,
           vocabImageId,
           vocabAudioId,
+          questionAudioId,
           sampleVideoId,
         });
 

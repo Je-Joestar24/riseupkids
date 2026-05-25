@@ -14,6 +14,8 @@ const STAR_EMPTY_COLOR = '#FFF3B0';
 
 export interface StarCamMissionCamScreenProps {
   targetLabel: string;
+  promptText?: string;
+  hasPromptAudio?: boolean;
   backgroundColor?: string;
   borderColor?: string;
   accentColor?: string;
@@ -28,11 +30,14 @@ export interface StarCamMissionCamScreenProps {
   notificationMessage?: string;
   cameraRef?: React.RefObject<CameraView | null>;
   onCaptureAndDetect: () => void;
+  onReplayPromptAudio?: () => void;
   onBack: () => void;
 }
 
 export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   targetLabel,
+  promptText,
+  hasPromptAudio = false,
   backgroundColor = '#CFE3DF',
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
@@ -47,8 +52,11 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   notificationMessage = '',
   cameraRef,
   onCaptureAndDetect,
+  onReplayPromptAudio,
   onBack,
 }: StarCamMissionCamScreenProps) {
+  const displayPrompt = promptText?.trim() || `Is this a ${targetLabel}?`;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
       <View style={[styles.root, { borderColor, backgroundColor }]}>
@@ -70,7 +78,22 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
         </View>
 
         <View style={styles.content}>
-          <ThemedText style={styles.promptText}>{`CAN YOU FIND ${targetLabel}?`}</ThemedText>
+          <ThemedText style={styles.promptText}>{displayPrompt}</ThemedText>
+          {hasPromptAudio && onReplayPromptAudio ? (
+            <Pressable
+              onPress={onReplayPromptAudio}
+              disabled={isDetecting}
+              accessibilityRole="button"
+              accessibilityLabel="Replay scan question audio"
+              style={({ pressed }) => [
+                styles.audioReplayButton,
+                isDetecting && styles.audioReplayButtonDisabled,
+                pressed && styles.audioReplayButtonPressed,
+              ]}>
+              <MaterialIcons name="volume-up" size={18} color="#FFFFFF" />
+              <ThemedText style={styles.audioReplayText}>LISTEN AGAIN</ThemedText>
+            </Pressable>
+          ) : null}
 
 
           <View style={styles.magnifierWrap}>
@@ -166,10 +189,36 @@ const styles = StyleSheet.create({
   promptText: {
     textAlign: 'center',
     fontWeight: '800',
-    fontSize: 36,
-    lineHeight: 42,
+    fontSize: 34,
+    lineHeight: 40,
     color: '#FFFFFF',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  audioReplayButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+    marginBottom: 6,
+  },
+  audioReplayButtonDisabled: {
+    opacity: 0.55,
+  },
+  audioReplayButtonPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.98 }],
+  },
+  audioReplayText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.3,
   },
   magnifierWrap: {
     width: '120%',

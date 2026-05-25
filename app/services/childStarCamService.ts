@@ -104,9 +104,18 @@ export interface StarCamPracticeItem {
 export interface StarCamHuntItem {
   order: number;
   target: string;
+  /** Backward-compatible alias for questionText. */
   prompt: string;
+  questionText: string;
+  questionAudioUrl?: string | null;
+  /** Backward-compatible alias for successText. */
   success: string;
+  successText: string;
+  successAudioUrl?: string | null;
+  /** Backward-compatible alias for tryAgainText. */
   fail: string;
+  tryAgainText: string;
+  tryAgainAudioUrl?: string | null;
   showSampleImage: false;
 }
 

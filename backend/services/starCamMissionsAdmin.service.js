@@ -86,6 +86,47 @@ async function assertMediaExists(mediaId, { type, fieldName }) {
   }
 }
 
+function buildMissionItemPayload(item, sortOrderFallback) {
+  const questionText = asTrimmedString(item.questionText) || asTrimmedString(item.prompt);
+  const tryAgainText = asTrimmedString(item.tryAgainText) || asTrimmedString(item.fail);
+  const successText = asTrimmedString(item.successText) || asTrimmedString(item.success);
+
+  return {
+    target: asTrimmedString(item.target),
+    prompt: asTrimmedString(item.prompt) || questionText,
+    success: asTrimmedString(item.success) || successText,
+    fail: asTrimmedString(item.fail) || tryAgainText,
+    questionText,
+    questionAudio: ensureObjectId(item.questionAudio, 'item.questionAudio'),
+    tryAgainText,
+    tryAgainAudio: ensureObjectId(item.tryAgainAudio, 'item.tryAgainAudio'),
+    successText,
+    successAudio: ensureObjectId(item.successAudio, 'item.successAudio'),
+    sortOrder: Number(item.sortOrder ?? sortOrderFallback),
+  };
+}
+
+function normalizeTarget(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function findVocabForItem(vocabList, item) {
+  const target = normalizeTarget(item?.target);
+  if (!target) return null;
+  return (vocabList || []).find((v) => normalizeTarget(v?.target) === target) || null;
+}
+
+function getDefaultQuestionText(item, vocab) {
+  const questionText = asTrimmedString(item?.questionText) || asTrimmedString(item?.prompt);
+  if (questionText) return questionText;
+  const label = asTrimmedString(vocab?.displayText) || asTrimmedString(vocab?.word) || asTrimmedString(item?.target);
+  return label ? `Is this a ${label}?` : null;
+}
+
+function getItemQuestionAudio(item, vocab) {
+  return item?.questionAudio || vocab?.introAudio || vocab?.audio || null;
+}
+
 function buildPopulate() {
   return [
     { path: 'category', select: 'key name description isActive sortOrder' },
@@ -96,6 +137,9 @@ function buildPopulate() {
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'rewardVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
+    { path: 'items.questionAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'items.tryAgainAudio', select: 'type url title mimeType size duration isActive isPublished' },
+    { path: 'items.successAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.image', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'vocab.audio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'vocab.introAudio', select: 'type url title mimeType size duration isActive isPublished' },
@@ -265,13 +309,7 @@ async function updateMission({ id, userId, patch } = {}) {
       err.statusCode = 400;
       throw err;
     }
-    doc.items = patch.items.map((it) => ({
-      target: asTrimmedString(it.target),
-      prompt: asTrimmedString(it.prompt),
-      success: asTrimmedString(it.success),
-      fail: asTrimmedString(it.fail),
-      sortOrder: Number(it.sortOrder),
-    }));
+    doc.items = patch.items.map((it, index) => buildMissionItemPayload(it, index));
   }
 
   doc.updatedBy = userId;
@@ -318,9 +356,24 @@ async function updateMissionItem({ id, userId, sortOrder, patch } = {}) {
   const item = doc.items[idx];
 
   if (patch.target !== undefined) item.target = asTrimmedString(patch.target);
-  if (patch.prompt !== undefined) item.prompt = asTrimmedString(patch.prompt);
-  if (patch.success !== undefined) item.success = asTrimmedString(patch.success);
-  if (patch.fail !== undefined) item.fail = asTrimmedString(patch.fail);
+  if (patch.prompt !== undefined) {
+    item.prompt = asTrimmedString(patch.prompt);
+    if (patch.questionText === undefined && !asTrimmedString(item.questionText)) item.questionText = item.prompt;
+  }
+  if (patch.success !== undefined) {
+    item.success = asTrimmedString(patch.success);
+    if (patch.successText === undefined && !asTrimmedString(item.successText)) item.successText = item.success;
+  }
+  if (patch.fail !== undefined) {
+    item.fail = asTrimmedString(patch.fail);
+    if (patch.tryAgainText === undefined && !asTrimmedString(item.tryAgainText)) item.tryAgainText = item.fail;
+  }
+  if (patch.questionText !== undefined) item.questionText = asTrimmedString(patch.questionText);
+  if (patch.questionAudio !== undefined) item.questionAudio = ensureObjectId(patch.questionAudio, 'questionAudio');
+  if (patch.tryAgainText !== undefined) item.tryAgainText = asTrimmedString(patch.tryAgainText);
+  if (patch.tryAgainAudio !== undefined) item.tryAgainAudio = ensureObjectId(patch.tryAgainAudio, 'tryAgainAudio');
+  if (patch.successText !== undefined) item.successText = asTrimmedString(patch.successText);
+  if (patch.successAudio !== undefined) item.successAudio = ensureObjectId(patch.successAudio, 'successAudio');
 
   doc.updatedBy = userId;
   await doc.save();
@@ -349,10 +402,7 @@ async function deleteMissionItem({ id, userId, sortOrder } = {}) {
   const idx = getMissionItemIndexBySortOrder(doc.items, sortOrder);
   doc.items.splice(idx, 1);
   doc.items = doc.items.map((item, index) => ({
-    target: asTrimmedString(item.target),
-    prompt: asTrimmedString(item.prompt),
-    success: asTrimmedString(item.success),
-    fail: asTrimmedString(item.fail),
+    ...buildMissionItemPayload(item, index),
     sortOrder: index,
   }));
 
@@ -399,6 +449,50 @@ async function publishMission({ id, userId } = {}) {
     }
     if (!target) {
       const err = new Error(`vocab[${i}].target is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+  for (let i = 0; i < doc.items.length; i += 1) {
+    const item = doc.items[i];
+    const matchingVocab = findVocabForItem(doc.vocab, item);
+    if (!asTrimmedString(item.target)) {
+      const err = new Error(`items[${i}].target is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!matchingVocab) {
+      const err = new Error(`items[${i}].target must match a vocabulary target before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!getDefaultQuestionText(item, matchingVocab)) {
+      const err = new Error(`items[${i}].questionText is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!getItemQuestionAudio(item, matchingVocab)) {
+      const err = new Error(`items[${i}].questionAudio is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!asTrimmedString(item.tryAgainText || item.fail)) {
+      const err = new Error(`items[${i}].tryAgainText is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!(item.tryAgainAudio || matchingVocab.tryAgainAudio)) {
+      const err = new Error(`items[${i}].tryAgainAudio is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!asTrimmedString(item.successText || item.success)) {
+      const err = new Error(`items[${i}].successText is required before publishing`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!(item.successAudio || matchingVocab.successAudio)) {
+      const err = new Error(`items[${i}].successAudio is required before publishing`);
       err.statusCode = 400;
       throw err;
     }
@@ -464,6 +558,11 @@ async function publishMission({ id, userId } = {}) {
       v.pronunciationVideo
         ? assertMediaExists(v.pronunciationVideo, { type: 'video', fieldName: `vocab[${idx}].pronunciationVideo` })
         : Promise.resolve(),
+    ]),
+    ...doc.items.flatMap((item, idx) => [
+      item.questionAudio ? assertMediaExists(item.questionAudio, { type: 'audio', fieldName: `items[${idx}].questionAudio` }) : Promise.resolve(),
+      item.tryAgainAudio ? assertMediaExists(item.tryAgainAudio, { type: 'audio', fieldName: `items[${idx}].tryAgainAudio` }) : Promise.resolve(),
+      item.successAudio ? assertMediaExists(item.successAudio, { type: 'audio', fieldName: `items[${idx}].successAudio` }) : Promise.resolve(),
     ]),
   ]);
 

@@ -5,10 +5,51 @@ const BASE_PATH = '/admin/star-cam/missions';
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
 
+const normalizeTarget = (value) => String(value || '').trim().toLowerCase();
+
+const findVocabForItem = (vocab = [], item = {}) => {
+  const target = normalizeTarget(item.target);
+  if (!target) return null;
+  return vocab.find((entry) => normalizeTarget(entry?.target) === target) || null;
+};
+
+const buildDefaultQuestionText = (item = {}, vocab = null) => {
+  const explicitQuestion = item.questionText || item.prompt || '';
+  if (String(explicitQuestion).trim()) return explicitQuestion;
+  const label = vocab?.displayText || vocab?.word || item.target || '';
+  return label ? `Is this a ${label}?` : '';
+};
+
+const normalizeMissionItem = (item = {}, vocab = []) => {
+  const matchingVocab = findVocabForItem(vocab, item);
+  const questionText = buildDefaultQuestionText(item, matchingVocab);
+  const tryAgainText = item.tryAgainText || item.fail || '';
+  const successText = item.successText || item.success || '';
+
+  return {
+    ...item,
+    prompt: item.prompt || questionText,
+    questionText,
+    questionAudioUrl: item.questionAudio?.url || matchingVocab?.introAudio?.url || matchingVocab?.audio?.url || null,
+    fail: item.fail || tryAgainText,
+    tryAgainText,
+    tryAgainAudioUrl: item.tryAgainAudio?.url || matchingVocab?.tryAgainAudio?.url || null,
+    success: item.success || successText,
+    successText,
+    successAudioUrl: item.successAudio?.url || matchingVocab?.successAudio?.url || null,
+  };
+};
+
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
+  const vocab = Array.isArray(mission.vocab) ? mission.vocab : [];
+  const items = Array.isArray(mission.items)
+    ? mission.items.map((item) => normalizeMissionItem(item, vocab))
+    : mission.items;
+
   return {
     ...mission,
+    items,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideo?.url || null,
     rewardAudioUrl: mission.rewardAudio?.url || null,
@@ -93,7 +134,12 @@ const starCamMissionAdminServices = {
 
   updateMissionItem: async (id, sortOrder, payload = {}) => {
     try {
-      const response = await api.patch(`${BASE_PATH}/${id}/items/${sortOrder}`, payload);
+      const response = await api.patch(`${BASE_PATH}/${id}/items/${sortOrder}`, {
+        ...payload,
+        questionText: payload.questionText ?? payload.prompt,
+        tryAgainText: payload.tryAgainText ?? payload.fail,
+        successText: payload.successText ?? payload.success,
+      });
       return {
         ...response.data,
         data: normalizeMission(response.data?.data),
@@ -115,12 +161,13 @@ const starCamMissionAdminServices = {
     }
   },
 
-  addVocabulary: async (id, { displayText, target, imageFile, audioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
+  addVocabulary: async (id, { displayText, target, imageFile, audioFile, introAudioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
     const formData = new FormData();
     formData.append('displayText', displayText || '');
     formData.append('target', target || '');
     if (imageFile) formData.append('image', imageFile);
     if (audioFile) formData.append('audio', audioFile);
+    if (introAudioFile) formData.append('introAudio', introAudioFile);
     if (tryAgainAudioFile) formData.append('tryAgainAudio', tryAgainAudioFile);
     if (successAudioFile) formData.append('successAudio', successAudioFile);
     if (pronunciationVideoFile) formData.append('pronunciationVideo', pronunciationVideoFile);

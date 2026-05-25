@@ -29,9 +29,16 @@ const missionVocabSchema = new mongoose.Schema(
 const missionItemSchema = new mongoose.Schema(
   {
     target: { type: String, trim: true, required: [isPublishingRequired, 'Item target is required'] },
-    prompt: { type: String, trim: true, required: [isPublishingRequired, 'Item prompt is required'] },
-    success: { type: String, trim: true, required: [isPublishingRequired, 'Item success message is required'] },
-    fail: { type: String, trim: true, required: [isPublishingRequired, 'Item fail message is required'] },
+    // Legacy text fields kept while the app/admin migrate to explicit scan prompts.
+    prompt: { type: String, trim: true, default: null },
+    success: { type: String, trim: true, default: null },
+    fail: { type: String, trim: true, default: null },
+    questionText: { type: String, trim: true, default: null },
+    questionAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    tryAgainText: { type: String, trim: true, default: null },
+    tryAgainAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    successText: { type: String, trim: true, default: null },
+    successAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     sortOrder: { type: Number, min: 0, max: 6, required: true },
   },
   { _id: false }

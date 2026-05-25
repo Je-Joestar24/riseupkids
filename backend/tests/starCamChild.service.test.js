@@ -113,9 +113,9 @@ describe('starCamChild.service', () => {
         items: [
           {
             target: 'book',
-            prompt: 'Find a book',
-            success: 'Yes',
-            fail: 'Try again',
+            questionText: 'Is this a book?',
+            successText: "That's a book, yeyy.",
+            tryAgainText: "Ow that's not a book, let's try again.",
             sortOrder: 0,
           },
         ],
@@ -147,7 +147,15 @@ describe('starCamChild.service', () => {
       enabled: false,
       status: 'pending_integration',
     });
-    expect(result.flow.starCam.items[0]).toMatchObject({ prompt: 'Find a book' });
+    expect(result.flow.starCam.items[0]).toMatchObject({
+      prompt: 'Is this a book?',
+      questionText: 'Is this a book?',
+      questionAudioUrl: '/book.mp3',
+      tryAgainText: "Ow that's not a book, let's try again.",
+      tryAgainAudioUrl: '/book-try-again.mp3',
+      successText: "That's a book, yeyy.",
+      successAudioUrl: '/book-success.mp3',
+    });
     expect(result.flow.completion.title).toBe('Mission Accomplished!');
     expect(result.flow.completion.rewardAudioUrl).toBe('/reward.mp3');
     expect(result.flow.completion.rewardVideoUrl).toBe('/reward.mp4');

@@ -26,6 +26,8 @@ const AdminStarCamMissions = () => {
     addMissionVocabulary,
     editMissionVocabulary,
     removeMissionVocabulary,
+    editMissionScanItem,
+    removeMissionItem,
     addMission,
     editMission,
     uploadMissionImage,
@@ -41,6 +43,7 @@ const AdminStarCamMissions = () => {
     target: '',
     imageFile: null,
     audioFile: null,
+    introAudioFile: null,
     tryAgainAudioFile: null,
     successAudioFile: null,
     pronunciationVideoFile: null,
@@ -80,7 +83,7 @@ const AdminStarCamMissions = () => {
     if (existing.length >= 7) return;
     const displayText = String(newVocab.displayText || '').trim();
     const target = String(newVocab.target || '').trim().toLowerCase();
-    if (!displayText || !target || !newVocab.imageFile || !newVocab.audioFile || !newVocab.tryAgainAudioFile || !newVocab.successAudioFile) {
+    if (!displayText || !target || !newVocab.imageFile || !newVocab.audioFile || !newVocab.introAudioFile || !newVocab.tryAgainAudioFile || !newVocab.successAudioFile) {
       return;
     }
 
@@ -89,6 +92,7 @@ const AdminStarCamMissions = () => {
       target,
       imageFile: newVocab.imageFile,
       audioFile: newVocab.audioFile,
+      introAudioFile: newVocab.introAudioFile,
       tryAgainAudioFile: newVocab.tryAgainAudioFile,
       successAudioFile: newVocab.successAudioFile,
       pronunciationVideoFile: newVocab.pronunciationVideoFile || undefined,
@@ -99,6 +103,7 @@ const AdminStarCamMissions = () => {
       target: '',
       imageFile: null,
       audioFile: null,
+      introAudioFile: null,
       tryAgainAudioFile: null,
       successAudioFile: null,
       pronunciationVideoFile: null,
@@ -136,6 +141,36 @@ const AdminStarCamMissions = () => {
         },
       })
     );
+  };
+
+  const handleEditMissionItem = async (missionId, sortOrder, payload) => {
+    if (!missionId || sortOrder == null) return;
+    await editMissionScanItem(missionId, sortOrder, payload);
+    await loadMissionById(missionId);
+  };
+
+  const handleDeleteMissionItemConfirm = (item) => {
+    if (!currentMission?._id || item?.sortOrder == null) return;
+    dispatch(
+      showConfirmationDialog({
+        title: 'Delete Scan Item?',
+        message: `This will permanently remove "${item?.target || 'this scan item'}" from the mission.`,
+        type: 'warning',
+        confirmText: 'Delete',
+        cancelText: 'Cancel',
+        onConfirm: async () => {
+          await removeMissionItem(currentMission._id, item.sortOrder);
+          await loadMissionById(currentMission._id);
+        },
+      })
+    );
+  };
+
+  const handleSyncScanItems = async (items) => {
+    if (!currentMission?._id || !Array.isArray(items) || items.length === 0) return;
+    await editMission(currentMission._id, { items }, { notifySuccess: false });
+    await loadMissionById(currentMission._id);
+    dispatch(showNotification({ message: 'Scan questions updated from vocabulary', type: 'success' }));
   };
 
   const missionQueryParams = {
@@ -286,6 +321,9 @@ const AdminStarCamMissions = () => {
               onSubmitVocabulary={handleSubmitVocabulary}
               onEditVocabulary={handleEditVocabulary}
               onDeleteVocabulary={handleDeleteVocabularyConfirm}
+              onEditMissionItem={handleEditMissionItem}
+              onDeleteMissionItem={handleDeleteMissionItemConfirm}
+              onSyncScanItems={handleSyncScanItems}
             />
           </Grid>
         </Grid>

@@ -105,6 +105,20 @@ export const useStarCamMissionAdmin = () => {
     [runThunk]
   );
 
+  const editMissionScanItem = useCallback(
+    (missionId, sortOrder, payload) =>
+      editMissionItem(missionId, sortOrder, {
+        ...payload,
+        prompt: payload.prompt ?? payload.questionText,
+        questionText: payload.questionText ?? payload.prompt,
+        fail: payload.fail ?? payload.tryAgainText,
+        tryAgainText: payload.tryAgainText ?? payload.fail,
+        success: payload.success ?? payload.successText,
+        successText: payload.successText ?? payload.success,
+      }),
+    [editMissionItem]
+  );
+
   const removeMissionItem = useCallback(
     (missionId, sortOrder) =>
       runThunk(
@@ -218,6 +232,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       editMissionItem,
+      editMissionScanItem,
       removeMissionItem,
       updateMissionImage,
       updateMissionMedia,
@@ -242,6 +257,7 @@ export const useStarCamMissionAdmin = () => {
       loadMissionById,
       editMission,
       editMissionItem,
+      editMissionScanItem,
       removeMissionItem,
       updateMissionImage,
       updateMissionMedia,

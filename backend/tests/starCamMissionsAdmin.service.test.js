@@ -64,6 +64,35 @@ function makeDoc(overrides = {}) {
   };
 }
 
+function makeVocab7(overrides = {}) {
+  return Array.from({ length: 7 }).map((_, i) => ({
+    word: `w${i}`,
+    displayText: `Word ${i}`,
+    target: `target_${i}`,
+    image: `img${i}`,
+    audio: `aud${i}`,
+    introAudio: null,
+    tryAgainAudio: `tryAud${i}`,
+    successAudio: `successAud${i}`,
+    sortOrder: i,
+    ...(typeof overrides === 'function' ? overrides(i) : overrides),
+  }));
+}
+
+function makeItems7(overrides = {}) {
+  return Array.from({ length: 7 }).map((_, i) => ({
+    target: `target_${i}`,
+    prompt: `Is this Word ${i}?`,
+    questionText: `Is this Word ${i}?`,
+    success: 'Yes',
+    successText: 'Yes, that is it!',
+    fail: 'Try again',
+    tryAgainText: "Ow that's not it, let's try again.",
+    sortOrder: i,
+    ...(typeof overrides === 'function' ? overrides(i) : overrides),
+  }));
+}
+
 describe('starCamMissionsAdmin.service', () => {
   beforeEach(() => {
     jest.resetAllMocks();
@@ -143,19 +172,32 @@ describe('starCamMissionsAdmin.service', () => {
     await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it('rejects publish when a scan item does not map to vocabulary audio', async () => {
+    StarCamMission.findById.mockResolvedValue(
+      makeDoc({
+        introText: 'Hello',
+        missionImage: 'mission-img',
+        introImage: 'intro-img',
+        rewardImage: 'reward-img',
+        rewardAudio: 'reward-aud',
+        rewardVideo: 'reward-vid',
+        missionShortVideo: 'short-vid',
+        category: 'cat-1',
+        videoEnabled: false,
+        vocab: makeVocab7(),
+        items: makeItems7((i) => (i === 0 ? { target: 'missing_target' } : {})),
+      })
+    );
+
+    await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining('target must match a vocabulary target'),
+    });
+  });
+
   it('rejects publish if videoEnabled is true but introVideo missing', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i,
-    }));
-    const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
+    const vocab7 = makeVocab7();
+    const items7 = makeItems7();
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -177,18 +219,8 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when referenced media type mismatches', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i,
-    }));
-    const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
+    const vocab7 = makeVocab7();
+    const items7 = makeItems7();
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -222,18 +254,8 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('publishes mission when valid', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i,
-    }));
-    const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
+    const vocab7 = makeVocab7();
+    const items7 = makeItems7();
     const doc = makeDoc({
       introText: 'Hello',
       missionImage: 'mission-img',
@@ -311,18 +333,8 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when referenced media is missing', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i,
-    }));
-    const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
+    const vocab7 = makeVocab7();
+    const items7 = makeItems7();
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -370,7 +382,7 @@ describe('starCamMissionsAdmin.service', () => {
       successAudio: `successAud${i}`,
       sortOrder: i === 6 ? 5 : i,
     }));
-    const items7 = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i }));
+    const items7 = makeItems7();
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -391,18 +403,8 @@ describe('starCamMissionsAdmin.service', () => {
   });
 
   it('rejects publish when items sortOrder is not 0..6 unique', async () => {
-    const vocab7 = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i,
-    }));
-    const itemsBad = Array.from({ length: 7 }).map((_, i) => ({ target: `t${i}`, prompt: 'p', success: 's', fail: 'f', sortOrder: i === 0 ? 1 : i }));
+    const vocab7 = makeVocab7();
+    const itemsBad = makeItems7((i) => ({ sortOrder: i === 0 ? 1 : i }));
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -447,10 +449,21 @@ describe('starCamMissionsAdmin.service', () => {
       id: 'mission-1',
       userId: 'u1',
       sortOrder: 1,
-      patch: { target: 'marker', prompt: 'Find marker' },
+      patch: {
+        target: 'marker',
+        questionText: 'Is this a marker?',
+        questionAudio: '507f1f77bcf86cd799439011',
+        tryAgainText: 'Ow, that is not a marker.',
+        tryAgainAudio: '507f1f77bcf86cd799439012',
+        successText: 'That is a marker, yeyy.',
+        successAudio: '507f1f77bcf86cd799439013',
+      },
     });
     expect(doc.items[1].target).toBe('marker');
-    expect(doc.items[1].prompt).toBe('Find marker');
+    expect(doc.items[1].questionText).toBe('Is this a marker?');
+    expect(String(doc.items[1].questionAudio)).toBe('507f1f77bcf86cd799439011');
+    expect(doc.items[1].tryAgainText).toBe('Ow, that is not a marker.');
+    expect(doc.items[1].successText).toBe('That is a marker, yeyy.');
     expect(doc.save).toHaveBeenCalled();
     expect(result).toMatchObject({ missionId: 'nature_01' });
   });

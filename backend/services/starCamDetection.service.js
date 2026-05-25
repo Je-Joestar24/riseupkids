@@ -191,13 +191,13 @@ async function detectMissionObjectForChild({
   const ui = passes
     ? {
         title: 'Great job!',
-        message: 'You found the right object.',
+        message: asTrimmed(huntItem.successText) || asTrimmed(huntItem.success) || 'You found the right object.',
         tone: 'success',
         nextAction: 'continue',
       }
     : {
         title: 'Almost there!',
-        message: 'Try again and find the object one more time.',
+        message: asTrimmed(huntItem.tryAgainText) || asTrimmed(huntItem.fail) || 'Try again and find the object one more time.',
         tone: 'retry',
         nextAction: 'retry',
       };

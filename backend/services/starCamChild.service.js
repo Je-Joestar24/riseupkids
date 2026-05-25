@@ -53,6 +53,23 @@ function mapMissionVocabToPracticeItems(vocab = []) {
     }));
 }
 
+function normalizeTarget(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function findVocabByTarget(vocab = [], target) {
+  const safeTarget = normalizeTarget(target);
+  if (!safeTarget) return null;
+  return (vocab || []).find((v) => normalizeTarget(v?.target) === safeTarget) || null;
+}
+
+function getScanQuestionText(item, vocab) {
+  const explicit = asTrimmed(item?.questionText) || asTrimmed(item?.prompt);
+  if (explicit) return explicit;
+  const label = asTrimmed(vocab?.displayText) || asTrimmed(vocab?.word) || asTrimmed(item?.target);
+  return label ? `Is this a ${label}?` : 'Is this the object?';
+}
+
 async function assertChildOwnership(parentUserId, childId) {
   const parentId = asTrimmed(parentUserId);
   const cId = asTrimmed(childId);
@@ -174,6 +191,9 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'rewardImage', select: 'url type' })
     .populate({ path: 'rewardAudio', select: 'url type duration' })
     .populate({ path: 'rewardVideo', select: 'url type duration' })
+    .populate({ path: 'items.questionAudio', select: 'url type duration' })
+    .populate({ path: 'items.tryAgainAudio', select: 'url type duration' })
+    .populate({ path: 'items.successAudio', select: 'url type duration' })
     .populate({ path: 'vocab.image', select: 'url type' })
     .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
     .populate({ path: 'vocab.audio', select: 'url type duration' })
@@ -195,14 +215,26 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
   const huntItems = (mission.items || [])
     .slice()
     .sort((a, b) => asSafeNumber(a.order ?? a.sortOrder, 0) - asSafeNumber(b.order ?? b.sortOrder, 0))
-    .map((it, idx) => ({
-      order: idx + 1,
-      target: it.target,
-      prompt: it.prompt,
-      success: it.success,
-      fail: it.fail,
-      showSampleImage: false,
-    }));
+    .map((it, idx) => {
+      const vocab = findVocabByTarget(mission.vocab || [], it.target);
+      const questionText = getScanQuestionText(it, vocab);
+      const tryAgainText = asTrimmed(it.tryAgainText) || asTrimmed(it.fail) || "Ow that's not it, let's try again.";
+      const successText = asTrimmed(it.successText) || asTrimmed(it.success) || "That's it, yeyy.";
+      return {
+        order: idx + 1,
+        target: it.target,
+        prompt: questionText,
+        questionText,
+        questionAudioUrl: it.questionAudio?.url || vocab?.introAudio?.url || vocab?.audio?.url || null,
+        success: successText,
+        successText,
+        successAudioUrl: it.successAudio?.url || vocab?.successAudio?.url || null,
+        fail: tryAgainText,
+        tryAgainText,
+        tryAgainAudioUrl: it.tryAgainAudio?.url || vocab?.tryAgainAudio?.url || null,
+        showSampleImage: false,
+      };
+    });
 
   return {
     mission: {

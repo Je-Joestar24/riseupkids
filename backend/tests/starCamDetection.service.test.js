@@ -56,7 +56,15 @@ describe('starCamDetection.service', () => {
       lean: jest.fn().mockResolvedValue({
         missionId: 'reading_1',
         title: 'Reading',
-        items: [{ target: 'book', sortOrder: 0, prompt: 'Find a book', success: 'Yes', fail: 'No' }],
+        items: [
+          {
+            target: 'book',
+            sortOrder: 0,
+            questionText: 'Is this a book?',
+            successText: "That's a book, yeyy.",
+            tryAgainText: "Ow that's not a book, let's try again.",
+          },
+        ],
       }),
     });
     googleVisionService.detectLabelsFromImageBuffer.mockResolvedValue({
@@ -74,6 +82,7 @@ describe('starCamDetection.service', () => {
     expect(data.status).toBe('matched');
     expect(data.result.isMatch).toBe(true);
     expect(data.ui.tone).toBe('success');
+    expect(data.ui.message).toBe("That's a book, yeyy.");
   });
 
   it('detectMissionObjectForChild returns 503 when vision not configured', async () => {

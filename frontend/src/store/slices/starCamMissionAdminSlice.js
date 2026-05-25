@@ -230,14 +230,60 @@ const setError = (state, action) => {
   state.error = action.payload || action.error?.message || 'Request failed';
 };
 
+const normalizeTarget = (value) => String(value || '').trim().toLowerCase();
+
+const findVocabForItem = (vocab = [], item = {}) => {
+  const target = normalizeTarget(item.target);
+  if (!target) return null;
+  return vocab.find((entry) => normalizeTarget(entry?.target) === target) || null;
+};
+
+const getDefaultQuestionText = (item = {}, vocab = null) => {
+  const explicitQuestion = item.questionText || item.prompt || '';
+  if (String(explicitQuestion).trim()) return explicitQuestion;
+  const label = vocab?.displayText || vocab?.word || item.target || '';
+  return label ? `Is this a ${label}?` : '';
+};
+
+const normalizeMissionItem = (item = {}, vocab = []) => {
+  const matchingVocab = findVocabForItem(vocab, item);
+  const questionText = getDefaultQuestionText(item, matchingVocab);
+  const tryAgainText = item.tryAgainText || item.fail || '';
+  const successText = item.successText || item.success || '';
+
+  return {
+    ...item,
+    prompt: item.prompt || questionText,
+    questionText,
+    questionAudioUrl: item.questionAudio?.url || matchingVocab?.introAudio?.url || matchingVocab?.audio?.url || null,
+    fail: item.fail || tryAgainText,
+    tryAgainText,
+    tryAgainAudioUrl: item.tryAgainAudio?.url || matchingVocab?.tryAgainAudio?.url || null,
+    success: item.success || successText,
+    successText,
+    successAudioUrl: item.successAudio?.url || matchingVocab?.successAudio?.url || null,
+  };
+};
+
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
   const vocabCount = Number(mission.vocabCount ?? mission.vocab?.length ?? 0);
+  const vocab = Array.isArray(mission.vocab) ? mission.vocab : [];
+  const items = Array.isArray(mission.items)
+    ? mission.items.map((item) => normalizeMissionItem(item, vocab))
+    : mission.items;
   const hasMissionShortVideo = Boolean(mission.missionShortVideo?._id || mission.missionShortVideo);
   const hasRewardAudio = Boolean(mission.rewardAudio?._id || mission.rewardAudio);
   const hasRewardVideo = Boolean(mission.rewardVideo?._id || mission.rewardVideo);
+  const hasScanQuestionSet =
+    Array.isArray(items) &&
+    items.length === 7 &&
+    items.every((item) =>
+      Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
+    );
   return {
     ...mission,
+    items,
     vocabCount,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideoUrl || mission.missionShortVideo?.url || null,
@@ -248,6 +294,7 @@ const normalizeMission = (mission) => {
       hasRewardAudio,
       hasRewardVideo,
       hasVocabSet: vocabCount === 7,
+      hasScanQuestionSet,
     },
   };
 };
