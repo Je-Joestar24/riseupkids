@@ -26,7 +26,12 @@ import {
   type CmsSessionPayload,
 } from '@/components/child/common/cms-player-modal';
 import { Html5Modal } from '@/components/child/common/html5-modal';
-import { VideoPlayerModal } from '@/components/child/common/video-player-modal';
+import {
+  VideoCompletionModal,
+  VideoPlayerModal,
+  type VideoCompletionInfo,
+  type VideoCompletionResult,
+} from '@/components/child/common/video-player-modal';
 import { ModuleAudioAssignments } from '@/components/child/module/module-audio-assignments';
 import { ModuleBooks } from '@/components/child/module/module-books';
 import { ModuleBreadcrumbs } from '@/components/child/module/module-breadcrumbs';
@@ -67,6 +72,11 @@ export default function ChildModuleScreen() {
   const [audioModal, setAudioModal] = useState<PopulatedContentItem | null>(null);
   const [cmsModalBook, setCmsModalBook] = useState<PopulatedContentItem | null>(null);
   const [cmsModalSource, setCmsModalSource] = useState<'book' | 'videoFollowUp'>('book');
+  const [pendingVideoCompletion, setPendingVideoCompletion] = useState<{
+    video: PopulatedContentItem;
+    watchResult: VideoCompletionResult | null;
+  } | null>(null);
+  const [videoCompletionOpen, setVideoCompletionOpen] = useState(false);
   const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
   const [cmsCompletionData, setCmsCompletionData] = useState<CmsCompletionDialogData | null>(null);
 
@@ -197,6 +207,41 @@ export default function ChildModuleScreen() {
     ]
   );
 
+  const showPendingVideoCompletion = useCallback(() => {
+    if (!pendingVideoCompletion) return;
+    setVideoCompletionOpen(true);
+  }, [pendingVideoCompletion]);
+
+  const closeVideoCompletion = useCallback(() => {
+    setVideoCompletionOpen(false);
+    setPendingVideoCompletion(null);
+  }, []);
+
+  const isPendingHtml5VideoFollowUp = Boolean(
+    pendingVideoCompletion && isHtml5VideoFollowUp(pendingVideoCompletion.video)
+  );
+
+  const closeHtml5FollowUp = useCallback(() => {
+    const shouldShowVideoCompletion =
+      Boolean(pendingVideoCompletion) &&
+      isHtml5VideoFollowUp(pendingVideoCompletion?.video);
+    closeHtml5Modal();
+    if (shouldShowVideoCompletion) {
+      setTimeout(showPendingVideoCompletion, 180);
+    }
+  }, [closeHtml5Modal, pendingVideoCompletion, showPendingVideoCompletion]);
+
+  const closeCmsPlayer = useCallback(() => {
+    const shouldShowVideoCompletion =
+      cmsModalSource === 'videoFollowUp' && Boolean(pendingVideoCompletion);
+    setCmsModalBook(null);
+    setCmsModalSource('book');
+    resetCmsPlayer();
+    if (shouldShowVideoCompletion) {
+      setTimeout(showPendingVideoCompletion, 180);
+    }
+  }, [cmsModalSource, pendingVideoCompletion, resetCmsPlayer, showPendingVideoCompletion]);
+
   const openBuiltInCmsPlayer = useCallback(
     (content: PopulatedContentItem, cmsId: string, source: 'book' | 'videoFollowUp') => {
       lockLandscapeForCmsBookPlayer();
@@ -218,10 +263,17 @@ export default function ChildModuleScreen() {
   );
 
   const handleVideoComplete = useCallback(
-    (completedVideo: PopulatedContentItem) => {
+    (completedVideo: PopulatedContentItem, completionInfo?: VideoCompletionInfo) => {
       if (childId) refreshVideoWatches(childId);
       fetchModuleDetails(courseId!, childId!);
       setVideoModal(null);
+
+      if (completionInfo?.deferredCompletion) {
+        setPendingVideoCompletion({
+          video: completedVideo,
+          watchResult: completionInfo.watchResult ?? null,
+        });
+      }
 
       if (isHtml5VideoFollowUp(completedVideo)) {
         openHtml5Modal(completedVideo);
@@ -368,8 +420,8 @@ export default function ChildModuleScreen() {
         video={videoModal}
         childId={childId ?? null}
         courseId={courseId ?? null}
-        onVideoComplete={(completedVideo) => {
-          handleVideoComplete(completedVideo as PopulatedContentItem);
+        onVideoComplete={(completedVideo, completionInfo) => {
+          handleVideoComplete(completedVideo as PopulatedContentItem, completionInfo);
         }}
       />
       <ChantModal
@@ -394,7 +446,7 @@ export default function ChildModuleScreen() {
       />
       <Html5Modal
         open={html5Open}
-        onClose={closeHtml5Modal}
+        onClose={closeHtml5FollowUp}
         launchUrl={html5LaunchUrl}
         title={html5Book?.title ?? undefined}
         loading={html5Loading}
@@ -402,17 +454,17 @@ export default function ChildModuleScreen() {
         courseId={courseId ?? null}
         childId={childId ?? null}
         bookId={html5Book && isHtml5Book(html5Book) ? getContentId(html5Book) : null}
+        closeOnResultContinue={isPendingHtml5VideoFollowUp}
         onAfterComplete={() => {
           if (courseId && childId) fetchModuleDetails(courseId, childId);
+          if (isPendingHtml5VideoFollowUp) {
+            closeHtml5FollowUp();
+          }
         }}
       />
       <CmsPlayerModal
         open={Boolean(cmsModalBook)}
-        onClose={() => {
-          setCmsModalBook(null);
-          setCmsModalSource('book');
-          resetCmsPlayer();
-        }}
+        onClose={closeCmsPlayer}
         pages={cmsPlayableBook?.pages ?? []}
         isPreloading={
           cmsModalBook && (isCmsBookLoading || !(cmsPlayableBook?.pages?.length ?? 0))
@@ -428,6 +480,13 @@ export default function ChildModuleScreen() {
           setCmsCompletionData(null);
         }}
         data={cmsCompletionData}
+      />
+      <VideoCompletionModal
+        open={videoCompletionOpen}
+        watchResult={pendingVideoCompletion?.watchResult ?? null}
+        onClose={closeVideoCompletion}
+        title="You Finished the Video!"
+        message="Great job finishing the video and activity!"
       />
     </ScrollView>
   );

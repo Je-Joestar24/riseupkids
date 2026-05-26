@@ -48,6 +48,19 @@ export interface ExploreVideoInput {
 
 export type VideoPlayerModalVideo = PopulatedContentItem | ExploreVideoInput;
 
+export interface VideoCompletionResult {
+  starsJustAwarded?: boolean;
+  starsWereAlreadyAwarded?: boolean;
+  starsToAward?: number;
+  videoWatch?: { watchCount?: number };
+  requiredWatchCount?: number;
+}
+
+export interface VideoCompletionInfo {
+  deferredCompletion?: boolean;
+  watchResult?: VideoCompletionResult | null;
+}
+
 export interface VideoPlayerModalProps {
   open: boolean;
   onClose: () => void;
@@ -58,7 +71,7 @@ export interface VideoPlayerModalProps {
   isExploreVideo?: boolean;
   exploreContentId?: string | null;
   videoType?: string;
-  onVideoComplete?: (video: VideoPlayerModalVideo) => void;
+  onVideoComplete?: (video: VideoPlayerModalVideo, info?: VideoCompletionInfo) => void;
 }
 
 /** Build full video URL from url or filePath */
@@ -105,13 +118,7 @@ export function VideoPlayerModal({
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false);
   const [wasAlreadyWatched, setWasAlreadyWatched] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
-  const [watchResult, setWatchResult] = useState<{
-    starsJustAwarded?: boolean;
-    starsWereAlreadyAwarded?: boolean;
-    starsToAward?: number;
-    videoWatch?: { watchCount?: number };
-    requiredWatchCount?: number;
-  } | null>(null);
+  const [watchResult, setWatchResult] = useState<VideoCompletionResult | null>(null);
   const [watchStatusBefore, setWatchStatusBefore] = useState<{
     currentWatchCount: number;
     requiredWatchCount: number;
@@ -242,12 +249,14 @@ export function VideoPlayerModal({
         !starsWereAlreadyAwarded &&
         watchCountAfter >= required;
 
-      setWatchResult({
+      const nextWatchResult: VideoCompletionResult = {
         ...result,
         starsJustAwarded,
         starsWereAlreadyAwarded,
         starsToAward: result?.starsToAward,
-      });
+      };
+
+      setWatchResult(nextWatchResult);
 
       if (courseId && starsJustAwarded) {
         await moduleService.updateContentProgress(
@@ -258,6 +267,23 @@ export function VideoPlayerModal({
         );
       }
       await refreshVideoWatches();
+
+      const completedVideo = video;
+      const hasFollowUp = isHtml5VideoFollowUp(completedVideo as ModuleVideoContentLike | null)
+        || isBuiltinCmsVideoFollowUp(completedVideo as ModuleVideoContentLike | null);
+      if (hasFollowUp && completedVideo) {
+        setShowCompletionDialog(false);
+        exitFullscreen();
+        onClose();
+        setTimeout(() => {
+          onVideoComplete?.(completedVideo, {
+            deferredCompletion: true,
+            watchResult: nextWatchResult,
+          });
+        }, 180);
+        return;
+      }
+
       setShowCompletionDialog(true);
     } catch (e) {
       showDialog({
@@ -332,13 +358,6 @@ export function VideoPlayerModal({
     // Module videos: do not show global dialog; the in-modal completion card already showed the message.
     // Explore videos close before this (they show global dialog and close in handleVideoEnd).
   }, [exitFullscreen, onVideoComplete, video, onClose]);
-
-  const videoFollowUp = video as ModuleVideoContentLike | null;
-  const continueLabel = isHtml5VideoFollowUp(videoFollowUp)
-    ? 'Continue to HTML5 Book'
-    : isBuiltinCmsVideoFollowUp(videoFollowUp)
-      ? 'Continue to Book'
-      : 'Continue';
 
   if (!open) return null;
 
@@ -453,48 +472,11 @@ export function VideoPlayerModal({
         </View>
       </Modal>
 
-      {/* Completion overlay - inline (not a separate modal) so it appears over the video modal */}
-      {showCompletion && (
-        <Modal
-          visible={true}
-          transparent
-          animationType="fade"
-          onRequestClose={handleCompletionDialogClose}
-          statusBarTranslucent>
-          <Pressable style={styles.completionOverlay} onPress={handleCompletionDialogClose}>
-            <View style={styles.completionCard}>
-              <ThemedText style={styles.completionTitle}>You Finished the Video!</ThemedText>
-              <ThemedText style={styles.completionMessage}>
-                Great job watching the video!
-              </ThemedText>
-              {watchResult?.starsJustAwarded && watchResult.starsToAward ? (
-                <View style={styles.starsWrap}>
-                  <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
-                  <ThemedText style={styles.starsText}>
-                    You earned {watchResult.starsToAward} stars!
-                  </ThemedText>
-                  <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
-                </View>
-              ) : watchResult?.starsWereAlreadyAwarded ? (
-                <ThemedText style={styles.starsAlreadyText}>
-                  Stars already earned for this video! ⭐
-                </ThemedText>
-              ) : (
-                <ThemedText style={styles.watchMoreText}>
-                  Watch {watchResult?.requiredWatchCount && watchResult?.videoWatch?.watchCount !== undefined
-                    ? watchResult.requiredWatchCount - (watchResult.videoWatch.watchCount ?? 0)
-                    : 0} more time(s) to earn stars!
-                </ThemedText>
-              )}
-              <Pressable
-                style={styles.continueBtn}
-                onPress={handleCompletionDialogClose}>
-                <ThemedText style={styles.continueBtnText}>{continueLabel}</ThemedText>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
-      )}
+      <VideoCompletionModal
+        open={showCompletion}
+        watchResult={watchResult}
+        onClose={handleCompletionDialogClose}
+      />
 
       <ConfirmModal
         open={showConfirmClose}
@@ -506,6 +488,69 @@ export function VideoPlayerModal({
         onCancel={() => setShowConfirmClose(false)}
       />
     </>
+  );
+}
+
+export function VideoCompletionModal({
+  open,
+  watchResult,
+  onClose,
+  title = 'You Finished the Video!',
+  message = 'Great job watching the video!',
+  continueLabel = 'Continue',
+}: {
+  open: boolean;
+  watchResult?: VideoCompletionResult | null;
+  onClose: () => void;
+  title?: string;
+  message?: string;
+  continueLabel?: string;
+}) {
+  if (!open) return null;
+
+  const remainingWatches = Math.max(
+    0,
+    (watchResult?.requiredWatchCount ?? 0) - (watchResult?.videoWatch?.watchCount ?? 0)
+  );
+
+  return (
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent>
+      <Pressable style={styles.completionOverlay} onPress={onClose}>
+        <View style={styles.completionCard}>
+          <ThemedText style={styles.completionTitle}>{title}</ThemedText>
+          <ThemedText style={styles.completionMessage}>
+            {message}
+          </ThemedText>
+          {watchResult?.starsJustAwarded && watchResult.starsToAward ? (
+            <View style={styles.starsWrap}>
+              <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
+              <ThemedText style={styles.starsText}>
+                You earned {watchResult.starsToAward} stars!
+              </ThemedText>
+              <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
+            </View>
+          ) : watchResult?.starsWereAlreadyAwarded ? (
+            <ThemedText style={styles.starsAlreadyText}>
+              Stars already earned for this video! ⭐
+            </ThemedText>
+          ) : (
+            <ThemedText style={styles.watchMoreText}>
+              Watch {remainingWatches} more time(s) to earn stars!
+            </ThemedText>
+          )}
+          <Pressable
+            style={styles.continueBtn}
+            onPress={onClose}>
+            <ThemedText style={styles.continueBtnText}>{continueLabel}</ThemedText>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
   );
 }
 

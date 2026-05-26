@@ -95,6 +95,8 @@ export interface Html5ModalProps {
     childId?: string | null;
     bookId?: string | null;
     onAfterComplete?: () => void;
+    /** Video follow-ups should return to the parent flow after any result, even when the score did not pass. */
+    closeOnResultContinue?: boolean;
 }
 
 function computePassAndProgress(score: number | null, maxScore: number | null): { passed: boolean; progress: number } {
@@ -118,6 +120,7 @@ export function Html5Modal({
     childId,
     bookId,
     onAfterComplete,
+    closeOnResultContinue = false,
 }: Html5ModalProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [result, setResult] = useState<Html5Result | null>(null);
@@ -298,6 +301,14 @@ export function Html5Modal({
         },
         [showDialog, clearResultAndClose]
     );
+
+    const handleContinueAfterFailedResult = useCallback(() => {
+        if (closeOnResultContinue) {
+            clearResultAndClose();
+            return;
+        }
+        closeCompletionDialogOnly();
+    }, [closeOnResultContinue, clearResultAndClose, closeCompletionDialogOnly]);
 
     const handleReload = useCallback(() => {
         if (scoreTimeoutRef.current) {
@@ -551,7 +562,7 @@ export function Html5Modal({
                                         <ThemedText style={styles.resultBtnPrimaryText}>Try again</ThemedText>
                                     </Pressable>
                                     <Pressable
-                                        onPress={closeCompletionDialogOnly}
+                                        onPress={handleContinueAfterFailedResult}
                                         style={({ pressed }) => [styles.resultBtn, pressed && styles.resultBtnPressed]}
                                         accessibilityRole="button"
                                         accessibilityLabel="Continue"
