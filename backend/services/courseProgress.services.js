@@ -738,6 +738,7 @@ const getCourseDetailsForChild = async (childId, courseId) => {
           type: 'video',
         })
           .populate('scormFile', 'type title url mimeType size')
+          .populate('cmsBookId', 'title description status language version isArchived pages')
           .populate('badgeAwarded', 'name description icon image category rarity')
           .lean();
         if (video) {

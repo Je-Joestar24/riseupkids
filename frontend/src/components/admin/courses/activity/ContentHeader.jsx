@@ -33,13 +33,13 @@ const ContentHeader = ({ onAddClick }) => {
   const getSubtitle = () => {
     switch (currentContentType) {
       case CONTENT_TYPES.BOOK:
-        return 'Manage interactive books and reading journeys';
+        return 'Manage HTML5 and built-in CMS books';
       case CONTENT_TYPES.VIDEO:
-        return 'Manage learning videos with SCORM interactions';
+        return 'Manage uploaded videos and Bunny embeds';
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return 'Manage audio assignments and speaking activities';
       case CONTENT_TYPES.CHANT:
-        return 'Manage chants with optional audio and SCORM files';
+        return 'Manage chants with optional audio and instruction videos';
       case CONTENT_TYPES.ACTIVITY:
       default:
         return 'Manage interactive learning activities for children';

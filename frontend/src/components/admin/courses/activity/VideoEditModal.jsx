@@ -8,19 +8,26 @@ import {
   TextField,
   Stack,
   FormControl,
+  FormControlLabel,
+  FormLabel,
   InputLabel,
   Select,
   MenuItem,
   Box,
+  Grid,
+  Paper,
   Typography,
   Chip,
   IconButton,
+  Radio,
+  RadioGroup,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
-import { CONTENT_TYPES } from '../../../../services/contentService';
+import { CONTENT_TYPES, VIDEO_COMPLETION_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
+import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
 /**
  * VideoEditModal Component
@@ -45,11 +52,16 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     duration: null,
     starsAwarded: 10,
     isPublished: false,
+    completionContentType: VIDEO_COMPLETION_TYPES.NONE,
+    cmsBookId: '',
+    selectedCmsBook: null,
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [selectedHtml5File, setSelectedHtml5File] = useState(null);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
@@ -89,6 +101,9 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
         duration: currentContent.duration || null,
         starsAwarded: currentContent.starsAwarded || 10,
         isPublished: currentContent.isPublished || false,
+        completionContentType: currentContent.completionContentType || VIDEO_COMPLETION_TYPES.NONE,
+        cmsBookId: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId?._id || '' : currentContent.cmsBookId || '',
+        selectedCmsBook: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId : null,
       });
       // Videos use 'thumbnail' field, but we map it to 'coverImage' in the slice
       setCurrentCoverImage(currentContent.coverImage || currentContent.thumbnail);
@@ -111,6 +126,12 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     }
   };
 
+  const handleHtml5FileChange = (event) => {
+    if (event.target.files && event.target.files.length > 0) {
+      setSelectedHtml5File(event.target.files[0]);
+    }
+  };
+
   // Cleanup object URL
   useEffect(() => {
     return () => {
@@ -130,6 +151,17 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
       }
       formDataToSend.append('starsAwarded', formData.starsAwarded);
       formDataToSend.append('isPublished', formData.isPublished);
+      formDataToSend.append('completionContentType', formData.completionContentType);
+      if (formData.completionContentType === VIDEO_COMPLETION_TYPES.BUILTIN) {
+        if (!formData.cmsBookId) {
+          alert('Please select a built-in CMS book for the video follow-up.');
+          return;
+        }
+        formDataToSend.append('cmsBookId', formData.cmsBookId);
+      }
+      if (formData.completionContentType === VIDEO_COMPLETION_TYPES.HTML5 && selectedHtml5File) {
+        formDataToSend.append('html5File', selectedHtml5File);
+      }
 
       if (selectedCoverImage) {
         formDataToSend.append('coverImage', selectedCoverImage);
@@ -153,8 +185,12 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
       duration: null,
       starsAwarded: 10,
       isPublished: false,
+      completionContentType: VIDEO_COMPLETION_TYPES.NONE,
+      cmsBookId: '',
+      selectedCmsBook: null,
     });
     setSelectedCoverImage(null);
+    setSelectedHtml5File(null);
     setCurrentCoverImage(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
@@ -177,16 +213,36 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     ? resolveMediaUrl(currentCoverImage)
     : null;
 
+  const bentoCardSx = {
+    height: '100%',
+    borderRadius: '20px',
+    borderColor: theme.palette.divider,
+    p: { xs: 2, md: 2.5 },
+    background:
+      theme.palette.mode === 'dark'
+        ? 'linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))'
+        : 'linear-gradient(145deg, #ffffff, #fbfaf7)',
+    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.05)',
+  };
+
+  const bentoTitleSx = {
+    fontFamily: 'Quicksand, sans-serif',
+    fontWeight: 700,
+    mb: 0.5,
+  };
+
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth="lg"
       fullWidth
       PaperProps={{
         sx: {
           borderRadius: '16px',
           fontFamily: 'Quicksand, sans-serif',
+          width: 'min(1280px, calc(100vw - 32px))',
         },
       }}
     >
@@ -246,127 +302,220 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
             }}
           />
 
-          {/* Duration */}
-          <TextField
-            label="Duration (seconds)"
-            type="number"
-            value={formData.duration || ''}
-            onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || null)}
-            inputProps={{ min: 0 }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
+          <Grid container spacing={2}>
+            <Grid item xs={12} lg={8}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <Stack spacing={1.5}>
+                  <Box>
+                    <Typography sx={bentoTitleSx}>Cover image</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                      Optional thumbnail displayed on the video card.
+                    </Typography>
+                  </Box>
 
-          {/* Stars Awarded */}
-          <TextField
-            label="Stars Awarded"
-            type="number"
-            value={formData.starsAwarded}
-            onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
-            inputProps={{ min: 0 }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
+                  <input
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    id="video-cover-image-upload-edit"
+                    type="file"
+                    onChange={handleCoverImageChange}
+                  />
+                  <Box
+                    component="label"
+                    htmlFor="video-cover-image-upload-edit"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={displayCoverImage ? 'Change video cover image' : 'Upload video cover image'}
+                    sx={{
+                      width: '100%',
+                      aspectRatio: '1.618 / 1',
+                      minHeight: { xs: 220, md: 360 },
+                      overflow: 'hidden',
+                      borderRadius: '18px',
+                      border: displayCoverImage
+                        ? `1px solid ${theme.palette.divider}`
+                        : `2px dashed ${theme.palette.divider}`,
+                      background:
+                        theme.palette.mode === 'dark'
+                          ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                          : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      transition: '160ms ease',
+                      '&:hover': {
+                        borderColor: theme.palette.orange?.main || theme.palette.primary.main,
+                        transform: 'translateY(-1px)',
+                      },
+                    }}
+                  >
+                    {displayCoverImage ? (
+                      <>
+                        <Box
+                          component="img"
+                          src={displayCoverImage}
+                          alt="Cover preview"
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        <Chip
+                          label={selectedCoverImage ? 'Change new cover' : 'Change cover'}
+                          size="small"
+                          sx={{ position: 'absolute', top: 12, right: 12, fontFamily: 'Quicksand, sans-serif' }}
+                        />
+                      </>
+                    ) : (
+                      <Stack alignItems="center" spacing={1.25} sx={{ px: 3, textAlign: 'center' }}>
+                        <CloudUploadIcon sx={{ fontSize: 56, color: theme.palette.text.secondary }} aria-hidden />
+                        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                          Upload cover image
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                          Use a wide rectangular thumbnail for the best course card fit.
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Box>
+                  {selectedCoverImage && (
+                    <Chip
+                      label={selectedCoverImage.name}
+                      size="small"
+                      sx={{ alignSelf: 'flex-start' }}
+                      onDelete={() => setSelectedCoverImage(null)}
+                    />
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
 
-          {/* Cover Image Upload */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 600,
-                marginBottom: 1,
-              }}
-            >
-              Cover Image (Optional)
-            </Typography>
-            
-            {displayCoverImage && (
-              <Box
-                sx={{
-                  position: 'relative',
-                  width: '100%',
-                  paddingTop: '100%',
-                  overflow: 'hidden',
-                  borderRadius: '8px',
-                  marginBottom: 2,
-                  backgroundColor: theme.palette.custom?.bgSecondary || theme.palette.grey[100],
-                }}
-              >
-                <Box
-                  component="img"
-                  src={displayCoverImage}
-                  alt="Cover preview"
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              </Box>
-            )}
+            <Grid item xs={12} lg={4}>
+              <Stack spacing={2} sx={{ height: '100%' }}>
+                <Paper variant="outlined" sx={bentoCardSx}>
+                  <Stack spacing={1.5}>
+                    <Box>
+                      <Typography sx={bentoTitleSx}>Optional follow-up</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        Leave this as No follow-up activity when the video should end normally.
+                      </Typography>
+                    </Box>
+                    <RadioGroup
+                      value={formData.completionContentType}
+                      onChange={(e) => {
+                        const selectedType = e.target.value;
+                        handleInputChange('completionContentType', selectedType);
+                        if (selectedType !== VIDEO_COMPLETION_TYPES.BUILTIN) {
+                          handleInputChange('cmsBookId', '');
+                          handleInputChange('selectedCmsBook', null);
+                        }
+                        if (selectedType !== VIDEO_COMPLETION_TYPES.HTML5) {
+                          setSelectedHtml5File(null);
+                        }
+                      }}
+                      aria-label="Choose optional activity shown after the video finishes"
+                    >
+                      <FormControlLabel value={VIDEO_COMPLETION_TYPES.NONE} control={<Radio />} label="No follow-up activity" />
+                      <FormControlLabel value={VIDEO_COMPLETION_TYPES.HTML5} control={<Radio />} label="HTML5 package" />
+                      <FormControlLabel value={VIDEO_COMPLETION_TYPES.BUILTIN} control={<Radio />} label="Built-in CMS book" />
+                    </RadioGroup>
 
-            <input
-              accept="image/*"
-              style={{ display: 'none' }}
-              id="video-cover-image-upload-edit"
-              type="file"
-              onChange={handleCoverImageChange}
-            />
-            <label htmlFor="video-cover-image-upload-edit">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<CloudUploadIcon />}
-                fullWidth
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
-              >
-                {selectedCoverImage ? 'Change Cover Image' : 'Upload New Cover Image'}
-              </Button>
-            </label>
-            {selectedCoverImage && (
-              <Box sx={{ marginTop: 1 }}>
-                <Chip
-                  label={selectedCoverImage.name}
-                  size="small"
-                  sx={{ margin: 0.5 }}
-                  onDelete={() => setSelectedCoverImage(null)}
-                />
-              </Box>
-            )}
-          </Box>
+                    {formData.completionContentType === VIDEO_COMPLETION_TYPES.HTML5 && (
+                      <Box>
+                        <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                          {currentContent?.html5PackageId
+                            ? 'Upload a ZIP only if you want to replace the current HTML5 package.'
+                            : 'Required only when HTML5 package is selected.'}
+                        </Typography>
+                        <input
+                          accept=".zip,application/zip,application/x-zip-compressed"
+                          style={{ display: 'none' }}
+                          id="edit-video-html5-upload"
+                          type="file"
+                          aria-label="Select HTML5 ZIP follow-up for video"
+                          onChange={handleHtml5FileChange}
+                        />
+                        <label htmlFor="edit-video-html5-upload">
+                          <Button
+                            variant="outlined"
+                            component="span"
+                            startIcon={<CloudUploadIcon />}
+                            fullWidth
+                            sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                          >
+                            {currentContent?.html5PackageId ? 'Replace HTML5 package (ZIP)' : 'Upload HTML5 package (ZIP)'}
+                          </Button>
+                        </label>
+                        {selectedHtml5File && (
+                          <Chip
+                            label={selectedHtml5File.name}
+                            size="small"
+                            sx={{ mt: 1 }}
+                            onDelete={() => setSelectedHtml5File(null)}
+                          />
+                        )}
+                      </Box>
+                    )}
 
-          {/* Published Toggle */}
-          <FormControl fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={formData.isPublished ? 'true' : 'false'}
-              onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
-              label="Status"
-              sx={{
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              <MenuItem value="false">Draft</MenuItem>
-              <MenuItem value="true">Published</MenuItem>
-            </Select>
-          </FormControl>
+                    {formData.completionContentType === VIDEO_COMPLETION_TYPES.BUILTIN && (
+                      <Box>
+                        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                          {formData.selectedCmsBook?.title || 'No built-in book selected'}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          onClick={() => setCmsBooksDrawerOpen(true)}
+                          fullWidth
+                          sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                        >
+                          {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
+                        </Button>
+                      </Box>
+                    )}
+                  </Stack>
+                </Paper>
+
+                <Paper variant="outlined" sx={bentoCardSx}>
+                  <Stack spacing={1.5}>
+                    <Typography sx={bentoTitleSx}>Rewards, timing, and status</Typography>
+                    <TextField
+                      label="Duration (seconds)"
+                      type="number"
+                      value={formData.duration || ''}
+                      onChange={(e) => handleInputChange('duration', parseInt(e.target.value) || null)}
+                      inputProps={{ min: 0 }}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                    />
+                    <TextField
+                      label="Stars Awarded"
+                      type="number"
+                      value={formData.starsAwarded}
+                      onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
+                      inputProps={{ min: 0 }}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                    />
+                    <FormControl fullWidth>
+                      <InputLabel>Status</InputLabel>
+                      <Select
+                        value={formData.isPublished ? 'true' : 'false'}
+                        onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                        label="Status"
+                        sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                      >
+                        <MenuItem value="false">Draft</MenuItem>
+                        <MenuItem value="true">Published</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                </Paper>
+              </Stack>
+            </Grid>
+          </Grid>
         </Stack>
       </DialogContent>
 
@@ -404,7 +553,19 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
           {loading ? 'Updating...' : 'Update Video'}
         </Button>
       </DialogActions>
-    </Dialog>
+      </Dialog>
+
+      <CMSBooksSelectRightDrawer
+        open={cmsBooksDrawerOpen}
+        onClose={() => setCmsBooksDrawerOpen(false)}
+        selectedBookId={formData.cmsBookId}
+        onSelectBook={(book) => {
+          handleInputChange('cmsBookId', book?._id || '');
+          handleInputChange('selectedCmsBook', book || null);
+          setCmsBooksDrawerOpen(false);
+        }}
+      />
+    </>
   );
 };
 

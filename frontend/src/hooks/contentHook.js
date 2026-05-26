@@ -16,7 +16,11 @@ import {
   setContentType,
 } from '../store/slices/contentSlice';
 import { showNotification } from '../store/slices/uiSlice';
-import { CONTENT_TYPES, BOOK_PACKAGE_TYPES } from '../services/contentService';
+import {
+  CONTENT_TYPES,
+  BOOK_PACKAGE_TYPES,
+  isSelectableBookPackageType,
+} from '../services/contentService';
 
 /**
  * Custom hook for unified content management
@@ -334,10 +338,13 @@ export const useContent = () => {
     const value = book?.packageType;
     return [BOOK_PACKAGE_TYPES.SCORM, BOOK_PACKAGE_TYPES.HTML5, BOOK_PACKAGE_TYPES.BUILTIN].includes(value)
       ? value
-      : BOOK_PACKAGE_TYPES.SCORM;
+      : BOOK_PACKAGE_TYPES.HTML5;
   };
 
   const isBuiltinBook = (book) => getBookPackageType(book) === BOOK_PACKAGE_TYPES.BUILTIN;
+  const isHtml5Book = (book) => getBookPackageType(book) === BOOK_PACKAGE_TYPES.HTML5;
+  const isLegacyScormBook = (book) => getBookPackageType(book) === BOOK_PACKAGE_TYPES.SCORM;
+  const isSelectableBookPackage = (book) => isSelectableBookPackageType(getBookPackageType(book));
 
   const getLinkedCmsBookId = (book) => {
     if (!book) return null;
@@ -385,6 +392,9 @@ export const useContent = () => {
     getContentTypeLabel,
     getBookPackageType,
     isBuiltinBook,
+    isHtml5Book,
+    isLegacyScormBook,
+    isSelectableBookPackage,
     getLinkedCmsBookId,
     // Constants
     CONTENT_TYPES,

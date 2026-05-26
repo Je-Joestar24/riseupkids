@@ -9,6 +9,7 @@ import {
   Typography,
   IconButton,
   CircularProgress,
+  Alert,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
@@ -21,6 +22,8 @@ import { useDispatch } from 'react-redux';
 import { updateChildStats } from '../../../store/slices/userSlice';
 import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
+import html5Service from '../../../services/html5Service';
+import CmsBooksModalPlayer from './cms/CmsBooksModalPlayer';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
@@ -155,6 +158,11 @@ const VideoPlayerModal = ({
   const completionDialogShownRef = useRef(false); // Track if completion dialog has been shown for this video
   const [videoEnded, setVideoEnded] = useState(false);
   const [scormOpen, setScormOpen] = useState(false);
+  const [html5Open, setHtml5Open] = useState(false);
+  const [cmsBookOpen, setCmsBookOpen] = useState(false);
+  const [html5LaunchUrl, setHtml5LaunchUrl] = useState(null);
+  const [html5Error, setHtml5Error] = useState(null);
+  const [html5Loading, setHtml5Loading] = useState(false);
   const [videoUrl, setVideoUrl] = useState(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
@@ -178,6 +186,15 @@ const VideoPlayerModal = ({
 
   // Check if video has SCORM file
   const hasScorm = !!(video?.scormFile || video?.scormFileUrl || video?.scormFilePath);
+  const hasHtml5FollowUp = !!(video?.html5PackageId && (video?.completionContentType === 'html5' || !video?.completionContentType));
+  const linkedCmsBook = video?.cmsBookId && typeof video.cmsBookId === 'object' ? video.cmsBookId : null;
+  const hasCmsBookFollowUp = !!(
+    linkedCmsBook &&
+    video?.completionContentType === 'builtin' &&
+    Array.isArray(linkedCmsBook.pages) &&
+    linkedCmsBook.pages.length > 0
+  );
+  const hasFollowUpContent = hasScorm || hasHtml5FollowUp || hasCmsBookFollowUp;
 
   /**
    * Update child stats in sessionStorage and Redux
@@ -354,6 +371,11 @@ const VideoPlayerModal = ({
         setVideoUrl(newVideoUrl);
         setVideoEnded(false);
         setScormOpen(false);
+        setHtml5Open(false);
+        setCmsBookOpen(false);
+        setHtml5LaunchUrl(null);
+        setHtml5Error(null);
+        setHtml5Loading(false);
         setShowConfirmClose(false);
         setVideoLoaded(false);
         setVideoPlaying(false);
@@ -559,9 +581,52 @@ const VideoPlayerModal = ({
     // This prevents the modal from closing/reloading before user sees the message
   };
 
-  // Handle SCORM start
-  const handleStartScorm = () => {
-    setScormOpen(true);
+  useEffect(() => {
+    if (!html5Open || !hasHtml5FollowUp) return undefined;
+
+    let cancelled = false;
+    const loadHtml5FollowUp = async () => {
+      try {
+        setHtml5Loading(true);
+        setHtml5Error(null);
+        const { launchUrl } = await html5Service.getLaunchUrl(
+          video.html5PackageId,
+          video.html5EntryPoint || 'index.html'
+        );
+        if (!cancelled) {
+          setHtml5LaunchUrl(launchUrl || null);
+          if (!launchUrl) setHtml5Error('Failed to get HTML5 launch URL.');
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setHtml5Error(error?.message || 'Failed to load HTML5 follow-up.');
+          setHtml5LaunchUrl(null);
+        }
+      } finally {
+        if (!cancelled) setHtml5Loading(false);
+      }
+    };
+
+    loadHtml5FollowUp();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [html5Open, hasHtml5FollowUp, video?.html5PackageId, video?.html5EntryPoint]);
+
+  // Handle interactive follow-up start
+  const handleStartFollowUp = () => {
+    if (hasHtml5FollowUp) {
+      setHtml5Open(true);
+      return;
+    }
+    if (hasCmsBookFollowUp) {
+      setCmsBookOpen(true);
+      return;
+    }
+    if (hasScorm) {
+      setScormOpen(true);
+    }
   };
 
   // Handle close attempt - show confirmation
@@ -577,6 +642,11 @@ const VideoPlayerModal = ({
     }
     setVideoEnded(false);
     setScormOpen(false);
+    setHtml5Open(false);
+    setCmsBookOpen(false);
+    setHtml5LaunchUrl(null);
+    setHtml5Error(null);
+    setHtml5Loading(false);
     setShowConfirmClose(false);
     setShowCompletionDialog(false);
     setWatchResult(null);
@@ -596,9 +666,9 @@ const VideoPlayerModal = ({
 
   // Auto-close completion dialog and modal after delay (for explore videos without SCORM)
   useEffect(() => {
-    // Only set up auto-close for explore videos without SCORM
+    // Only set up auto-close for explore videos without interactive follow-up
     // Replay videos also get auto-close (they're explore videos too)
-    if (showCompletionDialog && !hasScorm && isExploreVideo) {
+    if (showCompletionDialog && !hasFollowUpContent && isExploreVideo) {
       // Clear any existing timer first
       if (autoCloseTimerRef.current) {
         console.log('[VideoPlayer] Clearing existing auto-close timer');
@@ -634,6 +704,11 @@ const VideoPlayerModal = ({
           }
           setVideoEnded(false);
           setScormOpen(false);
+          setHtml5Open(false);
+          setCmsBookOpen(false);
+          setHtml5LaunchUrl(null);
+          setHtml5Error(null);
+          setHtml5Loading(false);
           setShowConfirmClose(false);
           setWatchResult(null);
           setHasRecordedWatch(false);
@@ -664,7 +739,7 @@ const VideoPlayerModal = ({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCompletionDialog, hasScorm, isExploreVideo]);
+  }, [showCompletionDialog, hasFollowUpContent, isExploreVideo]);
 
   // Handle completion dialog close (manual close via button or auto-close)
   const handleCompletionDialogClose = () => {
@@ -677,11 +752,11 @@ const VideoPlayerModal = ({
       autoCloseTimerRef.current = null;
     }
 
-    // If video has SCORM, keep modal open so user can start SCORM activity
+    // If video has follow-up content, open it after the completion dialog.
     // Don't call onVideoComplete or close modal yet
-    if (hasScorm) {
+    if (hasFollowUpContent) {
       setShowCompletionDialog(false);
-      // Modal stays open, user can click "Start Interactive Activity" button
+      handleStartFollowUp();
       // onVideoComplete will be called when modal is actually closed
       return;
     }
@@ -719,13 +794,24 @@ const VideoPlayerModal = ({
     // Don't close video modal, let user close it manually
   };
 
+  const handleHtml5Close = () => {
+    setHtml5Open(false);
+    setHtml5LaunchUrl(null);
+    setHtml5Error(null);
+    setHtml5Loading(false);
+  };
+
+  const handleCmsBookClose = () => {
+    setCmsBookOpen(false);
+  };
+
   // Get video ID
   const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
 
   return (
     <>
       <Dialog
-        open={open && !scormOpen && !showCompletionDialog && !isClosingModal}
+        open={open && !scormOpen && !html5Open && !cmsBookOpen && !showCompletionDialog && !isClosingModal}
         onClose={handleCloseAttempt}
         maxWidth="lg"
         fullWidth
@@ -862,8 +948,8 @@ const VideoPlayerModal = ({
                 </Box>
               )}
 
-              {/* SCORM Start Button - Shows after video ends */}
-              {videoEnded && hasScorm && (
+              {/* Interactive follow-up button - Shows after video ends */}
+              {videoEnded && hasFollowUpContent && (
                 <Box
                   sx={{
                     position: 'absolute',
@@ -875,7 +961,7 @@ const VideoPlayerModal = ({
                 >
                   <Button
                     variant="contained"
-                    onClick={handleStartScorm}
+                    onClick={handleStartFollowUp}
                     startIcon={<PlayArrowIcon sx={{ fontSize: '2rem' }} />}
                     sx={{
                       backgroundColor: themeColors.secondary,
@@ -894,7 +980,11 @@ const VideoPlayerModal = ({
                       },
                     }}
                   >
-                    Start Interactive Activity
+                    {hasHtml5FollowUp
+                      ? 'Start HTML5 Book'
+                      : hasCmsBookFollowUp
+                        ? 'Start Built-in Book'
+                        : 'Start Interactive Activity'}
                   </Button>
                 </Box>
               )}
@@ -975,6 +1065,67 @@ const VideoPlayerModal = ({
             console.log('SCORM completed:', data);
             // SCORM completion is handled in ScormPlayer component
           }}
+        />
+      )}
+
+      {/* HTML5 follow-up player */}
+      {hasHtml5FollowUp && (
+        <Dialog
+          open={html5Open}
+          onClose={handleHtml5Close}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: '20px',
+              fontFamily: 'Quicksand, sans-serif',
+              height: '90vh',
+            },
+          }}
+        >
+          <DialogTitle
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 700,
+            }}
+          >
+            {video?.title || 'HTML5 Book'}
+            <IconButton onClick={handleHtml5Close} aria-label="Close HTML5 follow-up">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent sx={{ p: 0, height: '100%', position: 'relative' }}>
+            {html5Loading ? (
+              <Box sx={{ height: '100%', display: 'grid', placeItems: 'center' }}>
+                <CircularProgress sx={{ color: themeColors.secondary }} />
+              </Box>
+            ) : html5Error ? (
+              <Box sx={{ p: 3 }}>
+                <Alert severity="error">{html5Error}</Alert>
+              </Box>
+            ) : html5LaunchUrl ? (
+              <Box
+                component="iframe"
+                title={`${video?.title || 'Video'} HTML5 follow-up`}
+                src={html5LaunchUrl}
+                sx={{ width: '100%', height: '100%', border: 0 }}
+                allow="fullscreen; autoplay"
+              />
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Built-in CMS book follow-up player */}
+      {hasCmsBookFollowUp && (
+        <CmsBooksModalPlayer
+          open={cmsBookOpen}
+          onClose={handleCmsBookClose}
+          pages={linkedCmsBook.pages}
+          onSessionComplete={() => {}}
         />
       )}
 
@@ -1218,7 +1369,7 @@ const VideoPlayerModal = ({
               },
             }}
           >
-            {hasScorm ? 'Continue' : 'Close'}
+            {hasFollowUpContent ? 'Continue' : 'Close'}
           </Button>
         </DialogActions>
       </Dialog>

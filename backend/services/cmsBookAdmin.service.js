@@ -146,6 +146,78 @@ function collectBookMediaIds(book) {
   return [...ids];
 }
 
+function getCoverPage(book) {
+  const pages = Array.isArray(book?.pages) ? book.pages : [];
+  return (
+    pages.find((page) => page?.type === 'cover' && Number(page?.order) === 1) ||
+    pages.find((page) => page?.type === 'cover') ||
+    pages.find((page) => Number(page?.order) === 1) ||
+    null
+  );
+}
+
+function toMediaView(media) {
+  if (!media) return null;
+  return {
+    id: String(media._id),
+    _id: media._id,
+    type: media.type || null,
+    url: media.url || media.cloudUrl || null,
+    cloudUrl: media.cloudUrl || null,
+    mimeType: media.mimeType || null,
+  };
+}
+
+async function attachCoverMediaToBooks(books = []) {
+  const coverIds = books
+    .map((book) => getCoverPage(book)?.media?.imageMediaId)
+    .filter(Boolean)
+    .map((id) => String(id));
+
+  if (coverIds.length === 0) return books;
+
+  const uniqueCoverIds = [...new Set(coverIds)];
+  const mediaRecords = await Media.find({ _id: { $in: uniqueCoverIds }, isActive: true })
+    .select('_id type url cloudUrl mimeType')
+    .lean();
+  const mediaById = new Map(mediaRecords.map((media) => [String(media._id), toMediaView(media)]));
+
+  return books.map((book) => {
+    const coverPage = getCoverPage(book);
+    const coverMediaId = coverPage?.media?.imageMediaId ? String(coverPage.media.imageMediaId) : null;
+    const coverMedia = coverMediaId ? mediaById.get(coverMediaId) || null : null;
+
+    if (!coverMediaId) return book;
+
+    const pages = Array.isArray(book?.pages)
+      ? book.pages.map((page) => {
+        const pageImageMediaId = page?.media?.imageMediaId ? String(page.media.imageMediaId) : null;
+        const isCoverPage =
+          pageImageMediaId === coverMediaId &&
+          (page?.pageId === coverPage?.pageId || page?.type === 'cover' || Number(page?.order) === 1);
+
+        if (!isCoverPage) return page;
+
+        return {
+          ...page,
+          media: {
+            ...(page.media || {}),
+            imageMedia: coverMedia,
+          },
+        };
+      })
+      : book?.pages;
+
+    return {
+      ...book,
+      pages,
+      coverImageMediaId: coverMediaId,
+      coverImageMedia: coverMedia,
+      coverImageUrl: coverMedia?.url || null,
+    };
+  });
+}
+
 async function createCmsBook({ userId, payload }) {
   if (!userId) throw createHttpError('userId is required', 400);
   if (!payload || !payload.title || !String(payload.title).trim()) {
@@ -189,6 +261,7 @@ async function listCmsBooks({ page = 1, limit = 10, search = '', status, languag
     .skip(skip)
     .limit(safeLimit)
     .lean();
+  const itemsWithCoverMedia = await attachCoverMediaToBooks(items);
 
   return {
     pagination: {
@@ -199,7 +272,7 @@ async function listCmsBooks({ page = 1, limit = 10, search = '', status, languag
       hasNextPage: safePage * safeLimit < total,
       hasPrevPage: safePage > 1,
     },
-    items,
+    items: itemsWithCoverMedia,
   };
 }
 

@@ -123,6 +123,23 @@ const mediaSchema = new mongoose.Schema(
     /** When extracted SCORM is on S3/CloudFront. */
     scormBaseUrl: { type: String, default: null, trim: true },
     scormEntryPoint: { type: String, default: 'index.html', trim: true },
+    /**
+     * Optional interactive content launched after a video finishes.
+     * Legacy SCORM fields above remain readable, but new admin flow uses HTML5 or built-in CMS books.
+     */
+    completionContentType: {
+      type: String,
+      enum: ['none', 'scorm', 'html5', 'builtin'],
+      default: 'none',
+    },
+    html5PackageId: { type: String, default: null, trim: true },
+    html5EntryPoint: { type: String, default: 'index.html', trim: true },
+    html5BaseUrl: { type: String, default: null, trim: true },
+    cmsBookId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CmsBook',
+      default: null,
+    },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

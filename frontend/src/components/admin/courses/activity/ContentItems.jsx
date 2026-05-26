@@ -84,10 +84,9 @@ const ContentItems = ({ loading, onRefresh }) => {
   }, [selectedItem, filters.contentType]);
 
   const isScormItem = useCallback((type, item) => {
-    // Content types that are inherently SCORM-based in this admin UI.
+    // Content types that still rely on SCORM in this admin UI.
     if (type === CONTENT_TYPES.ACTIVITY) return true;
-    // Books may be SCORM, HTML5, or builtin. Only HTML5 is testable in this modal.
-    if (type === CONTENT_TYPES.BOOK && item?.packageType !== BOOK_PACKAGE_TYPES.HTML5) return true;
+    if (type === CONTENT_TYPES.BOOK && item?.packageType === BOOK_PACKAGE_TYPES.SCORM) return true;
     return false;
   }, []);
 
@@ -300,10 +299,10 @@ const ContentItems = ({ loading, onRefresh }) => {
 
   const getBookPackageMeta = (item) => {
     if ((item?._contentType || filters.contentType) !== CONTENT_TYPES.BOOK) return null;
-    const packageType = item?.packageType || BOOK_PACKAGE_TYPES.SCORM;
+    const packageType = item?.packageType || BOOK_PACKAGE_TYPES.HTML5;
     if (packageType === BOOK_PACKAGE_TYPES.BUILTIN) return 'Built-in';
     if (packageType === BOOK_PACKAGE_TYPES.HTML5) return 'HTML5';
-    return 'SCORM';
+    return 'Legacy SCORM';
   };
 
   const supportsArchive = (type) => type === CONTENT_TYPES.ACTIVITY || type === CONTENT_TYPES.BOOK;
@@ -355,8 +354,7 @@ const ContentItems = ({ loading, onRefresh }) => {
       {contentItems.map((item) => (
         <Grid item xs={12} sm={6} md={4} lg={3} xl={2.4} key={item._id}>
           {/*
-            Card is clickable for SCORM-enabled items (except the 3-dots menu button).
-            For non-SCORM items, it remains static.
+            Card clicks launch supported previews where available; menu remains separate.
           */}
           <Card
             sx={{
@@ -640,7 +638,7 @@ const ContentItems = ({ loading, onRefresh }) => {
                       }}
                     />
                   </Box>
-                  {/* Test badge (SCORM or HTML5) - Lower left */}
+                  {/* Preview/test badge for HTML5 and built-in CMS books */}
                   {(canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
                     canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)) && (
                     <Box
@@ -810,7 +808,7 @@ const ContentItems = ({ loading, onRefresh }) => {
         )}
       </Menu>
 
-      {/* Unified Edit Modal (currently activities only) */}
+      {/* Unified Edit Modal */}
       <ContentEditModal
         open={editModalOpen}
         onClose={handleEditModalClose}

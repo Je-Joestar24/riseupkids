@@ -5,14 +5,14 @@ import { TIMEOUT } from '../constants/timeout';
  *
  * Unified service for managing all content types:
  * - Activities (SCORM-based)
- * - Books (SCORM, HTML5, or builtin CMS-linked: same endpoint POST /api/books; formData.packageType selects handling)
- * - Videos (uploaded file + optional SCORM, or Bunny iframe embed via `videoSource` + `embedUrl`; embed disallows SCORM)
+ * - Books (HTML5 ZIP or built-in CMS-linked; legacy SCORM records are read-only/hidden in the create UI)
+ * - Videos (uploaded file or Bunny iframe embed via `videoSource` + `embedUrl`, optional HTML5/CMS follow-up)
  * - Audio Assignments (reference audio)
- * - Chants (optional audio and SCORM files)
+ * - Chants (optional audio and instruction video)
  *
  * All methods accept a contentType parameter to route to the correct API endpoint.
  * Book create: POST /api/books with packageType.
- * - scorm/html5: requires ZIP in scormFile.
+ * - html5: requires ZIP in scormFile (backend field name is reused for package ZIP uploads).
  * - builtin: requires cmsBookId and no ZIP upload.
  */
 
@@ -32,13 +32,28 @@ export const BOOK_PACKAGE_TYPES = {
   BUILTIN: 'builtin',
 };
 
+export const VIDEO_COMPLETION_TYPES = {
+  NONE: 'none',
+  SCORM: 'scorm',
+  HTML5: 'html5',
+  BUILTIN: 'builtin',
+};
+
+export const SELECTABLE_BOOK_PACKAGE_TYPES = [
+  BOOK_PACKAGE_TYPES.HTML5,
+  BOOK_PACKAGE_TYPES.BUILTIN,
+];
+
+export const isSelectableBookPackageType = (packageType) =>
+  SELECTABLE_BOOK_PACKAGE_TYPES.includes(packageType);
+
 export const normalizeBookContent = (book = {}) => {
   const packageType =
     [BOOK_PACKAGE_TYPES.SCORM, BOOK_PACKAGE_TYPES.HTML5, BOOK_PACKAGE_TYPES.BUILTIN].includes(
       book?.packageType
     )
       ? book.packageType
-      : BOOK_PACKAGE_TYPES.SCORM;
+      : BOOK_PACKAGE_TYPES.HTML5;
 
   const linkedCmsBook = book?.cmsBookId && typeof book.cmsBookId === 'object' ? book.cmsBookId : null;
   const linkedCmsBookId =
@@ -51,10 +66,13 @@ export const normalizeBookContent = (book = {}) => {
     cmsBookId: linkedCmsBookId,
     cmsBook: linkedCmsBook,
     isBuiltinBook: packageType === BOOK_PACKAGE_TYPES.BUILTIN,
+    isHtml5Book: packageType === BOOK_PACKAGE_TYPES.HTML5,
+    isLegacyScormBook: packageType === BOOK_PACKAGE_TYPES.SCORM,
+    isSelectableBookPackage: isSelectableBookPackageType(packageType),
   };
 };
 
-// API endpoint mapping (BOOK: same /books for SCORM/HTML5/builtin; backend uses body.packageType)
+// API endpoint mapping (BOOK: same /books for HTML5/builtin; backend uses body.packageType)
 const API_ENDPOINTS = {
   [CONTENT_TYPES.ACTIVITY]: '/activities',
   [CONTENT_TYPES.BOOK]: '/books',
@@ -100,7 +118,7 @@ const contentService = {
   /**
    * Create new content item with file uploads
    * @param {String} contentType - Content type
-   * @param {FormData} formData - Content data with files; for `video`, may include `videoSource` (`upload`|`embed`) and `embedUrl` (Bunny iframe URL)
+   * @param {FormData} formData - Content data with files; for `video`, may include `videoSource`, `embedUrl`, and optional `completionContentType`
    * @returns {Promise} API response with created content data
    */
   createContent: async (contentType, formData) => {
@@ -115,7 +133,7 @@ const contentService = {
         formData instanceof FormData
           ? {
               headers: { 'Content-Type': undefined },
-              timeout: TIMEOUT, // 2 min for large ZIP (SCORM/HTML5)
+              timeout: TIMEOUT, // 2 min for large ZIP (HTML5)
             }
           : {};
       const response = await api.post(endpoint, formData, config);

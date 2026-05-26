@@ -11,19 +11,30 @@ import {
   Typography,
 } from '@mui/material';
 import { MenuBookOutlined as MenuBookOutlinedIcon, Language as LanguageIcon } from '@mui/icons-material';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 const resolveBookIntroImage = (book) => {
   const pages = Array.isArray(book?.pages) ? book.pages : [];
-  const introLikePage = pages.find((page) => page?.type === 'intro' || page?.type === 'cover');
-  if (!introLikePage) return '';
+  const introLikePage =
+    pages.find((page) => page?.type === 'cover' && Number(page?.order) === 1) ||
+    pages.find((page) => page?.type === 'cover') ||
+    pages.find((page) => page?.type === 'intro') ||
+    pages.find((page) => Number(page?.order) === 1);
+  const bookLevelCoverUrl = book?.coverImageUrl || book?.coverImageMedia?.url || '';
+  if (!introLikePage) return getCoverImageUrl(bookLevelCoverUrl) || '';
 
-  return (
-    introLikePage.imageUrl
+  const coverUrl = (
+    bookLevelCoverUrl
+    || introLikePage.coverImageUrl
+    || introLikePage.imageUrl
     || introLikePage?.media?.imageUrl
     || introLikePage?.media?.image?.url
     || introLikePage?.media?.imageMedia?.url
+    || introLikePage?.media?.imageMedia?.cloudUrl
     || ''
   );
+
+  return getCoverImageUrl(coverUrl) || '';
 };
 
 const DotsMenuSvgIcon = () => (

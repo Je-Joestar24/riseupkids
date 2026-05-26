@@ -103,11 +103,22 @@ describe('flodeskService', () => {
       axiosError.response = { status: 400, data: { message: 'Invalid email' } };
       axios.post.mockRejectedValueOnce(axiosError);
       jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await expect(subscribeToFlodesk('bad')).rejects.toThrow('Flodesk subscription failed');
       expect(axios.post).toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[Flodesk] API error:',
+        expect.objectContaining({
+          status: 400,
+          message: 'Invalid email',
+          email: 'bad',
+          responseData: { message: 'Invalid email' },
+        })
+      );
 
       axios.isAxiosError.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
   });
 

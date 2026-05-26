@@ -83,6 +83,63 @@ describe('cmsBookAdmin.service', () => {
     );
   });
 
+  it('lists cms books with resolved cover page image media', async () => {
+    CmsBook.countDocuments.mockResolvedValue(1);
+    CmsBook.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'book-1',
+          title: 'Cover Book',
+          pages: [
+            {
+              pageId: 'cover-1',
+              order: 1,
+              type: 'cover',
+              media: { imageMediaId: 'media-cover-1' },
+            },
+            {
+              pageId: 'content-1',
+              order: 2,
+              type: 'content',
+              media: { imageMediaId: 'media-content-1' },
+            },
+          ],
+        },
+      ]),
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'media-cover-1',
+          type: 'image',
+          url: '/uploads/media/images/cover.png',
+          cloudUrl: null,
+          mimeType: 'image/png',
+        },
+      ]),
+    });
+
+    const result = await service.listCmsBooks({ page: 1, limit: 10 });
+
+    expect(Media.find).toHaveBeenCalledWith({
+      _id: { $in: ['media-cover-1'] },
+      isActive: true,
+    });
+    expect(result.items[0].coverImageMediaId).toBe('media-cover-1');
+    expect(result.items[0].coverImageUrl).toBe('/uploads/media/images/cover.png');
+    expect(result.items[0].pages[0].media.imageMedia).toMatchObject({
+      id: 'media-cover-1',
+      type: 'image',
+      url: '/uploads/media/images/cover.png',
+      mimeType: 'image/png',
+    });
+    expect(result.items[0].pages[1].media.imageMedia).toBeUndefined();
+  });
+
   it('updates draft cms book', async () => {
     const doc = makeDoc({ title: 'Old' });
     CmsBook.findById.mockResolvedValue(doc);

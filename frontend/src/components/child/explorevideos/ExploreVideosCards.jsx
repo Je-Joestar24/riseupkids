@@ -210,6 +210,10 @@ const ExploreVideosCards = ({ childId, videoType }) => {
       scormFile: videoFile?.scormFile,
       scormFileUrl: videoFile?.scormFileUrl,
       scormFilePath: videoFile?.scormFilePath,
+      completionContentType: videoFile?.completionContentType,
+      html5PackageId: videoFile?.html5PackageId,
+      html5EntryPoint: videoFile?.html5EntryPoint,
+      cmsBookId: videoFile?.cmsBookId,
     };
   };
 

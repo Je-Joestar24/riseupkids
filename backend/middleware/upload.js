@@ -301,6 +301,15 @@ const uploadVideo = multer({
       } else {
         cb(new Error('SCORM file must be a ZIP file'), false);
       }
+    } else if (file.fieldname === 'html5File') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('HTML5 package must be a ZIP file'), false);
+      }
     } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
@@ -317,6 +326,7 @@ const uploadVideo = multer({
 }).fields([
   { name: 'videoFile', maxCount: 1 },
   { name: 'scormFile', maxCount: 1 },
+  { name: 'html5File', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 
@@ -330,15 +340,25 @@ const uploadVideoUpdate = multer({
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
+    } else if (file.fieldname === 'html5File') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('HTML5 package must be a ZIP file'), false);
+      }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only cover image and HTML5 follow-up package are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: 500 * 1024 * 1024, // allow HTML5 ZIP replacement
   },
 }).fields([
   { name: 'coverImage', maxCount: 1 },
+  { name: 'html5File', maxCount: 1 },
 ]);
 
 // Middleware for audio assignment uploads (reference audio + cover image)

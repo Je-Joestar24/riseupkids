@@ -1,5 +1,9 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import contentService, { CONTENT_TYPES, normalizeBookContent } from '../../services/contentService';
+import contentService, {
+  CONTENT_TYPES,
+  isSelectableBookPackageType,
+  normalizeBookContent,
+} from '../../services/contentService';
 
 /**
  * Async thunk for getting all content items
@@ -184,7 +188,23 @@ const contentSlice = createSlice({
       state.error = null;
     },
     setFilters: (state, action) => {
-      state.filters = { ...state.filters, ...action.payload };
+      const nextFilters = {
+        ...state.filters,
+        ...action.payload,
+        typeSpecific: {
+          ...state.filters.typeSpecific,
+          ...(action.payload?.typeSpecific || {}),
+        },
+      };
+
+      if (
+        nextFilters.typeSpecific.packageType &&
+        !isSelectableBookPackageType(nextFilters.typeSpecific.packageType)
+      ) {
+        nextFilters.typeSpecific.packageType = undefined;
+      }
+
+      state.filters = nextFilters;
       // Update currentContentType when contentType filter changes
       if (action.payload.contentType) {
         state.currentContentType = action.payload.contentType;

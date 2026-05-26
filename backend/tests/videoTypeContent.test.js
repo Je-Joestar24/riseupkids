@@ -10,11 +10,15 @@ jest.mock('../models', () => ({
   Badge: {
     findById: jest.fn(),
   },
+  CmsBook: {
+    findOne: jest.fn(),
+  },
 }));
 
 jest.mock('../services/s3.service', () => ({
   uploadFileFromMulter: jest.fn(),
   deleteByKey: jest.fn().mockResolvedValue(undefined),
+  deleteByPrefix: jest.fn().mockResolvedValue(undefined),
   getS3KeyFromUrl: jest.fn(),
 }));
 
@@ -22,8 +26,14 @@ jest.mock('../services/scorm.service', () => ({
   uploadExtractedScormToS3: jest.fn().mockResolvedValue(null),
 }));
 
-const { Media, Badge } = require('../models');
+jest.mock('../services/html5handler.service', () => ({
+  extractAndUploadToS3Only: jest.fn(),
+}));
+
+const { Media, Badge, CmsBook } = require('../models');
 const s3Service = require('../services/s3.service');
+const scormService = require('../services/scorm.service');
+const html5handlerService = require('../services/html5handler.service');
 
 describe('video.services — content type video (upload vs Bunny embed)', () => {
   const userId = '507f1f77bcf86cd799439011';
@@ -141,6 +151,193 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     );
   });
 
+  it('createVideo handles uploaded video with optional SCORM package and cover image together', async () => {
+    const videoDoc = mockVideoDoc({ _id: 'video-media' });
+    const scormDoc = { _id: 'scorm-media' };
+    const createdLean = {
+      _id: 'video-media',
+      type: 'video',
+      videoSource: 'upload',
+      filePath: 'media/videos/lesson.mp4',
+      url: 'https://cdn.example/videos/lesson.mp4',
+      scormFile: { _id: 'scorm-media', title: 'lesson-scorm.zip' },
+      scormFilePath: 'activities/scorm/lesson-scorm.zip',
+      scormFileUrl: 'https://cdn.example/scorm/lesson-scorm.zip',
+      scormBaseUrl: 'https://cdn.example/scorm/video/video-media',
+      scormEntryPoint: 'story.html',
+      thumbnail: 'https://cdn.example/images/cover.png',
+      tags: ['movement', 'lesson'],
+    };
+
+    const videoFile = {
+      originalname: 'lesson.mp4',
+      mimetype: 'video/mp4',
+      size: 2048,
+    };
+    const scormFile = {
+      originalname: 'lesson-scorm.zip',
+      mimetype: 'application/zip',
+      size: 4096,
+      buffer: Buffer.from('fake-scorm-zip'),
+    };
+    const coverImage = {
+      originalname: 'cover.png',
+      mimetype: 'image/png',
+      size: 512,
+    };
+
+    s3Service.uploadFileFromMulter.mockImplementation(async (file, folder) => {
+      const uploads = {
+        'media/videos': { url: 'https://cdn.example/videos/lesson.mp4', s3Key: 'media/videos/lesson.mp4' },
+        'activities/scorm': {
+          url: 'https://cdn.example/scorm/lesson-scorm.zip',
+          s3Key: 'activities/scorm/lesson-scorm.zip',
+        },
+        'media/images': { url: 'https://cdn.example/images/cover.png', s3Key: 'media/images/cover.png' },
+      };
+      return uploads[folder];
+    });
+    Media.create.mockResolvedValueOnce(videoDoc).mockResolvedValueOnce(scormDoc);
+    scormService.uploadExtractedScormToS3.mockResolvedValue({
+      baseUrl: 'https://cdn.example/scorm/video/video-media',
+      entryPoint: 'story.html',
+    });
+    Media.findById.mockReturnValue(mockFindByIdLean(createdLean));
+
+    const { createVideo } = require('../services/video.services');
+    const out = await createVideo(
+      userId,
+      {
+        title: ' Uploaded Lesson ',
+        description: ' A full upload path ',
+        tags: JSON.stringify(['movement', ' ', 'lesson']),
+        isPublished: 'true',
+        starsAwarded: '25',
+        requiredWatchCount: '3',
+      },
+      { videoFile: [videoFile], scormFile: [scormFile], coverImage: [coverImage] }
+    );
+
+    expect(s3Service.uploadFileFromMulter).toHaveBeenNthCalledWith(1, videoFile, 'media/videos');
+    expect(s3Service.uploadFileFromMulter).toHaveBeenNthCalledWith(2, scormFile, 'activities/scorm');
+    expect(s3Service.uploadFileFromMulter).toHaveBeenNthCalledWith(3, coverImage, 'media/images');
+    expect(Media.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: 'video',
+        videoSource: 'upload',
+        title: 'Uploaded Lesson',
+        description: 'A full upload path',
+        filePath: 'media/videos/lesson.mp4',
+        url: 'https://cdn.example/videos/lesson.mp4',
+        starsAwarded: 25,
+        requiredWatchCount: 3,
+        isPublished: true,
+      })
+    );
+    expect(Media.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        type: 'video',
+        title: 'lesson-scorm.zip',
+        filePath: 'activities/scorm/lesson-scorm.zip',
+        url: 'https://cdn.example/scorm/lesson-scorm.zip',
+        mimeType: 'application/zip',
+        size: 4096,
+      })
+    );
+    expect(scormService.uploadExtractedScormToS3).toHaveBeenCalledWith(
+      scormFile.buffer,
+      'video',
+      'video-media'
+    );
+    expect(videoDoc.scormFile).toBe('scorm-media');
+    expect(videoDoc.scormFilePath).toBe('activities/scorm/lesson-scorm.zip');
+    expect(videoDoc.scormFileUrl).toBe('https://cdn.example/scorm/lesson-scorm.zip');
+    expect(videoDoc.scormFileSize).toBe(4096);
+    expect(videoDoc.scormBaseUrl).toBe('https://cdn.example/scorm/video/video-media');
+    expect(videoDoc.scormEntryPoint).toBe('story.html');
+    expect(videoDoc.thumbnail).toBe('https://cdn.example/images/cover.png');
+    expect(videoDoc.tags).toEqual(['movement', 'lesson']);
+    expect(videoDoc.save).toHaveBeenCalledTimes(4);
+    expect(out).toEqual(createdLean);
+  });
+
+  it('createVideo creates uploaded video with HTML5 follow-up package', async () => {
+    const videoDoc = mockVideoDoc({ _id: 'video-media' });
+    const videoFile = { originalname: 'lesson.mp4', mimetype: 'video/mp4', size: 2048 };
+    const html5File = {
+      originalname: 'lesson-html5.zip',
+      mimetype: 'application/zip',
+      size: 4096,
+      buffer: Buffer.from('html5-package'),
+    };
+    s3Service.uploadFileFromMulter.mockResolvedValue({
+      url: 'https://cdn.example/videos/lesson.mp4',
+      s3Key: 'media/videos/lesson.mp4',
+    });
+    Media.create.mockResolvedValue(videoDoc);
+    html5handlerService.extractAndUploadToS3Only.mockResolvedValue({
+      id: 'html5-video-pkg',
+      entryPoint: 'story.html',
+      baseUrl: 'https://cdn.example/html5/html5-video-pkg',
+    });
+    Media.findById.mockReturnValue(
+      mockFindByIdLean({ _id: 'video-media', completionContentType: 'html5', html5PackageId: 'html5-video-pkg' })
+    );
+
+    const { createVideo } = require('../services/video.services');
+    await createVideo(
+      userId,
+      { title: 'Video with HTML5', completionContentType: 'html5' },
+      { videoFile: [videoFile], html5File: [html5File] }
+    );
+
+    expect(html5handlerService.extractAndUploadToS3Only).toHaveBeenCalledWith(html5File.buffer);
+    expect(videoDoc.completionContentType).toBe('html5');
+    expect(videoDoc.html5PackageId).toBe('html5-video-pkg');
+    expect(videoDoc.html5EntryPoint).toBe('story.html');
+    expect(videoDoc.html5BaseUrl).toBe('https://cdn.example/html5/html5-video-pkg');
+  });
+
+  it('createVideo creates embedded video with built-in CMS book follow-up', async () => {
+    CmsBook.findOne.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011' }),
+      }),
+    });
+    Media.create.mockResolvedValue(mockVideoDoc());
+    Media.findById.mockReturnValue(
+      mockFindByIdLean({ _id: 'video-media', completionContentType: 'builtin', cmsBookId: '507f1f77bcf86cd799439011' })
+    );
+
+    const { createVideo } = require('../services/video.services');
+    await createVideo(
+      userId,
+      {
+        title: 'Embed with CMS',
+        videoSource: 'embed',
+        embedUrl: validEmbed,
+        completionContentType: 'builtin',
+        cmsBookId: '507f1f77bcf86cd799439011',
+      },
+      {}
+    );
+
+    expect(CmsBook.findOne).toHaveBeenCalledWith({
+      _id: '507f1f77bcf86cd799439011',
+      status: 'published',
+      isArchived: false,
+    });
+    expect(Media.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        videoSource: 'embed',
+        completionContentType: 'builtin',
+        cmsBookId: '507f1f77bcf86cd799439011',
+      })
+    );
+  });
+
   it('updateVideo updates embedUrl for Bunny embed video', async () => {
     const newUrl = 'https://iframe.mediadelivery.net/embed/another-id';
     const videoDoc = {
@@ -163,6 +360,78 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     expect(videoDoc.url).toBe(newUrl);
     expect(videoDoc.save).toHaveBeenCalled();
     expect(out.embedUrl).toBe(newUrl);
+  });
+
+  it('updateVideo switches follow-up to built-in CMS book', async () => {
+    const videoDoc = {
+      _id: 'media1',
+      type: 'video',
+      videoSource: 'upload',
+      completionContentType: 'none',
+      save: jest.fn().mockResolvedValue(true),
+    };
+    CmsBook.findOne.mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ _id: '507f1f77bcf86cd799439011' }),
+      }),
+    });
+    Media.findOne.mockResolvedValue(videoDoc);
+    Media.findById.mockReturnValue(
+      mockFindByIdLean({ _id: 'media1', completionContentType: 'builtin', cmsBookId: '507f1f77bcf86cd799439011' })
+    );
+
+    const { updateVideo } = require('../services/video.services');
+    await updateVideo(
+      'media1',
+      userId,
+      { completionContentType: 'builtin', cmsBookId: '507f1f77bcf86cd799439011' },
+      {}
+    );
+
+    expect(videoDoc.completionContentType).toBe('builtin');
+    expect(videoDoc.cmsBookId).toBe('507f1f77bcf86cd799439011');
+    expect(videoDoc.html5PackageId).toBeNull();
+    expect(videoDoc.save).toHaveBeenCalled();
+  });
+
+  it('updateVideo replaces HTML5 follow-up package', async () => {
+    const videoDoc = {
+      _id: 'media1',
+      type: 'video',
+      videoSource: 'upload',
+      completionContentType: 'html5',
+      html5PackageId: 'old-package',
+      save: jest.fn().mockResolvedValue(true),
+    };
+    const html5File = {
+      originalname: 'replacement.zip',
+      mimetype: 'application/zip',
+      buffer: Buffer.from('replacement-html5'),
+      size: 1024,
+    };
+    Media.findOne.mockResolvedValue(videoDoc);
+    html5handlerService.extractAndUploadToS3Only.mockResolvedValue({
+      id: 'new-package',
+      entryPoint: 'index.html',
+      baseUrl: 'https://cdn.example/html5/new-package',
+    });
+    Media.findById.mockReturnValue(
+      mockFindByIdLean({ _id: 'media1', completionContentType: 'html5', html5PackageId: 'new-package' })
+    );
+
+    const { updateVideo } = require('../services/video.services');
+    await updateVideo(
+      'media1',
+      userId,
+      { completionContentType: 'html5' },
+      { html5File: [html5File] }
+    );
+
+    expect(s3Service.deleteByPrefix).toHaveBeenCalledWith('html5/old-package');
+    expect(html5handlerService.extractAndUploadToS3Only).toHaveBeenCalledWith(html5File.buffer);
+    expect(videoDoc.completionContentType).toBe('html5');
+    expect(videoDoc.html5PackageId).toBe('new-package');
+    expect(videoDoc.save).toHaveBeenCalled();
   });
 
   it('updateVideo rejects embedUrl when video is uploaded file', async () => {

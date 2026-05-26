@@ -14,6 +14,8 @@ import {
   Select,
   MenuItem,
   Box,
+  Grid,
+  Paper,
   Typography,
   Chip,
   IconButton,
@@ -24,7 +26,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon, InsertLink as InsertLinkIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
-import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentService';
+import { BOOK_PACKAGE_TYPES, CONTENT_TYPES, VIDEO_COMPLETION_TYPES } from '../../../../services/contentService';
 import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
@@ -33,10 +35,10 @@ import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
  *
  * Unified modal for creating content items:
  * - Activity (SCORM)
- * - Book (SCORM + reading logic)
- * - Video (uploaded file + optional SCORM, or Bunny iframe embed)
+ * - Book (HTML5 ZIP or built-in CMS book)
+ * - Video (uploaded file or Bunny iframe embed)
  * - Audio Assignment (reference audio)
- * - Chant (optional audio and SCORM files)
+ * - Chant (optional audio and instruction video)
  * 
  * Automatically detects current content type from filters/URL
  */
@@ -81,6 +83,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     duration: '',
     videoSource: 'upload',
     embedUrl: '',
+    videoCompletionType: VIDEO_COMPLETION_TYPES.NONE,
     // audio assignment-specific
     instructions: '',
     estimatedDuration: '',
@@ -91,10 +94,13 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     scormFile: null,
     coverImage: null,
     videoFile: null,
+    html5File: null,
     referenceAudio: null,
     audio: null, // For chants
     instructionVideo: null, // For audio assignments & chants
   });
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
   const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
 
   const handleInputChange = (field, value) => {
@@ -104,7 +110,24 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
   const handleFileChange = (field, fileList) => {
     const file = fileList && fileList[0] ? fileList[0] : null;
     setSelectedFiles((prev) => ({ ...prev, [field]: file }));
+
+    if (field === 'videoFile') {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+      setVideoPreviewUrl(file ? URL.createObjectURL(file) : '');
+    }
+
+    if (field === 'coverImage') {
+      if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+      setCoverPreviewUrl(file ? URL.createObjectURL(file) : '');
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+      if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    };
+  }, [videoPreviewUrl, coverPreviewUrl]);
 
   const resetState = () => {
     // Reset to current content type (not always ACTIVITY)
@@ -127,6 +150,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       duration: '',
       videoSource: 'upload',
       embedUrl: '',
+      videoCompletionType: VIDEO_COMPLETION_TYPES.NONE,
       instructions: '',
       estimatedDuration: '',
       isStarAssignment: false,
@@ -135,10 +159,15 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       scormFile: null,
       coverImage: null,
       videoFile: null,
+      html5File: null,
       referenceAudio: null,
       audio: null,
       instructionVideo: null,
     });
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    setVideoPreviewUrl('');
+    setCoverPreviewUrl('');
   };
 
   const handleSubmit = async () => {
@@ -172,7 +201,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             ? BOOK_PACKAGE_TYPES.BUILTIN
             : BOOK_PACKAGE_TYPES.HTML5;
         if (bookPackageType !== BOOK_PACKAGE_TYPES.BUILTIN && !selectedFiles.scormFile) {
-          alert('Please upload a package file (ZIP) for the book. Choose SCORM or HTML5 above.');
+          alert('Please upload an HTML5 package ZIP for the book.');
           return;
         }
         if (bookPackageType === BOOK_PACKAGE_TYPES.BUILTIN && !formData.cmsBookId) {
@@ -219,9 +248,23 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           }
           fd.append('videoSource', 'upload');
           fd.append('videoFile', selectedFiles.videoFile);
-          if (selectedFiles.scormFile) {
-            fd.append('scormFile', selectedFiles.scormFile);
+        }
+        if (formData.videoCompletionType === VIDEO_COMPLETION_TYPES.HTML5) {
+          if (!selectedFiles.html5File) {
+            alert('Please upload an HTML5 package ZIP for the video follow-up.');
+            return;
           }
+          fd.append('completionContentType', VIDEO_COMPLETION_TYPES.HTML5);
+          fd.append('html5File', selectedFiles.html5File);
+        } else if (formData.videoCompletionType === VIDEO_COMPLETION_TYPES.BUILTIN) {
+          if (!formData.cmsBookId) {
+            alert('Please select a built-in CMS book for the video follow-up.');
+            return;
+          }
+          fd.append('completionContentType', VIDEO_COMPLETION_TYPES.BUILTIN);
+          fd.append('cmsBookId', formData.cmsBookId);
+        } else {
+          fd.append('completionContentType', VIDEO_COMPLETION_TYPES.NONE);
         }
         if (formData.duration !== '' && formData.duration != null) {
           fd.append('duration', String(formData.duration));
@@ -271,10 +314,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         if (selectedFiles.instructionVideo) {
           fd.append('instructionVideo', selectedFiles.instructionVideo);
         }
-        // Optional SCORM file
-        if (selectedFiles.scormFile) {
-          fd.append('scormFile', selectedFiles.scormFile);
-        }
         // Optional cover image
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
@@ -299,6 +338,413 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     resetState();
     onClose();
   };
+
+  const bentoCardSx = {
+    height: '100%',
+    borderRadius: '20px',
+    borderColor: theme.palette.divider,
+    p: { xs: 2, md: 2.5 },
+    background:
+      theme.palette.mode === 'dark'
+        ? 'linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))'
+        : 'linear-gradient(145deg, #ffffff, #fbfaf7)',
+    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.05)',
+  };
+
+  const bentoTitleSx = {
+    fontFamily: 'Quicksand, sans-serif',
+    fontWeight: 700,
+    mb: 0.5,
+  };
+
+  const renderVideoBentoFields = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} lg={8}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography sx={bentoTitleSx}>Main video</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                Upload a video file or paste a Bunny iframe link.
+              </Typography>
+            </Box>
+
+            <FormControl component="fieldset" fullWidth>
+              <RadioGroup
+                row
+                value={formData.videoSource}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  handleInputChange('videoSource', v);
+                  if (v === 'embed') {
+                    setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
+                  } else {
+                    handleInputChange('embedUrl', '');
+                  }
+                }}
+                aria-label="How to add the main video for this content"
+              >
+                <FormControlLabel
+                  value="upload"
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <CloudUploadIcon fontSize="small" aria-hidden />
+                      <span>Upload file</span>
+                    </Stack>
+                  )}
+                />
+                <FormControlLabel
+                  value="embed"
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <InsertLinkIcon fontSize="small" aria-hidden />
+                      <span>Bunny embed</span>
+                    </Stack>
+                  )}
+                />
+              </RadioGroup>
+            </FormControl>
+
+            {formData.videoSource === 'upload' ? (
+              <Box>
+                <input
+                  accept="video/*"
+                  style={{ display: 'none' }}
+                  id="video-upload-bento"
+                  type="file"
+                  aria-label="Select video file to upload"
+                  onChange={(e) => handleFileChange('videoFile', e.target.files)}
+                />
+                <Box
+                  component="label"
+                  htmlFor="video-upload-bento"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={selectedFiles.videoFile ? 'Change selected video file' : 'Upload video file'}
+                  sx={{
+                    width: '100%',
+                    aspectRatio: '1.618 / 1',
+                    minHeight: { xs: 220, md: 340 },
+                    borderRadius: '18px',
+                    border: selectedFiles.videoFile
+                      ? `1px solid ${theme.palette.divider}`
+                      : `2px dashed ${theme.palette.divider}`,
+                    overflow: 'hidden',
+                    background:
+                      theme.palette.mode === 'dark'
+                        ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                        : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: '160ms ease',
+                    '&:hover': {
+                      borderColor: theme.palette.orange?.main || theme.palette.primary.main,
+                      transform: 'translateY(-1px)',
+                    },
+                  }}
+                >
+                  {videoPreviewUrl ? (
+                    <>
+                      <Box
+                        component="video"
+                        src={videoPreviewUrl}
+                        muted
+                        controls
+                        playsInline
+                        sx={{ width: '100%', height: '100%', objectFit: 'contain', bgcolor: '#000' }}
+                      />
+                      <Chip
+                        label="Change video"
+                        size="small"
+                        sx={{ position: 'absolute', top: 12, right: 12, fontFamily: 'Quicksand, sans-serif' }}
+                      />
+                    </>
+                  ) : (
+                    <Stack alignItems="center" spacing={1.25} sx={{ px: 3, textAlign: 'center' }}>
+                      <CloudUploadIcon sx={{ fontSize: 56, color: theme.palette.text.secondary }} aria-hidden />
+                      <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                        Upload video file
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        Best for 16:9, 16:10, or golden-ratio rectangular videos.
+                      </Typography>
+                    </Stack>
+                  )}
+                </Box>
+                {selectedFiles.videoFile && (
+                  <Chip
+                    label={selectedFiles.videoFile.name}
+                    size="small"
+                    sx={{ mt: 1 }}
+                    onDelete={() => handleFileChange('videoFile', null)}
+                  />
+                )}
+              </Box>
+            ) : (
+              <Box>
+                <TextField
+                  value={formData.embedUrl}
+                  onChange={(e) => handleInputChange('embedUrl', e.target.value)}
+                  placeholder="https://iframe.mediadelivery.net/embed/..."
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  inputProps={{ 'aria-label': 'Bunny Stream iframe embed URL' }}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '10px',
+                      fontFamily: 'Quicksand, sans-serif',
+                    },
+                  }}
+                />
+                <Box
+                  sx={{
+                    mt: 1.5,
+                    width: '100%',
+                    aspectRatio: '1.618 / 1',
+                    minHeight: { xs: 220, md: 340 },
+                    borderRadius: '18px',
+                    border: `1px solid ${theme.palette.divider}`,
+                    overflow: 'hidden',
+                    bgcolor: 'action.hover',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  role="region"
+                  aria-label="Bunny embed preview"
+                >
+                  {looksLikeBunnyExploreEmbedUrl(formData.embedUrl) ? (
+                    <Box
+                      component="iframe"
+                      title="Bunny embed preview"
+                      src={formData.embedUrl.trim()}
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                      allowFullScreen
+                      sx={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ px: 2, textAlign: 'center', fontFamily: 'Quicksand, sans-serif' }}>
+                      Enter a valid Bunny embed URL to preview the player.
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+          </Stack>
+        </Paper>
+      </Grid>
+
+      <Grid item xs={12} lg={4}>
+        <Stack spacing={2} sx={{ height: '100%' }}>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography sx={bentoTitleSx}>Optional follow-up</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                  Leave this empty when the video should end normally.
+                </Typography>
+              </Box>
+
+              <RadioGroup
+                value={formData.videoCompletionType}
+                onChange={(e) => {
+                  const selectedType = e.target.value;
+                  handleInputChange('videoCompletionType', selectedType);
+                  if (selectedType !== VIDEO_COMPLETION_TYPES.BUILTIN) {
+                    handleInputChange('cmsBookId', '');
+                    handleInputChange('selectedCmsBook', null);
+                  }
+                  if (selectedType !== VIDEO_COMPLETION_TYPES.HTML5) {
+                    setSelectedFiles((prev) => ({ ...prev, html5File: null }));
+                  }
+                }}
+                aria-label="Choose optional activity shown after the video finishes"
+              >
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.NONE} control={<Radio />} label="No follow-up activity" />
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.HTML5} control={<Radio />} label="HTML5 package" />
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.BUILTIN} control={<Radio />} label="Built-in CMS book" />
+              </RadioGroup>
+
+              {formData.videoCompletionType === VIDEO_COMPLETION_TYPES.HTML5 && (
+                <Box>
+                  <input
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: 'none' }}
+                    id="video-html5-upload-bento"
+                    type="file"
+                    aria-label="Select HTML5 ZIP follow-up for video"
+                    onChange={(e) => handleFileChange('html5File', e.target.files)}
+                  />
+                  <label htmlFor="video-html5-upload-bento">
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      startIcon={<CloudUploadIcon />}
+                      fullWidth
+                      sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                    >
+                      Upload HTML5 package (ZIP)
+                    </Button>
+                  </label>
+                  {selectedFiles.html5File && (
+                    <Chip
+                      label={selectedFiles.html5File.name}
+                      size="small"
+                      sx={{ mt: 1 }}
+                      onDelete={() => setSelectedFiles((prev) => ({ ...prev, html5File: null }))}
+                    />
+                  )}
+                </Box>
+              )}
+
+              {formData.videoCompletionType === VIDEO_COMPLETION_TYPES.BUILTIN && (
+                <Box>
+                  <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                    {formData.selectedCmsBook?.title || 'No built-in book selected'}
+                  </Typography>
+                  <Button
+                    variant="outlined"
+                    onClick={() => setCmsBooksDrawerOpen(true)}
+                    fullWidth
+                    sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                  >
+                    {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
+                  </Button>
+                </Box>
+              )}
+            </Stack>
+          </Paper>
+
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Typography sx={bentoTitleSx}>Rewards, timing, and status</Typography>
+              <TextField
+                label="Duration (seconds)"
+                type="number"
+                value={formData.duration}
+                onChange={(e) => handleInputChange('duration', e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <TextField
+                label="Stars Awarded"
+                type="number"
+                value={formData.starsAwarded}
+                onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <FormControl fullWidth>
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={formData.isPublished ? 'true' : 'false'}
+                  onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                  label="Status"
+                  sx={{
+                    borderRadius: '10px',
+                    fontFamily: 'Quicksand, sans-serif',
+                  }}
+                >
+                  <MenuItem value="false">Draft</MenuItem>
+                  <MenuItem value="true">Published</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
+          </Paper>
+        </Stack>
+      </Grid>
+
+      <Grid item xs={12}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <Stack spacing={1.5}>
+            <Box>
+              <Typography sx={bentoTitleSx}>Cover image</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                Optional thumbnail for the video card.
+              </Typography>
+            </Box>
+            <input
+              accept="image/*"
+              style={{ display: 'none' }}
+              id="video-cover-upload-bento"
+              type="file"
+              aria-label="Select video cover image"
+              onChange={(e) => handleFileChange('coverImage', e.target.files)}
+            />
+            <Box
+              component="label"
+              htmlFor="video-cover-upload-bento"
+              role="button"
+              tabIndex={0}
+              aria-label={selectedFiles.coverImage ? 'Change selected cover image' : 'Upload video cover image'}
+              sx={{
+                width: '100%',
+                aspectRatio: '1.618 / 1',
+                minHeight: { xs: 170, md: 260 },
+                borderRadius: '18px',
+                border: coverPreviewUrl ? `1px solid ${theme.palette.divider}` : `2px dashed ${theme.palette.divider}`,
+                overflow: 'hidden',
+                cursor: 'pointer',
+                position: 'relative',
+                background:
+                  theme.palette.mode === 'dark'
+                    ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                    : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                '&:hover': {
+                  borderColor: theme.palette.orange?.main || theme.palette.primary.main,
+                },
+              }}
+            >
+              {coverPreviewUrl ? (
+                <>
+                  <Box
+                    component="img"
+                    src={coverPreviewUrl}
+                    alt="Selected video cover preview"
+                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <Chip
+                    label="Change cover"
+                    size="small"
+                    sx={{ position: 'absolute', top: 12, right: 12, fontFamily: 'Quicksand, sans-serif' }}
+                  />
+                </>
+              ) : (
+                <Stack alignItems="center" spacing={1} sx={{ px: 3, textAlign: 'center' }}>
+                  <CloudUploadIcon sx={{ fontSize: 42, color: theme.palette.text.secondary }} aria-hidden />
+                  <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                    Upload cover image
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                    Rectangular thumbnails fit best in course cards.
+                  </Typography>
+                </Stack>
+              )}
+            </Box>
+            {selectedFiles.coverImage && (
+              <Chip
+                label={selectedFiles.coverImage.name}
+                size="small"
+                sx={{ alignSelf: 'flex-start' }}
+                onDelete={() => handleFileChange('coverImage', null)}
+              />
+            )}
+          </Stack>
+        </Paper>
+      </Grid>
+    </Grid>
+  );
 
   const renderTypeSpecificFields = () => {
     switch (contentType) {
@@ -335,7 +781,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                 <FormControlLabel value={BOOK_PACKAGE_TYPES.BUILTIN} control={<Radio />} label="Built-in (CMS book)" />
               </RadioGroup>
               <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
-                HTML5 mode uses ZIP upload. Built-in mode links to a published CMS book.
+                Use an HTML5 ZIP export or link a published built-in CMS book.
               </Typography>
             </FormControl>
             {formData.packageType === BOOK_PACKAGE_TYPES.BUILTIN && (
@@ -486,9 +932,67 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                 />
               </RadioGroup>
               <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
-                Bunny embed uses iframe.mediadelivery.net; SCORM ZIP is only available with file upload.
+                Bunny embed uses iframe.mediadelivery.net.
               </Typography>
             </FormControl>
+            <FormControl component="fieldset" fullWidth>
+              <FormLabel
+                component="legend"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 600,
+                  marginBottom: 1,
+                }}
+              >
+                After video finishes (optional)
+              </FormLabel>
+              <RadioGroup
+                row
+                value={formData.videoCompletionType}
+                onChange={(e) => {
+                  const selectedType = e.target.value;
+                  handleInputChange('videoCompletionType', selectedType);
+                  if (selectedType !== VIDEO_COMPLETION_TYPES.BUILTIN) {
+                    handleInputChange('cmsBookId', '');
+                    handleInputChange('selectedCmsBook', null);
+                  }
+                  if (selectedType !== VIDEO_COMPLETION_TYPES.HTML5) {
+                    setSelectedFiles((prev) => ({ ...prev, html5File: null }));
+                  }
+                }}
+                aria-label="Choose the content shown after the video finishes"
+              >
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.NONE} control={<Radio />} label="No follow-up activity" />
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.HTML5} control={<Radio />} label="HTML5 package" />
+                <FormControlLabel value={VIDEO_COMPLETION_TYPES.BUILTIN} control={<Radio />} label="Built-in CMS book" />
+              </RadioGroup>
+              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
+                Leave this as No follow-up activity when the video should end normally.
+              </Typography>
+            </FormControl>
+            {formData.videoCompletionType === VIDEO_COMPLETION_TYPES.BUILTIN && (
+              <Box
+                sx={{
+                  border: `1px solid ${theme.palette.border.main}`,
+                  borderRadius: '10px',
+                  p: 1.5,
+                }}
+              >
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, mb: 0.5 }}>
+                  Built-in follow-up book
+                </Typography>
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                  {formData.selectedCmsBook?.title || 'No built-in book selected'}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={() => setCmsBooksDrawerOpen(true)}
+                  sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                >
+                  {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
+                </Button>
+              </Box>
+            )}
             <TextField
               label="Duration (seconds)"
               type="number"
@@ -722,11 +1226,11 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                 <input
                   accept=".zip,application/zip,application/x-zip-compressed"
                   style={{ display: 'none' }}
-                  id="book-scorm-upload"
+                  id="book-html5-upload"
                   type="file"
                   onChange={(e) => handleFileChange('scormFile', e.target.files)}
                 />
-                <label htmlFor="book-scorm-upload">
+                <label htmlFor="book-html5-upload">
                   <Button
                     variant="outlined"
                     component="span"
@@ -816,50 +1320,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                   )}
                 </Box>
 
-                <Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 600,
-                      marginBottom: 1,
-                    }}
-                  >
-                    Video SCORM file (optional)
-                  </Typography>
-                  <input
-                    accept=".zip,application/zip,application/x-zip-compressed"
-                    style={{ display: 'none' }}
-                    id="video-scorm-upload"
-                    type="file"
-                    aria-label="Select optional SCORM ZIP for video"
-                    onChange={(e) => handleFileChange('scormFile', e.target.files)}
-                  />
-                  <label htmlFor="video-scorm-upload">
-                    <Button
-                      variant="outlined"
-                      component="span"
-                      startIcon={<CloudUploadIcon />}
-                      fullWidth
-                      sx={{
-                        borderRadius: '10px',
-                        fontFamily: 'Quicksand, sans-serif',
-                      }}
-                    >
-                      Upload video SCORM (ZIP)
-                    </Button>
-                  </label>
-                  {selectedFiles.scormFile && (
-                    <Box sx={{ marginTop: 1 }}>
-                      <Chip
-                        label={selectedFiles.scormFile.name}
-                        size="small"
-                        sx={{ margin: 0.5 }}
-                        onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                      />
-                    </Box>
-                  )}
-                </Box>
               </>
             ) : (
               <Box>
@@ -927,6 +1387,55 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     </Typography>
                   )}
                 </Box>
+              </Box>
+            )}
+            {formData.videoCompletionType === VIDEO_COMPLETION_TYPES.HTML5 && (
+              <Box>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 600,
+                    marginBottom: 1,
+                  }}
+                >
+                  HTML5 follow-up package <span style={{ color: 'red' }}>*</span>
+                </Typography>
+                <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                  Required only when HTML5 package is selected as the optional follow-up activity.
+                </Typography>
+                <input
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  style={{ display: 'none' }}
+                  id="video-html5-upload"
+                  type="file"
+                  aria-label="Select HTML5 ZIP follow-up for video"
+                  onChange={(e) => handleFileChange('html5File', e.target.files)}
+                />
+                <label htmlFor="video-html5-upload">
+                  <Button
+                    variant="outlined"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    fullWidth
+                    sx={{
+                      borderRadius: '10px',
+                      fontFamily: 'Quicksand, sans-serif',
+                    }}
+                  >
+                    Upload HTML5 package (ZIP)
+                  </Button>
+                </label>
+                {selectedFiles.html5File && (
+                  <Box sx={{ marginTop: 1 }}>
+                    <Chip
+                      label={selectedFiles.html5File.name}
+                      size="small"
+                      sx={{ margin: 0.5 }}
+                      onDelete={() => setSelectedFiles((prev) => ({ ...prev, html5File: null }))}
+                    />
+                  </Box>
+                )}
               </Box>
             )}
           </>
@@ -1073,51 +1582,6 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               )}
             </Box>
 
-            {/* SCORM file for chant (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                SCORM File (Optional)
-              </Typography>
-              <input
-                accept=".zip,application/zip,application/x-zip-compressed"
-                style={{ display: 'none' }}
-                id="chant-scorm-upload"
-                type="file"
-                onChange={(e) => handleFileChange('scormFile', e.target.files)}
-              />
-              <label htmlFor="chant-scorm-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload SCORM File (ZIP)
-                </Button>
-              </label>
-              {selectedFiles.scormFile && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.scormFile.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
-
             {/* Instruction video (optional) */}
             <Box>
               <Typography
@@ -1249,11 +1713,13 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               if (nextType === CONTENT_TYPES.VIDEO) {
                 handleInputChange('videoSource', 'upload');
                 handleInputChange('embedUrl', '');
-                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
+                handleInputChange('videoCompletionType', VIDEO_COMPLETION_TYPES.NONE);
+                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null, html5File: null }));
               } else if (prevType === CONTENT_TYPES.VIDEO) {
                 handleInputChange('videoSource', 'upload');
                 handleInputChange('embedUrl', '');
-                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null }));
+                handleInputChange('videoCompletionType', VIDEO_COMPLETION_TYPES.NONE);
+                setSelectedFiles((prev) => ({ ...prev, videoFile: null, scormFile: null, html5File: null }));
               }
             }}
             sx={{
@@ -1262,10 +1728,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             }}
           >
             <MenuItem value={CONTENT_TYPES.ACTIVITY}>Activity (SCORM)</MenuItem>
-            <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5 / Built-in)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.BOOK}>Book (HTML5 / Built-in CMS)</MenuItem>
             <MenuItem value={CONTENT_TYPES.VIDEO}>Video (upload or Bunny embed)</MenuItem>
             <MenuItem value={CONTENT_TYPES.AUDIO_ASSIGNMENT}>Audio Assignment</MenuItem>
-            <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & SCORM)</MenuItem>
+            <MenuItem value={CONTENT_TYPES.CHANT}>Chant (Optional Audio & Video)</MenuItem>
           </Select>
         </FormControl>
 
@@ -1300,28 +1766,35 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           }}
         />
 
-        {/* Type-specific numeric / logical fields */}
-        {renderTypeSpecificFields()}
+        {contentType === CONTENT_TYPES.VIDEO ? (
+          renderVideoBentoFields()
+        ) : (
+          <>
+            {/* Type-specific numeric / logical fields */}
+            {renderTypeSpecificFields()}
 
-        {/* File inputs based on type + cover image */}
-        {renderFileInputs()}
+            {/* File inputs based on type + cover image */}
+            {renderFileInputs()}
+          </>
+        )}
 
-        {/* Published Toggle */}
-        <FormControl fullWidth>
-          <InputLabel>Status</InputLabel>
-          <Select
-            value={formData.isPublished ? 'true' : 'false'}
-            onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
-            label="Status"
-            sx={{
-              borderRadius: '10px',
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            <MenuItem value="false">Draft</MenuItem>
-            <MenuItem value="true">Published</MenuItem>
-          </Select>
-        </FormControl>
+        {contentType !== CONTENT_TYPES.VIDEO && (
+          <FormControl fullWidth>
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={formData.isPublished ? 'true' : 'false'}
+              onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+              label="Status"
+              sx={{
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              }}
+            >
+              <MenuItem value="false">Draft</MenuItem>
+              <MenuItem value="true">Published</MenuItem>
+            </Select>
+          </FormControl>
+        )}
       </Stack>
 
       {/* Actions */}
@@ -1386,13 +1859,16 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth={contentType === CONTENT_TYPES.VIDEO ? 'lg' : 'md'}
       fullWidth
       PaperProps={{
         elevation: 8,
         sx: {
           borderRadius: '16px',
           fontFamily: 'Quicksand, sans-serif',
+          ...(contentType === CONTENT_TYPES.VIDEO
+            ? { width: 'min(1280px, calc(100vw - 32px))' }
+            : {}),
         },
       }}
     >

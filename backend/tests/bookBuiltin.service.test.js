@@ -42,7 +42,7 @@ jest.mock('../models', () => ({
   },
 }));
 
-const { Book, CmsBook, Badge } = require('../models');
+const { Book, CmsBook, Media, Badge } = require('../models');
 const html5handlerService = require('../services/html5handler.service');
 const s3Service = require('../services/s3.service');
 const scormService = require('../services/scorm.service');
@@ -189,6 +189,166 @@ describe('book.services – built-in (CMS) linking', () => {
           coverImage: 'https://cdn.example/cover.png',
         })
       );
+    });
+
+    it('creates an HTML5 book from ZIP plus optional cover without SCORM or CMS links', async () => {
+      const zipFile = {
+        originalname: 'html5-story.zip',
+        mimetype: 'application/zip',
+        size: 8192,
+        buffer: Buffer.from('html5-package'),
+      };
+      const coverImage = {
+        originalname: 'cover.png',
+        mimetype: 'image/png',
+        size: 256,
+        buffer: Buffer.from('cover'),
+      };
+      const createdBook = { _id: LIB_BOOK_ID, save: jest.fn().mockResolvedValue(true) };
+      const leanDoc = {
+        _id: LIB_BOOK_ID,
+        title: 'HTML5 Story',
+        packageType: 'html5',
+        html5PackageId: 'html5-pkg-1',
+        html5EntryPoint: 'nested/index.html',
+        html5BaseUrl: 'https://cdn.example/html5/html5-pkg-1',
+        scormFile: null,
+        cmsBookId: null,
+        coverImage: 'https://cdn.example/covers/html5.png',
+      };
+
+      html5handlerService.extractAndUploadToS3Only.mockResolvedValue({
+        id: 'html5-pkg-1',
+        entryPoint: 'nested/index.html',
+        baseUrl: 'https://cdn.example/html5/html5-pkg-1',
+      });
+      s3Service.uploadFileFromMulter.mockResolvedValue({ url: 'https://cdn.example/covers/html5.png' });
+      Book.create.mockResolvedValue(createdBook);
+      Book.findById.mockReturnValue(mockPopulateLean(leanDoc));
+
+      const result = await bookService.createBook(
+        USER_ID,
+        {
+          title: ' HTML5 Story ',
+          description: ' Hosted HTML package ',
+          packageType: 'html5',
+          tags: JSON.stringify(['html', ' ', 'reader']),
+          isPublished: 'true',
+        },
+        { scormFile: [zipFile], coverImage: [coverImage] }
+      );
+
+      expect(html5handlerService.extractAndUploadToS3Only).toHaveBeenCalledWith(zipFile.buffer);
+      expect(s3Service.uploadFileFromMulter).toHaveBeenCalledTimes(1);
+      expect(s3Service.uploadFileFromMulter).toHaveBeenCalledWith(coverImage, 'media/images');
+      expect(Media.create).not.toHaveBeenCalled();
+      expect(scormService.uploadExtractedScormToS3).not.toHaveBeenCalled();
+      expect(CmsBook.findOne).not.toHaveBeenCalled();
+      expect(Book.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'HTML5 Story',
+          description: 'Hosted HTML package',
+          packageType: 'html5',
+          cmsBookId: null,
+          html5PackageId: 'html5-pkg-1',
+          html5EntryPoint: 'nested/index.html',
+          html5BaseUrl: 'https://cdn.example/html5/html5-pkg-1',
+          scormFile: null,
+          scormFilePath: null,
+          scormFileUrl: null,
+          scormFileSize: null,
+          coverImage: 'https://cdn.example/covers/html5.png',
+          tags: ['html', 'reader'],
+          isPublished: true,
+        })
+      );
+      expect(result).toEqual(leanDoc);
+    });
+
+    it('creates a SCORM book from ZIP and stores both source ZIP and extracted launch metadata', async () => {
+      const zipFile = {
+        originalname: 'scorm-story.zip',
+        mimetype: 'application/zip',
+        size: 16384,
+        buffer: Buffer.from('scorm-package'),
+      };
+      const scormMedia = { _id: 'scorm-media-1' };
+      const createdBook = { _id: LIB_BOOK_ID, save: jest.fn().mockResolvedValue(true) };
+      const leanDoc = {
+        _id: LIB_BOOK_ID,
+        title: 'SCORM Story',
+        packageType: 'scorm',
+        scormFile: { _id: 'scorm-media-1', title: 'scorm-story.zip' },
+        scormFilePath: 'activities/scorm/scorm-story.zip',
+        scormFileUrl: 'https://cdn.example/scorm/scorm-story.zip',
+        scormBaseUrl: 'https://cdn.example/scorm/book/lib-book',
+        scormEntryPoint: 'launch.html',
+        html5PackageId: null,
+        cmsBookId: null,
+      };
+
+      s3Service.uploadFileFromMulter.mockResolvedValue({
+        url: 'https://cdn.example/scorm/scorm-story.zip',
+        s3Key: 'activities/scorm/scorm-story.zip',
+      });
+      Media.create.mockResolvedValue(scormMedia);
+      Book.create.mockResolvedValue(createdBook);
+      scormService.uploadExtractedScormToS3.mockResolvedValue({
+        baseUrl: 'https://cdn.example/scorm/book/lib-book',
+        entryPoint: 'launch.html',
+      });
+      Book.findById.mockReturnValue(mockPopulateLean(leanDoc));
+
+      const result = await bookService.createBook(
+        USER_ID,
+        {
+          title: 'SCORM Story',
+          packageType: 'scorm',
+          requiredReadingCount: '4',
+          starsPerReading: '12',
+          totalStarsAwarded: '48',
+        },
+        { scormFile: [zipFile] }
+      );
+
+      expect(s3Service.uploadFileFromMulter).toHaveBeenCalledWith(zipFile, 'activities/scorm');
+      expect(Media.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'video',
+          title: 'scorm-story.zip',
+          filePath: 'activities/scorm/scorm-story.zip',
+          url: 'https://cdn.example/scorm/scorm-story.zip',
+          mimeType: 'application/zip',
+          size: 16384,
+          uploadedBy: USER_ID,
+        })
+      );
+      expect(html5handlerService.extractAndUploadToS3Only).not.toHaveBeenCalled();
+      expect(CmsBook.findOne).not.toHaveBeenCalled();
+      expect(Book.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          packageType: 'scorm',
+          cmsBookId: null,
+          scormFile: 'scorm-media-1',
+          scormFilePath: 'activities/scorm/scorm-story.zip',
+          scormFileUrl: 'https://cdn.example/scorm/scorm-story.zip',
+          scormFileSize: 16384,
+          html5PackageId: null,
+          html5EntryPoint: null,
+          requiredReadingCount: 4,
+          starsPerReading: 12,
+          totalStarsAwarded: 48,
+        })
+      );
+      expect(scormService.uploadExtractedScormToS3).toHaveBeenCalledWith(
+        zipFile.buffer,
+        'book',
+        LIB_BOOK_ID
+      );
+      expect(createdBook.scormBaseUrl).toBe('https://cdn.example/scorm/book/lib-book');
+      expect(createdBook.scormEntryPoint).toBe('launch.html');
+      expect(createdBook.save).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(leanDoc);
     });
   });
 

@@ -1,6 +1,7 @@
-const { Media, Badge } = require('../models');
+const { Media, Badge, CmsBook } = require('../models');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
+const html5handlerService = require('./html5handler.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 
 /**
@@ -27,6 +28,8 @@ const createVideo = async (userId, videoData, files = {}) => {
     requiredWatchCount,
     videoSource: videoSourceRaw,
     embedUrl: embedUrlRaw,
+    completionContentType: completionContentTypeRaw,
+    cmsBookId,
   } = videoData;
 
   const videoSource =
@@ -38,6 +41,17 @@ const createVideo = async (userId, videoData, files = {}) => {
     files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0;
   const hasScormFile =
     files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0;
+  const hasHtml5File =
+    files.html5File && Array.isArray(files.html5File) && files.html5File.length > 0;
+  const requestedCompletionType = String(completionContentTypeRaw || '').trim().toLowerCase();
+  const completionContentType =
+    requestedCompletionType === 'html5'
+      ? 'html5'
+      : requestedCompletionType === 'builtin'
+        ? 'builtin'
+        : hasScormFile
+          ? 'scorm'
+          : 'none';
 
   // Validate required fields
   if (!title || !title.trim()) {
@@ -55,8 +69,27 @@ const createVideo = async (userId, videoData, files = {}) => {
     throw new Error('Please provide a video file');
   }
 
+  if (completionContentType === 'html5' && !hasHtml5File) {
+    throw new Error('Please upload an HTML5 package ZIP for the video follow-up');
+  }
+
+  if (completionContentType === 'builtin') {
+    if (!cmsBookId || !String(cmsBookId).trim()) {
+      throw new Error('Please select a built-in CMS book for the video follow-up');
+    }
+    const cmsBook = await CmsBook.findOne({
+      _id: cmsBookId,
+      status: 'published',
+      isArchived: false,
+    }).select('_id').lean();
+    if (!cmsBook) {
+      throw new Error('Built-in CMS book not found, not published, or archived');
+    }
+  }
+
   const videoFile = hasVideoFile ? files.videoFile[0] : null;
   const scormFile = hasScormFile ? files.scormFile[0] : null;
+  const html5File = hasHtml5File ? files.html5File[0] : null;
 
   // Validate badge if provided
   if (badgeAwarded) {
@@ -80,6 +113,8 @@ const createVideo = async (userId, videoData, files = {}) => {
       duration: duration ? parseInt(duration, 10) : null,
       starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
       requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
+      completionContentType,
+      cmsBookId: completionContentType === 'builtin' ? cmsBookId : null,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
     });
@@ -97,6 +132,8 @@ const createVideo = async (userId, videoData, files = {}) => {
       duration: duration ? parseInt(duration, 10) : null,
       starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
       requiredWatchCount: requiredWatchCount ? parseInt(requiredWatchCount, 10) : 5,
+      completionContentType,
+      cmsBookId: completionContentType === 'builtin' ? cmsBookId : null,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
     });
@@ -121,9 +158,21 @@ const createVideo = async (userId, videoData, files = {}) => {
     videoMedia.scormFilePath = scormS3Key;
     videoMedia.scormFileUrl = scormFileUrl;
     videoMedia.scormFileSize = scormFile.size;
+    videoMedia.completionContentType = 'scorm';
   }
 
   await videoMedia.save();
+
+  if (completionContentType === 'html5' && html5File) {
+    const zipInput = html5File.buffer || html5File.path;
+    const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
+    videoMedia.completionContentType = 'html5';
+    videoMedia.html5PackageId = id;
+    videoMedia.html5EntryPoint = entryPoint || 'index.html';
+    videoMedia.html5BaseUrl = baseUrl || null;
+    videoMedia.cmsBookId = null;
+    await videoMedia.save();
+  }
 
   if (scormFile && scormFile.buffer) {
     const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'video', videoMedia._id);
@@ -162,6 +211,7 @@ const createVideo = async (userId, videoData, files = {}) => {
   // Get created video with populated data
   const createdVideo = await Media.findById(videoMedia._id)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived pages')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .lean();
@@ -222,6 +272,7 @@ const getAllVideos = async (queryParams = {}) => {
   // Get videos
   const videos = await Media.find(query)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived pages')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .sort({ createdAt: -1 })
@@ -258,6 +309,7 @@ const getVideoById = async (videoId) => {
     type: 'video',
   })
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived pages')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .lean();
@@ -292,6 +344,8 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     isPublished,
     requiredWatchCount,
     embedUrl,
+    completionContentType: completionContentTypeRaw,
+    cmsBookId,
   } = updateData;
 
   // Find video (SCORM is optional)
@@ -372,6 +426,59 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
     video.url = canonical;
   }
 
+  const hasHtml5File =
+    files.html5File && Array.isArray(files.html5File) && files.html5File.length > 0;
+  const shouldUpdateCompletion = completionContentTypeRaw !== undefined || hasHtml5File;
+
+  if (shouldUpdateCompletion) {
+    const nextCompletionType = String(completionContentTypeRaw || '').trim().toLowerCase();
+
+    if (nextCompletionType === 'html5' || hasHtml5File) {
+      if (hasHtml5File) {
+        if (video.html5PackageId) {
+          try {
+            await s3Service.deleteByPrefix(`html5/${video.html5PackageId}`);
+          } catch (error) {
+            console.error('Error deleting previous HTML5 package:', error);
+          }
+        }
+        const html5File = files.html5File[0];
+        const zipInput = html5File.buffer || html5File.path;
+        const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
+        video.html5PackageId = id;
+        video.html5EntryPoint = entryPoint || 'index.html';
+        video.html5BaseUrl = baseUrl || null;
+      } else if (!video.html5PackageId) {
+        throw new Error('Please upload an HTML5 package ZIP for the video follow-up');
+      }
+      video.completionContentType = 'html5';
+      video.cmsBookId = null;
+    } else if (nextCompletionType === 'builtin') {
+      if (!cmsBookId || !String(cmsBookId).trim()) {
+        throw new Error('Please select a built-in CMS book for the video follow-up');
+      }
+      const cmsBook = await CmsBook.findOne({
+        _id: cmsBookId,
+        status: 'published',
+        isArchived: false,
+      }).select('_id').lean();
+      if (!cmsBook) {
+        throw new Error('Built-in CMS book not found, not published, or archived');
+      }
+      video.completionContentType = 'builtin';
+      video.cmsBookId = cmsBookId;
+      video.html5PackageId = null;
+      video.html5EntryPoint = 'index.html';
+      video.html5BaseUrl = null;
+    } else if (nextCompletionType === 'none' || nextCompletionType === '') {
+      video.completionContentType = 'none';
+      video.cmsBookId = null;
+      video.html5PackageId = null;
+      video.html5EntryPoint = 'index.html';
+      video.html5BaseUrl = null;
+    }
+  }
+
   // Process cover image if provided
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
     const coverImage = files.coverImage[0];
@@ -384,6 +491,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
   // Get updated video with populated data
   const updatedVideo = await Media.findById(videoId)
     .populate('scormFile', 'type title url mimeType size')
+    .populate('cmsBookId', 'title description status language version isArchived pages')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('uploadedBy', 'name email')
     .lean();
@@ -426,6 +534,14 @@ const deleteVideo = async (videoId) => {
       await Media.findByIdAndDelete(video.scormFile);
     } catch (error) {
       console.error('Error deleting SCORM file:', error);
+    }
+  }
+
+  if (video.html5PackageId) {
+    try {
+      await s3Service.deleteByPrefix(`html5/${video.html5PackageId}`);
+    } catch (error) {
+      console.error('Error deleting HTML5 package:', error);
     }
   }
 
