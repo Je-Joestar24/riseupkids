@@ -86,6 +86,8 @@ export interface PopulatedContentItem {
   html5EntryPoint?: string;
   /** When packageType === 'builtin', linked published CmsBook id (GET /api/cms-book-player/:id/play). */
   cmsBookId?: string | { _id?: string } | null;
+  /** Optional video follow-up launched after playback. */
+  completionContentType?: 'none' | 'scorm' | 'html5' | 'builtin';
   [key: string]: unknown;
 }
 

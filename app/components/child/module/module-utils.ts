@@ -12,6 +12,14 @@ export type ModuleBookContentLike = {
   cmsBookId?: string | { _id?: string } | null;
 };
 
+export type ModuleVideoContentLike = {
+  _contentType?: string;
+  contentType?: string;
+  completionContentType?: string | null;
+  html5PackageId?: string | null;
+  cmsBookId?: string | { _id?: string } | null;
+};
+
 /** Resolved CmsBook id for GET /api/parent/cms-books/:id/play when packageType is builtin. */
 export function getBuiltinCmsBookId(
   book: ModuleBookContentLike | null | undefined
@@ -40,6 +48,31 @@ export function isBuiltinCmsBook(book: ModuleBookContentLike | null | undefined)
   if (pkg === 'builtin') return true;
   if (!pkg) return true;
   return false;
+}
+
+export function getLinkedCmsBookId(
+  content: Pick<ModuleBookContentLike, 'cmsBookId'> | null | undefined
+): string | null {
+  if (!content) return null;
+  const raw = content.cmsBookId;
+  if (typeof raw === 'string' && raw.trim()) return raw.trim();
+  if (raw && typeof raw === 'object') {
+    const id = raw._id != null ? String(raw._id).trim() : '';
+    return id || null;
+  }
+  return null;
+}
+
+export function isHtml5VideoFollowUp(video: ModuleVideoContentLike | null | undefined): boolean {
+  if (!video) return false;
+  const type = String(video.completionContentType ?? '').toLowerCase().trim();
+  return type === 'html5' && Boolean(video.html5PackageId?.trim());
+}
+
+export function isBuiltinCmsVideoFollowUp(video: ModuleVideoContentLike | null | undefined): boolean {
+  if (!video) return false;
+  const type = String(video.completionContentType ?? '').toLowerCase().trim();
+  return type === 'builtin' && Boolean(getLinkedCmsBookId(video));
 }
 
 /** Build full image URL from backend path (e.g. /uploads/courses/xxx.jpeg). */

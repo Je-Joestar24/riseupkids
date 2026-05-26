@@ -37,6 +37,9 @@ import { ModuleProgress } from '@/components/child/module/module-progress';
 import {
   getBuiltinCmsBookId,
   getCoverImageUrl,
+  getLinkedCmsBookId,
+  isBuiltinCmsVideoFollowUp,
+  isHtml5VideoFollowUp,
   isBuiltinCmsBook,
 } from '@/components/child/module/module-utils';
 import { ModuleVideos } from '@/components/child/module/module-videos';
@@ -63,6 +66,7 @@ export default function ChildModuleScreen() {
   const [chantModal, setChantModal] = useState<PopulatedContentItem | null>(null);
   const [audioModal, setAudioModal] = useState<PopulatedContentItem | null>(null);
   const [cmsModalBook, setCmsModalBook] = useState<PopulatedContentItem | null>(null);
+  const [cmsModalSource, setCmsModalSource] = useState<'book' | 'videoFollowUp'>('book');
   const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
   const [cmsCompletionData, setCmsCompletionData] = useState<CmsCompletionDialogData | null>(null);
 
@@ -136,6 +140,10 @@ export default function ChildModuleScreen() {
   const handleCmsSessionComplete = useCallback(
     async (payload: CmsSessionPayload) => {
       if (!cmsModalBook || !childId || !courseId) return;
+      if (cmsModalSource === 'videoFollowUp') {
+        await fetchModuleDetails(courseId, childId);
+        return;
+      }
       const libraryBookId = getContentId(cmsModalBook);
       const maxScore = Math.max(0, payload.maxScore);
       const score = Math.min(payload.score, maxScore > 0 ? maxScore : payload.score);
@@ -179,12 +187,61 @@ export default function ChildModuleScreen() {
     },
     [
       cmsModalBook,
+      cmsModalSource,
       childId,
       courseId,
       mapCmsSessionToCompletion,
       submitBuiltinBookScore,
       updateContentProgress,
       fetchModuleDetails,
+    ]
+  );
+
+  const openBuiltInCmsPlayer = useCallback(
+    (content: PopulatedContentItem, cmsId: string, source: 'book' | 'videoFollowUp') => {
+      lockLandscapeForCmsBookPlayer();
+      resetCmsPlayer();
+      setCmsModalSource(source);
+      setCmsModalBook(content);
+      void (async () => {
+        const detail = await openCmsPlayableBook(cmsId);
+        if (!detail?.pages?.length) {
+          setCmsModalBook(null);
+          setCmsModalSource('book');
+          const msg =
+            useCmsPlayerStore.getState().error ?? 'Could not load this built-in book.';
+          Alert.alert('Book unavailable', msg);
+        }
+      })();
+    },
+    [openCmsPlayableBook, resetCmsPlayer]
+  );
+
+  const handleVideoComplete = useCallback(
+    (completedVideo: PopulatedContentItem) => {
+      if (childId) refreshVideoWatches(childId);
+      fetchModuleDetails(courseId!, childId!);
+      setVideoModal(null);
+
+      if (isHtml5VideoFollowUp(completedVideo)) {
+        openHtml5Modal(completedVideo);
+        return;
+      }
+
+      if (isBuiltinCmsVideoFollowUp(completedVideo)) {
+        const cmsId = getLinkedCmsBookId(completedVideo);
+        if (cmsId) {
+          openBuiltInCmsPlayer(completedVideo, cmsId, 'videoFollowUp');
+        }
+      }
+    },
+    [
+      childId,
+      courseId,
+      fetchModuleDetails,
+      openBuiltInCmsPlayer,
+      openHtml5Modal,
+      refreshVideoWatches,
     ]
   );
 
@@ -197,23 +254,12 @@ export default function ChildModuleScreen() {
       if (isBuiltinCmsBook(book)) {
         const cmsId = getBuiltinCmsBookId(book);
         if (!cmsId) return;
-        lockLandscapeForCmsBookPlayer();
-        resetCmsPlayer();
-        setCmsModalBook(book);
-        void (async () => {
-          const detail = await openCmsPlayableBook(cmsId);
-          if (!detail?.pages?.length) {
-            setCmsModalBook(null);
-            const msg =
-              useCmsPlayerStore.getState().error ?? 'Could not load this built-in book.';
-            Alert.alert('Book unavailable', msg);
-          }
-        })();
+        openBuiltInCmsPlayer(book, cmsId, 'book');
         return;
       }
       // SCORM not supported in app; tap does nothing for other books
     },
-    [openHtml5Modal, openCmsPlayableBook, resetCmsPlayer]
+    [openHtml5Modal, openBuiltInCmsPlayer]
   );
 
   const getBookStarPoints = (book: PopulatedContentItem) =>
@@ -322,10 +368,8 @@ export default function ChildModuleScreen() {
         video={videoModal}
         childId={childId ?? null}
         courseId={courseId ?? null}
-        onVideoComplete={() => {
-          if (childId) refreshVideoWatches(childId);
-          fetchModuleDetails(courseId!, childId!);
-          setVideoModal(null);
+        onVideoComplete={(completedVideo) => {
+          handleVideoComplete(completedVideo as PopulatedContentItem);
         }}
       />
       <ChantModal
@@ -357,7 +401,7 @@ export default function ChildModuleScreen() {
         error={html5Error}
         courseId={courseId ?? null}
         childId={childId ?? null}
-        bookId={html5Book ? getContentId(html5Book) : null}
+        bookId={html5Book && isHtml5Book(html5Book) ? getContentId(html5Book) : null}
         onAfterComplete={() => {
           if (courseId && childId) fetchModuleDetails(courseId, childId);
         }}
@@ -366,6 +410,7 @@ export default function ChildModuleScreen() {
         open={Boolean(cmsModalBook)}
         onClose={() => {
           setCmsModalBook(null);
+          setCmsModalSource('book');
           resetCmsPlayer();
         }}
         pages={cmsPlayableBook?.pages ?? []}

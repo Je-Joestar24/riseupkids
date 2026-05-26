@@ -16,6 +16,14 @@ export function isHtml5Book(book: PopulatedContentItem | null | undefined): bool
   );
 }
 
+export function isHtml5PlayableContent(content: PopulatedContentItem | null | undefined): boolean {
+  if (!content) return false;
+  if (isHtml5Book(content)) return true;
+  const contentType = content._contentType || (content as { contentType?: string }).contentType;
+  const completionType = String(content.completionContentType ?? '').toLowerCase().trim();
+  return contentType === 'video' && completionType === 'html5' && !!content.html5PackageId?.trim();
+}
+
 export interface UseHtml5LaunchUrlResult {
   launchUrl: string | null;
   loading: boolean;
@@ -65,7 +73,7 @@ export function useHtml5LaunchUrl(
 export interface UseHtml5ModalResult {
   open: boolean;
   selectedBook: PopulatedContentItem | null;
-  openModal: (book: PopulatedContentItem) => void;
+  openModal: (content: PopulatedContentItem) => void;
   closeModal: () => void;
   launchUrl: string | null;
   loading: boolean;
@@ -80,9 +88,9 @@ export function useHtml5Modal(): UseHtml5ModalResult {
   const entryPoint = selectedBook?.html5EntryPoint ?? null;
   const { launchUrl, loading, error } = useHtml5LaunchUrl(packageId, entryPoint);
 
-  const openModal = useCallback((book: PopulatedContentItem) => {
-    if (!isHtml5Book(book)) return;
-    setSelectedBook(book);
+  const openModal = useCallback((content: PopulatedContentItem) => {
+    if (!isHtml5PlayableContent(content)) return;
+    setSelectedBook(content);
     setOpen(true);
   }, []);
 

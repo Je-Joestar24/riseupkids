@@ -12,7 +12,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -20,7 +19,12 @@ import {
 
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
-import { getCoverImageUrl } from '@/components/child/module/module-utils';
+import {
+  getCoverImageUrl,
+  isBuiltinCmsVideoFollowUp,
+  isHtml5VideoFollowUp,
+  type ModuleVideoContentLike,
+} from '@/components/child/module/module-utils';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -31,6 +35,9 @@ import { moduleService } from '@/services/moduleService';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
+
+const PORTRAIT_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
+const LANDSCAPE_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE;
 
 /** Minimal video shape for explore (url pre-built by caller) */
 export interface ExploreVideoInput {
@@ -85,8 +92,6 @@ export function VideoPlayerModal({
     markVideoWatched,
     getVideoWatchStatus,
     refreshVideoWatches,
-    updateCourseContentProgress,
-    isLoadingVideo,
   } = useContentProgress({ childId, courseId: isExploreVideo ? undefined : courseId });
 
   const { markExploreVideoWatched, getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
@@ -113,12 +118,9 @@ export function VideoPlayerModal({
     starsAwarded: boolean;
   } | null>(null);
 
-  const PORTRAIT = ScreenOrientation.OrientationLock.PORTRAIT_UP;
-  const LANDSCAPE = ScreenOrientation.OrientationLock.LANDSCAPE;
-
   const enterFullscreen = useCallback(async () => {
     try {
-      await ScreenOrientation.lockAsync(LANDSCAPE);
+      await ScreenOrientation.lockAsync(LANDSCAPE_LOCK);
       setIsFullscreen(true);
     } catch {
       // ignore
@@ -127,7 +129,7 @@ export function VideoPlayerModal({
 
   const exitFullscreen = useCallback(async () => {
     try {
-      await ScreenOrientation.lockAsync(PORTRAIT);
+      await ScreenOrientation.lockAsync(PORTRAIT_LOCK);
       setIsFullscreen(false);
     } catch {
       // ignore
@@ -303,9 +305,8 @@ export function VideoPlayerModal({
     setShowConfirmClose(false);
     setShowCompletionDialog(false);
     setWatchResult(null);
-    if (video) onVideoComplete?.(video);
     onClose();
-  }, [exitFullscreen, onVideoComplete, video, onClose]);
+  }, [exitFullscreen, onClose]);
 
   const skipCloseConfirm =
     isExploreVideo && (wasAlreadyWatched || hasRecordedWatch);
@@ -319,13 +320,25 @@ export function VideoPlayerModal({
   }, [skipCloseConfirm, handleConfirmedClose]);
 
   const handleCompletionDialogClose = useCallback(() => {
+    const completedVideo = video;
     setShowCompletionDialog(false);
     exitFullscreen();
-    if (video) onVideoComplete?.(video);
     onClose();
+    if (completedVideo) {
+      setTimeout(() => {
+        onVideoComplete?.(completedVideo);
+      }, 180);
+    }
     // Module videos: do not show global dialog; the in-modal completion card already showed the message.
     // Explore videos close before this (they show global dialog and close in handleVideoEnd).
   }, [exitFullscreen, onVideoComplete, video, onClose]);
+
+  const videoFollowUp = video as ModuleVideoContentLike | null;
+  const continueLabel = isHtml5VideoFollowUp(videoFollowUp)
+    ? 'Continue to HTML5 Book'
+    : isBuiltinCmsVideoFollowUp(videoFollowUp)
+      ? 'Continue to Book'
+      : 'Continue';
 
   if (!open) return null;
 
@@ -476,7 +489,7 @@ export function VideoPlayerModal({
               <Pressable
                 style={styles.continueBtn}
                 onPress={handleCompletionDialogClose}>
-                <ThemedText style={styles.continueBtnText}>Continue</ThemedText>
+                <ThemedText style={styles.continueBtnText}>{continueLabel}</ThemedText>
               </Pressable>
             </View>
           </Pressable>
