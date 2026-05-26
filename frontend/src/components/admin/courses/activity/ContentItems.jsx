@@ -30,6 +30,7 @@ import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentS
 import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
 import AdminTestHtmlModal from '../../common/AdminTestHtmlModal';
+import AdminVideoTester from '../../common/AdminVideoTester';
 import CmsBooksModalTest from '../../common/CmsBooksModalTest';
 import useHtml5 from '../../../../hooks/html5Hook';
 import useCmsBookPlayer from '../../../../hooks/cmsBookPlayer';
@@ -57,6 +58,7 @@ const ContentItems = ({ loading, onRefresh }) => {
   const [selectedContentType, setSelectedContentType] = useState(CONTENT_TYPES.ACTIVITY);
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [videoTestItem, setVideoTestItem] = useState(null);
   const [cmsTestModalOpen, setCmsTestModalOpen] = useState(false);
   const [cmsTestPages, setCmsTestPages] = useState([]);
   const { openTestHtml5, modalProps: html5ModalProps, canTestHtml5 } = useHtml5();
@@ -103,9 +105,29 @@ const ContentItems = ({ loading, onRefresh }) => {
     []
   );
 
+  const canShowVideoTest = useCallback(
+    (type, item) => {
+      if (type !== CONTENT_TYPES.VIDEO || !item) return false;
+      return Boolean(item.embedUrl || item.cloudUrl || item.url || item.videoFileUrl || item.videoFile?.url || item.filePath);
+    },
+    []
+  );
+
+  const canPreviewItem = useCallback(
+    (type, item) =>
+      canShowVideoTest(type, item) ||
+      canShowTest(type, item) ||
+      canShowBuiltinTest(type, item),
+    [canShowBuiltinTest, canShowTest, canShowVideoTest]
+  );
+
   const handleTestClick = useCallback(
     async (item) => {
       const type = item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY;
+      if (canShowVideoTest(type, item)) {
+        setVideoTestItem(item);
+        return;
+      }
       if (canShowBuiltinTest(type, item)) {
         const cmsBookId =
           (typeof item?.cmsBookId === 'string' && item.cmsBookId) ||
@@ -137,7 +159,7 @@ const ContentItems = ({ loading, onRefresh }) => {
         openTestHtml5(item, type);
       }
     },
-    [filters.contentType, canShowBuiltinTest, isScormItem, canTestHtml5, openTestHtml5]
+    [filters.contentType, canShowVideoTest, canShowBuiltinTest, isScormItem, canTestHtml5, openTestHtml5]
   );
 
   const handleMenuOpen = (event, item) => {
@@ -170,6 +192,13 @@ const ContentItems = ({ loading, onRefresh }) => {
   const handleTestBuiltin = async () => {
     if (selectedItem) {
       await handleTestClick(selectedItem);
+    }
+    handleMenuClose();
+  };
+
+  const handleTestVideo = () => {
+    if (selectedItem) {
+      setVideoTestItem(selectedItem);
     }
     handleMenuClose();
   };
@@ -398,18 +427,18 @@ const ContentItems = ({ loading, onRefresh }) => {
             <CardActionArea
               onClick={() => handleTestClick(item)}
               disabled={
-                !canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) &&
-                !canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                !canPreviewItem(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
               }
               sx={{
                 cursor:
-                  canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
-                  canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  canPreviewItem(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
                     ? 'pointer'
                     : 'default',
               }}
               aria-label={
-                canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                canShowVideoTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
+                  ? `Test video playback for ${item.title}`
+                  : canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
                   ? `Preview built-in book ${item.title}`
                   : canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)
                     ? `Test HTML5 for ${item.title}`
@@ -527,12 +556,16 @@ const ContentItems = ({ loading, onRefresh }) => {
                         backdropFilter: 'blur(4px)',
                       }}
                     />
-                    {(canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
-                      canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)) && (
+                    {canPreviewItem(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
                       <Chip
                         icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
                         label={
-                          canShowBuiltinTest(
+                          canShowVideoTest(
+                            item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
+                            item
+                          )
+                            ? 'Test video'
+                            : canShowBuiltinTest(
                             item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
                             item
                           )
@@ -639,8 +672,7 @@ const ContentItems = ({ loading, onRefresh }) => {
                     />
                   </Box>
                   {/* Preview/test badge for HTML5 and built-in CMS books */}
-                  {(canShowTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) ||
-                    canShowBuiltinTest(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item)) && (
+                  {canPreviewItem(item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY, item) && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -652,7 +684,12 @@ const ContentItems = ({ loading, onRefresh }) => {
                       <Chip
                         icon={<PlayArrowIcon sx={{ color: theme.palette.common.white }} />}
                         label={
-                          canShowBuiltinTest(
+                          canShowVideoTest(
+                            item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
+                            item
+                          )
+                            ? 'Test video'
+                            : canShowBuiltinTest(
                             item._contentType || filters.contentType || CONTENT_TYPES.ACTIVITY,
                             item
                           )
@@ -725,6 +762,18 @@ const ContentItems = ({ loading, onRefresh }) => {
           },
         }}
       >
+        {selectedItem && resolvedMenuType && canShowVideoTest(resolvedMenuType, selectedItem) && (
+          <MenuItem
+            onClick={handleTestVideo}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.success.main,
+            }}
+          >
+            <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Test Video
+          </MenuItem>
+        )}
         {selectedItem && resolvedMenuType && canShowBuiltinTest(resolvedMenuType, selectedItem) && (
           <MenuItem
             onClick={handleTestBuiltin}
@@ -819,6 +868,13 @@ const ContentItems = ({ loading, onRefresh }) => {
 
       {/* HTML5 Test Modal (admin/teacher, books with packageType html5) */}
       <AdminTestHtmlModal {...html5ModalProps} />
+
+      {/* Video Test Modal (uploaded video, Bunny embed, optional HTML5/CMS follow-up) */}
+      <AdminVideoTester
+        open={Boolean(videoTestItem)}
+        onClose={() => setVideoTestItem(null)}
+        video={videoTestItem}
+      />
 
       {/* Built-in CMS Book Test Modal */}
       <CmsBooksModalTest
