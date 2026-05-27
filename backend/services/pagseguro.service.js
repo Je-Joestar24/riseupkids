@@ -233,11 +233,13 @@ function buildCheckoutPayload({
   const webhookBase = getWebhookBaseUrl();
   const saleBase = getSaleAppBaseUrl();
 
+  // PagBank validates URL fields strictly; avoid unsupported placeholders.
+  // We use provider flag + sessionStorage checkout id for success verification.
   const finalSuccessUrl =
     successUrl ||
-    `${saleBase}/checkout/success?checkout_id={CHECKOUT_ID}`;
-  const finalCancelUrl = cancelUrl || `${saleBase}/checkout/cancel`;
-  const finalReturnUrl = cancelUrl || `${saleBase}/checkout/cancel`;
+    `${saleBase}/checkout/success?provider=pagseguro`;
+  const finalCancelUrl = cancelUrl || `${saleBase}/checkout/register`;
+  const finalReturnUrl = cancelUrl || `${saleBase}/checkout/register`;
 
   return {
     reference_id: referenceId,
