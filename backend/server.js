@@ -40,6 +40,7 @@ const contactSupportRoutes = require('./routes/contactSupport.routes');
 const stripeRoutes = require('./routes/stripe.routes');
 const checkoutRoutes = require('./routes/checkout.routes');
 const paypalRoutes = require('./routes/paypal.routes');
+const pagseguroRoutes = require('./routes/pagseguro.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 const badgeRoutes = require('./routes/badge.routes');
 const googleMeetRoutes = require('./routes/googleMeet.routes');
@@ -103,6 +104,36 @@ app.post(
     }
     next();
   }
+);
+
+// PagBank webhooks need raw body for SHA256 authenticity (before express.json)
+const pagseguroRawBody = express.raw({ type: 'application/json' });
+const pagseguroWebhook = require('./middleware/pagseguroWebhook');
+const {
+  handleCheckoutWebhook,
+  handlePaymentWebhook,
+} = require('./controllers/pagseguro.controller');
+
+const pagseguroRawBodyParser = (req, res, next) => {
+  if (!Buffer.isBuffer(req.body)) {
+    req.body = Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
+  }
+  next();
+};
+
+app.post(
+  '/api/pagseguro/webhooks/checkout',
+  pagseguroRawBody,
+  pagseguroRawBodyParser,
+  pagseguroWebhook,
+  handleCheckoutWebhook
+);
+app.post(
+  '/api/pagseguro/webhooks/payment',
+  pagseguroRawBody,
+  pagseguroRawBodyParser,
+  pagseguroWebhook,
+  handlePaymentWebhook
 );
 
 // Regular JSON parsing for all other routes
@@ -170,6 +201,7 @@ app.use('/api/parent/cms-books', cmsBookPlayerRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);
+app.use('/api/pagseguro', pagseguroRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
 
 // Root route

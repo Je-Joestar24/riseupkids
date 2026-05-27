@@ -73,8 +73,14 @@ const userSchema = new mongoose.Schema(
     /** Which payment provider the user's current subscription/purchase is with. */
     paymentProvider: {
       type: String,
-      enum: ['stripe', 'paypal'],
+      enum: ['stripe', 'paypal', 'pagseguro'],
       default: null,
+    },
+    /** Brazilian CPF (11 digits) for PagBank checkout */
+    taxId: {
+      type: String,
+      select: false,
+      trim: true,
     },
     // Stripe subscription fields (Phase 1)
     stripeCustomerId: {
@@ -100,6 +106,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       select: false,
       // One-time order capture ID (for refunds/support)
+    },
+    pagseguroCheckoutId: {
+      type: String,
+      select: false,
+    },
+    pagseguroChargeId: {
+      type: String,
+      select: false,
     },
     subscriptionStatus: {
       type: String,
