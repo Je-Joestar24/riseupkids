@@ -148,6 +148,24 @@ function getItemQuestionAudio(item, vocab) {
   return item?.questionAudio || vocab?.introAudio || vocab?.audio || null;
 }
 
+function buildDefaultIntroText({ title } = {}) {
+  const safeTitle = asTrimmedString(title) || 'this mission';
+  return `Welcome to ${safeTitle}. Find all 7 objects and complete your Star Cam challenge!`;
+}
+
+function applyPublishDefaults(doc) {
+  if (!asTrimmedString(doc.introText)) {
+    doc.introText = buildDefaultIntroText({ title: doc.title });
+  }
+  // Match seeder behavior: reuse mission cover art when intro/reward images were not uploaded separately.
+  if (!doc.introImage && doc.missionImage) {
+    doc.introImage = doc.missionImage;
+  }
+  if (!doc.rewardImage && doc.missionImage) {
+    doc.rewardImage = doc.missionImage;
+  }
+}
+
 function buildDefaultMissionItemsFromVocab(vocabList = []) {
   return vocabList.map((vocab, index) => {
     const target = asTrimmedString(vocab?.target)?.toLowerCase() || '';
@@ -545,7 +563,21 @@ async function publishMission({ id, userId } = {}) {
     }
   }
 
-  if (!doc.introText || !String(doc.introText).trim()) {
+  if (!doc.category) {
+    const err = new Error('category is required before publishing');
+    err.statusCode = 400;
+    throw err;
+  }
+  const category = await StarCamCategory.findById(doc.category).select('_id name isActive').lean();
+  if (!category || isStarCamCategoryExplicitlyInactive(category)) {
+    const err = new Error('category is not found or inactive');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  applyPublishDefaults(doc);
+
+  if (!asTrimmedString(doc.introText)) {
     const err = new Error('introText is required before publishing');
     err.statusCode = 400;
     throw err;
@@ -572,17 +604,6 @@ async function publishMission({ id, userId } = {}) {
   }
   if (doc.videoEnabled && !doc.introVideo) {
     const err = new Error('introVideo is required when videoEnabled is true');
-    err.statusCode = 400;
-    throw err;
-  }
-  if (!doc.category) {
-    const err = new Error('category is required before publishing');
-    err.statusCode = 400;
-    throw err;
-  }
-  const category = await StarCamCategory.findById(doc.category).select('_id isActive').lean();
-  if (!category || isStarCamCategoryExplicitlyInactive(category)) {
-    const err = new Error('category is not found or inactive');
     err.statusCode = 400;
     throw err;
   }
