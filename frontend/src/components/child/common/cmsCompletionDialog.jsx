@@ -104,7 +104,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             lineHeight: 1.6,
           }}
         >
-          You finished the CMS book!
+          You finished the book!
         </Typography>
 
         <Box

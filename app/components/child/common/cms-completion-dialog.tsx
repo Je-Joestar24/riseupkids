@@ -90,7 +90,7 @@ export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialog
             />
 
             <Text style={styles.lead} accessibilityRole="text">
-              You finished the CMS book!
+              You finished the book!
             </Text>
 
             <View style={styles.metricBox} accessibilityRole="summary">
