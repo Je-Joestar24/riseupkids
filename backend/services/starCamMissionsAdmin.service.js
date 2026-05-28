@@ -148,6 +148,26 @@ function getItemQuestionAudio(item, vocab) {
   return item?.questionAudio || vocab?.introAudio || vocab?.audio || null;
 }
 
+function buildDefaultMissionItemsFromVocab(vocabList = []) {
+  return vocabList.map((vocab, index) => {
+    const target = asTrimmedString(vocab?.target)?.toLowerCase() || '';
+    const label = asTrimmedString(vocab?.displayText) || asTrimmedString(vocab?.word) || target || `item ${index + 1}`;
+    return buildMissionItemPayload(
+      {
+        target,
+        questionText: `Is this a ${label}?`,
+        questionAudio: vocab?.introAudio || vocab?.audio || null,
+        tryAgainText: `Ow that's not a ${label}, let's try again.`,
+        tryAgainAudio: vocab?.tryAgainAudio || null,
+        successText: `That's a ${label}, yeyy.`,
+        successAudio: vocab?.successAudio || null,
+        sortOrder: Number(vocab?.sortOrder ?? index),
+      },
+      index
+    );
+  });
+}
+
 function buildPopulate() {
   return [
     { path: 'category', select: 'key name description isActive sortOrder' },
@@ -453,9 +473,15 @@ async function publishMission({ id, userId } = {}) {
     throw err;
   }
   if (!Array.isArray(doc.items) || doc.items.length !== 7) {
-    const err = new Error('Mission must have exactly 7 scavenger hunt items before publishing');
-    err.statusCode = 400;
-    throw err;
+    // Backward compatibility: scan prompts/audio now come from vocab media.
+    // If items are missing, synthesize 7 scan items from vocab on publish.
+    if (Array.isArray(doc.vocab) && doc.vocab.length === 7 && (!Array.isArray(doc.items) || doc.items.length === 0)) {
+      doc.items = buildDefaultMissionItemsFromVocab(doc.vocab);
+    } else {
+      const err = new Error('Mission must have exactly 7 scavenger hunt items before publishing');
+      err.statusCode = 400;
+      throw err;
+    }
   }
   assertUniqueSortOrders(doc.vocab, 7, 'vocab');
   assertUniqueSortOrders(doc.items, 7, 'items');

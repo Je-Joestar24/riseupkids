@@ -40,12 +40,25 @@ const normalizeMissionItem = (item = {}, vocab = []) => {
   };
 };
 
+const hasVocabScanAudioSet = (vocab = []) =>
+  Array.isArray(vocab) &&
+  vocab.length === 7 &&
+  vocab.every((entry) => Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio));
+
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
   const vocab = Array.isArray(mission.vocab) ? mission.vocab : [];
   const items = Array.isArray(mission.items)
     ? mission.items.map((item) => normalizeMissionItem(item, vocab))
     : mission.items;
+  const hasScanQuestionSet =
+    (Array.isArray(items) &&
+      items.length === 7 &&
+      items.every((item) =>
+        Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
+      )) ||
+    hasVocabScanAudioSet(vocab);
+  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : Math.min(vocab.length, 7);
 
   return {
     ...mission,
@@ -54,6 +67,11 @@ const normalizeMission = (mission) => {
     missionShortVideoUrl: mission.missionShortVideo?.url || null,
     rewardAudioUrl: mission.rewardAudio?.url || null,
     rewardVideoUrl: mission.rewardVideo?.url || null,
+    mediaCompleteness: {
+      ...mission.mediaCompleteness,
+      hasScanQuestionSet,
+      scanCount,
+    },
   };
 };
 
