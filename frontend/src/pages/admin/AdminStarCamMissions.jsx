@@ -10,6 +10,46 @@ import StarCamMissionCreateModal from '../../components/admin/starcammission/Sta
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
 import { showConfirmationDialog, showNotification } from '../../store/slices/uiSlice';
 
+const normalizeTarget = (value) => String(value || '').trim().toLowerCase();
+
+const normalizeTargetKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+
+const targetsMatch = (left, right) => {
+  const leftRaw = normalizeTarget(left);
+  const rightRaw = normalizeTarget(right);
+  if (leftRaw && rightRaw && leftRaw === rightRaw) return true;
+  const leftKey = normalizeTargetKey(leftRaw);
+  const rightKey = normalizeTargetKey(rightRaw);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
+};
+
+const toRefId = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value._id) return String(value._id);
+  return null;
+};
+
+const toMissionItemPatch = (item) => ({
+  target: normalizeTarget(item?.target),
+  prompt: item?.prompt ?? item?.questionText ?? null,
+  questionText: item?.questionText ?? item?.prompt ?? null,
+  questionAudio: toRefId(item?.questionAudio),
+  fail: item?.fail ?? item?.tryAgainText ?? null,
+  tryAgainText: item?.tryAgainText ?? item?.fail ?? null,
+  tryAgainAudio: toRefId(item?.tryAgainAudio),
+  success: item?.success ?? item?.successText ?? null,
+  successText: item?.successText ?? item?.success ?? null,
+  successAudio: toRefId(item?.successAudio),
+  sortOrder: Number(item?.sortOrder ?? 0),
+});
+
 const AdminStarCamMissions = () => {
   const dispatch = useDispatch();
   const {
@@ -173,6 +213,52 @@ const AdminStarCamMissions = () => {
     dispatch(showNotification({ message: 'Scan questions updated from vocabulary', type: 'success' }));
   };
 
+  const alignScanItemTargetsWithVocabulary = async (mission) => {
+    if (!mission?._id) return mission;
+    const vocabList = Array.isArray(mission.vocab) ? mission.vocab : [];
+    const itemList = Array.isArray(mission.items) ? mission.items : [];
+    if (!vocabList.length || !itemList.length) return mission;
+
+    const vocabBySortOrder = new Map(vocabList.map((entry) => [Number(entry?.sortOrder), entry]));
+    const syncedItems = itemList.map((item) => {
+      const sortOrder = Number(item?.sortOrder);
+      const vocab = vocabBySortOrder.get(sortOrder);
+      const vocabTarget = normalizeTarget(vocab?.target);
+      if (!vocabTarget) return item;
+      if (targetsMatch(item?.target, vocabTarget)) return item;
+      return {
+        ...item,
+        target: vocabTarget,
+      };
+    });
+
+    const hasChanges = syncedItems.some((item, idx) => normalizeTarget(item?.target) !== normalizeTarget(itemList[idx]?.target));
+    if (!hasChanges) return mission;
+
+    await editMission(
+      mission._id,
+      { items: syncedItems.map((item) => toMissionItemPatch(item)) },
+      { notifySuccess: false }
+    );
+    const refreshed = await loadMissionById(mission._id);
+    dispatch(showNotification({ message: 'Auto-synced scan targets to vocabulary before publish', type: 'info' }));
+    return refreshed?.data || mission;
+  };
+
+  const handlePublishMission = async (missionId) => {
+    if (!missionId) return;
+    const missionSource =
+      currentMission?._id === missionId
+        ? currentMission
+        : (await loadMissionById(missionId))?.data;
+    const syncedMission = await alignScanItemTargetsWithVocabulary(missionSource);
+    await publishMission(missionId);
+    await loadMissions(missionQueryParams);
+    if (currentMission?._id === missionId || syncedMission?._id === missionId) {
+      await loadMissionById(missionId);
+    }
+  };
+
   const missionQueryParams = {
     page: filters.page,
     limit: filters.limit,
@@ -282,7 +368,7 @@ const AdminStarCamMissions = () => {
             selectedMissionId={currentMission?._id || null}
             onToggleMission={handleToggleMission}
             onEditMission={handleOpenEditMissionModal}
-            onPublishMission={publishMission}
+            onPublishMission={handlePublishMission}
             onUnpublishMission={unpublishMission}
             onArchiveMission={archiveMission}
           />
@@ -301,7 +387,7 @@ const AdminStarCamMissions = () => {
               selectedMissionId={currentMission?._id || null}
               onToggleMission={handleToggleMission}
               onEditMission={handleOpenEditMissionModal}
-              onPublishMission={publishMission}
+              onPublishMission={handlePublishMission}
               onUnpublishMission={unpublishMission}
               onArchiveMission={archiveMission}
             />

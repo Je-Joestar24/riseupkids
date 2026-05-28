@@ -110,10 +110,31 @@ function normalizeTarget(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeTargetKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_');
+}
+
 function findVocabForItem(vocabList, item) {
   const target = normalizeTarget(item?.target);
   if (!target) return null;
-  return (vocabList || []).find((v) => normalizeTarget(v?.target) === target) || null;
+  const targetKey = normalizeTargetKey(target);
+  return (
+    (vocabList || []).find((v) => {
+      const vocabTarget = normalizeTarget(v?.target);
+      const vocabDisplay = normalizeTarget(v?.displayText);
+      const vocabWord = normalizeTarget(v?.word);
+      if (vocabTarget && vocabTarget === target) return true;
+      const vocabTargetKey = normalizeTargetKey(vocabTarget);
+      const vocabDisplayKey = normalizeTargetKey(vocabDisplay);
+      const vocabWordKey = normalizeTargetKey(vocabWord);
+      return Boolean(targetKey) && [vocabTargetKey, vocabDisplayKey, vocabWordKey].includes(targetKey);
+    }) || null
+  );
 }
 
 function getDefaultQuestionText(item, vocab) {

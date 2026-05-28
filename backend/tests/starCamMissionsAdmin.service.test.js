@@ -302,6 +302,59 @@ describe('starCamMissionsAdmin.service', () => {
     expect(result).toMatchObject({ status: 'published' });
   });
 
+  it('publishes mission when item target matches vocab via normalized key', async () => {
+    const vocab7 = makeVocab7((i) => ({
+      target: `target_${i}`,
+      displayText: `Target ${i}`,
+      word: `Target ${i}`,
+    }));
+    const items7 = makeItems7((i) => ({
+      target: `Target ${i}`,
+    }));
+    const doc = makeDoc({
+      introText: 'Hello',
+      missionImage: 'mission-img',
+      introImage: 'intro-img',
+      rewardImage: 'reward-img',
+      rewardAudio: 'reward-aud',
+      rewardVideo: 'reward-vid',
+      missionShortVideo: 'short-vid',
+      category: 'cat-1',
+      videoEnabled: false,
+      vocab: vocab7,
+      items: items7,
+    });
+    StarCamCategory.findById.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
+    });
+
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
+      });
+
+    Media.findOne
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' }));
+    for (let i = 0; i < 7; i += 1) {
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+    }
+
+    const result = await publishMission({ id: 'mission-1', userId: 'u1' });
+    expect(doc.status).toBe('published');
+    expect(result).toMatchObject({ status: 'published' });
+  });
+
   it('unpublishes mission back to draft', async () => {
     const doc = makeDoc({ status: 'published' });
     StarCamMission.findById
