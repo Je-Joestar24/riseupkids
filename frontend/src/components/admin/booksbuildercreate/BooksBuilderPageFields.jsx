@@ -6,7 +6,31 @@ import { isPageComplete } from './BooksBuilderCreate.utils';
 const BooksBuilderPageFields = ({ page, onPatch }) => {
   if (!page?.type) return null;
   const contentAudioInputRef = useRef(null);
+  const introBgmInputRef = useRef(null);
   const { isTrimming, processAudioFile } = useAudioFileWithSilenceTrim();
+
+  const handleIntroBackgroundMusicUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+
+    const objectUrl = URL.createObjectURL(file);
+    onPatch({
+      introBackgroundMusicUrl: objectUrl,
+      introBackgroundMusicMediaId: null,
+    });
+  };
+
+  const handleRemoveIntroBackgroundMusic = () => {
+    const currentUrl = page.introBackgroundMusicUrl || '';
+    if (currentUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(currentUrl);
+    }
+    onPatch({
+      introBackgroundMusicUrl: '',
+      introBackgroundMusicMediaId: null,
+    });
+  };
 
   const handleContentAudioUpload = async (event) => {
     const file = event.target.files?.[0];
@@ -25,12 +49,159 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
   return (
     <Stack spacing={1.5} sx={{ width: '100%', alignSelf: 'center', pt: 1 }}>
       {page.type === 'intro' ? (
-        <TextField
-          label="Page title"
-          size="small"
-          value={page.title}
-          onChange={(e) => onPatch({ title: e.target.value })}
-        />
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gap: 2,
+            alignItems: 'center',
+          }}
+        >
+          <Box
+            sx={{
+              border: (theme) => `1px solid ${theme.palette.border.main}`,
+              borderRadius: '10px',
+              backgroundColor: (theme) => theme.palette.common.white,
+              px: 1.5,
+              py: 1,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <TextField
+              label="Page title"
+              size="small"
+              fullWidth
+              value={page.title}
+              onChange={(e) => onPatch({ title: e.target.value })}
+              aria-label="Intro page title"
+              sx={{
+                '& .MuiInputBase-root': { minHeight: 40 },
+              }}
+            />
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+            <Typography
+              variant="caption"
+              sx={{
+                fontFamily: 'Quicksand, sans-serif',
+                color: 'text.secondary',
+                fontWeight: 700,
+                fontSize: '0.72rem',
+                lineHeight: 1.2,
+              }}
+            >
+              Intro background music (optional)
+            </Typography>
+
+            {page.introBackgroundMusicUrl ? (
+              <Box
+                sx={{
+                  border: (theme) => `1px solid ${theme.palette.border.main}`,
+                  borderRadius: '10px',
+                  backgroundColor: (theme) => theme.palette.common.white,
+                  px: 1.25,
+                  py: 0.75,
+                  minHeight: 52,
+                  height: 52,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
+              >
+                <audio
+                  controls
+                  src={page.introBackgroundMusicUrl}
+                  aria-label="Intro background music preview"
+                  style={{ flex: 1, minWidth: 0, height: 36, display: 'block' }}
+                />
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => introBgmInputRef.current?.click()}
+                  aria-label="Replace intro background music"
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.7rem',
+                    minHeight: 28,
+                    py: 0.25,
+                    px: 1,
+                    borderRadius: '999px',
+                    flexShrink: 0,
+                  }}
+                >
+                  Replace
+                </Button>
+                <Button
+                  variant="text"
+                  size="small"
+                  color="error"
+                  onClick={handleRemoveIntroBackgroundMusic}
+                  aria-label="Remove intro background music"
+                  sx={{
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: '0.7rem',
+                    minHeight: 28,
+                    py: 0.25,
+                    px: 0.75,
+                    flexShrink: 0,
+                  }}
+                >
+                  Remove
+                </Button>
+              </Box>
+            ) : (
+              <Box
+                role="button"
+                tabIndex={0}
+                aria-label="Upload intro background music"
+                onClick={() => introBgmInputRef.current?.click()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    introBgmInputRef.current?.click();
+                  }
+                }}
+                sx={{
+                  border: (theme) => `2px dashed ${theme.palette.orange.main}`,
+                  borderRadius: '10px',
+                  minHeight: 52,
+                  height: 52,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  px: 1.5,
+                  backgroundColor: (theme) => `${theme.palette.orange.main}10`,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  Click to upload audio (loops on intro)
+                </Typography>
+              </Box>
+            )}
+
+            <input
+              ref={introBgmInputRef}
+              accept="audio/*"
+              type="file"
+              style={{ display: 'none' }}
+              aria-hidden
+              onChange={handleIntroBackgroundMusicUpload}
+            />
+          </Box>
+        </Box>
       ) : null}
 
       {page.type === 'content' ? (

@@ -305,6 +305,7 @@ export function CmsPlayerModal({
     if (pageType === 'intro') {
       return (
         <CmsIntroPage
+          key={currentPage.pageId || `intro-${currentIndex}`}
           page={currentPage}
           hasNext={hasNext}
           isPreloading={isPreloading}

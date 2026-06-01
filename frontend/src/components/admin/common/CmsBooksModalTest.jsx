@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Dialog,
@@ -27,6 +27,16 @@ const CmsBooksModalTest = ({
 }) => {
   const playablePages = useMemo(() => getPlayablePages(pages), [pages]);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (!open) {
+      setCurrentIndex(0);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    setCurrentIndex(0);
+  }, [playablePages]);
 
   const currentPage = playablePages[currentIndex] || null;
   const hasPrev = currentIndex > 0;
@@ -144,6 +154,7 @@ const CmsBooksModalTest = ({
     if (pageType === 'intro') {
       return (
         <IntroTests
+          key={currentPage.pageId || `intro-${currentIndex}`}
           page={currentPage}
           hasNext={hasNext}
           isPreloading={isPreloading}

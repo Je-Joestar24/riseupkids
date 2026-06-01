@@ -215,6 +215,7 @@ async function listPlayableCmsBooksForParent({
     },
     items: items.map((book) => {
       const coverPage = (book.pages || []).find((page) => page.type === 'cover' && page.order === 1) || null;
+      const introBackgroundMusicMediaId = coverPage?.media?.audioMediaId || null;
       return {
         id: String(book._id),
         title: book.title,
@@ -222,6 +223,9 @@ async function listPlayableCmsBooksForParent({
         language: book.language || 'en',
         version: book.version || 1,
         coverImageMediaId: coverPage?.media?.imageMediaId || null,
+        introBackgroundMusicMediaId: introBackgroundMusicMediaId
+          ? String(introBackgroundMusicMediaId)
+          : null,
         totalPages: Array.isArray(book.pages) ? book.pages.length : 0,
         updatedAt: book.updatedAt,
       };

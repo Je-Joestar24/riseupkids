@@ -66,7 +66,9 @@ export const createEmptyPage = (index) => {
     imageUrl: '',
     backgroundImageUrl: '',
     audioUrl: '',
+    introBackgroundMusicUrl: '',
     videoUrl: '',
+    introBackgroundMusicMediaId: null,
     interactionMode: '',
     optionAudioOne: '',
     optionAudioTwo: '',
@@ -87,6 +89,8 @@ export const resetPageByType = {
   imageUrl: '',
   backgroundImageUrl: '',
   audioUrl: '',
+  introBackgroundMusicUrl: '',
+  introBackgroundMusicMediaId: null,
   videoUrl: '',
   interactionMode: '',
   optionAudioOne: '',
@@ -246,6 +250,102 @@ const toBuilderPageType = (cmsType) => {
 
 const toMediaUrl = (media) => media?.url || media?.cloudUrl || '';
 
+const toCmsPageTypeForTester = (builderType, interactionMode) => {
+  if (builderType === 'intro') return 'cover';
+  if (builderType === 'demo') return 'activity_demo_video';
+  if (builderType === 'interactive') {
+    return interactionMode === 'two_options_two_answers' ? 'activity_drag_2x2' : 'activity_drag_2x1';
+  }
+  return builderType;
+};
+
+/** Maps builder draft pages to the shape expected by CmsBooksModalTest / cmsTest components. */
+export const buildTesterPagesFromBuilder = (pages = []) =>
+  (Array.isArray(pages) ? pages : [])
+    .filter((page) => Boolean(page?.type))
+    .map((page, index) => {
+      const cmsType = toCmsPageTypeForTester(page.type, page.interactionMode);
+      const introBgmUrl =
+        page.type === 'intro' ? String(page.introBackgroundMusicUrl || '').trim() : '';
+
+      return {
+        pageId: page.id || `page-${index + 1}`,
+        order: index + 1,
+        type: cmsType,
+        title: page.title || null,
+        subtitle: page.subtitle || null,
+        imageUrl: page.imageUrl || '',
+        backgroundImageUrl: page.backgroundImageUrl || '',
+        audioUrl: page.type === 'content' ? page.audioUrl || '' : '',
+        introBackgroundMusicUrl: introBgmUrl,
+        videoUrl: page.videoUrl || '',
+        readingText: page.readingText || '',
+        readingWords: page.readingWords || [],
+        audioDurationSec: page.audioDurationSec ?? null,
+        interactionMode: page.interactionMode || '',
+        optionAudioOne: page.optionAudioOne || '',
+        optionAudioTwo: page.optionAudioTwo || '',
+        optionImageOne: page.optionImageOne || '',
+        optionImageTwo: page.optionImageTwo || '',
+        guideImageOne: page.guideImageOne || '',
+        guideImageTwo: page.guideImageTwo || '',
+        answerOneCorrectOptionId: page.answerOneCorrectOptionId || '',
+        answerTwoCorrectOptionId: page.answerTwoCorrectOptionId || '',
+        media: {
+          imageMedia: page.imageUrl ? { url: page.imageUrl } : null,
+          audioMedia: introBgmUrl ? { url: introBgmUrl } : null,
+          videoMedia: page.videoUrl ? { url: page.videoUrl } : null,
+          backgroundImageMedia: page.backgroundImageUrl ? { url: page.backgroundImageUrl } : null,
+          guideImageMedia: page.guideImageOne ? { url: page.guideImageOne } : null,
+          guideImageMedias: [page.guideImageOne, page.guideImageTwo]
+            .filter(Boolean)
+            .map((url) => ({ url })),
+        },
+        interaction:
+          page.type === 'interactive'
+            ? {
+                kind: page.interactionMode === 'two_options_two_answers' ? 'drag_2x2' : 'drag_2x1',
+                allowRetry: true,
+                options: [
+                  {
+                    optionId: 'option_one',
+                    label: 'Option 1',
+                    imageMedia: page.optionImageOne ? { url: page.optionImageOne } : null,
+                    audioMedia: page.optionAudioOne ? { url: page.optionAudioOne } : null,
+                  },
+                  {
+                    optionId: 'option_two',
+                    label: 'Option 2',
+                    imageMedia: page.optionImageTwo ? { url: page.optionImageTwo } : null,
+                    audioMedia: page.optionAudioTwo ? { url: page.optionAudioTwo } : null,
+                  },
+                ],
+                dropZones:
+                  page.interactionMode === 'two_options_two_answers'
+                    ? [
+                        {
+                          zoneId: 'zone_one',
+                          label: 'Answer 1',
+                          correctOptionId: page.answerOneCorrectOptionId,
+                        },
+                        {
+                          zoneId: 'zone_two',
+                          label: 'Answer 2',
+                          correctOptionId: page.answerTwoCorrectOptionId,
+                        },
+                      ]
+                    : [
+                        {
+                          zoneId: 'zone_one',
+                          label: 'Answer 1',
+                          correctOptionId: page.answerOneCorrectOptionId,
+                        },
+                      ],
+              }
+            : null,
+      };
+    });
+
 export const buildBuilderPageFromCms = (page = {}, index = 0) => {
   const builderType = toBuilderPageType(page.type);
   const media = page.media || {};
@@ -265,7 +365,11 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     readingWords: Array.isArray(page?.reading?.words) ? page.reading.words : [],
     imageUrl: toMediaUrl(media.imageMedia) || '',
     backgroundImageUrl: toMediaUrl(media.backgroundImageMedia) || '',
-    audioUrl: toMediaUrl(media.audioMedia) || '',
+    audioUrl: builderType === 'content' ? toMediaUrl(media.audioMedia) || '' : '',
+    introBackgroundMusicUrl:
+      builderType === 'intro'
+        ? String(page.introBackgroundMusicUrl || toMediaUrl(media.audioMedia) || '').trim()
+        : '',
     videoUrl: toMediaUrl(media.videoMedia) || '',
     interactionMode: page.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer',
     optionAudioOne: toMediaUrl(optionOne.audioMedia) || '',
@@ -281,7 +385,9 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     answerTwoCorrectOptionId: dropZones[1]?.correctOptionId || '',
     imageMediaId: media.imageMediaId || null,
     backgroundImageMediaId: media.backgroundImageMediaId || null,
-    audioMediaId: media.audioMediaId || null,
+    audioMediaId: builderType === 'content' ? media.audioMediaId || null : null,
+    introBackgroundMusicMediaId:
+      builderType === 'intro' ? media.audioMediaId || page.introBackgroundMusicMediaId || null : null,
     videoMediaId: media.videoMediaId || null,
     guideImageMediaId: media.guideImageMediaId || null,
     guideImageMediaIds: Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : [],

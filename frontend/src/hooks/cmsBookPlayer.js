@@ -1,6 +1,9 @@
 import { useCallback, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
+  resolveIntroBackgroundMusicUrl,
+} from '../services/cmsBookPlayerService';
+import {
   clearCmsBookPreloadState,
   clearCmsBookPlayerError,
   clearCurrentPlayableCmsBook,
@@ -9,6 +12,7 @@ import {
   preloadPlayableCmsBookMedia,
   resetCmsBookPlayerState,
   selectCmsBookPlayer,
+  selectCurrentPlayableIntroBackgroundMusicUrl,
   setCmsBookPlayerFilters,
 } from '../store/slices/cmsBookPlayerSlice';
 import { showNotification } from '../store/slices/uiSlice';
@@ -16,6 +20,9 @@ import { showNotification } from '../store/slices/uiSlice';
 const useCmsBookPlayer = () => {
   const dispatch = useDispatch();
   const state = useSelector(selectCmsBookPlayer);
+  const currentBookIntroBackgroundMusicUrl = useSelector(
+    selectCurrentPlayableIntroBackgroundMusicUrl
+  );
 
   const runThunk = useCallback(
     async (thunkAction, errorMessage) => {
@@ -40,8 +47,14 @@ const useCmsBookPlayer = () => {
   );
 
   const preloadBookMedia = useCallback(
-    ({ bookId, pages }) => runThunk(preloadPlayableCmsBookMedia({ bookId, pages }), 'Failed to preload playable book media'),
+    ({ bookId, pages, book }) =>
+      runThunk(preloadPlayableCmsBookMedia({ bookId, pages, book }), 'Failed to preload playable book media'),
     [runThunk]
+  );
+
+  const getIntroBackgroundMusicUrl = useCallback(
+    (book) => resolveIntroBackgroundMusicUrl(book || state.currentBook),
+    [state.currentBook]
   );
 
   const updateFilters = useCallback(
@@ -68,6 +81,8 @@ const useCmsBookPlayer = () => {
   return useMemo(
     () => ({
       ...state,
+      currentBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
       loadPlayableBooks,
       loadPlayableBookById,
       preloadBookMedia,
@@ -79,6 +94,8 @@ const useCmsBookPlayer = () => {
     }),
     [
       state,
+      currentBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
       loadPlayableBooks,
       loadPlayableBookById,
       preloadBookMedia,

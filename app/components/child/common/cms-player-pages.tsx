@@ -5,7 +5,7 @@
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Audio, ResizeMode, Video } from 'expo-av';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -18,14 +18,18 @@ import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
+import { resolveCachedMediaUri } from './cms-player-media';
 import {
   cmsLocalUiAssets,
   extractReadingWordsFromPage,
   getActiveReadingWordIndex,
   resolveAudioUrl,
   resolveImageUrl,
+  resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
 } from './cms-player-shared';
+
+let cmsIntroAudioModeReady = false;
 
 const DOT_COUNT = 14;
 /** ~10% larger than previous 20px content reading size */
@@ -43,9 +47,84 @@ export function CmsIntroPage({
   onNext: () => void;
 }) {
   const bg = resolveImageUrl(page);
+  const backgroundMusicUrl = resolveIntroBackgroundMusicUrl(page);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  const stopBackgroundMusic = useCallback(async () => {
+    const active = soundRef.current;
+    soundRef.current = null;
+    if (!active) return;
+    try {
+      await active.stopAsync();
+    } catch {
+      // already stopped
+    }
+    try {
+      await active.unloadAsync();
+    } catch {
+      // unload failed
+    }
+  }, []);
+
+  const handleNext = useCallback(() => {
+    void stopBackgroundMusic().finally(() => {
+      onNext();
+    });
+  }, [onNext, stopBackgroundMusic]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void stopBackgroundMusic();
+
+    if (!backgroundMusicUrl || isPreloading) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    (async () => {
+      try {
+        if (!cmsIntroAudioModeReady) {
+          try {
+            await Audio.setAudioModeAsync({
+              playsInSilentModeIOS: true,
+              shouldDuckAndroid: true,
+              staysActiveInBackground: false,
+            });
+          } catch {
+            // Audio mode can fail on some runtimes; still attempt playback.
+          }
+          cmsIntroAudioModeReady = true;
+        }
+
+        const uri = await resolveCachedMediaUri(backgroundMusicUrl);
+        if (cancelled) return;
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true, isLooping: true, volume: 1 }
+        );
+
+        if (cancelled) {
+          await sound.unloadAsync();
+          return;
+        }
+
+        soundRef.current = sound;
+      } catch {
+        // Optional BGM — continue without audio.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      void stopBackgroundMusic();
+    };
+  }, [page.pageId, backgroundMusicUrl, isPreloading, stopBackgroundMusic]);
 
   return (
-    <View style={styles.fill}>
+    <View style={styles.fill} accessibilityLabel={page.title || 'Intro page'}>
       {bg ? (
         <Image
           source={{ uri: bg }}
@@ -56,7 +135,7 @@ export function CmsIntroPage({
         />
       ) : null}
       <Pressable
-        onPress={onNext}
+        onPress={handleNext}
         disabled={isPreloading || !hasNext}
         style={({ pressed }) => [
           styles.introPlay,

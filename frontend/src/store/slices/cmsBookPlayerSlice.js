@@ -1,5 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import cmsBookPlayerService from '../../services/cmsBookPlayerService';
+import cmsBookPlayerService, {
+  resolveIntroBackgroundMusicUrl,
+} from '../../services/cmsBookPlayerService';
 
 export const fetchPlayableCmsBooks = createAsyncThunk(
   'cmsBookPlayer/fetchPlayableBooks',
@@ -25,11 +27,12 @@ export const fetchPlayableCmsBookById = createAsyncThunk(
 
 export const preloadPlayableCmsBookMedia = createAsyncThunk(
   'cmsBookPlayer/preloadPlayableBookMedia',
-  async ({ bookId, pages = [] } = {}, { dispatch, rejectWithValue }) => {
+  async ({ bookId, pages = [], book = null } = {}, { dispatch, rejectWithValue }) => {
     try {
       dispatch(setCmsBookPlayerPreloadProgress(0));
       const result = await cmsBookPlayerService.preloadBookMedia({
         pages,
+        book,
         onProgress: ({ progress }) => {
           dispatch(setCmsBookPlayerPreloadProgress(progress));
         },
@@ -163,5 +166,8 @@ export const selectCurrentPlayableCmsBook = (state) => state.cmsBookPlayer.curre
 export const selectCmsBookPlayerPagination = (state) => state.cmsBookPlayer.pagination;
 export const selectCmsBookPlayerLoading = (state) => state.cmsBookPlayer.loading;
 export const selectCmsBookPlayerError = (state) => state.cmsBookPlayer.error;
+
+export const selectCurrentPlayableIntroBackgroundMusicUrl = (state) =>
+  resolveIntroBackgroundMusicUrl(state.cmsBookPlayer.currentBook);
 
 export default cmsBookPlayerSlice.reducer;

@@ -156,6 +156,17 @@ function getCoverPage(book) {
   );
 }
 
+function isSameCoverPage(page, coverPage) {
+  if (!page || !coverPage) return false;
+  if (coverPage.pageId && page.pageId === coverPage.pageId) return true;
+  return page.type === 'cover' && Number(page.order) === Number(coverPage.order);
+}
+
+function toPlainBook(book) {
+  if (!book) return book;
+  return typeof book.toObject === 'function' ? book.toObject() : book;
+}
+
 function toMediaView(media) {
   if (!media) return null;
   return {
@@ -168,42 +179,48 @@ function toMediaView(media) {
   };
 }
 
-async function attachCoverMediaToBooks(books = []) {
-  const coverIds = books
-    .map((book) => getCoverPage(book)?.media?.imageMediaId)
-    .filter(Boolean)
-    .map((id) => String(id));
+async function attachCoverPageMediaToBooks(books = []) {
+  const coverMediaIds = new Set();
+  books.forEach((book) => {
+    const coverPage = getCoverPage(book);
+    const media = coverPage?.media || {};
+    if (media.imageMediaId) coverMediaIds.add(String(media.imageMediaId));
+    if (media.audioMediaId) coverMediaIds.add(String(media.audioMediaId));
+  });
 
-  if (coverIds.length === 0) return books;
+  if (coverMediaIds.size === 0) return books;
 
-  const uniqueCoverIds = [...new Set(coverIds)];
-  const mediaRecords = await Media.find({ _id: { $in: uniqueCoverIds }, isActive: true })
+  const mediaRecords = await Media.find({ _id: { $in: [...coverMediaIds] }, isActive: true })
     .select('_id type url cloudUrl mimeType')
     .lean();
   const mediaById = new Map(mediaRecords.map((media) => [String(media._id), toMediaView(media)]));
 
   return books.map((book) => {
     const coverPage = getCoverPage(book);
-    const coverMediaId = coverPage?.media?.imageMediaId ? String(coverPage.media.imageMediaId) : null;
-    const coverMedia = coverMediaId ? mediaById.get(coverMediaId) || null : null;
+    if (!coverPage) return book;
 
-    if (!coverMediaId) return book;
+    const coverImageMediaId = coverPage?.media?.imageMediaId ? String(coverPage.media.imageMediaId) : null;
+    const introBackgroundMusicMediaId = coverPage?.media?.audioMediaId
+      ? String(coverPage.media.audioMediaId)
+      : null;
+    const coverImageMedia = coverImageMediaId ? mediaById.get(coverImageMediaId) || null : null;
+    const introBackgroundMusicMedia = introBackgroundMusicMediaId
+      ? mediaById.get(introBackgroundMusicMediaId) || null
+      : null;
+
+    if (!coverImageMediaId && !introBackgroundMusicMediaId) return book;
 
     const pages = Array.isArray(book?.pages)
       ? book.pages.map((page) => {
-        const pageImageMediaId = page?.media?.imageMediaId ? String(page.media.imageMediaId) : null;
-        const isCoverPage =
-          pageImageMediaId === coverMediaId &&
-          (page?.pageId === coverPage?.pageId || page?.type === 'cover' || Number(page?.order) === 1);
+        if (!isSameCoverPage(page, coverPage)) return page;
 
-        if (!isCoverPage) return page;
+        const nextMedia = { ...(page.media || {}) };
+        if (coverImageMedia) nextMedia.imageMedia = coverImageMedia;
+        if (introBackgroundMusicMedia) nextMedia.audioMedia = introBackgroundMusicMedia;
 
         return {
           ...page,
-          media: {
-            ...(page.media || {}),
-            imageMedia: coverMedia,
-          },
+          media: nextMedia,
         };
       })
       : book?.pages;
@@ -211,11 +228,20 @@ async function attachCoverMediaToBooks(books = []) {
     return {
       ...book,
       pages,
-      coverImageMediaId: coverMediaId,
-      coverImageMedia: coverMedia,
-      coverImageUrl: coverMedia?.url || null,
+      coverImageMediaId: coverImageMediaId || null,
+      coverImageMedia: coverImageMedia || null,
+      coverImageUrl: coverImageMedia?.url || null,
+      introBackgroundMusicMediaId: introBackgroundMusicMediaId || null,
+      introBackgroundMusicMedia: introBackgroundMusicMedia || null,
+      introBackgroundMusicUrl: introBackgroundMusicMedia?.url || null,
     };
   });
+}
+
+async function enrichBookWithCoverPageMedia(book) {
+  if (!book) return book;
+  const [enriched] = await attachCoverPageMediaToBooks([toPlainBook(book)]);
+  return enriched || book;
 }
 
 async function createCmsBook({ userId, payload }) {
@@ -235,7 +261,7 @@ async function createCmsBook({ userId, payload }) {
     updatedBy: userId,
   });
 
-  return created;
+  return enrichBookWithCoverPageMedia(created);
 }
 
 async function listCmsBooks({ page = 1, limit = 10, search = '', status, language, includeArchived = false } = {}) {
@@ -261,7 +287,7 @@ async function listCmsBooks({ page = 1, limit = 10, search = '', status, languag
     .skip(skip)
     .limit(safeLimit)
     .lean();
-  const itemsWithCoverMedia = await attachCoverMediaToBooks(items);
+  const itemsWithCoverMedia = await attachCoverPageMediaToBooks(items);
 
   return {
     pagination: {
@@ -284,7 +310,7 @@ async function getCmsBookById({ bookId, includeArchived = true }) {
 
   const book = await CmsBook.findOne(query).lean();
   if (!book) throw createHttpError('Book not found', 404);
-  return book;
+  return enrichBookWithCoverPageMedia(book);
 }
 
 async function updateCmsBook({ bookId, userId, patch }) {
@@ -303,7 +329,7 @@ async function updateCmsBook({ bookId, userId, patch }) {
 
   Object.assign(book, safePatch, { updatedBy: userId });
   await book.save();
-  return book;
+  return enrichBookWithCoverPageMedia(book);
 }
 
 async function publishCmsBook({ bookId, userId }) {
@@ -316,7 +342,7 @@ async function publishCmsBook({ bookId, userId }) {
   book.status = 'published';
   book.updatedBy = userId;
   await book.save();
-  return book;
+  return enrichBookWithCoverPageMedia(book);
 }
 
 async function unpublishCmsBook({ bookId, userId }) {
@@ -329,7 +355,7 @@ async function unpublishCmsBook({ bookId, userId }) {
   book.status = 'draft';
   book.updatedBy = userId;
   await book.save();
-  return book;
+  return enrichBookWithCoverPageMedia(book);
 }
 
 async function archiveCmsBook({ bookId, userId }) {

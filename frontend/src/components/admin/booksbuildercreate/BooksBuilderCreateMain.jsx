@@ -15,6 +15,7 @@ import {
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
   buildBuilderPageFromCms,
+  buildTesterPagesFromBuilder,
   createEmptyPage,
   isPageComplete,
   isValidPageSequence,
@@ -119,6 +120,8 @@ const BooksBuilderCreateMain = () => {
     }
     setPendingScrollPageId('');
   }, [pages, pendingScrollPageId]);
+
+  const testerPages = useMemo(() => buildTesterPagesFromBuilder(pages), [pages]);
 
   const canSaveBook = useMemo(() => {
     if (!pages.length) return false;
@@ -333,9 +336,25 @@ const BooksBuilderCreateMain = () => {
       if (mediaCache.has(source)) return mediaCache.get(source);
 
       let fileToUpload = null;
+      const fallbackMime = mediaType === 'image' ? 'image/png' : mediaType === 'audio' ? 'audio/mpeg' : 'video/mp4';
+
       if (source.startsWith('data:')) {
-        const fallbackMime = mediaType === 'image' ? 'image/png' : mediaType === 'audio' ? 'audio/mpeg' : 'video/mp4';
         fileToUpload = await dataUrlToFile(source, `${mediaType}-${Date.now()}`, fallbackMime);
+      } else if (source.startsWith('blob:')) {
+        const blobResponse = await fetch(source);
+        const blob = await blobResponse.blob();
+        const extFromMime = (() => {
+          if (blob.type.startsWith('image/')) return blob.type.replace('image/', '') || 'png';
+          if (blob.type.startsWith('audio/')) return blob.type.replace('audio/', '') || 'mp3';
+          if (blob.type.startsWith('video/')) return blob.type.replace('video/', '') || 'mp4';
+          if (fallbackMime.startsWith('image/')) return 'png';
+          if (fallbackMime.startsWith('audio/')) return 'mp3';
+          if (fallbackMime.startsWith('video/')) return 'mp4';
+          return 'bin';
+        })();
+        fileToUpload = new File([blob], `${mediaType}-${Date.now()}.${extFromMime}`, {
+          type: blob.type || fallbackMime,
+        });
       } else {
         return {
           mediaId: existingMediaId || null,
@@ -374,6 +393,19 @@ const BooksBuilderCreateMain = () => {
             title: `${page.title || 'Cover'} image`,
             existingMediaId: page.imageMediaId,
           })).mediaId;
+
+          const introBgmSource = String(page.introBackgroundMusicUrl || '').trim();
+          if (introBgmSource) {
+            const bgmUpload = await ensureUploadedMediaId({
+              source: introBgmSource,
+              mediaType: 'audio',
+              title: `${page.title || 'Cover'} intro background music`,
+              existingMediaId: page.introBackgroundMusicMediaId || null,
+            });
+            pagePayload.media.audioMediaId = bgmUpload.mediaId;
+          } else {
+            pagePayload.media.audioMediaId = null;
+          }
         } else if (page.type === 'demo' || page.type === 'reward') {
           pagePayload.media.videoMediaId = (await ensureUploadedMediaId({
             source: page.videoUrl,
@@ -628,7 +660,7 @@ const BooksBuilderCreateMain = () => {
       <CmsBooksModalTest
         open={isTesterOpen}
         onClose={() => setIsTesterOpen(false)}
-        pages={pages}
+        pages={testerPages}
       />
     </Box>
   );

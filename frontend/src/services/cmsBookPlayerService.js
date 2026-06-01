@@ -9,6 +9,63 @@ const getErrorMessage = (error, fallback) =>
 
 const toSafeUrl = (value) => (typeof value === 'string' ? value.trim() : '');
 
+export const getCoverPageFromPlayableBook = (book) => {
+  const pages = Array.isArray(book?.pages) ? book.pages : [];
+  return (
+    pages.find((page) => page?.type === 'cover' && Number(page?.order) === 1) ||
+    pages.find((page) => page?.type === 'cover') ||
+    null
+  );
+};
+
+export const resolveIntroBackgroundMusicUrl = (bookOrPage) => {
+  if (!bookOrPage) return '';
+
+  if (Array.isArray(bookOrPage.pages)) {
+    const fromBook = toSafeUrl(bookOrPage.introBackgroundMusicUrl);
+    if (fromBook) return fromBook;
+    return resolveIntroBackgroundMusicUrl(getCoverPageFromPlayableBook(bookOrPage));
+  }
+
+  const page = bookOrPage;
+  const media = page?.media || {};
+  return (
+    toSafeUrl(page.introBackgroundMusicUrl) ||
+    toSafeUrl(media.audioMedia?.url) ||
+    toSafeUrl(media.audio?.url) ||
+    toSafeUrl(media.audioUrl) ||
+    ''
+  );
+};
+
+export const normalizePlayableBookFromApi = (book) => {
+  if (!book || typeof book !== 'object') return book;
+
+  const cover = getCoverPageFromPlayableBook(book);
+  const introBackgroundMusicUrl = resolveIntroBackgroundMusicUrl(book);
+  const introBackgroundMusicMediaId =
+    book.introBackgroundMusicMediaId ||
+    cover?.media?.audioMediaId ||
+    cover?.media?.audioMedia?.id ||
+    null;
+
+  const pages = Array.isArray(book.pages)
+    ? book.pages.map((page) => {
+      if (page?.type !== 'cover') return page;
+      const url = resolveIntroBackgroundMusicUrl(page);
+      if (!url) return page;
+      return { ...page, introBackgroundMusicUrl: url };
+    })
+    : book.pages;
+
+  return {
+    ...book,
+    pages,
+    introBackgroundMusicMediaId: introBackgroundMusicMediaId || null,
+    introBackgroundMusicUrl: introBackgroundMusicUrl || null,
+  };
+};
+
 const collectPageMediaUrls = (page = {}) => {
   const optionOne = page?.interaction?.options?.[0] || {};
   const optionTwo = page?.interaction?.options?.[1] || {};
@@ -18,6 +75,7 @@ const collectPageMediaUrls = (page = {}) => {
     page.backgroundImageUrl,
     page.videoUrl,
     page.audioUrl,
+    page.introBackgroundMusicUrl,
     page?.media?.imageUrl,
     page?.media?.backgroundImageUrl,
     page?.media?.videoUrl,
@@ -45,8 +103,16 @@ const collectPageMediaUrls = (page = {}) => {
     .filter(Boolean);
 };
 
-const getUniqueBookMediaUrls = (pages = []) =>
-  [...new Set((pages || []).flatMap((page) => collectPageMediaUrls(page)))];
+const getUniqueBookMediaUrls = (pages = [], bookMeta = {}) => {
+  const fromPages = (pages || []).flatMap((page) => collectPageMediaUrls(page));
+  const fromBook = [
+    bookMeta.introBackgroundMusicUrl,
+    bookMeta.coverImageUrl,
+  ]
+    .map(toSafeUrl)
+    .filter(Boolean);
+  return [...new Set([...fromPages, ...fromBook])];
+};
 
 const getMediaType = (url = '') => {
   const normalizedUrl = String(url).toLowerCase();
@@ -191,7 +257,20 @@ const cmsBookPlayerService = {
   listPlayableBooks: async (params = {}) => {
     try {
       const response = await api.get(`${BASE_PATH}/playable`, { params });
-      return response.data;
+      const data = response.data;
+      if (data?.success && Array.isArray(data?.data?.items)) {
+        return {
+          ...data,
+          data: {
+            ...data.data,
+            items: data.data.items.map((item) => ({
+              ...item,
+              introBackgroundMusicMediaId: item.introBackgroundMusicMediaId ?? null,
+            })),
+          },
+        };
+      }
+      return data;
     } catch (error) {
       throw getErrorMessage(error, 'Failed to load playable books');
     }
@@ -200,15 +279,27 @@ const cmsBookPlayerService = {
   getPlayableBookById: async (bookId) => {
     try {
       const response = await api.get(`${BASE_PATH}/${bookId}/play`);
-      return response.data;
+      const data = response.data;
+      if (data?.success && data?.data) {
+        return {
+          ...data,
+          data: normalizePlayableBookFromApi(data.data),
+        };
+      }
+      return data;
     } catch (error) {
       throw getErrorMessage(error, 'Failed to load playable book');
     }
   },
 
-  preloadBookMedia: async ({ pages = [], onProgress } = {}) => {
+  preloadBookMedia: async ({ pages = [], book = null, onProgress } = {}) => {
     try {
-      const urls = getUniqueBookMediaUrls(pages);
+      const bookMeta = book || {};
+      const urls = getUniqueBookMediaUrls(pages, {
+        introBackgroundMusicUrl:
+          bookMeta.introBackgroundMusicUrl || resolveIntroBackgroundMusicUrl({ pages, ...bookMeta }),
+        coverImageUrl: bookMeta.coverImageUrl,
+      });
       return await preloadUrlsWithConcurrency(urls, onProgress);
     } catch (error) {
       throw getErrorMessage(error, 'Failed to preload book media');

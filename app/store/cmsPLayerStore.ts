@@ -2,6 +2,9 @@ import { create } from 'zustand';
 
 import {
   cmsBooksPlayerService,
+  normalizePlayableBookDetail,
+  normalizePlayableBookSummary,
+  resolveIntroBackgroundMusicUrl,
   type ApiResponse,
   type BuiltInBookCompletionPayload,
   type CmsPlayableBookDetail,
@@ -58,7 +61,7 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
     try {
       const response = await cmsBooksPlayerService.listPlayableBooks(params);
       const items = response?.success && Array.isArray(response.data?.items)
-        ? response.data.items
+        ? response.data.items.map((item) => normalizePlayableBookSummary(item))
         : [];
       set({
         playableBooks: items,
@@ -78,7 +81,9 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
     set({ isLoadingBook: true, error: null, scoreSubmitted: false });
     try {
       const response = await cmsBooksPlayerService.getPlayableBook(bookId);
-      const book = response?.success ? response.data ?? null : null;
+      const book = response?.success
+        ? normalizePlayableBookDetail(response.data ?? null)
+        : null;
       set({
         selectedBook: book,
         isLoadingBook: false,
@@ -126,8 +131,13 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
     }
   },
 
-  setSelectedBook: (book) => set({ selectedBook: book }),
+  setSelectedBook: (book) =>
+    set({ selectedBook: normalizePlayableBookDetail(book) }),
   clearScoreSubmitted: () => set({ scoreSubmitted: false }),
   clearError: () => set({ error: null }),
   resetPlayer: () => set(initialState),
 }));
+
+export const selectSelectedBookIntroBackgroundMusicUrl = (
+  book: CmsPlayableBookDetail | null
+): string => resolveIntroBackgroundMusicUrl(book);

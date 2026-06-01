@@ -8,7 +8,13 @@ import { Image } from 'expo-image';
 
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
-import { resolveAudioUrl, resolveImageUrl, resolveVideoUrl } from './cms-player-shared';
+import {
+  resolveAudioUrl,
+  resolveImageUrl,
+  resolveIntroBackgroundMusicUrl,
+  resolvePageType,
+  resolveVideoUrl,
+} from './cms-player-shared';
 
 const CACHE_SUBDIR = 'cms-player-media';
 const inflight = new Map<string, Promise<string>>();
@@ -103,7 +109,11 @@ export function collectCmsPlayerMediaUrls(pages: CmsPlayablePage[]): string[] {
   pages.forEach((page) => {
     pushUrl(set, resolveImageUrl(page));
     pushUrl(set, resolveVideoUrl(page));
-    pushUrl(set, resolveAudioUrl(page));
+    if (resolvePageType(page.type) === 'intro') {
+      pushUrl(set, resolveIntroBackgroundMusicUrl(page));
+    } else {
+      pushUrl(set, resolveAudioUrl(page));
+    }
 
     const medias = page.media?.guideImageMedias ?? [];
     medias.forEach((m) => pushUrl(set, m?.url ?? null));

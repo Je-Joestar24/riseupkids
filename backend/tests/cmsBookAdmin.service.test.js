@@ -131,6 +131,7 @@ describe('cmsBookAdmin.service', () => {
     });
     expect(result.items[0].coverImageMediaId).toBe('media-cover-1');
     expect(result.items[0].coverImageUrl).toBe('/uploads/media/images/cover.png');
+    expect(result.items[0].introBackgroundMusicMediaId).toBeNull();
     expect(result.items[0].pages[0].media.imageMedia).toMatchObject({
       id: 'media-cover-1',
       type: 'image',
@@ -138,6 +139,114 @@ describe('cmsBookAdmin.service', () => {
       mimeType: 'image/png',
     });
     expect(result.items[0].pages[1].media.imageMedia).toBeUndefined();
+  });
+
+  it('lists cms books with optional intro background music on cover page', async () => {
+    CmsBook.countDocuments.mockResolvedValue(1);
+    CmsBook.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'book-2',
+          title: 'Music Intro Book',
+          pages: [
+            {
+              pageId: 'cover-1',
+              order: 1,
+              type: 'cover',
+              title: 'Welcome',
+              media: {
+                imageMediaId: 'media-cover-img',
+                audioMediaId: 'media-cover-bgm',
+              },
+            },
+          ],
+        },
+      ]),
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'media-cover-img',
+          type: 'image',
+          url: '/uploads/media/images/cover.png',
+          cloudUrl: null,
+          mimeType: 'image/png',
+        },
+        {
+          _id: 'media-cover-bgm',
+          type: 'audio',
+          url: '/uploads/media/audio/intro-bgm.mp3',
+          cloudUrl: null,
+          mimeType: 'audio/mpeg',
+        },
+      ]),
+    });
+
+    const result = await service.listCmsBooks({ page: 1, limit: 10 });
+
+    expect(Media.find).toHaveBeenCalledWith({
+      _id: { $in: expect.arrayContaining(['media-cover-img', 'media-cover-bgm']) },
+      isActive: true,
+    });
+    expect(result.items[0].introBackgroundMusicMediaId).toBe('media-cover-bgm');
+    expect(result.items[0].introBackgroundMusicUrl).toBe('/uploads/media/audio/intro-bgm.mp3');
+    expect(result.items[0].pages[0].media.audioMedia).toMatchObject({
+      id: 'media-cover-bgm',
+      type: 'audio',
+      url: '/uploads/media/audio/intro-bgm.mp3',
+    });
+  });
+
+  it('gets cms book by id with resolved cover intro background music', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-3',
+        title: 'Single Book',
+        pages: [
+          {
+            pageId: 'cover-1',
+            order: 1,
+            type: 'cover',
+            title: 'Hello',
+            media: {
+              imageMediaId: 'media-cover-img',
+              audioMediaId: 'media-cover-bgm',
+            },
+          },
+        ],
+      }),
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'media-cover-img',
+          type: 'image',
+          url: '/uploads/media/images/cover.png',
+          cloudUrl: null,
+          mimeType: 'image/png',
+        },
+        {
+          _id: 'media-cover-bgm',
+          type: 'audio',
+          url: '/uploads/media/audio/intro-bgm.mp3',
+          cloudUrl: null,
+          mimeType: 'audio/mpeg',
+        },
+      ]),
+    });
+
+    const result = await service.getCmsBookById({ bookId: 'book-3' });
+
+    expect(result.introBackgroundMusicMediaId).toBe('media-cover-bgm');
+    expect(result.pages[0].media.audioMedia).toMatchObject({
+      id: 'media-cover-bgm',
+      type: 'audio',
+    });
   });
 
   it('updates draft cms book', async () => {

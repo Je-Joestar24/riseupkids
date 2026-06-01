@@ -1,11 +1,14 @@
 import { useCallback, useMemo } from 'react';
 
-import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
-import type {
-  ApiResponse,
-  BuiltInBookCompletionPayload,
-  CmsPlayableBookDetail,
-  CmsPlayableBookSummary,
+import { useCmsPlayerStore, selectSelectedBookIntroBackgroundMusicUrl } from '@/store/cmsPLayerStore';
+import {
+  collectPlayableBookMediaUrls,
+  getCoverPage,
+  resolveIntroBackgroundMusicUrl,
+  type ApiResponse,
+  type BuiltInBookCompletionPayload,
+  type CmsPlayableBookDetail,
+  type CmsPlayableBookSummary,
 } from '@/services/cmsBooksPlayerService';
 
 export interface UseCmsBookPlayerOptions {
@@ -21,6 +24,13 @@ export interface UseCmsBookPlayerReturn {
   isSubmittingScore: boolean;
   scoreSubmitted: boolean;
   error: string | null;
+  /** Resolved intro/cover background music URL for the loaded book (empty when none). */
+  selectedBookIntroBackgroundMusicUrl: string;
+  getIntroBackgroundMusicUrl: (
+    source?: CmsPlayableBookDetail | CmsPlayableBookSummary | null
+  ) => string;
+  getPlayableBookMediaUrls: (book?: CmsPlayableBookDetail | null) => string[];
+  getCoverPage: typeof getCoverPage;
   fetchPlayableBooks: (params?: {
     page?: number;
     limit?: number;
@@ -58,6 +68,27 @@ export function useCmsBookPlayer({
   const clearError = useCmsPlayerStore((s) => s.clearError);
   const resetPlayer = useCmsPlayerStore((s) => s.resetPlayer);
 
+  const selectedBookIntroBackgroundMusicUrl = useMemo(
+    () => selectSelectedBookIntroBackgroundMusicUrl(selectedBook),
+    [selectedBook]
+  );
+
+  const getIntroBackgroundMusicUrl = useCallback(
+    (source?: CmsPlayableBookDetail | CmsPlayableBookSummary | null) => {
+      if (!source) return '';
+      if ('pages' in source && Array.isArray(source.pages)) {
+        return resolveIntroBackgroundMusicUrl(source);
+      }
+      return '';
+    },
+    []
+  );
+
+  const getPlayableBookMediaUrls = useCallback(
+    (book?: CmsPlayableBookDetail | null) => collectPlayableBookMediaUrls(book ?? selectedBook),
+    [selectedBook]
+  );
+
   const openBook = useCallback(
     (bookId: string) => fetchPlayableBookByIdAction(bookId),
     [fetchPlayableBookByIdAction]
@@ -85,6 +116,10 @@ export function useCmsBookPlayer({
       isSubmittingScore,
       scoreSubmitted,
       error,
+      selectedBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
+      getPlayableBookMediaUrls,
+      getCoverPage,
       fetchPlayableBooks: fetchPlayableBooksAction,
       openBook,
       submitScore,
@@ -101,6 +136,9 @@ export function useCmsBookPlayer({
       isSubmittingScore,
       scoreSubmitted,
       error,
+      selectedBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
+      getPlayableBookMediaUrls,
       fetchPlayableBooksAction,
       openBook,
       submitScore,

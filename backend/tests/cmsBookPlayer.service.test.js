@@ -93,6 +93,80 @@ describe('cmsBookPlayer.service', () => {
     expect(result.pages[1].pageId).toBe('p2');
   });
 
+  it('resolves optional intro background music on cover page for parent play', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Animals 1',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [
+          {
+            pageId: 'p1',
+            order: 1,
+            type: 'cover',
+            title: 'Cover',
+            media: { imageMediaId: 'm1', audioMediaId: 'bgm-1' },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+        ],
+      }),
+    });
+
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'm1', type: 'image', url: 'https://cdn/images/cover.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'bgm-1', type: 'audio', url: 'https://cdn/audio/intro-bgm.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+      ]),
+    });
+
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
+    expect(result.pages[0].media.imageMedia).toMatchObject({ id: 'm1', type: 'image' });
+    expect(result.pages[0].media.audioMedia).toMatchObject({
+      id: 'bgm-1',
+      type: 'audio',
+      url: 'https://cdn/audio/intro-bgm.mp3',
+    });
+  });
+
+  it('lists introBackgroundMusicMediaId on playable book summaries when cover has bgm', async () => {
+    CmsBook.countDocuments.mockResolvedValue(1);
+    CmsBook.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'book-1',
+          title: 'Animals 1',
+          description: 'desc',
+          language: 'en',
+          version: 1,
+          pages: [
+            {
+              order: 1,
+              type: 'cover',
+              media: { imageMediaId: 'media-1', audioMediaId: 'bgm-1' },
+            },
+          ],
+          updatedAt: new Date('2026-01-01'),
+        },
+      ]),
+    });
+
+    const result = await service.listPlayableCmsBooksForParent({ userRole: 'parent', page: 1, limit: 10 });
+    expect(result.items[0]).toMatchObject({
+      id: 'book-1',
+      coverImageMediaId: 'media-1',
+      introBackgroundMusicMediaId: 'bgm-1',
+    });
+  });
+
   it('returns reading metadata and auto-generates words when missing', async () => {
     CmsBook.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({

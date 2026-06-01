@@ -47,6 +47,7 @@ const interactionConfigSchema = new mongoose.Schema(
 const pageMediaSchema = new mongoose.Schema(
   {
     imageMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    /** Narration on content pages; optional intro background music on cover (looped in player). */
     audioMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     videoMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     instructionAudioMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
@@ -196,8 +197,11 @@ function validatePageByType(page) {
     }
   };
 
-  if (page.type === 'cover' && !media.imageMediaId) {
-    throw new Error('Cover page requires media.imageMediaId');
+  if (page.type === 'cover') {
+    if (!media.imageMediaId) {
+      throw new Error('Cover page requires media.imageMediaId');
+    }
+    // media.audioMediaId is optional intro background music for the cover/intro screen.
   }
 
   if (page.type === 'activity_demo_video' && !media.videoMediaId) {

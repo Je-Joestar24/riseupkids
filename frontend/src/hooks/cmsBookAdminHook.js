@@ -14,17 +14,24 @@ import {
   resetCmsBookBuilderDraft,
   resetCmsBookAdminState,
   selectCmsBookAdmin,
+  selectCurrentCmsBookIntroBackgroundMusicUrl,
   setCmsBookAdminFilters,
   setCmsBookBuilderPages,
   unpublishCmsBook,
   updateCmsBook,
 } from '../store/slices/cmsBookAdminSlice';
 import { showNotification } from '../store/slices/uiSlice';
-import cmsBookAdminService from '../services/cmsBookAdminService';
+import cmsBookAdminService, {
+  getCoverPageFromBook,
+  resolveIntroBackgroundMusicUrl,
+} from '../services/cmsBookAdminService';
 
 const useCmsBookAdmin = () => {
   const dispatch = useDispatch();
   const state = useSelector(selectCmsBookAdmin);
+  const currentBookIntroBackgroundMusicUrl = useSelector(
+    selectCurrentCmsBookIntroBackgroundMusicUrl
+  );
 
   const runThunk = useCallback(
     async (thunkAction, errorMessage, successConfig = {}) => {
@@ -154,9 +161,17 @@ const useCmsBookAdmin = () => {
     dispatch(resetCmsBookAdminState());
   }, [dispatch]);
 
+  const getIntroBackgroundMusicUrl = useCallback(
+    (book) => resolveIntroBackgroundMusicUrl(book || state.currentBook),
+    [state.currentBook]
+  );
+
   return useMemo(
     () => ({
       ...state,
+      currentBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
+      getCoverPageFromBook,
       loadBooks,
       loadBookById,
       addBook,
@@ -177,6 +192,8 @@ const useCmsBookAdmin = () => {
     }),
     [
       state,
+      currentBookIntroBackgroundMusicUrl,
+      getIntroBackgroundMusicUrl,
       loadBooks,
       loadBookById,
       addBook,

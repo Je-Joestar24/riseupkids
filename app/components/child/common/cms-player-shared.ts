@@ -63,12 +63,31 @@ export function resolveVideoUrl(page: CmsPlayablePage | Record<string, unknown>)
 export function resolveAudioUrl(page: CmsPlayablePage | Record<string, unknown>): string {
   const p = page as Record<string, unknown>;
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
+  const pageType = resolvePageType(p.type as string | undefined);
+  if (pageType === 'intro') {
+    return '';
+  }
   return (
     (p.audioUrl as string) ||
     (media.audioUrl as string) ||
     (media.audio as { url?: string } | undefined)?.url ||
     media.audioMedia?.url ||
     media.instructionAudioMedia?.url ||
+    ''
+  );
+}
+
+/** Optional intro/cover background music (cover `media.audioMedia`). */
+export function resolveIntroBackgroundMusicUrl(
+  page: CmsPlayablePage | Record<string, unknown>
+): string {
+  const p = page as Record<string, unknown>;
+  const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
+  return (
+    (p.introBackgroundMusicUrl as string) ||
+    (media.introBackgroundMusicUrl as string) ||
+    media.audioMedia?.url ||
+    (media.audio as { url?: string } | undefined)?.url ||
     ''
   );
 }

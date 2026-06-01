@@ -66,3 +66,12 @@ export const resolveAudioUrl = (page = {}) =>
   || page?.media?.audioMedia?.url
   || page?.media?.instructionAudioMedia?.url
   || '';
+
+/** Optional intro/cover background music (looped on intro screen). */
+export const resolveIntroBackgroundMusicUrl = (page = {}) =>
+  page.introBackgroundMusicUrl
+  || page?.media?.introBackgroundMusicUrl
+  || page?.media?.audioMedia?.url
+  || page?.media?.audioMedia?.cloudUrl
+  || page?.media?.audio?.url
+  || '';

@@ -91,6 +91,8 @@ export interface CmsPlayablePage {
     points: number;
     awardMode: 'once_on_correct';
   };
+  /** Set on cover pages after API normalization (optional intro BGM). */
+  introBackgroundMusicUrl?: string | null;
 }
 
 export interface CmsPlayableBookSummary {
@@ -100,8 +102,15 @@ export interface CmsPlayableBookSummary {
   language: string;
   version: number;
   coverImageMediaId: string | null;
+  /** Optional intro/cover background music (from cover page `media.audioMediaId`). */
+  introBackgroundMusicMediaId?: string | null;
   totalPages: number;
   updatedAt: string;
+}
+
+export interface CmsPlayableBookDetailMeta {
+  introBackgroundMusicMediaId?: string | null;
+  introBackgroundMusicUrl?: string | null;
 }
 
 export interface CmsPlayableBooksResult {
@@ -116,13 +125,124 @@ export interface CmsPlayableBooksResult {
   items: CmsPlayableBookSummary[];
 }
 
-export interface CmsPlayableBookDetail {
+export interface CmsPlayableBookDetail extends CmsPlayableBookDetailMeta {
   id: string;
   title: string;
   description: string | null;
   language: string;
   version: number;
   pages: CmsPlayablePage[];
+}
+
+const toSafeUrl = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : '';
+
+/** First cover page in book order (intro screen). */
+export function getCoverPage(pages: CmsPlayablePage[] | undefined): CmsPlayablePage | null {
+  if (!Array.isArray(pages) || !pages.length) return null;
+  return (
+    pages.find((page) => page.type === 'cover' && page.order === 1) ||
+    pages.find((page) => page.type === 'cover') ||
+    null
+  );
+}
+
+/** Resolved URL for optional intro background music (cover `media.audioMedia`). */
+export function resolveIntroBackgroundMusicUrl(
+  source: CmsPlayableBookDetail | CmsPlayablePage | null | undefined
+): string {
+  if (!source) return '';
+
+  const bookLevel = 'pages' in source ? source : null;
+  if (bookLevel) {
+    const fromBook = toSafeUrl(bookLevel.introBackgroundMusicUrl);
+    if (fromBook) return fromBook;
+    const cover = getCoverPage(bookLevel.pages);
+    if (cover) return resolveIntroBackgroundMusicUrl(cover);
+    return '';
+  }
+
+  const page = source as CmsPlayablePage;
+  const media = page.media || {};
+  return (
+    toSafeUrl((page as CmsPlayablePage & { introBackgroundMusicUrl?: string }).introBackgroundMusicUrl) ||
+    toSafeUrl(media.audioMedia?.url) ||
+    toSafeUrl((media as PlayerPageMedia & { audioUrl?: string }).audioUrl) ||
+    ''
+  );
+}
+
+export function normalizePlayableBookDetail(
+  book: CmsPlayableBookDetail | null | undefined
+): CmsPlayableBookDetail | null {
+  if (!book) return null;
+
+  const cover = getCoverPage(book.pages);
+  const introBackgroundMusicUrl = resolveIntroBackgroundMusicUrl(book);
+  const introBackgroundMusicMediaId =
+    book.introBackgroundMusicMediaId ??
+    cover?.media?.audioMediaId ??
+    cover?.media?.audioMedia?.id ??
+    null;
+
+  const pages = (book.pages || []).map((page) => {
+    if (page.type !== 'cover') return page;
+    const url = resolveIntroBackgroundMusicUrl(page);
+    if (!url) return page;
+    return {
+      ...page,
+      introBackgroundMusicUrl: url,
+    } as CmsPlayablePage & { introBackgroundMusicUrl?: string };
+  });
+
+  return {
+    ...book,
+    pages,
+    introBackgroundMusicMediaId,
+    introBackgroundMusicUrl: introBackgroundMusicUrl || null,
+  };
+}
+
+export function normalizePlayableBookSummary(
+  item: CmsPlayableBookSummary
+): CmsPlayableBookSummary {
+  return {
+    ...item,
+    introBackgroundMusicMediaId: item.introBackgroundMusicMediaId ?? null,
+  };
+}
+
+/** Remote URLs to preload for a playable book (includes optional intro BGM). */
+export function collectPlayableBookMediaUrls(
+  book: CmsPlayableBookDetail | null | undefined
+): string[] {
+  if (!book?.pages?.length) return [];
+
+  const urls = new Set<string>();
+  book.pages.forEach((page) => {
+    const media = page.media || {};
+    [
+      media.imageMedia?.url,
+      media.audioMedia?.url,
+      media.videoMedia?.url,
+      media.instructionAudioMedia?.url,
+      media.backgroundImageMedia?.url,
+      media.guideImageMedia?.url,
+      ...(media.guideImageMedias || []).map((item) => item?.url),
+      ...(page.interaction?.options || []).flatMap((option) => [
+        option.imageMedia?.url,
+        option.audioMedia?.url,
+      ]),
+    ].forEach((url) => {
+      const safe = toSafeUrl(url);
+      if (safe) urls.add(safe);
+    });
+  });
+
+  const introBgm = resolveIntroBackgroundMusicUrl(book);
+  if (introBgm) urls.add(introBgm);
+
+  return [...urls];
 }
 
 export interface BuiltInBookCompletionPayload {
@@ -149,21 +269,46 @@ function normalizeCompletionPayload(
   };
 }
 
-export const cmsBooksPlayerService = {
-  listPlayableBooks: (
-    params?: {
-      page?: number;
-      limit?: number;
-      search?: string;
-      language?: string;
-    }
-  ): Promise<ApiResponse<CmsPlayableBooksResult>> =>
-    api.get<ApiResponse<CmsPlayableBooksResult>>('/parent/cms-books/playable', {
-      params,
-    }),
+async function listPlayableBooksNormalized(
+  params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    language?: string;
+  }
+): Promise<ApiResponse<CmsPlayableBooksResult>> {
+  const response = await api.get<ApiResponse<CmsPlayableBooksResult>>('/parent/cms-books/playable', {
+    params,
+  });
+  if (!response?.success || !response.data?.items) return response;
 
-  getPlayableBook: (bookId: string): Promise<ApiResponse<CmsPlayableBookDetail>> =>
-    api.get<ApiResponse<CmsPlayableBookDetail>>(`/parent/cms-books/${bookId}/play`),
+  return {
+    ...response,
+    data: {
+      ...response.data,
+      items: response.data.items.map(normalizePlayableBookSummary),
+    },
+  };
+}
+
+async function getPlayableBookNormalized(
+  bookId: string
+): Promise<ApiResponse<CmsPlayableBookDetail>> {
+  const response = await api.get<ApiResponse<CmsPlayableBookDetail>>(
+    `/parent/cms-books/${bookId}/play`
+  );
+  if (!response?.success || !response.data) return response;
+
+  return {
+    ...response,
+    data: normalizePlayableBookDetail(response.data) as CmsPlayableBookDetail,
+  };
+}
+
+export const cmsBooksPlayerService = {
+  listPlayableBooks: listPlayableBooksNormalized,
+
+  getPlayableBook: getPlayableBookNormalized,
 
   submitBuiltInBookCompletion: (
     courseId: string,

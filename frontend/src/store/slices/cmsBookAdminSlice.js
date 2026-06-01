@@ -1,5 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
-import cmsBookAdminService from '../../services/cmsBookAdminService';
+import cmsBookAdminService, {
+  resolveIntroBackgroundMusicUrl,
+} from '../../services/cmsBookAdminService';
 
 export const fetchCmsBooks = createAsyncThunk(
   'cmsBookAdmin/fetchBooks',
@@ -324,5 +326,8 @@ export const selectCmsBookAdminCurrentBook = (state) => state.cmsBookAdmin.curre
 export const selectCmsBookAdminPagination = (state) => state.cmsBookAdmin.pagination;
 export const selectCmsBookAdminLoading = (state) => state.cmsBookAdmin.loading;
 export const selectCmsBookAdminError = (state) => state.cmsBookAdmin.error;
+
+export const selectCurrentCmsBookIntroBackgroundMusicUrl = (state) =>
+  resolveIntroBackgroundMusicUrl(state.cmsBookAdmin.currentBook);
 
 export default cmsBookAdminSlice.reducer;
