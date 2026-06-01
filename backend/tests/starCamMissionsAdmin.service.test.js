@@ -355,6 +355,96 @@ describe('starCamMissionsAdmin.service', () => {
     expect(result).toMatchObject({ status: 'published' });
   });
 
+  it('publishes mission by auto-generating introText from mission title', async () => {
+    const vocab7 = makeVocab7();
+    const items7 = makeItems7();
+    const doc = makeDoc({
+      introText: null,
+      missionImage: 'mission-img',
+      introImage: null,
+      rewardImage: null,
+      rewardAudio: 'reward-aud',
+      missionShortVideo: 'short-vid',
+      category: 'cat-1',
+      videoEnabled: false,
+      vocab: vocab7,
+      items: items7,
+    });
+    StarCamCategory.findById.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', name: 'Recipes', isActive: true }),
+    });
+
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
+      });
+
+    Media.findOne.mockImplementation(({ _id }) => {
+      const str = String(_id || '');
+      if (str === 'short-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud')) {
+        return mockMediaFindOneResult({ type: 'audio' });
+      }
+      return mockMediaFindOneResult({ type: 'image' });
+    });
+
+    await publishMission({ id: 'mission-1', userId: 'u1' });
+    expect(doc.introText).toBe('Welcome to Nature Hunt 1. Find all 7 objects and complete your Star Cam challenge!');
+    expect(doc.introImage).toBe('mission-img');
+    expect(doc.rewardImage).toBe('mission-img');
+  });
+
+  it('publishes mission by auto-generating scan items from vocabulary', async () => {
+    const vocab7 = makeVocab7((i) => ({
+      audio: `507f1f77bcf86cd7994391${10 + i}`,
+      introAudio: `507f1f77bcf86cd7994392${10 + i}`,
+      tryAgainAudio: `507f1f77bcf86cd7994393${10 + i}`,
+      successAudio: `507f1f77bcf86cd7994394${10 + i}`,
+    }));
+    const doc = makeDoc({
+      introText: 'Hello',
+      missionImage: 'mission-img',
+      introImage: 'intro-img',
+      rewardImage: 'reward-img',
+      rewardAudio: 'reward-aud',
+      rewardVideo: 'reward-vid',
+      missionShortVideo: 'short-vid',
+      category: 'cat-1',
+      videoEnabled: false,
+      vocab: vocab7,
+      items: [],
+    });
+    StarCamCategory.findById.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
+    });
+
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
+      });
+
+    Media.findOne.mockImplementation(({ _id }) => {
+      const str = String(_id || '');
+      if (str === 'short-vid' || str === 'reward-vid') return mockMediaFindOneResult({ type: 'video' });
+      if (str === 'reward-aud' || str.startsWith('aud') || str.startsWith('tryAud') || str.startsWith('successAud') || str.startsWith('507f1f77bcf86cd799439')) {
+        return mockMediaFindOneResult({ type: 'audio' });
+      }
+      return mockMediaFindOneResult({ type: 'image' });
+    });
+
+    const result = await publishMission({ id: 'mission-1', userId: 'u1' });
+    expect(doc.items).toHaveLength(7);
+    expect(doc.items[0].target).toBe('target_0');
+    expect(doc.status).toBe('published');
+    expect(result).toMatchObject({ status: 'published' });
+  });
+
   it('unpublishes mission back to draft', async () => {
     const doc = makeDoc({ status: 'published' });
     StarCamMission.findById

@@ -265,6 +265,11 @@ const normalizeMissionItem = (item = {}, vocab = []) => {
   };
 };
 
+const hasVocabScanAudioSet = (vocab = []) =>
+  Array.isArray(vocab) &&
+  vocab.length === 7 &&
+  vocab.every((entry) => Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio));
+
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
   const vocabCount = Number(mission.vocabCount ?? mission.vocab?.length ?? 0);
@@ -276,11 +281,13 @@ const normalizeMission = (mission) => {
   const hasRewardAudio = Boolean(mission.rewardAudio?._id || mission.rewardAudio);
   const hasRewardVideo = Boolean(mission.rewardVideo?._id || mission.rewardVideo);
   const hasScanQuestionSet =
-    Array.isArray(items) &&
-    items.length === 7 &&
-    items.every((item) =>
-      Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
-    );
+    (Array.isArray(items) &&
+      items.length === 7 &&
+      items.every((item) =>
+        Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
+      )) ||
+    hasVocabScanAudioSet(vocab);
+  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : Math.min(vocabCount, 7);
   return {
     ...mission,
     items,
@@ -295,6 +302,7 @@ const normalizeMission = (mission) => {
       hasRewardVideo,
       hasVocabSet: vocabCount === 7,
       hasScanQuestionSet,
+      scanCount,
     },
   };
 };

@@ -45,6 +45,7 @@ const StarCamRightPanelPreviewEdit = ({
   });
   const vocabList = Array.isArray(mission?.vocab) ? mission.vocab.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
   const scanItems = Array.isArray(mission?.items) ? mission.items.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
+  const scanCount = Number(mission?.mediaCompleteness?.scanCount ?? scanItems.length ?? 0);
   const getStatusChipSx = (isReady) => ({
     fontWeight: 800,
     borderRadius: '999px',
@@ -89,7 +90,7 @@ const StarCamRightPanelPreviewEdit = ({
           <Box sx={{ mt: 1, display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
             <Chip size="small" label={`Status: ${mission.status || '-'}`} />
             <Chip size="small" label={`Vocab: ${vocabList.length}/7`} />
-            <Chip size="small" color={scanItems.length === 7 ? 'success' : 'default'} label={`Scan: ${scanItems.length}/7`} />
+            <Chip size="small" color={scanCount === 7 ? 'success' : 'default'} label={`Scan: ${scanCount}/7`} />
             <Chip
               size="small"
               color={mission.mediaCompleteness?.hasScanQuestionSet ? 'success' : 'default'}
