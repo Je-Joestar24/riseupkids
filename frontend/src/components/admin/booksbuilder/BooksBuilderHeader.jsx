@@ -68,7 +68,7 @@ const BooksBuilderHeader = ({ totalBooks = 0, onBuild }) => {
             color: theme.palette.text.secondary,
           }}
         >
-          Manage built-in books in a dedicated list view. Books are treated as auto-published content.
+          Manage built-in books. Drafts can be edited anytime; only published books are available to link in courses and the player.
         </Typography>
       </Stack>
     </Paper>

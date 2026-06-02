@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { Box, Paper, TextField } from '@mui/material';
+import { Box, MenuItem, Paper, Stack, TextField } from '@mui/material';
+import { CMS_BOOK_STATUS } from '../../../services/cmsBookAdminService';
 import { useNavigate } from 'react-router-dom';
 import BooksBuilderHeader from './BooksBuilderHeader';
 import BooksBuilderBooksCards from './BooksBuilderBooksCards';
@@ -43,9 +44,10 @@ const BooksBuilderMain = () => {
       limit: filters.limit,
       search: filters.search || undefined,
       language: filters.language || undefined,
+      status: filters.status || undefined,
       includeArchived: false,
     });
-  }, [loadBooks, filters.page, filters.limit, filters.search, filters.language]);
+  }, [loadBooks, filters.page, filters.limit, filters.search, filters.language, filters.status]);
 
   const totalBooks = useMemo(() => pagination?.total || books.length || 0, [pagination?.total, books.length]);
 
@@ -111,6 +113,7 @@ const BooksBuilderMain = () => {
               limit: filters.limit,
               search: filters.search || undefined,
               language: filters.language || undefined,
+              status: filters.status || undefined,
               includeArchived: false,
             });
           } finally {
@@ -129,14 +132,29 @@ const BooksBuilderMain = () => {
       />
 
       <Paper sx={{ p: 2, mb: 2, borderRadius: '12px' }}>
-        <TextField
-          fullWidth
-          size="small"
-          label="Search built-in books"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search by title or description..."
-        />
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <TextField
+            fullWidth
+            size="small"
+            label="Search built-in books"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by title or description..."
+          />
+          <TextField
+            select
+            size="small"
+            label="Status"
+            value={filters?.status || ''}
+            onChange={(e) => updateFilters({ status: e.target.value, page: 1 })}
+            sx={{ minWidth: { xs: '100%', md: 180 } }}
+            aria-label="Filter books by publication status"
+          >
+            <MenuItem value="">All statuses</MenuItem>
+            <MenuItem value={CMS_BOOK_STATUS.DRAFT}>Draft</MenuItem>
+            <MenuItem value={CMS_BOOK_STATUS.PUBLISHED}>Published</MenuItem>
+          </TextField>
+        </Stack>
       </Paper>
 
       <BooksBuilderBooksCards
@@ -163,6 +181,8 @@ const BooksBuilderMain = () => {
           clearPreloadState();
         }}
         pages={testingBook?.pages || []}
+        bookStatus={testingBook?.status}
+        bookTitle={testingBook?.title}
         isPreloading={Boolean(playerLoading?.preload)}
         preloadProgress={preloadProgress}
         preloadSummary={preloadSummary}

@@ -39,6 +39,9 @@ const PrintablesDetailsPanel = ({
   onDeletePrintable,
   onPageChange,
   onLimitChange,
+  itemLabel = 'printable',
+  itemLabelPlural = 'printable materials',
+  sectionTitle = 'Printable Materials',
 }) => {
   const theme = useTheme();
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -60,7 +63,7 @@ const PrintablesDetailsPanel = ({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center' }}>
           <Box>
             <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
-              Printable Materials
+              {sectionTitle}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {course?.title || '-'}
@@ -71,7 +74,7 @@ const PrintablesDetailsPanel = ({
             onClick={() => setOpenAddModal(true)}
             sx={{ textTransform: 'none', fontWeight: 700, borderRadius: '10px' }}
           >
-            Add Printable
+            {`Add ${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`}
           </Button>
         </Box>
 
@@ -99,9 +102,9 @@ const PrintablesDetailsPanel = ({
                 path="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm7 1v5h5M9 13h6M9 17h6"
               />
             </Box>
-            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>No printable materials available yet</Typography>
+            <Typography sx={{ fontWeight: 700, mb: 0.5 }}>{`No ${itemLabelPlural} available yet`}</Typography>
             <Typography variant="body2" color="text.secondary">
-              Start by adding your first printable for this module.
+              {`Start by adding your first ${itemLabel} for this module.`}
             </Typography>
           </Paper>
         ) : (
@@ -133,7 +136,7 @@ const PrintablesDetailsPanel = ({
                       <Box
                         component="img"
                         src={item.coverImage}
-                        alt={item.title || 'Printable cover'}
+                        alt={item.title || `${itemLabel} cover`}
                         sx={{
                           width: '100%',
                           height: '100%',
@@ -159,7 +162,9 @@ const PrintablesDetailsPanel = ({
                   </Box>
 
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 700 }}>{item.title || 'Untitled Printable'}</Typography>
+                    <Typography sx={{ fontWeight: 700 }}>
+                      {item.title || `Untitled ${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`}
+                    </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                       {item.description || 'No description'}
                     </Typography>
@@ -168,11 +173,11 @@ const PrintablesDetailsPanel = ({
                         Updated {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'N/A'}
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Tooltip title="Download printable">
+                        <Tooltip title={`Download ${itemLabel}`}>
                           <span>
                             <IconButton
                               size="small"
-                              aria-label={`Download ${item.title || 'printable'}`}
+                              aria-label={`Download ${item.title || itemLabel}`}
                               onClick={() => window.open(item.pdfUrl, '_blank', 'noopener,noreferrer')}
                               disabled={!item.pdfUrl}
                               sx={{
@@ -187,10 +192,10 @@ const PrintablesDetailsPanel = ({
                           </span>
                         </Tooltip>
 
-                        <Tooltip title="Edit printable">
+                        <Tooltip title={`Edit ${itemLabel}`}>
                           <IconButton
                             size="small"
-                            aria-label={`Edit ${item.title || 'printable'}`}
+                            aria-label={`Edit ${item.title || itemLabel}`}
                             onClick={() => {
                               setEditingPrintable(item);
                               setOpenEditModal(true);
@@ -206,11 +211,11 @@ const PrintablesDetailsPanel = ({
                           </IconButton>
                         </Tooltip>
 
-                        <Tooltip title="Delete printable">
+                        <Tooltip title={`Delete ${itemLabel}`}>
                           <span>
                             <IconButton
                               size="small"
-                              aria-label={`Delete ${item.title || 'printable'}`}
+                              aria-label={`Delete ${item.title || itemLabel}`}
                               disabled={Boolean(deleting)}
                               onClick={() => onDeletePrintable?.(item)}
                               sx={{
@@ -237,7 +242,7 @@ const PrintablesDetailsPanel = ({
           pagination={pagination}
           onPageChange={onPageChange}
           onLimitChange={onLimitChange}
-          itemLabel="printables"
+          itemLabel={itemLabelPlural}
         />
       </Stack>
 
@@ -247,6 +252,7 @@ const PrintablesDetailsPanel = ({
         onSubmit={onAddPrintable}
         loading={adding}
         courseTitle={course?.title}
+        itemLabel={itemLabel}
       />
 
       <AddPrintableMaterialModal
@@ -260,6 +266,7 @@ const PrintablesDetailsPanel = ({
         courseTitle={course?.title}
         mode="edit"
         initialData={editingPrintable}
+        itemLabel={itemLabel}
       />
     </Paper>
   );

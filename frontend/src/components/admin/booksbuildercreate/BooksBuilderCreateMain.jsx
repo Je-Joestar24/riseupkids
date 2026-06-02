@@ -6,7 +6,9 @@ import useCmsBookAdmin from '../../../hooks/cmsBookAdminHook';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import CmsBooksModalTest from '../common/CmsBooksModalTest';
 import BooksBuilderCreateHeader from './BooksBuilderCreateHeader';
+import BooksBuilderCreateActions from './BooksBuilderCreateActions';
 import BooksBuilderPageSection from './BooksBuilderPageSection';
+import { normalizeBookStatus } from '../../../services/cmsBookAdminService';
 import BooksBuilderTypeMenu from './BooksBuilderTypeMenu';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 import {
@@ -27,8 +29,11 @@ const BooksBuilderCreateMain = () => {
   const { bookId } = useParams();
   const isEditMode = Boolean(bookId);
   const {
-    addBook,
-    editBook,
+    currentBook,
+    createBookAsDraft,
+    saveBookAsDraft,
+    saveAndPublishBook,
+    createAndPublishBook,
     loadBookById,
     loading,
     builderDraft,
@@ -37,14 +42,15 @@ const BooksBuilderCreateMain = () => {
     resetBuilderDraft,
     uploadBookMedia,
   } = useCmsBookAdmin();
-  const { loadPlayableBookById } = useCmsBookPlayer();
+  const { loadPlayableBookByIdSilent } = useCmsBookPlayer();
   const pages = builderDraft?.pages || [];
   const [menuPosition, setMenuPosition] = useState(null);
   const [activePageIndex, setActivePageIndex] = useState(null);
   const [isTesterOpen, setIsTesterOpen] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [bookMeta, setBookMeta] = useState(null);
+  const [bookStatus, setBookStatus] = useState('draft');
   const pageNodeMapRef = useRef(new Map());
   const [pendingScrollPageId, setPendingScrollPageId] = useState('');
 
@@ -65,7 +71,7 @@ const BooksBuilderCreateMain = () => {
 
         let playableBook = null;
         try {
-          const playableResponse = await loadPlayableBookById(bookId);
+          const playableResponse = await loadPlayableBookByIdSilent(bookId);
           playableBook = playableResponse?.data || null;
         } catch (_error) {
           playableBook = null;
@@ -97,6 +103,7 @@ const BooksBuilderCreateMain = () => {
           description: adminBook.description || '',
           language: adminBook.language || 'en',
         });
+        setBookStatus(normalizeBookStatus(adminBook.status));
         setBuilderPages(mappedPages.length ? mappedPages : [createEmptyPage(0)]);
       } finally {
         setIsInitializing(false);
@@ -104,7 +111,14 @@ const BooksBuilderCreateMain = () => {
     };
 
     initEditDraft();
-  }, [bookId, isEditMode, loadBookById, loadPlayableBookById, setBuilderPages]);
+  }, [bookId, isEditMode, loadBookById, loadPlayableBookByIdSilent, setBuilderPages]);
+
+  useEffect(() => {
+    if (!isEditMode || !bookId || !currentBook) return;
+    const currentId = currentBook._id || currentBook.id;
+    if (String(currentId) !== String(bookId)) return;
+    setBookStatus(normalizeBookStatus(currentBook.status));
+  }, [bookId, currentBook, isEditMode]);
 
   useEffect(() => {
     if (!pendingScrollPageId) return;
@@ -143,6 +157,13 @@ const BooksBuilderCreateMain = () => {
 
     return true;
   }, [pages]);
+
+  const canSaveDraft = useMemo(() => {
+    const introPage = pages.find((page) => page?.type === 'intro');
+    if (introPage?.title?.trim()) return true;
+    if (bookMeta?.title?.trim()) return true;
+    return pages.some((page) => Boolean(page?.type));
+  }, [bookMeta?.title, pages]);
 
   const availableTypeOptions = useMemo(() => {
     if (activePageIndex == null) return [];
@@ -308,9 +329,11 @@ const BooksBuilderCreateMain = () => {
     closeTypeMenu();
   };
 
-  const handleSaveBook = useCallback(async () => {
-    if (isSaving || loading?.mutating) return;
-    setIsSaving(true);
+  const isBusy = Boolean(savingAction) || Boolean(loading?.mutating);
+
+  const persistBook = useCallback(async ({ saveAsDraft = false, publishAfterSave = false } = {}) => {
+    if (savingAction || loading?.mutating) return;
+    setSavingAction(saveAsDraft ? 'draft' : 'publish');
     const mediaCache = new Map();
     const dataUrlToFile = async (dataUrl, fallbackName, fallbackMime) => {
       const response = await fetch(dataUrl);
@@ -564,30 +587,83 @@ const BooksBuilderCreateMain = () => {
       }
 
       const payload = buildCmsBookCreatePayload(pages, cmsPages);
-      if (isEditMode && bookId) {
-        await editBook(
-          bookId,
-          {
-            title: bookMeta?.title || payload.title,
-            description: bookMeta?.description || payload.description,
-            language: bookMeta?.language || payload.language || 'en',
-            pages: payload.pages,
-          },
-          { successMessage: 'Book updated successfully' }
-        );
-      } else {
-        await addBook(payload, { successMessage: 'Book saved successfully' });
+      const bookPayload = {
+        title: bookMeta?.title || payload.title,
+        description: bookMeta?.description || payload.description,
+        language: bookMeta?.language || payload.language || 'en',
+        pages: payload.pages,
+      };
+      let savedBookId = bookId || null;
+      let lastResponse = null;
+
+      if (publishAfterSave) {
+        if (isEditMode && bookId) {
+          lastResponse = await saveAndPublishBook(bookId, bookPayload);
+          savedBookId = lastResponse?.data?._id || bookId;
+        } else {
+          lastResponse = await createAndPublishBook(bookPayload);
+          savedBookId = lastResponse?.data?._id || lastResponse?.data?.id || null;
+        }
+        setBookStatus(normalizeBookStatus(lastResponse?.data?.status || 'published'));
+      } else if (saveAsDraft) {
+        if (isEditMode && bookId) {
+          lastResponse = await saveBookAsDraft(bookId, bookPayload);
+          savedBookId = lastResponse?.data?._id || bookId;
+        } else {
+          lastResponse = await createBookAsDraft(bookPayload);
+          savedBookId = lastResponse?.data?._id || lastResponse?.data?.id || null;
+        }
+        setBookStatus(normalizeBookStatus(lastResponse?.data?.status || 'draft'));
       }
-      resetBuilderDraft();
-      navigate('/admin/built-in-books');
+
+      if (publishAfterSave) {
+        resetBuilderDraft();
+        navigate('/admin/built-in-books');
+        return;
+      }
+
+      if (!isEditMode && savedBookId) {
+        navigate(`/admin/built-in-books/${savedBookId}/edit`, { replace: true });
+        return;
+      }
     } finally {
-      setIsSaving(false);
+      setSavingAction(null);
     }
-  }, [addBook, bookId, bookMeta?.description, bookMeta?.language, bookMeta?.title, editBook, isEditMode, isSaving, loading?.mutating, navigate, pages, resetBuilderDraft, uploadBookMedia]);
+  }, [
+    bookId,
+    bookMeta?.description,
+    bookMeta?.language,
+    bookMeta?.title,
+    createAndPublishBook,
+    createBookAsDraft,
+    isEditMode,
+    loading?.mutating,
+    savingAction,
+    navigate,
+    pages,
+    resetBuilderDraft,
+    saveAndPublishBook,
+    saveBookAsDraft,
+    uploadBookMedia,
+  ]);
+
+  const handleSaveDraft = useCallback(() => {
+    if (!canSaveDraft) return;
+    persistBook({ saveAsDraft: true, publishAfterSave: false });
+  }, [canSaveDraft, persistBook]);
+
+  const handlePublish = useCallback(() => {
+    if (!canSaveBook) return;
+    persistBook({ saveAsDraft: false, publishAfterSave: true });
+  }, [canSaveBook, persistBook]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <BooksBuilderCreateHeader onBack={() => navigate('/admin/built-in-books')} />
+      <BooksBuilderCreateHeader
+        onBack={() => navigate('/admin/built-in-books')}
+        status={bookStatus}
+        isEditMode={isEditMode}
+      />
 
       {pages.map((page, index) => (
         <Box
@@ -631,23 +707,18 @@ const BooksBuilderCreateMain = () => {
         </Box>
       ))}
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
-        <Button
-          variant="contained"
-          onClick={handleSaveBook}
-          disabled={!canSaveBook || isSaving || loading?.mutating || isInitializing}
-          sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-        >
-          {isSaving || loading?.mutating ? 'Saving...' : isEditMode ? 'Update' : 'Save'}
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => setIsTesterOpen(true)}
-          sx={{ borderRadius: '10px', textTransform: 'none', fontWeight: 700 }}
-        >
-          Test
-        </Button>
-      </Box>
+      <BooksBuilderCreateActions
+        bookStatus={bookStatus}
+        canPublish={canSaveBook}
+        canSaveDraft={canSaveDraft}
+        isPublishing={savingAction === 'publish'}
+        isSavingDraft={savingAction === 'draft'}
+        isBusy={isBusy}
+        isInitializing={isInitializing}
+        onPublish={handlePublish}
+        onSaveDraft={handleSaveDraft}
+        onTest={() => setIsTesterOpen(true)}
+      />
 
       <BooksBuilderTypeMenu
         position={menuPosition}
@@ -661,6 +732,8 @@ const BooksBuilderCreateMain = () => {
         open={isTesterOpen}
         onClose={() => setIsTesterOpen(false)}
         pages={testerPages}
+        bookStatus={bookStatus}
+        bookTitle={bookMeta?.title || pages.find((p) => p?.type === 'intro')?.title || ''}
       />
     </Box>
   );

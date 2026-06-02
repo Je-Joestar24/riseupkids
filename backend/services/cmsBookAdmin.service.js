@@ -2,10 +2,27 @@ const { CmsBook, Media } = require('../models');
 const s3Service = require('./s3.service');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 
+const CMS_BOOK_STATUSES = ['draft', 'published', 'archived'];
+
 function createHttpError(message, statusCode) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
+}
+
+function normalizeBookStatus(value, { fallback = 'draft' } = {}) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'draft' || normalized === 'published') return normalized;
+  if (normalized === 'archived') return 'archived';
+  return fallback;
+}
+
+function rethrowAsHttpError(error, fallbackStatusCode = 400) {
+  if (error && Number.isInteger(error.statusCode)) throw error;
+  if (error?.name === 'ValidationError' || error?.message) {
+    throw createHttpError(error.message || 'Validation failed', fallbackStatusCode);
+  }
+  throw error;
 }
 
 function parsePositiveInt(value, fallback) {
@@ -251,17 +268,23 @@ async function createCmsBook({ userId, payload }) {
   }
 
   const safePayload = { ...(payload || {}) };
+  const status = normalizeBookStatus(safePayload.status, { fallback: 'draft' });
+  delete safePayload.status;
   safePayload.pages = normalizePages(safePayload.pages);
 
-  const created = await CmsBook.create({
-    ...safePayload,
-    title: String(payload.title).trim(),
-    status: 'published',
-    createdBy: userId,
-    updatedBy: userId,
-  });
+  try {
+    const created = await CmsBook.create({
+      ...safePayload,
+      title: String(payload.title).trim(),
+      status,
+      createdBy: userId,
+      updatedBy: userId,
+    });
 
-  return enrichBookWithCoverPageMedia(created);
+    return enrichBookWithCoverPageMedia(created);
+  } catch (error) {
+    rethrowAsHttpError(error);
+  }
 }
 
 async function listCmsBooks({ page = 1, limit = 10, search = '', status, language, includeArchived = false } = {}) {
@@ -325,11 +348,29 @@ async function updateCmsBook({ bookId, userId, patch }) {
   delete safePatch.createdBy;
   delete safePatch.createdAt;
   delete safePatch.updatedAt;
+  delete safePatch.isArchived;
+
+  if (safePatch.status === 'published') {
+    throw createHttpError('Use PATCH /admin/cms-books/:id/publish to publish a book', 400);
+  }
+  if (safePatch.status != null) {
+    const nextStatus = normalizeBookStatus(safePatch.status, { fallback: book.status || 'draft' });
+    if (nextStatus === 'archived') {
+      throw createHttpError('Use PATCH /admin/cms-books/:id/archive to archive a book', 400);
+    }
+    safePatch.status = nextStatus;
+  }
+
   safePatch.pages = normalizePages(safePatch.pages);
 
   Object.assign(book, safePatch, { updatedBy: userId });
-  await book.save();
-  return enrichBookWithCoverPageMedia(book);
+
+  try {
+    await book.save();
+    return enrichBookWithCoverPageMedia(book);
+  } catch (error) {
+    rethrowAsHttpError(error);
+  }
 }
 
 async function publishCmsBook({ bookId, userId }) {
@@ -338,11 +379,19 @@ async function publishCmsBook({ bookId, userId }) {
 
   const book = await CmsBook.findById(bookId);
   if (!book || book.isArchived) throw createHttpError('Book not found', 404);
+  if (book.status === 'archived') {
+    throw createHttpError('Archived books cannot be published', 400);
+  }
 
   book.status = 'published';
   book.updatedBy = userId;
-  await book.save();
-  return enrichBookWithCoverPageMedia(book);
+
+  try {
+    await book.save();
+    return enrichBookWithCoverPageMedia(book);
+  } catch (error) {
+    rethrowAsHttpError(error);
+  }
 }
 
 async function unpublishCmsBook({ bookId, userId }) {
@@ -354,8 +403,13 @@ async function unpublishCmsBook({ bookId, userId }) {
 
   book.status = 'draft';
   book.updatedBy = userId;
-  await book.save();
-  return enrichBookWithCoverPageMedia(book);
+
+  try {
+    await book.save();
+    return enrichBookWithCoverPageMedia(book);
+  } catch (error) {
+    rethrowAsHttpError(error);
+  }
 }
 
 async function archiveCmsBook({ bookId, userId }) {
@@ -475,6 +529,7 @@ async function uploadCmsBookMedia({
 }
 
 module.exports = {
+  CMS_BOOK_STATUSES,
   createCmsBook,
   listCmsBooks,
   getCmsBookById,

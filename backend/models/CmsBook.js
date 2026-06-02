@@ -283,10 +283,15 @@ function validatePageByType(page) {
 
 cmsBookSchema.pre('validate', function (next) {
   try {
-    const pages = Array.isArray(this.pages) ? [...this.pages] : [];
-    if (!pages.length) {
+    // Draft (and archived) books may be saved while the builder is incomplete.
+    if (this.status !== 'published') {
       next();
       return;
+    }
+
+    const pages = Array.isArray(this.pages) ? [...this.pages] : [];
+    if (!pages.length) {
+      throw new Error('Published book must have at least one page');
     }
 
     pages.sort((a, b) => a.order - b.order);

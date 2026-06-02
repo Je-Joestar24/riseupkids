@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
+  Chip,
   Dialog,
   DialogContent,
   IconButton,
@@ -14,6 +15,11 @@ import DemoTest from './cmsTest/DemoTest';
 import InteractiveTest from './cmsTest/InteractiveTest';
 import RewardTest from './cmsTest/RewardTest';
 import { pageFrameSx, resolvePageType } from './cmsTest/shared';
+import {
+  getCmsBookStatusChipColor,
+  getCmsBookStatusLabel,
+  normalizeBookStatus,
+} from '../../../services/cmsBookAdminService';
 
 const getPlayablePages = (pages = []) => pages.filter((page) => Boolean(page?.type));
 
@@ -21,10 +27,15 @@ const CmsBooksModalTest = ({
   open,
   onClose,
   pages = [],
+  bookStatus = '',
+  bookTitle = '',
   isPreloading = false,
   preloadProgress = 0,
   preloadSummary = null,
 }) => {
+  const normalizedStatus = normalizeBookStatus(bookStatus, '');
+  const statusLabel = normalizedStatus ? getCmsBookStatusLabel(normalizedStatus) : '';
+  const statusColor = normalizedStatus ? getCmsBookStatusChipColor(normalizedStatus) : 'default';
   const playablePages = useMemo(() => getPlayablePages(pages), [pages]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -223,6 +234,45 @@ const CmsBooksModalTest = ({
             position: 'relative',
           }}
         >
+          <Box
+            sx={{
+              position: 'absolute',
+              top: { xs: 10, md: 14 },
+              left: { xs: 10, md: 14 },
+              right: { xs: 56, md: 64 },
+              zIndex: 20,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              flexWrap: 'wrap',
+              pointerEvents: 'none',
+            }}
+          >
+            {bookTitle ? (
+              <Typography
+                component="span"
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 800,
+                  color: '#fff',
+                  textShadow: '0 1px 4px rgba(0,0,0,0.45)',
+                  fontSize: { xs: '0.95rem', md: '1.1rem' },
+                }}
+              >
+                {bookTitle}
+              </Typography>
+            ) : null}
+            {statusLabel ? (
+              <Chip
+                label={statusLabel}
+                color={statusColor}
+                size="small"
+                aria-label={`Book status: ${statusLabel}`}
+                sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, pointerEvents: 'auto' }}
+              />
+            ) : null}
+          </Box>
+
           <IconButton
             onClick={handleClose}
             aria-label="Close book tester"

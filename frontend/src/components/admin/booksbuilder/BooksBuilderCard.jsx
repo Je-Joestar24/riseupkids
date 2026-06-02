@@ -12,6 +12,11 @@ import {
 } from '@mui/material';
 import { MenuBookOutlined as MenuBookOutlinedIcon, Language as LanguageIcon } from '@mui/icons-material';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
+import {
+  getCmsBookStatusChipColor,
+  getCmsBookStatusLabel,
+  normalizeBookStatus,
+} from '../../../services/cmsBookAdminService';
 
 const resolveBookIntroImage = (book) => {
   const pages = Array.isArray(book?.pages) ? book.pages : [];
@@ -64,6 +69,9 @@ const BooksBuilderCard = ({
   const pageCount = Array.isArray(book?.pages) ? book.pages.length : 0;
   const introImageUrl = resolveBookIntroImage(book);
   const isMenuOpen = Boolean(menuAnchorEl);
+  const bookStatus = normalizeBookStatus(book?.status);
+  const statusLabel = getCmsBookStatusLabel(bookStatus);
+  const statusColor = getCmsBookStatusChipColor(bookStatus);
 
   const handleOpenMenu = (event) => {
     setMenuAnchorEl(event.currentTarget);
@@ -171,6 +179,13 @@ const BooksBuilderCard = ({
           </Typography>
 
           <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Chip
+              size="small"
+              label={statusLabel}
+              color={statusColor}
+              aria-label={`Publication status: ${statusLabel}`}
+              sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
+            />
             <Chip
               icon={<LanguageIcon />}
               size="small"

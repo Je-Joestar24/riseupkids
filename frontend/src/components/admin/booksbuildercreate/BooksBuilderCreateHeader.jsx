@@ -1,10 +1,18 @@
 import React from 'react';
-import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { Box, Button, Chip, Paper, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { ArrowBack } from '@mui/icons-material';
+import {
+  getCmsBookStatusChipColor,
+  getCmsBookStatusLabel,
+  normalizeBookStatus,
+} from '../../../services/cmsBookAdminService';
 
-const BooksBuilderCreateHeader = ({ onBack }) => {
+const BooksBuilderCreateHeader = ({ onBack, status = 'draft', isEditMode = false }) => {
   const theme = useTheme();
+  const normalizedStatus = normalizeBookStatus(status);
+  const statusLabel = getCmsBookStatusLabel(normalizedStatus);
+  const statusColor = getCmsBookStatusChipColor(normalizedStatus);
 
   return (
     <Paper
@@ -18,17 +26,26 @@ const BooksBuilderCreateHeader = ({ onBack }) => {
     >
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2}>
         <Box>
-          <Typography
-            variant="h4"
-            sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, fontSize: { xs: '1.35rem', md: '1.75rem' } }}
-          >
-            Build Built-in Book
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+            <Typography
+              variant="h4"
+              sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, fontSize: { xs: '1.35rem', md: '1.75rem' } }}
+            >
+              {isEditMode ? 'Edit Built-in Book' : 'Build Built-in Book'}
+            </Typography>
+            <Chip
+              label={statusLabel}
+              color={statusColor}
+              size="small"
+              aria-label={`Book status: ${statusLabel}`}
+              sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
+            />
+          </Stack>
           <Typography
             variant="body2"
             sx={{ mt: 1, color: 'text.secondary', fontFamily: 'Quicksand, sans-serif' }}
           >
-            Each content section is configured by page type. This is the non-modal builder screen.
+            Save as draft while you work, then publish when every page is complete and valid.
           </Typography>
         </Box>
         <Button

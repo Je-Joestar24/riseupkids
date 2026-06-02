@@ -45,8 +45,8 @@ describe('cmsBookAdmin.service', () => {
     jest.resetAllMocks();
   });
 
-  it('creates cms book with createdBy and updatedBy', async () => {
-    CmsBook.create.mockResolvedValue({ _id: 'book-1', title: 'My Book' });
+  it('creates cms book as draft by default with createdBy and updatedBy', async () => {
+    CmsBook.create.mockResolvedValue({ _id: 'book-1', title: 'My Book', status: 'draft' });
 
     const result = await service.createCmsBook({
       userId: 'admin-1',
@@ -57,8 +57,25 @@ describe('cmsBookAdmin.service', () => {
     expect(CmsBook.create).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'My Book',
+        status: 'draft',
         createdBy: 'admin-1',
         updatedBy: 'admin-1',
+      })
+    );
+  });
+
+  it('creates cms book with explicit published status when requested', async () => {
+    CmsBook.create.mockResolvedValue({ _id: 'book-2', title: 'Live Book', status: 'published' });
+
+    await service.createCmsBook({
+      userId: 'admin-1',
+      payload: { title: 'Live Book', status: 'published', pages: [] },
+    });
+
+    expect(CmsBook.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Live Book',
+        status: 'published',
       })
     );
   });
@@ -350,6 +367,65 @@ describe('cmsBookAdmin.service', () => {
     const result = await service.publishCmsBook({ bookId: 'book-1', userId: 'admin-1' });
     expect(result.status).toBe('published');
     expect(doc.save).toHaveBeenCalled();
+  });
+
+  it('unpublishes book back to draft', async () => {
+    const doc = makeDoc({ status: 'published' });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.unpublishCmsBook({ bookId: 'book-1', userId: 'admin-1' });
+
+    expect(result.status).toBe('draft');
+    expect(doc.save).toHaveBeenCalled();
+  });
+
+  it('saves draft update with status draft in patch', async () => {
+    const doc = makeDoc({ status: 'published', title: 'Was Live' });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: { title: 'Work In Progress', status: 'draft' },
+    });
+
+    expect(result.title).toBe('Work In Progress');
+    expect(result.status).toBe('draft');
+    expect(doc.save).toHaveBeenCalled();
+  });
+
+  it('rejects publishing via update patch', async () => {
+    const doc = makeDoc();
+    CmsBook.findById.mockResolvedValue(doc);
+
+    await expect(
+      service.updateCmsBook({
+        bookId: 'book-1',
+        userId: 'admin-1',
+        patch: { status: 'published' },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining('publish'),
+    });
+    expect(doc.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects archiving via update patch', async () => {
+    const doc = makeDoc();
+    CmsBook.findById.mockResolvedValue(doc);
+
+    await expect(
+      service.updateCmsBook({
+        bookId: 'book-1',
+        userId: 'admin-1',
+        patch: { status: 'archived' },
+      })
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining('archive'),
+    });
+    expect(doc.save).not.toHaveBeenCalled();
   });
 
   it('archives book', async () => {

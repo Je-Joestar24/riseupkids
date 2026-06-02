@@ -23,6 +23,7 @@ import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
 import AdminMeetings from '../pages/admin/AdminMeetings';
 import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
 import AdminPrintables from '../pages/admin/AdminPrintables';
+import AdminLessonPlans from '../pages/admin/AdminLessonPlans';
 import AdminStarCamMissions from '../pages/admin/AdminStarCamMissions';
 import AdminBooksBuilder from '../pages/admin/AdminBooksBuilder';
 import AdminBooksBuilderCreate from '../pages/admin/AdminBooksBuilderCreate';
@@ -353,6 +354,16 @@ const AppRouter = () => {
           }
         />
         <Route
+          path="/admin/lesson-plans"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <AdminLayout>
+                <AdminLessonPlans />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
           path="/admin/built-in-books"
           element={
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
@@ -491,6 +502,26 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <TeacherLayout>
                 <AdminStarCamMissions />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/printables"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminPrintables />
+              </TeacherLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/teacher/lesson-plans"
+          element={
+            <AuthedAccess allowedRoles={['teacher']}>
+              <TeacherLayout>
+                <AdminLessonPlans />
               </TeacherLayout>
             </AuthedAccess>
           }

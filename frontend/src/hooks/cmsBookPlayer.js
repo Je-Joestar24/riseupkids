@@ -25,11 +25,14 @@ const useCmsBookPlayer = () => {
   );
 
   const runThunk = useCallback(
-    async (thunkAction, errorMessage) => {
+    async (thunkAction, errorMessage, options = {}) => {
+      const { notifyError = true } = options;
       try {
         return await dispatch(thunkAction).unwrap();
       } catch (error) {
-        dispatch(showNotification({ message: error || errorMessage, type: 'error' }));
+        if (notifyError) {
+          dispatch(showNotification({ message: error || errorMessage, type: 'error' }));
+        }
         throw error;
       }
     },
@@ -43,6 +46,13 @@ const useCmsBookPlayer = () => {
 
   const loadPlayableBookById = useCallback(
     (bookId) => runThunk(fetchPlayableCmsBookById(bookId), 'Failed to load playable book'),
+    [runThunk]
+  );
+  const loadPlayableBookByIdSilent = useCallback(
+    (bookId) =>
+      runThunk(fetchPlayableCmsBookById(bookId), 'Failed to load playable book', {
+        notifyError: false,
+      }),
     [runThunk]
   );
 
@@ -85,6 +95,7 @@ const useCmsBookPlayer = () => {
       getIntroBackgroundMusicUrl,
       loadPlayableBooks,
       loadPlayableBookById,
+      loadPlayableBookByIdSilent,
       preloadBookMedia,
       updateFilters,
       clearError,
@@ -98,6 +109,7 @@ const useCmsBookPlayer = () => {
       getIntroBackgroundMusicUrl,
       loadPlayableBooks,
       loadPlayableBookById,
+      loadPlayableBookByIdSilent,
       preloadBookMedia,
       updateFilters,
       clearError,

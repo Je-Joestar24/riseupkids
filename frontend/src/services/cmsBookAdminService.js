@@ -2,6 +2,34 @@ import api from '../api/axios';
 
 const BASE_PATH = '/admin/cms-books';
 
+export const CMS_BOOK_STATUS = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+  ARCHIVED: 'archived',
+};
+
+export const normalizeBookStatus = (status, fallback = CMS_BOOK_STATUS.DRAFT) => {
+  const value = String(status || '').trim().toLowerCase();
+  if (value === CMS_BOOK_STATUS.PUBLISHED) return CMS_BOOK_STATUS.PUBLISHED;
+  if (value === CMS_BOOK_STATUS.ARCHIVED) return CMS_BOOK_STATUS.ARCHIVED;
+  if (value === CMS_BOOK_STATUS.DRAFT) return CMS_BOOK_STATUS.DRAFT;
+  return fallback;
+};
+
+export const getCmsBookStatusLabel = (status) => {
+  const normalized = normalizeBookStatus(status);
+  if (normalized === CMS_BOOK_STATUS.PUBLISHED) return 'Published';
+  if (normalized === CMS_BOOK_STATUS.ARCHIVED) return 'Archived';
+  return 'Draft';
+};
+
+export const getCmsBookStatusChipColor = (status) => {
+  const normalized = normalizeBookStatus(status);
+  if (normalized === CMS_BOOK_STATUS.PUBLISHED) return 'success';
+  if (normalized === CMS_BOOK_STATUS.ARCHIVED) return 'default';
+  return 'warning';
+};
+
 const getErrorMessage = (error, fallback) =>
   error?.response?.data?.message || error?.message || fallback;
 
@@ -132,6 +160,7 @@ export const normalizeCmsBookFromApi = (book) => {
 
   return {
     ...book,
+    status: normalizeBookStatus(book.status),
     pages,
     introBackgroundMusicMediaId: introBackgroundMusicMediaId || null,
     introBackgroundMusicUrl: introBackgroundMusicUrl || null,

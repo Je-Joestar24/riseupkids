@@ -26,6 +26,7 @@ import {
   VideocamOutlined,
   LiveTvOutlined,
   AutoAwesomeOutlined,
+  DescriptionOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -47,6 +48,7 @@ const TeacherSidebar = () => {
 
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardOutlined />, path: '/teacher/dashboard' },
+    { text: 'Lesson Plans', icon: <DescriptionOutlined />, path: '/teacher/lesson-plans' },
     {
       text: 'Courses',
       icon: <MenuBookOutlined />,

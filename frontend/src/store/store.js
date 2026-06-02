@@ -14,6 +14,7 @@ import meetingReducer from './slices/meetingSlice';
 import youtubeReducer from './slices/youtubeSlice';
 import languageReducer from './slices/languageSlice';
 import printableManagementReducer from './slices/printableManagementSlice';
+import lessonPlanManagementReducer from './slices/lessonPlanManagementSlice';
 import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
 import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
@@ -35,6 +36,7 @@ export const store = configureStore({
     youtube: youtubeReducer, // YouTube Live list/detail/archive/delete
     language: languageReducer, // App language (pt/en/es)
     printableManagement: printableManagementReducer, // Admin printable materials state
+    lessonPlanManagement: lessonPlanManagementReducer, // Lesson plans management state
     starCamMissionAdmin: starCamMissionAdminReducer, // Star Cam mission/category admin state
     cmsBookAdmin: cmsBookAdminReducer, // Admin CMS book builder state
     cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state

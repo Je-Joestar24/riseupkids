@@ -8,6 +8,7 @@ import {
   PlayCircleOutlined,
   WallpaperOutlined,
 } from '@mui/icons-material';
+import LessonPlansWorkspace from '../../components/admin/lessonplans/LessonPlansWorkspace';
 
 /**
  * TeacherDashboard Page
@@ -145,6 +146,10 @@ const TeacherDashboard = () => {
           </Grid>
         ))}
       </Grid>
+
+      <Box sx={{ mt: 4 }}>
+        <LessonPlansWorkspace variant="dashboard" />
+      </Box>
     </Box>
   );
 };

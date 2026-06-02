@@ -62,6 +62,20 @@ describe('cmsBookAdmin.controller', () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
   });
 
+  it('publishes cms book and returns 200', async () => {
+    service.publishCmsBook.mockResolvedValue({ _id: 'book-1', status: 'published' });
+    const req = { params: { id: 'book-1' }, user: { _id: 'admin-1' } };
+    const res = makeRes();
+
+    await controller.publishCmsBook(req, res);
+
+    expect(service.publishCmsBook).toHaveBeenCalledWith({
+      bookId: 'book-1',
+      userId: 'admin-1',
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
   it('deletes cms book and returns 200', async () => {
     service.deleteCmsBook.mockResolvedValue({ id: 'book-1', deletedMediaCount: 3 });
     const req = { params: { id: 'book-1' }, user: { _id: 'admin-1' } };

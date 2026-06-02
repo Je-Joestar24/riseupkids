@@ -20,7 +20,9 @@ const AddPrintableMaterialModal = ({
   courseTitle,
   mode = 'add',
   initialData = null,
+  itemLabel = 'printable',
 }) => {
+  const itemTitleCase = `${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [pdfFile, setPdfFile] = useState(null);
@@ -95,7 +97,7 @@ const AddPrintableMaterialModal = ({
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="lg">
       <DialogTitle sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
-        {isEditMode ? 'Edit Printable Material' : 'Add Printable Material'}
+        {isEditMode ? `Edit ${itemTitleCase}` : `Add ${itemTitleCase}`}
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Box
@@ -163,7 +165,7 @@ const AddPrintableMaterialModal = ({
                 <Box
                   component="img"
                   src={imagePreviewUrl || existingCoverImage}
-                  alt="Printable material cover preview"
+                  alt={`${itemTitleCase} cover preview`}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover'	 }}
                 />
               ) : (
@@ -189,7 +191,7 @@ const AddPrintableMaterialModal = ({
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 fullWidth
-                aria-label="Printable material title"
+                aria-label={`${itemTitleCase} title`}
               />
               <TextField
                 label="Description"
@@ -198,7 +200,7 @@ const AddPrintableMaterialModal = ({
                 fullWidth
                 multiline
                 minRows={3}
-                aria-label="Printable material description"
+                aria-label={`${itemTitleCase} description`}
               />
               <Box>
                 <Typography variant="body2" sx={{ mb: 0.75, fontWeight: 600 }}>
@@ -208,7 +210,7 @@ const AddPrintableMaterialModal = ({
                   ref={pdfInputRef}
                   type="file"
                   accept="application/pdf"
-                  aria-label="Upload printable PDF"
+                  aria-label={`Upload ${itemLabel} PDF`}
                   onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
                   style={{ display: 'none' }}
                 />

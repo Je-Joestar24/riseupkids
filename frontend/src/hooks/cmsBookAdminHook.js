@@ -22,7 +22,11 @@ import {
 } from '../store/slices/cmsBookAdminSlice';
 import { showNotification } from '../store/slices/uiSlice';
 import cmsBookAdminService, {
+  CMS_BOOK_STATUS,
   getCoverPageFromBook,
+  getCmsBookStatusChipColor,
+  getCmsBookStatusLabel,
+  normalizeBookStatus,
   resolveIntroBackgroundMusicUrl,
 } from '../services/cmsBookAdminService';
 
@@ -83,6 +87,65 @@ const useCmsBookAdmin = () => {
         enabled: options.notifySuccess !== false,
         message: options.successMessage || 'Book published successfully',
       }),
+    [runThunk]
+  );
+
+  const createBookAsDraft = useCallback(
+    (payload, options = {}) =>
+      runThunk(
+        createCmsBook({ ...payload, status: CMS_BOOK_STATUS.DRAFT }),
+        'Failed to save CMS book draft',
+        {
+          enabled: options.notifySuccess !== false,
+          message: options.successMessage || 'Draft saved successfully',
+        }
+      ),
+    [runThunk]
+  );
+
+  const saveBookAsDraft = useCallback(
+    (bookId, payload, options = {}) =>
+      runThunk(
+        updateCmsBook({
+          bookId,
+          payload: { ...payload, status: CMS_BOOK_STATUS.DRAFT },
+        }),
+        'Failed to save CMS book draft',
+        {
+          enabled: options.notifySuccess !== false,
+          message: options.successMessage || 'Draft saved successfully',
+        }
+      ),
+    [runThunk]
+  );
+
+  const saveAndPublishBook = useCallback(
+    async (bookId, payload, options = {}) => {
+      await runThunk(updateCmsBook({ bookId, payload }), 'Failed to update CMS book before publish', {
+        enabled: false,
+      });
+      return runThunk(publishCmsBook(bookId), 'Failed to publish CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book published successfully',
+      });
+    },
+    [runThunk]
+  );
+
+  const createAndPublishBook = useCallback(
+    async (payload, options = {}) => {
+      const created = await runThunk(
+        createCmsBook({ ...payload, status: CMS_BOOK_STATUS.DRAFT }),
+        'Failed to create CMS book',
+        { enabled: false }
+      );
+      const bookId = created?.data?._id || created?.data?.id;
+      if (!bookId) throw new Error('Book id missing after create');
+      return runThunk(publishCmsBook(bookId), 'Failed to publish CMS book', {
+        enabled: options.notifySuccess !== false,
+        message: options.successMessage || 'Book published successfully',
+      });
+    },
     [runThunk]
   );
 
@@ -172,9 +235,17 @@ const useCmsBookAdmin = () => {
       currentBookIntroBackgroundMusicUrl,
       getIntroBackgroundMusicUrl,
       getCoverPageFromBook,
+      CMS_BOOK_STATUS,
+      normalizeBookStatus,
+      getCmsBookStatusLabel,
+      getCmsBookStatusChipColor,
       loadBooks,
       loadBookById,
       addBook,
+      createBookAsDraft,
+      saveBookAsDraft,
+      saveAndPublishBook,
+      createAndPublishBook,
       editBook,
       publishBook,
       unpublishBook,
@@ -197,6 +268,10 @@ const useCmsBookAdmin = () => {
       loadBooks,
       loadBookById,
       addBook,
+      createBookAsDraft,
+      saveBookAsDraft,
+      saveAndPublishBook,
+      createAndPublishBook,
       editBook,
       publishBook,
       unpublishBook,
