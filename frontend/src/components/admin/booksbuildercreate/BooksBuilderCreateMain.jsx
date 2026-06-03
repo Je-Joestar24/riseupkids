@@ -16,6 +16,7 @@ import {
   buildWeightedWords,
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
+  getCmsPublishSequenceError,
   buildTesterPagesFromBuilder,
   createEmptyPage,
   mapCmsBookPagesToBuilder,
@@ -133,6 +134,7 @@ const BooksBuilderCreateMain = () => {
     if (!pages.length) return false;
     if (pages.some((page) => !page?.type)) return false;
     if (!isValidPageSequence(pages)) return false;
+    if (getCmsPublishSequenceError(pages)) return false;
     if (!pages.every((page) => isPageComplete(page))) return false;
 
     const typedPages = pages.filter((page) => Boolean(page?.type));

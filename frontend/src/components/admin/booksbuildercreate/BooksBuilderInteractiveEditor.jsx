@@ -550,7 +550,13 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                           });
                         }}
                         sx={selectSx}
-                      />
+                      >
+                        {interactiveOptionChoices.map((option) => (
+                          <MenuItem key={option.value} value={option.value} sx={{ fontFamily: FONT }}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </TextField>
                     </AssetRow>
                   </>
                 ) : null}

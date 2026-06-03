@@ -211,6 +211,43 @@ export const isValidPageSequence = (pages) => {
   return true;
 };
 
+const CMS_INTERACTIVE_PAGE_TYPES = ['activity_drag_2x2', 'activity_drag_2x1'];
+
+const toCmsPageTypeForPublish = (page) => {
+  if (page?.type === 'intro') return 'cover';
+  if (page?.type === 'demo') return 'activity_demo_video';
+  if (page?.type === 'interactive') {
+    return page.interactionMode === 'two_options_two_answers' ? 'activity_drag_2x2' : 'activity_drag_2x1';
+  }
+  return page?.type || '';
+};
+
+/** Mirrors backend publish rules for interactive page ordering. */
+export const getCmsPublishSequenceError = (pages = []) => {
+  const typedPages = (Array.isArray(pages) ? pages : []).filter((page) => page?.type);
+  const cmsTypes = typedPages.map(toCmsPageTypeForPublish);
+
+  for (let index = 0; index < cmsTypes.length; index += 1) {
+    const cmsType = cmsTypes[index];
+    if (!CMS_INTERACTIVE_PAGE_TYPES.includes(cmsType)) continue;
+
+    const previousType = cmsTypes[index - 1];
+    const allowedPreviousTypes = ['activity_demo_video', 'content', ...CMS_INTERACTIVE_PAGE_TYPES];
+    if (!previousType || !allowedPreviousTypes.includes(previousType)) {
+      return `Interactive page ${index + 1} must follow a content, demo, or another interactive page.`;
+    }
+
+    const hasContentOrDemoEarlier = cmsTypes
+      .slice(0, index)
+      .some((type) => type === 'content' || type === 'activity_demo_video');
+    if (!hasContentOrDemoEarlier) {
+      return `Interactive page ${index + 1} needs a content or demo page earlier in the book.`;
+    }
+  }
+
+  return null;
+};
+
 export const buildCmsBookCreatePayload = (pages = [], cmsPages = []) => {
   const safePages = Array.isArray(pages) ? pages : [];
   const introPage = safePages.find((page) => page?.type === 'intro');

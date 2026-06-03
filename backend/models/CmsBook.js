@@ -334,11 +334,25 @@ cmsBookSchema.pre('validate', function (next) {
 
       if (isInteractivePage(page.type)) {
         const previousPage = pages[i - 1];
-        const hasValidPreviousPage = previousPage
-          && (previousPage.type === 'activity_demo_video' || previousPage.type === 'content');
+        const allowedPreviousTypes = [
+          'activity_demo_video',
+          'content',
+          'activity_drag_2x2',
+          'activity_drag_2x1',
+        ];
+        const hasValidPreviousPage = previousPage && allowedPreviousTypes.includes(previousPage.type);
         if (!hasValidPreviousPage) {
           throw new Error(
-            `Interactive page at order=${page.order} must be preceded by content or activity_demo_video page`
+            `Interactive page at order=${page.order} must be preceded by content, activity_demo_video, or another interactive page`
+          );
+        }
+
+        const hasContentOrDemoEarlier = pages
+          .slice(0, i)
+          .some((earlierPage) => earlierPage.type === 'content' || earlierPage.type === 'activity_demo_video');
+        if (!hasContentOrDemoEarlier) {
+          throw new Error(
+            `Interactive page at order=${page.order} requires a content or activity_demo_video page earlier in the book`
           );
         }
       }
