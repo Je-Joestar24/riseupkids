@@ -16,13 +16,18 @@ import {
   buildWeightedWords,
   buildCmsPageSkeleton,
   buildCmsBookCreatePayload,
-  buildBuilderPageFromCms,
   buildTesterPagesFromBuilder,
   createEmptyPage,
+  mapCmsBookPagesToBuilder,
   isPageComplete,
   isValidPageSequence,
   resetPageByType,
 } from './BooksBuilderCreate.utils';
+import {
+  buildCmsLayoutPayload,
+  createEmptyInteractiveLayouts,
+  resolveLayoutsForSave,
+} from '../../../utils/cmsInteractiveLayout';
 
 const BooksBuilderCreateMain = () => {
   const navigate = useNavigate();
@@ -83,20 +88,7 @@ const BooksBuilderCreateMain = () => {
         const sourcePages = Array.isArray(adminBook.pages) ? [...adminBook.pages] : [];
         sourcePages.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-        const mappedPages = sourcePages.map((page, index) => {
-          const playablePage = playableByPageId.get(String(page.pageId || ''));
-          const mergedPage = playablePage
-            ? {
-                ...page,
-                media: {
-                  ...(page.media || {}),
-                  ...(playablePage.media || {}),
-                },
-                interaction: playablePage.interaction || page.interaction || null,
-              }
-            : page;
-          return buildBuilderPageFromCms(mergedPage, index);
-        });
+        const mappedPages = mapCmsBookPagesToBuilder(sourcePages, playableByPageId);
 
         setBookMeta({
           title: adminBook.title || '',
@@ -324,6 +316,7 @@ const BooksBuilderCreateMain = () => {
     if (typeKey === 'interactive') {
       basePatch.interactionMode = 'two_options_one_answer';
       basePatch.answerTwoCorrectOptionId = '';
+      basePatch.interactiveLayouts = createEmptyInteractiveLayouts(false);
     }
     updatePage(activePageIndex, basePatch);
     closeTypeMenu();
@@ -493,12 +486,45 @@ const BooksBuilderCreateMain = () => {
           };
         } else if (page.type === 'interactive') {
           const isTwoAnswer = page.interactionMode === 'two_options_two_answers';
-          pagePayload.media.backgroundImageMediaId = (await ensureUploadedMediaId({
-            source: page.backgroundImageUrl,
-            mediaType: 'image',
-            title: `${page.title || 'Interactive'} background`,
-            existingMediaId: page.backgroundImageMediaId,
-          })).mediaId;
+          const layoutPayload = buildCmsLayoutPayload(resolveLayoutsForSave(page), {
+            isParallel: isTwoAnswer,
+          });
+
+          if (page.backgroundImageUrl?.trim()) {
+            pagePayload.media.backgroundImageMediaId = (await ensureUploadedMediaId({
+              source: page.backgroundImageUrl,
+              mediaType: 'image',
+              title: `${page.title || 'Interactive'} background`,
+              existingMediaId: page.backgroundImageMediaId,
+            })).mediaId;
+          }
+
+          const sceneIds = [];
+          if (page.sceneImageOne?.trim()) {
+            sceneIds.push(
+              (await ensureUploadedMediaId({
+                source: page.sceneImageOne,
+                mediaType: 'image',
+                title: `${page.title || 'Interactive'} scene one`,
+                existingMediaId: page.sceneImageOneMediaId,
+              })).mediaId
+            );
+          }
+          if (isTwoAnswer && page.sceneImageTwo?.trim()) {
+            sceneIds.push(
+              (await ensureUploadedMediaId({
+                source: page.sceneImageTwo,
+                mediaType: 'image',
+                title: `${page.title || 'Interactive'} scene two`,
+                existingMediaId: page.sceneImageTwoMediaId,
+              })).mediaId
+            );
+          }
+          if (sceneIds.length === 1) {
+            pagePayload.media.sceneImageMediaId = sceneIds[0];
+          } else if (sceneIds.length > 1) {
+            pagePayload.media.sceneImageMediaIds = sceneIds.filter(Boolean);
+          }
 
           if (isTwoAnswer) {
             const guideOne = (await ensureUploadedMediaId({
@@ -551,18 +577,21 @@ const BooksBuilderCreateMain = () => {
           pagePayload.interaction = {
             kind: isTwoAnswer ? 'drag_2x2' : 'drag_2x1',
             allowRetry: true,
+            sceneLayouts: layoutPayload.sceneLayouts,
             options: [
               {
                 optionId: 'option_one',
                 label: 'Option 1',
                 imageMediaId: optionOneImageId,
                 audioMediaId: optionOneAudioId,
+                layout: layoutPayload.optionOneLayout,
               },
               {
                 optionId: 'option_two',
                 label: 'Option 2',
                 imageMediaId: optionTwoImageId,
                 audioMediaId: optionTwoAudioId,
+                layout: layoutPayload.optionTwoLayout,
               },
             ],
             dropZones: isTwoAnswer
@@ -571,11 +600,13 @@ const BooksBuilderCreateMain = () => {
                     zoneId: 'zone_one',
                     label: 'Answer 1',
                     correctOptionId: page.answerOneCorrectOptionId,
+                    layout: layoutPayload.answerOneLayout,
                   },
                   {
                     zoneId: 'zone_two',
                     label: 'Answer 2',
                     correctOptionId: page.answerTwoCorrectOptionId,
+                    layout: layoutPayload.answerTwoLayout,
                   },
                 ]
               : [
@@ -583,6 +614,7 @@ const BooksBuilderCreateMain = () => {
                     zoneId: 'zone_one',
                     label: 'Answer 1',
                     correctOptionId: page.answerOneCorrectOptionId,
+                    layout: layoutPayload.answerOneLayout,
                   },
                 ],
           };
@@ -631,6 +663,19 @@ const BooksBuilderCreateMain = () => {
         navigate(`/admin/built-in-books/${savedBookId}/edit`, { replace: true });
         return;
       }
+
+      if (isEditMode && savedBookId && lastResponse?.data?.pages?.length) {
+        let playableByPageId = new Map();
+        try {
+          const playableResponse = await loadPlayableBookByIdSilent(savedBookId);
+          playableByPageId = new Map(
+            (playableResponse?.data?.pages || []).map((p) => [String(p.pageId || ''), p])
+          );
+        } catch (_error) {
+          playableByPageId = new Map();
+        }
+        setBuilderPages(mapCmsBookPagesToBuilder(lastResponse.data.pages, playableByPageId, pages));
+      }
     } finally {
       setSavingAction(null);
     }
@@ -650,6 +695,8 @@ const BooksBuilderCreateMain = () => {
     saveAndPublishBook,
     saveBookAsDraft,
     uploadBookMedia,
+    loadPlayableBookByIdSilent,
+    setBuilderPages,
   ]);
 
   const handleSaveDraft = useCallback(() => {

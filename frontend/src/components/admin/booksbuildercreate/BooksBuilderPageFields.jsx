@@ -390,8 +390,8 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
           variant="caption"
           sx={{ fontFamily: 'Quicksand, sans-serif', color: 'text.secondary', fontWeight: 700 }}
         >
-          Use the top-left link in the canvas to upload the full-page background image, then add answers, options, and
-          mappings in the same area.
+          Use the layout canvas to position elements. Upload background, scene images, answers, and options from the
+          side panel.
         </Typography>
       ) : null}
 

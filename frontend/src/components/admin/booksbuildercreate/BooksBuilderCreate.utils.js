@@ -1,3 +1,11 @@
+import {
+  buildCmsLayoutPayload,
+  buildInteractiveLayoutsFromInteraction,
+  createEmptyInteractiveLayouts,
+  mergeCmsPagesForBuilder,
+  resolveLayoutsForSave,
+} from '../../../utils/cmsInteractiveLayout';
+
 let tempPageCounter = 0;
 
 const normalizeTextTokens = (text = '') =>
@@ -77,8 +85,13 @@ export const createEmptyPage = (index) => {
     optionImageTwo: '',
     guideImageOne: '',
     guideImageTwo: '',
+    sceneImageOne: '',
+    sceneImageTwo: '',
     answerOneCorrectOptionId: '',
     answerTwoCorrectOptionId: '',
+    interactiveLayouts: null,
+    sceneImageOneMediaId: null,
+    sceneImageTwoMediaId: null,
   };
 };
 
@@ -101,8 +114,13 @@ export const resetPageByType = {
   optionImageTwo: '',
   guideImageOne: '',
   guideImageTwo: '',
+  sceneImageOne: '',
+  sceneImageTwo: '',
   answerOneCorrectOptionId: '',
   answerTwoCorrectOptionId: '',
+  interactiveLayouts: null,
+  sceneImageOneMediaId: null,
+  sceneImageTwoMediaId: null,
 };
 
 export const getOppositeInteractiveOption = (optionId) => {
@@ -121,7 +139,6 @@ export const isPageComplete = (page) => {
     return Boolean(readableText && page.imageUrl?.trim() && page.audioUrl?.trim());
   }
   if (page.type === 'interactive') {
-    if (!page.backgroundImageUrl?.trim()) return false;
     if (!page.interactionMode) return false;
     const hasRequiredOptionAudio = Boolean(page.optionAudioOne?.trim() && page.optionAudioTwo?.trim());
     const hasRequiredOptionIcons = Boolean(page.optionImageOne?.trim() && page.optionImageTwo?.trim());
@@ -301,6 +318,8 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
         optionImageTwo: page.optionImageTwo || '',
         guideImageOne: page.guideImageOne || '',
         guideImageTwo: page.guideImageTwo || '',
+        sceneImageOne: page.sceneImageOne || '',
+        sceneImageTwo: page.sceneImageTwo || '',
         answerOneCorrectOptionId: page.answerOneCorrectOptionId || '',
         answerTwoCorrectOptionId: page.answerTwoCorrectOptionId || '',
         media: {
@@ -312,38 +331,48 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
           guideImageMedias: [page.guideImageOne, page.guideImageTwo]
             .filter(Boolean)
             .map((url) => ({ url })),
+          sceneImageMedias: [page.sceneImageOne, page.sceneImageTwo]
+            .filter(Boolean)
+            .map((url) => ({ url })),
         },
         interaction:
           page.type === 'interactive'
-            ? {
-                kind: page.interactionMode === 'two_options_two_answers' ? 'drag_2x2' : 'drag_2x1',
-                allowRetry: true,
-                options: [
-                  {
-                    optionId: 'option_one',
-                    label: 'Option 1',
-                    imageMedia: page.optionImageOne ? { url: page.optionImageOne } : null,
-                    audioMedia: page.optionAudioOne ? { url: page.optionAudioOne } : null,
-                  },
-                  {
-                    optionId: 'option_two',
-                    label: 'Option 2',
-                    imageMedia: page.optionImageTwo ? { url: page.optionImageTwo } : null,
-                    audioMedia: page.optionAudioTwo ? { url: page.optionAudioTwo } : null,
-                  },
-                ],
-                dropZones:
-                  page.interactionMode === 'two_options_two_answers'
+            ? (() => {
+                const isParallel = page.interactionMode === 'two_options_two_answers';
+                const layoutPayload = buildCmsLayoutPayload(resolveLayoutsForSave(page), { isParallel });
+                return {
+                  kind: isParallel ? 'drag_2x2' : 'drag_2x1',
+                  allowRetry: true,
+                  sceneLayouts: layoutPayload.sceneLayouts,
+                  options: [
+                    {
+                      optionId: 'option_one',
+                      label: 'Option 1',
+                      imageMedia: page.optionImageOne ? { url: page.optionImageOne } : null,
+                      audioMedia: page.optionAudioOne ? { url: page.optionAudioOne } : null,
+                      layout: layoutPayload.optionOneLayout,
+                    },
+                    {
+                      optionId: 'option_two',
+                      label: 'Option 2',
+                      imageMedia: page.optionImageTwo ? { url: page.optionImageTwo } : null,
+                      audioMedia: page.optionAudioTwo ? { url: page.optionAudioTwo } : null,
+                      layout: layoutPayload.optionTwoLayout,
+                    },
+                  ],
+                  dropZones: isParallel
                     ? [
                         {
                           zoneId: 'zone_one',
                           label: 'Answer 1',
                           correctOptionId: page.answerOneCorrectOptionId,
+                          layout: layoutPayload.answerOneLayout,
                         },
                         {
                           zoneId: 'zone_two',
                           label: 'Answer 2',
                           correctOptionId: page.answerTwoCorrectOptionId,
+                          layout: layoutPayload.answerTwoLayout,
                         },
                       ]
                     : [
@@ -351,20 +380,25 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
                           zoneId: 'zone_one',
                           label: 'Answer 1',
                           correctOptionId: page.answerOneCorrectOptionId,
+                          layout: layoutPayload.answerOneLayout,
                         },
                       ],
-              }
+                };
+              })()
             : null,
       };
     });
 
-export const buildBuilderPageFromCms = (page = {}, index = 0) => {
+export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) => {
   const builderType = toBuilderPageType(page.type);
   const media = page.media || {};
   const options = Array.isArray(page?.interaction?.options) ? page.interaction.options : [];
   const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
   const optionOne = options[0] || {};
   const optionTwo = options[1] || {};
+  const adminMedia = adminPage?.media || {};
+  const interactionMode =
+    adminPage?.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer';
 
   return {
     ...createEmptyPage(index),
@@ -384,7 +418,7 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
         ? String(page.introBackgroundMusicUrl || toMediaUrl(media.audioMedia) || '').trim()
         : '',
     videoUrl: toMediaUrl(media.videoMedia) || '',
-    interactionMode: page.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer',
+    interactionMode,
     optionAudioOne: toMediaUrl(optionOne.audioMedia) || '',
     optionAudioTwo: toMediaUrl(optionTwo.audioMedia) || '',
     optionImageOne: toMediaUrl(optionOne.imageMedia) || '',
@@ -396,6 +430,26 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     guideImageTwo: Array.isArray(media.guideImageMedias) ? toMediaUrl(media.guideImageMedias[1]) || '' : '',
     answerOneCorrectOptionId: dropZones[0]?.correctOptionId || '',
     answerTwoCorrectOptionId: dropZones[1]?.correctOptionId || '',
+    sceneImageOne:
+      toMediaUrl(media.sceneImageMedias?.[0])
+      || toMediaUrl(media.sceneImageMedia)
+      || toMediaUrl(adminMedia.sceneImageMedias?.[0])
+      || toMediaUrl(adminMedia.sceneImageMedia)
+      || '',
+    sceneImageTwo:
+      toMediaUrl(media.sceneImageMedias?.[1])
+      || toMediaUrl(adminMedia.sceneImageMedias?.[1])
+      || '',
+    interactiveLayouts: buildInteractiveLayoutsFromInteraction({
+      type: adminPage.type || page.type,
+      interaction: adminPage.interaction || page.interaction,
+      interactionMode:
+        adminPage.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer',
+    }),
+    sceneImageOneMediaId:
+      Array.isArray(adminMedia.sceneImageMediaIds) ? adminMedia.sceneImageMediaIds[0] || null : adminMedia.sceneImageMediaId || null,
+    sceneImageTwoMediaId:
+      Array.isArray(adminMedia.sceneImageMediaIds) ? adminMedia.sceneImageMediaIds[1] || null : null,
     imageMediaId: media.imageMediaId || null,
     backgroundImageMediaId: media.backgroundImageMediaId || null,
     audioMediaId: builderType === 'content' ? media.audioMediaId || null : null,
@@ -409,4 +463,108 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     optionTwoImageMediaId: optionTwo.imageMediaId || null,
     optionTwoAudioMediaId: optionTwo.audioMediaId || null,
   };
+};
+
+const preserveMediaUrl = (nextUrl, prevUrl, nextMediaId, prevMediaId) => {
+  const next = String(nextUrl || '').trim();
+  const prev = String(prevUrl || '').trim();
+  if (next) return nextUrl || '';
+  if (!prev) return '';
+  if (!nextMediaId || !prevMediaId || String(nextMediaId) === String(prevMediaId)) {
+    return prevUrl || '';
+  }
+  return '';
+};
+
+export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
+  if (!prevPage) return nextPage;
+
+  return {
+    ...nextPage,
+    imageUrl: preserveMediaUrl(nextPage.imageUrl, prevPage.imageUrl, nextPage.imageMediaId, prevPage.imageMediaId),
+    backgroundImageUrl: preserveMediaUrl(
+      nextPage.backgroundImageUrl,
+      prevPage.backgroundImageUrl,
+      nextPage.backgroundImageMediaId,
+      prevPage.backgroundImageMediaId
+    ),
+    audioUrl: preserveMediaUrl(nextPage.audioUrl, prevPage.audioUrl, nextPage.audioMediaId, prevPage.audioMediaId),
+    introBackgroundMusicUrl: preserveMediaUrl(
+      nextPage.introBackgroundMusicUrl,
+      prevPage.introBackgroundMusicUrl,
+      nextPage.introBackgroundMusicMediaId,
+      prevPage.introBackgroundMusicMediaId
+    ),
+    videoUrl: preserveMediaUrl(nextPage.videoUrl, prevPage.videoUrl, nextPage.videoMediaId, prevPage.videoMediaId),
+    sceneImageOne: preserveMediaUrl(
+      nextPage.sceneImageOne,
+      prevPage.sceneImageOne,
+      nextPage.sceneImageOneMediaId,
+      prevPage.sceneImageOneMediaId
+    ),
+    sceneImageTwo: preserveMediaUrl(
+      nextPage.sceneImageTwo,
+      prevPage.sceneImageTwo,
+      nextPage.sceneImageTwoMediaId,
+      prevPage.sceneImageTwoMediaId
+    ),
+    guideImageOne: preserveMediaUrl(
+      nextPage.guideImageOne,
+      prevPage.guideImageOne,
+      nextPage.guideImageMediaId,
+      prevPage.guideImageMediaId
+    ),
+    guideImageTwo: preserveMediaUrl(
+      nextPage.guideImageTwo,
+      prevPage.guideImageTwo,
+      nextPage.guideImageMediaIds?.[1],
+      prevPage.guideImageMediaIds?.[1]
+    ),
+    optionImageOne: preserveMediaUrl(
+      nextPage.optionImageOne,
+      prevPage.optionImageOne,
+      nextPage.optionOneImageMediaId,
+      prevPage.optionOneImageMediaId
+    ),
+    optionImageTwo: preserveMediaUrl(
+      nextPage.optionImageTwo,
+      prevPage.optionImageTwo,
+      nextPage.optionTwoImageMediaId,
+      prevPage.optionTwoImageMediaId
+    ),
+    optionAudioOne: preserveMediaUrl(
+      nextPage.optionAudioOne,
+      prevPage.optionAudioOne,
+      nextPage.optionOneAudioMediaId,
+      prevPage.optionOneAudioMediaId
+    ),
+    optionAudioTwo: preserveMediaUrl(
+      nextPage.optionAudioTwo,
+      prevPage.optionAudioTwo,
+      nextPage.optionTwoAudioMediaId,
+      prevPage.optionTwoAudioMediaId
+    ),
+    interactiveLayouts: nextPage.interactiveLayouts || prevPage.interactiveLayouts || null,
+  };
+};
+
+export const mapCmsBookPagesToBuilder = (
+  sourcePages = [],
+  playableByPageId = new Map(),
+  previousPages = []
+) => {
+  const sorted = [...(Array.isArray(sourcePages) ? sourcePages : [])].sort(
+    (a, b) => (a.order || 0) - (b.order || 0)
+  );
+  const previousById = new Map(
+    (Array.isArray(previousPages) ? previousPages : []).map((page) => [String(page.id || ''), page])
+  );
+
+  return sorted.map((adminPage, index) => {
+    const playablePage = playableByPageId.get(String(adminPage.pageId || ''));
+    const mergedPage = mergeCmsPagesForBuilder(adminPage, playablePage);
+    const mapped = buildBuilderPageFromCms(mergedPage, index, adminPage);
+    const prev = previousById.get(String(mapped.id || ''));
+    return preserveBuilderPageMedia(mapped, prev);
+  });
 };

@@ -3,6 +3,7 @@ import { Box, IconButton, MenuItem, Paper, TextField, Typography } from '@mui/ma
 import { useTheme } from '@mui/material/styles';
 import { ArrowUpward, ArrowDownward, DeleteOutline } from '@mui/icons-material';
 import { getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
+import { createEmptyInteractiveLayouts } from '../../../utils/cmsInteractiveLayout';
 import BooksBuilderTypeDropArea from './BooksBuilderTypeDropArea';
 import BooksBuilderPageFields from './BooksBuilderPageFields';
 
@@ -89,12 +90,16 @@ const BooksBuilderPageSection = ({
                   interactionMode: nextMode,
                   answerOneCorrectOptionId: answerOne,
                   answerTwoCorrectOptionId: getOppositeInteractiveOption(answerOne),
+                  interactiveLayouts: createEmptyInteractiveLayouts(true),
                 });
                 return;
               }
               onPatchPage(pageIndex, {
                 interactionMode: nextMode,
                 answerTwoCorrectOptionId: '',
+                guideImageTwo: '',
+                sceneImageTwo: '',
+                interactiveLayouts: createEmptyInteractiveLayouts(false),
               });
             }}
             sx={{

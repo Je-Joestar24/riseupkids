@@ -12,12 +12,23 @@ const pageTypes = [
   'end',
 ];
 
+const layoutRectSchema = new mongoose.Schema(
+  {
+    xPct: { type: Number, default: null },
+    yPct: { type: Number, default: null },
+    wPct: { type: Number, default: null },
+    hPct: { type: Number, default: null },
+  },
+  { _id: false }
+);
+
 const interactionOptionSchema = new mongoose.Schema(
   {
     optionId: { type: String, required: true, trim: true },
     label: { type: String, required: true, trim: true },
     imageMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     audioMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    layout: { type: layoutRectSchema, default: null },
   },
   { _id: false }
 );
@@ -27,6 +38,7 @@ const interactionDropZoneSchema = new mongoose.Schema(
     zoneId: { type: String, required: true, trim: true },
     label: { type: String, required: true, trim: true },
     correctOptionId: { type: String, required: true, trim: true },
+    layout: { type: layoutRectSchema, default: null },
   },
   { _id: false }
 );
@@ -39,6 +51,7 @@ const interactionConfigSchema = new mongoose.Schema(
       default: null,
     },
     allowRetry: { type: Boolean, default: true },
+    sceneLayouts: { type: [layoutRectSchema], default: [] },
     options: { type: [interactionOptionSchema], default: [] },
     dropZones: { type: [interactionDropZoneSchema], default: [] },
   },
@@ -53,6 +66,8 @@ const pageMediaSchema = new mongoose.Schema(
     videoMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     instructionAudioMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     backgroundImageMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    sceneImageMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
+    sceneImageMediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Media' }],
     guideImageMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     guideImageMediaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Media' }],
   },
@@ -194,12 +209,6 @@ function validatePageByType(page) {
     }
   };
 
-  const ensureInteractiveBackground = (pageType) => {
-    if (!media.backgroundImageMediaId) {
-      throw new Error(`${pageType} page requires media.backgroundImageMediaId (interactive background image)`);
-    }
-  };
-
   if (page.type === 'cover') {
     if (!media.imageMediaId) {
       throw new Error('Cover page requires media.imageMediaId');
@@ -261,7 +270,6 @@ function validatePageByType(page) {
       throw new Error('activity_drag_2x2 page requires exactly 2 guide images');
     }
     ensureInteractiveOptionsMedia('activity_drag_2x2');
-    ensureInteractiveBackground('activity_drag_2x2');
   }
 
   if (page.type === 'activity_drag_2x1') {
@@ -278,7 +286,6 @@ function validatePageByType(page) {
       throw new Error('activity_drag_2x1 page requires 1 guide image');
     }
     ensureInteractiveOptionsMedia('activity_drag_2x1');
-    ensureInteractiveBackground('activity_drag_2x1');
   }
 
   if (page.scoring && page.scoring.enabled && page.scoring.points < 0) {

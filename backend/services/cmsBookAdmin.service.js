@@ -154,6 +154,9 @@ function collectBookMediaIds(book) {
     addId(media.videoMediaId);
     addId(media.instructionAudioMediaId);
     addId(media.backgroundImageMediaId);
+    addId(media.sceneImageMediaId);
+    const sceneImageMediaIds = Array.isArray(media.sceneImageMediaIds) ? media.sceneImageMediaIds : [];
+    sceneImageMediaIds.forEach(addId);
     addId(media.guideImageMediaId);
     const guideImageMediaIds = Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : [];
     guideImageMediaIds.forEach(addId);
@@ -199,6 +202,67 @@ function toMediaView(media) {
     cloudUrl: media.cloudUrl || null,
     mimeType: media.mimeType || null,
   };
+}
+
+function enrichPageMediaForAdmin(page, mediaById) {
+  const media = page?.media || {};
+  const resolveMedia = (id) => (id ? mediaById.get(String(id)) || null : null);
+
+  const interaction = page?.interaction
+    ? {
+        ...page.interaction,
+        options: (page.interaction.options || []).map((option) => ({
+          ...option,
+          imageMedia: resolveMedia(option.imageMediaId),
+          audioMedia: resolveMedia(option.audioMediaId),
+        })),
+      }
+    : null;
+
+  return {
+    ...page,
+    media: {
+      ...media,
+      imageMedia: resolveMedia(media.imageMediaId),
+      audioMedia: resolveMedia(media.audioMediaId),
+      videoMedia: resolveMedia(media.videoMediaId),
+      instructionAudioMedia: resolveMedia(media.instructionAudioMediaId),
+      backgroundImageMedia: resolveMedia(media.backgroundImageMediaId),
+      sceneImageMedia: resolveMedia(media.sceneImageMediaId),
+      sceneImageMedias: Array.isArray(media.sceneImageMediaIds)
+        ? media.sceneImageMediaIds.map((id) => resolveMedia(id)).filter(Boolean)
+        : (media.sceneImageMediaId ? [resolveMedia(media.sceneImageMediaId)].filter(Boolean) : []),
+      guideImageMedia: resolveMedia(media.guideImageMediaId),
+      guideImageMedias: Array.isArray(media.guideImageMediaIds)
+        ? media.guideImageMediaIds.map((id) => resolveMedia(id)).filter(Boolean)
+        : [],
+    },
+    interaction,
+  };
+}
+
+async function attachAllPagesMediaToBooks(books = []) {
+  const mediaIds = new Set();
+  books.forEach((book) => {
+    collectBookMediaIds(book).forEach((id) => mediaIds.add(id));
+  });
+
+  if (!mediaIds.size) return books;
+
+  const mediaRecords = await Media.find({ _id: { $in: [...mediaIds] }, isActive: true })
+    .select('_id type url cloudUrl mimeType duration')
+    .lean();
+  const mediaById = new Map(mediaRecords.map((item) => [String(item._id), toMediaView(item)]));
+
+  return books.map((book) => {
+    const plain = toPlainBook(book);
+    if (!Array.isArray(plain.pages) || !plain.pages.length) return plain;
+
+    return {
+      ...plain,
+      pages: plain.pages.map((page) => enrichPageMediaForAdmin(page, mediaById)),
+    };
+  });
 }
 
 async function attachCoverPageMediaToBooks(books = []) {
@@ -262,7 +326,8 @@ async function attachCoverPageMediaToBooks(books = []) {
 
 async function enrichBookWithCoverPageMedia(book) {
   if (!book) return book;
-  const [enriched] = await attachCoverPageMediaToBooks([toPlainBook(book)]);
+  const [withPageMedia] = await attachAllPagesMediaToBooks([toPlainBook(book)]);
+  const [enriched] = await attachCoverPageMediaToBooks([withPageMedia || toPlainBook(book)]);
   return enriched || book;
 }
 

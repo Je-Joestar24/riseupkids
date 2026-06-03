@@ -127,6 +127,8 @@ function collectMediaIdsFromPages(pages = []) {
       media.videoMediaId,
       media.instructionAudioMediaId,
       media.backgroundImageMediaId,
+      media.sceneImageMediaId,
+      ...(Array.isArray(media.sceneImageMediaIds) ? media.sceneImageMediaIds : []),
       media.guideImageMediaId,
       ...(Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : []),
     ].forEach((id) => {
@@ -167,6 +169,10 @@ function enrichPageMedia(page, mediaMap) {
       videoMedia: resolveMedia(media.videoMediaId),
       instructionAudioMedia: resolveMedia(media.instructionAudioMediaId),
       backgroundImageMedia: resolveMedia(media.backgroundImageMediaId),
+      sceneImageMedia: resolveMedia(media.sceneImageMediaId),
+      sceneImageMedias: Array.isArray(media.sceneImageMediaIds)
+        ? media.sceneImageMediaIds.map((id) => resolveMedia(id)).filter(Boolean)
+        : (media.sceneImageMediaId ? [resolveMedia(media.sceneImageMediaId)].filter(Boolean) : []),
       guideImageMedia: resolveMedia(media.guideImageMediaId),
       guideImageMedias: Array.isArray(media.guideImageMediaIds)
         ? media.guideImageMediaIds.map((id) => resolveMedia(id)).filter(Boolean)

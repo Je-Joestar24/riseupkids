@@ -9,6 +9,7 @@ import {
   resolveContentReadingFontSizePx,
 } from '../../../utils/cmsContentReading';
 import { buildWeightedWords, getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
+import BooksBuilderInteractiveEditor from './BooksBuilderInteractiveEditor';
 import bigLogo from '../../../assets/images/big-logo.png';
 
 const interactiveSelectProps = {
@@ -27,7 +28,6 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const introImageInputRef = useRef(null);
   const contentImageInputRef = useRef(null);
   const demoVideoInputRef = useRef(null);
-  const interactiveBackgroundInputRef = useRef(null);
   const optionAudioInputOneRef = useRef(null);
   const optionAudioInputTwoRef = useRef(null);
   const selectedLabel = PAGE_TYPES.find((item) => item.key === page.type)?.label || null;
@@ -37,7 +37,6 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const isVideoUploadPage = isDemoPage || isRewardPage;
   const isContentPage = page.type === 'content';
   const isInteractivePage = page.type === 'interactive';
-  const isParallelInteractive = page.interactionMode === 'two_options_two_answers';
   const hasIntroImage = Boolean(page.imageUrl);
   const hasContentImage = Boolean(page.imageUrl);
   const hasUploadedVideo = Boolean(page.videoUrl);
@@ -209,20 +208,6 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         onPatch({ videoUrl: reader.result });
-      }
-    };
-    reader.readAsDataURL(file);
-    event.target.value = '';
-  };
-
-  const handleInteractiveBackgroundUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onPatch({ backgroundImageUrl: reader.result });
       }
     };
     reader.readAsDataURL(file);
@@ -1003,284 +988,13 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   }
 
   if (isInteractivePage) {
-    const interactiveSurfaceBg = hasInteractiveBackground ? 'rgba(255, 255, 255, 0.78)' : 'transparent';
-
     return (
-      <Box
-        sx={{
-          width: '100%',
-          aspectRatio: '1920 / 1080',
-          borderRadius: 0,
-          overflow: 'hidden',
-          border: `1px solid ${theme.palette.border.main}`,
-          backgroundColor: hasInteractiveBackground ? 'transparent' : theme.palette.common.white,
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        {hasInteractiveBackground ? (
-          <Box
-            component="img"
-            src={page.backgroundImageUrl}
-            alt=""
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'fill',
-              zIndex: 0,
-              pointerEvents: 'none',
-            }}
-          />
-        ) : null}
-
-        <input
-          ref={interactiveBackgroundInputRef}
-          accept="image/*"
-          type="file"
-          style={{ display: 'none' }}
-          aria-label="Upload interactive page background image"
-          onChange={handleInteractiveBackgroundUpload}
-        />
-
-        <Typography
-          role="button"
-          tabIndex={0}
-          aria-label={
-            hasInteractiveBackground
-              ? 'Change background image for interactive page'
-              : 'Upload background image for interactive page'
-          }
-          onClick={(event) => {
-            event.stopPropagation();
-            interactiveBackgroundInputRef.current?.click();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              event.stopPropagation();
-              interactiveBackgroundInputRef.current?.click();
-            }
-          }}
-          sx={{
-            position: 'absolute',
-            top: 10,
-            left: 12,
-            zIndex: 3,
-            color: 'orange.dark',
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 700,
-            fontSize: { xs: '0.72rem', md: '0.82rem' },
-            textDecoration: 'underline',
-            cursor: 'pointer',
-            maxWidth: { xs: '42%', sm: 'none' },
-            textAlign: 'left',
-            lineHeight: 1.25,
-          }}
-        >
-          {hasInteractiveBackground ? 'Change background image' : 'Upload background image'}
-        </Typography>
-
-        <Typography
-          role="button"
-          tabIndex={0}
-          aria-label={`Change page type for page ${pageIndex + 1}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenTypeMenu(event.currentTarget);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              event.stopPropagation();
-              onOpenTypeMenu(event.currentTarget);
-            }
-          }}
-          sx={{
-            position: 'absolute',
-            top: 10,
-            right: 12,
-            zIndex: 3,
-            color: 'orange.dark',
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 700,
-            fontSize: { xs: '0.72rem', md: '0.82rem' },
-            textDecoration: 'underline',
-            cursor: 'pointer',
-          }}
-        >
-          Change page type
-        </Typography>
-
-        <Box
-          sx={{
-            position: 'relative',
-            zIndex: 1,
-            flex: 1,
-            minHeight: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            p: { xs: 1.5, md: 2 },
-            pt: { xs: 4, md: 4.5 },
-            gap: 1.5,
-            boxSizing: 'border-box',
-          }}
-        >
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            display: 'grid',
-            gridTemplateRows: 'minmax(0, 6.8fr) minmax(0, 3.3fr)',
-            gap: 1.5,
-          }}
-        >
-          <Box
-            sx={{
-              border: `2px dashed ${theme.palette.secondary.main}`,
-              borderRadius: '12px',
-              p: 1,
-              minHeight: 0,
-              display: 'flex',
-              gridTemplateColumns: isParallelInteractive
-                ? 'minmax(200px, 1fr) minmax(200px, 1fr)'
-                : 'minmax(200px, 1fr)',
-              gap: 1,
-              alignItems: 'start',
-              backgroundColor: interactiveSurfaceBg,
-            }}
-          >
-            <Box sx={{ display: 'grid', gap: 1, minWidth: '150px', marginTop: 'auto', marginX: 'auto'	 }}>
-                <TextField
-                  label="Answer 1 matches"
-                  size="small"
-                  select
-                  SelectProps={interactiveSelectProps}
-                  value={page.answerOneCorrectOptionId || ''}
-                  onChange={(event) => {
-                    const nextAnswerOne = event.target.value;
-                    if (isParallelInteractive) {
-                      onPatch({
-                        answerOneCorrectOptionId: nextAnswerOne,
-                        answerTwoCorrectOptionId: getOppositeInteractiveOption(nextAnswerOne),
-                      });
-                      return;
-                    }
-                    onPatch({ answerOneCorrectOptionId: nextAnswerOne });
-                  }}
-                >
-                  {interactiveOptionChoices.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              {renderInteractiveUploadCard({
-                fieldKey: 'guideImageOne',
-                label: 'Answer 1 image',
-                accept: 'image/*',
-                previewType: 'image',
-                emptyText: 'Click to upload answer 1 image',
-                loadedText: 'Answer image uploaded',
-                isAnswerImage: true,
-              })}
-            </Box>
-
-            {isParallelInteractive ? (
-              <Box sx={{ display: 'grid', gap: 1, minWidth: 0, marginTop: 'auto', marginX: 'auto' }}>
-                <TextField
-                  label="Answer 2 matches"
-                  size="small"
-                  select
-                  SelectProps={interactiveSelectProps}
-                  value={page.answerTwoCorrectOptionId || ''}
-                  onChange={(event) => {
-                    const nextAnswerTwo = event.target.value;
-                    onPatch({
-                      answerTwoCorrectOptionId: nextAnswerTwo,
-                      answerOneCorrectOptionId: getOppositeInteractiveOption(nextAnswerTwo),
-                    });
-                  }}
-                >
-                  {interactiveOptionChoices.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                {renderInteractiveUploadCard({
-                  fieldKey: 'guideImageTwo',
-                  label: 'Answer 2 image',
-                  accept: 'image/*',
-                  previewType: 'image',
-                  emptyText: 'Click to upload answer 2 image',
-                  loadedText: 'Answer image uploaded',
-                  isAnswerImage: true,
-                })}
-              </Box>
-            ) : null}
-          </Box>
-
-          <Box
-            sx={{
-              minHeight: 0,
-              maxHeight: '100%',
-              overflow: 'hidden',
-              display: 'grid',
-              gridTemplateColumns: 'minmax(200px, 1fr) minmax(200px, 1fr)',
-              gap: 1,
-              alignContent: 'start',
-              alignItems: 'start',
-            }}
-          >
-            <Box
-              sx={{
-                display: 'flex',
-                gap: 1,
-                minWidth: 0,
-                width: '100%',
-                flexDirection: 'column',
-                alignItems: 'center',
-                textAlign: 'center',
-              }}
-            >
-              {renderInteractiveUploadCard({
-                fieldKey: 'optionImageOne',
-                accept: 'image/*',
-                previewType: 'image',
-                emptyText: 'Click to upload option 1 icon',
-                loadedText: 'Option icon uploaded',
-                isOptionIcon: true,
-              })}
-              {renderOptionAudioLink('optionAudioOne')}
-            </Box>
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 1,
-                minWidth: 0,
-                width: '100%',
-                alignItems: 'center',
-                textAlign: 'center',
-              }}
-            >
-              {renderInteractiveUploadCard({
-                fieldKey: 'optionImageTwo',
-                accept: 'image/*',
-                previewType: 'image',
-                emptyText: 'Click to upload option 2 icon',
-                loadedText: 'Option icon uploaded',
-                isOptionIcon: true,
-              })}
-              {renderOptionAudioLink('optionAudioTwo')}
-            </Box>
-          </Box>
-        </Box>
-        </Box>
-      </Box>
+      <BooksBuilderInteractiveEditor
+        page={page}
+        pageIndex={pageIndex}
+        onOpenTypeMenu={onOpenTypeMenu}
+        onPatch={onPatch}
+      />
     );
   }
 

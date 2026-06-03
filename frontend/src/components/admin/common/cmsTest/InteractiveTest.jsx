@@ -7,6 +7,11 @@ import React, {
 import { Box, IconButton, Typography } from '@mui/material';
 import retryButtonImage from '../../../../assets/images/book/retry_button.png';
 import {
+  extractInteractiveLayoutsFromCms,
+  hasCustomInteractiveLayout,
+  layoutRectToPx,
+} from '../../../../utils/cmsInteractiveLayout';
+import {
   imageActionButtonSx,
   pageFrameSx,
   resolveImageUrl,
@@ -78,7 +83,19 @@ const InteractiveTest = ({
     minStartLeft: 16,
     parallelBottomOffset: 112,
   });
+  const [elementSizes, setElementSizes] = useState({});
+  const useCustomLayout = hasCustomInteractiveLayout(page);
+  const resolvedLayouts = useMemo(() => extractInteractiveLayoutsFromCms(page), [page]);
   const bgImage = resolveImageUrl(page);
+  const sceneImageUrls = useMemo(() => {
+    const fromList = Array.isArray(page?.media?.sceneImageMedias)
+      ? page.media.sceneImageMedias.map((item) => item?.url).filter(Boolean)
+      : [];
+    const single = page?.media?.sceneImageMedia?.url || page?.sceneImageOne || '';
+    if (fromList.length) return fromList;
+    const legacy = [page?.sceneImageOne, page?.sceneImageTwo].filter(Boolean);
+    return legacy.length ? legacy : (single ? [single] : []);
+  }, [page]);
   const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
   const guideImageUrls = useMemo(() => {
     const fromList = Array.isArray(page?.media?.guideImageMedias)
@@ -141,6 +158,26 @@ const InteractiveTest = ({
       if (!stageRect) return;
 
       const metrics = getScaledInteractiveMetrics(stageRect, isSingleLayout);
+      setStageMetrics(metrics);
+
+      if (useCustomLayout) {
+        const nextPositions = {};
+        const nextSizes = {};
+        const optionLayoutMap = {
+          option_one: resolvedLayouts.optionOne,
+          option_two: resolvedLayouts.optionTwo,
+        };
+        options.forEach((option) => {
+          const box = layoutRectToPx(optionLayoutMap[option.id], stageRect.width, stageRect.height);
+          if (!box) return;
+          nextPositions[option.id] = { x: box.left, y: box.top };
+          nextSizes[option.id] = { width: box.width, height: box.height };
+        });
+        setElementSizes(nextSizes);
+        setOptionPositions(nextPositions);
+        return;
+      }
+
       const cardWidth = metrics.cardWidth;
       const cardHeight = metrics.cardHeight;
       const gap = isSingleLayout ? (96 * metrics.scale) : (192 * metrics.scale);
@@ -151,13 +188,15 @@ const InteractiveTest = ({
         : (stageRect.height - cardHeight - metrics.parallelBottomOffset);
 
       const nextPositions = {};
+      const nextSizes = {};
       options.forEach((option, index) => {
         nextPositions[option.id] = {
           x: startLeft + (index * (cardWidth + gap)),
           y: top,
         };
+        nextSizes[option.id] = { width: cardWidth, height: cardHeight };
       });
-      setStageMetrics(metrics);
+      setElementSizes(nextSizes);
       setOptionPositions(nextPositions);
     };
 
@@ -167,7 +206,7 @@ const InteractiveTest = ({
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', computeInitialPositions);
     };
-  }, [isSingleLayout, optionsSignature, resetSeed]);
+  }, [isSingleLayout, optionsSignature, resetSeed, useCustomLayout, resolvedLayouts, options]);
 
   const playOptionAudio = (option) => {
     if (isPreloading) return;
@@ -297,7 +336,9 @@ const InteractiveTest = ({
       }
       const centeredX = (zoneRect.left - stageRect.left) + ((zoneRect.width - dragState.width) / 2);
       const centeredY = (zoneRect.top - stageRect.top) + ((zoneRect.height - dragState.height) / 2);
-      const snapY = isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY;
+      const snapY = useCustomLayout
+        ? centeredY
+        : (isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY);
       setOptionPositions((prev) => ({
         ...prev,
         [dragState.id]: { x: centeredX, y: snapY },
@@ -350,9 +391,39 @@ const InteractiveTest = ({
           component="img"
           src={bgImage}
           alt={page?.title || 'Interactive preview'}
-          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', zIndex: 0 }}
         />
-      ) : null}
+      ) : (
+        <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'common.white', zIndex: 0 }} />
+      )}
+
+      {useCustomLayout
+        ? sceneImageUrls.map((url, index) => {
+            const layout = index === 0 ? resolvedLayouts.sceneOne : resolvedLayouts.sceneTwo;
+            const stageRect = stageRef.current?.getBoundingClientRect();
+            if (!stageRect || !layout) return null;
+            const box = layoutRectToPx(layout, stageRect.width, stageRect.height);
+            if (!box) return null;
+            return (
+              <Box
+                key={`scene-${index}`}
+                component="img"
+                src={url}
+                alt=""
+                sx={{
+                  position: 'absolute',
+                  left: box.left,
+                  top: box.top,
+                  width: box.width,
+                  height: box.height,
+                  objectFit: 'contain',
+                  zIndex: 1,
+                  pointerEvents: 'none',
+                }}
+              />
+            );
+          })
+        : null}
 
       <Box
         sx={{
@@ -381,7 +452,7 @@ const InteractiveTest = ({
             position: 'absolute',
             inset: 0,
             zIndex: 5,
-            top: isSingleLayout ? stageMetrics.optionTopOffset : 0,
+            top: useCustomLayout ? 0 : (isSingleLayout ? stageMetrics.optionTopOffset : 0),
           }}
         >
           {options.map((option) => (
@@ -405,8 +476,8 @@ const InteractiveTest = ({
                 position: 'absolute',
                 left: optionPositions[option.id]?.x ?? -9999,
                 top: optionPositions[option.id]?.y ?? -9999,
-                width: stageMetrics.cardWidth,
-                height: stageMetrics.cardHeight,
+                width: elementSizes[option.id]?.width || stageMetrics.cardWidth,
+                height: elementSizes[option.id]?.height || stageMetrics.cardHeight,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -454,61 +525,101 @@ const InteractiveTest = ({
         </Box>
 
         {dropZoneItems.length ? (
-          <Box
-            sx={{
-              position: 'absolute',
-              left: '50%',
-              top: isSingleLayout ? '58%' : '56%',
-              transform: 'translate(-50%, -50%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: stageMetrics.zoneGap,
-              zIndex: 4,
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
-          >
-            {dropZoneItems.map((zone) => (
-              <Box
-                key={zone.id}
-                ref={(element) => { dropZoneRefs.current[zone.id] = element; }}
-                role="img"
-                aria-label={`${zone.label} drop zone`}
-                sx={{
-                  width: stageMetrics.cardWidth,
-                  height: stageMetrics.cardHeight,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 1.5,
-                  overflow: 'hidden',
-                }}
-              >
-                {zone.guideImageUrl ? (
-                  <Box
-                    component="img"
-                    src={zone.guideImageUrl}
-                    alt={`${zone.label} guide`}
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                    }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      border: '2px dashed rgba(255,255,255,0.6)',
-                      borderRadius: 1.5,
-                    }}
-                  />
-                )}
-              </Box>
-            ))}
-          </Box>
+          useCustomLayout ? (
+            dropZoneItems.map((zone, index) => {
+              const zoneLayout = index === 0 ? resolvedLayouts.answerOne : resolvedLayouts.answerTwo;
+              const stageRect = stageRef.current?.getBoundingClientRect();
+              if (!stageRect || !zoneLayout) return null;
+              const box = layoutRectToPx(zoneLayout, stageRect.width, stageRect.height);
+              if (!box) return null;
+              return (
+                <Box
+                  key={zone.id}
+                  ref={(element) => { dropZoneRefs.current[zone.id] = element; }}
+                  role="img"
+                  aria-label={`${zone.label} drop zone`}
+                  sx={{
+                    position: 'absolute',
+                    left: box.left,
+                    top: box.top,
+                    width: box.width,
+                    height: box.height,
+                    zIndex: 4,
+                    pointerEvents: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {zone.guideImageUrl ? (
+                    <Box
+                      component="img"
+                      src={zone.guideImageUrl}
+                      alt={`${zone.label} guide`}
+                      sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  ) : null}
+                </Box>
+              );
+            })
+          ) : (
+            <Box
+              sx={{
+                position: 'absolute',
+                left: '50%',
+                top: isSingleLayout ? '58%' : '56%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: stageMetrics.zoneGap,
+                zIndex: 4,
+                pointerEvents: 'none',
+                userSelect: 'none',
+              }}
+            >
+              {dropZoneItems.map((zone) => (
+                <Box
+                  key={zone.id}
+                  ref={(element) => { dropZoneRefs.current[zone.id] = element; }}
+                  role="img"
+                  aria-label={`${zone.label} drop zone`}
+                  sx={{
+                    width: stageMetrics.cardWidth,
+                    height: stageMetrics.cardHeight,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: 1.5,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {zone.guideImageUrl ? (
+                    <Box
+                      component="img"
+                      src={zone.guideImageUrl}
+                      alt={`${zone.label} guide`}
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: '100%',
+                        height: '100%',
+                        border: '2px dashed rgba(255,255,255,0.6)',
+                        borderRadius: 1.5,
+                      }}
+                    />
+                  )}
+                </Box>
+              ))}
+            </Box>
+          )
         ) : null}
 
         {dragLayer ? (

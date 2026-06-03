@@ -17,6 +17,11 @@ import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
+import {
+  extractInteractiveLayoutsFromCms,
+  hasCustomInteractiveLayout,
+  layoutRectToPx,
+} from '@/utils/cmsInteractiveLayout';
 import { cmsLocalUiAssets, getScaledInteractiveMetrics, resolveImageUrl } from './cms-player-shared';
 
 type OptionModel = {
@@ -54,6 +59,19 @@ export function CmsInteractivePage({
   onCorrectDrop?: () => void;
 }) {
   const bgImage = resolveImageUrl(page);
+  const useCustomLayout = hasCustomInteractiveLayout(page as Record<string, unknown>);
+  const resolvedLayouts = useMemo(
+    () => extractInteractiveLayoutsFromCms(page as Record<string, unknown>),
+    [page]
+  );
+  const sceneImageUrls = useMemo(() => {
+    const media = page?.media;
+    const fromList = Array.isArray(media?.sceneImageMedias)
+      ? media.sceneImageMedias.map((item) => item?.url).filter(Boolean) as string[]
+      : [];
+    const single = media?.sceneImageMedia?.url || '';
+    return fromList.length ? fromList : single ? [single] : [];
+  }, [page]);
 
   const dropZones = useMemo(
     () => (Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : []),
@@ -122,6 +140,7 @@ export function CmsInteractivePage({
     getScaledInteractiveMetrics(1920, 1080, isSingleLayout)
   );
   const [optionPositions, setOptionPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [elementSizes, setElementSizes] = useState<Record<string, { w: number; h: number }>>({});
   const [placedByZone, setPlacedByZone] = useState<Record<string, string>>({});
   const [placedByOption, setPlacedByOption] = useState<Record<string, string>>({});
   const placedByZoneRef = useRef(placedByZone);
@@ -183,6 +202,18 @@ export function CmsInteractivePage({
     const n = dropZoneItems.length;
     if (!n) return { metrics: m, zones: [] as { id: string; x: number; y: number; w: number; h: number }[] };
 
+    if (useCustomLayout) {
+      const zoneLayoutMap = [resolvedLayouts.answerOne, resolvedLayouts.answerTwo];
+      const zones = dropZoneItems
+        .map((zone, index) => {
+          const box = layoutRectToPx(zoneLayoutMap[index], stageW, stageH);
+          if (!box) return null;
+          return { id: zone.id, x: box.left, y: box.top, w: box.width, h: box.height };
+        })
+        .filter(Boolean) as { id: string; x: number; y: number; w: number; h: number }[];
+      return { metrics: m, zones };
+    }
+
     const { cardWidth, cardHeight, zoneGap } = m;
     const totalW = n * cardWidth + (n - 1) * zoneGap;
     const startX = Math.max(m.minStartLeft, (stageW - totalW) / 2);
@@ -197,12 +228,31 @@ export function CmsInteractivePage({
       h: cardHeight,
     }));
     return { metrics: m, zones };
-  }, [layout, dropZoneItems, isSingleLayout]);
+  }, [layout, dropZoneItems, isSingleLayout, useCustomLayout, resolvedLayouts]);
 
   useEffect(() => {
     const { w: stageW, h: stageH } = layout;
     const m = getScaledInteractiveMetrics(stageW, stageH, isSingleLayout);
     setStageMetrics(m);
+
+    if (useCustomLayout) {
+      const optionLayoutMap: Record<string, ReturnType<typeof layoutRectToPx>> = {
+        option_one: layoutRectToPx(resolvedLayouts.optionOne, stageW, stageH),
+        option_two: layoutRectToPx(resolvedLayouts.optionTwo, stageW, stageH),
+      };
+      const next: Record<string, { x: number; y: number }> = {};
+      const sizes: Record<string, { w: number; h: number }> = {};
+      options.forEach((option) => {
+        const box = optionLayoutMap[option.id];
+        if (!box) return;
+        next[option.id] = { x: box.left, y: box.top };
+        sizes[option.id] = { w: box.width, h: box.height };
+      });
+      setElementSizes(sizes);
+      setOptionPositions(next);
+      return;
+    }
+
     const { cardWidth, cardHeight, minStartLeft, parallelBottomOffset } = m;
     const gap = isSingleLayout ? 96 * m.scale : 192 * m.scale;
     const totalWidth = options.length * cardWidth + (options.length - 1) * gap;
@@ -212,14 +262,17 @@ export function CmsInteractivePage({
       : stageH - cardHeight - parallelBottomOffset;
 
     const next: Record<string, { x: number; y: number }> = {};
+    const sizes: Record<string, { w: number; h: number }> = {};
     options.forEach((option, index) => {
       next[option.id] = {
         x: startLeft + index * (cardWidth + gap),
         y: top,
       };
+      sizes[option.id] = { w: cardWidth, h: cardHeight };
     });
+    setElementSizes(sizes);
     setOptionPositions(next);
-  }, [layout, isSingleLayout, options, resetSeed]);
+  }, [layout, isSingleLayout, options, resetSeed, useCustomLayout, resolvedLayouts]);
 
   const playOptionAudio = useCallback(
     async (option: OptionModel) => {
@@ -282,8 +335,8 @@ export function CmsInteractivePage({
             startX: p.x,
             startY: p.y,
             moved: false,
-            w: stageMetrics.cardWidth,
-            h: stageMetrics.cardHeight,
+            w: elementSizes[option.id]?.w || stageMetrics.cardWidth,
+            h: elementSizes[option.id]?.h || stageMetrics.cardHeight,
             option,
           };
         },
@@ -355,7 +408,9 @@ export function CmsInteractivePage({
 
             const centeredX = target.x + (target.w - d.w) / 2;
             const centeredY = target.y + (target.h - d.h) / 2;
-            const snapY = isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY;
+            const snapY = useCustomLayout
+              ? centeredY
+              : (isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY);
 
             setOptionPositions((prev) => ({
               ...prev,
@@ -403,6 +458,8 @@ export function CmsInteractivePage({
       zoneLayouts.zones,
       isParallelInteraction,
       isSingleLayout,
+      useCustomLayout,
+      elementSizes,
       requiredPlacements,
       dropZoneItems,
     ]
@@ -425,11 +482,38 @@ export function CmsInteractivePage({
         <Image
           source={{ uri: bgImage }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
+          resizeMode="stretch"
           accessibilityLabel={page.title || 'Interactive background'}
           accessibilityRole="image"
         />
-      ) : null}
+      ) : (
+        <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#fff' }]} />
+      )}
+
+      {useCustomLayout
+        ? sceneImageUrls.map((url, index) => {
+            const sceneLayout = index === 0 ? resolvedLayouts.sceneOne : resolvedLayouts.sceneTwo;
+            const box = layoutRectToPx(sceneLayout, layout.w, layout.h);
+            if (!box) return null;
+            return (
+              <Image
+                key={`scene-${index}`}
+                source={{ uri: url }}
+                style={{
+                  position: 'absolute',
+                  left: box.left,
+                  top: box.top,
+                  width: box.width,
+                  height: box.height,
+                  zIndex: 1,
+                }}
+                resizeMode="contain"
+                accessibilityLabel={`Scene image ${index + 1}`}
+                accessibilityRole="image"
+              />
+            );
+          })
+        : null}
 
       <View style={styles.overlay} pointerEvents="box-none">
         {page.subtitle ? (
@@ -441,7 +525,7 @@ export function CmsInteractivePage({
         <View
           style={[
             styles.optionsLayer,
-            { top: isSingleLayout ? stageMetrics.optionTopOffset : 0 },
+            { top: useCustomLayout ? 0 : (isSingleLayout ? stageMetrics.optionTopOffset : 0) },
           ]}
           pointerEvents="box-none"
         >
@@ -450,6 +534,7 @@ export function CmsInteractivePage({
             if (!pos) return null;
             const hidden = dragLayer?.id === option.id;
             const lockedHere = Boolean(placedByOption[option.id]);
+            const size = elementSizes[option.id];
             return (
               <View
                 key={option.id}
@@ -458,8 +543,8 @@ export function CmsInteractivePage({
                   {
                     left: pos.x,
                     top: pos.y,
-                    width: stageMetrics.cardWidth,
-                    height: stageMetrics.cardHeight,
+                    width: size?.w || stageMetrics.cardWidth,
+                    height: size?.h || stageMetrics.cardHeight,
                     opacity: hidden ? 0 : playingOptionId && playingOptionId !== option.id ? 0.72 : 1,
                     zIndex: lockedHere ? 12 : 6,
                   },
