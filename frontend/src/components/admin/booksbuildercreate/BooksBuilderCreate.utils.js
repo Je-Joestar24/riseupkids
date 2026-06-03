@@ -61,6 +61,7 @@ export const createEmptyPage = (index) => {
     title: '',
     subtitle: '',
     readingText: '',
+    readingFontSizePx: null,
     audioDurationSec: null,
     readingWords: [],
     imageUrl: '',
@@ -84,6 +85,7 @@ export const createEmptyPage = (index) => {
 export const resetPageByType = {
   subtitle: '',
   readingText: '',
+  readingFontSizePx: null,
   audioDurationSec: null,
   readingWords: [],
   imageUrl: '',
@@ -280,8 +282,18 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
         introBackgroundMusicUrl: introBgmUrl,
         videoUrl: page.videoUrl || '',
         readingText: page.readingText || '',
+        readingFontSizePx: page.readingFontSizePx ?? null,
         readingWords: page.readingWords || [],
         audioDurationSec: page.audioDurationSec ?? null,
+        reading:
+          page.type === 'content'
+            ? {
+                text: page.readingText || null,
+                durationSec: page.audioDurationSec ?? null,
+                fontSizePx: page.readingFontSizePx ?? null,
+                words: page.readingWords || [],
+              }
+            : null,
         interactionMode: page.interactionMode || '',
         optionAudioOne: page.optionAudioOne || '',
         optionAudioTwo: page.optionAudioTwo || '',
@@ -361,6 +373,7 @@ export const buildBuilderPageFromCms = (page = {}, index = 0) => {
     title: page.title || '',
     subtitle: page.subtitle || '',
     readingText: page?.reading?.text || page.subtitle || '',
+    readingFontSizePx: page?.reading?.fontSizePx ?? null,
     audioDurationSec: page?.reading?.durationSec ?? null,
     readingWords: Array.isArray(page?.reading?.words) ? page.reading.words : [],
     imageUrl: toMediaUrl(media.imageMedia) || '',

@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
-import { Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, CircularProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
+import { CONTENT_READING_FONT_SIZE_PRESETS } from '../../../utils/cmsContentReading';
 import { isPageComplete } from './BooksBuilderCreate.utils';
 
 const BooksBuilderPageFields = ({ page, onPatch }) => {
@@ -220,9 +221,10 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
               backgroundColor: (theme) => theme.palette.common.white,
               p: 1.5,
               minHeight: '126px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 4fr) minmax(0, 1fr)' },
+              gap: { xs: 1.5, sm: 1.25 },
+              alignItems: 'start',
             }}
           >
             <TextField
@@ -230,10 +232,43 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
               multiline
               minRows={3}
               size="small"
+              fullWidth
               value={page.readingText || page.subtitle || ''}
               onChange={(e) => onPatch({ readingText: e.target.value, subtitle: e.target.value })}
-              sx={{ mt: 1 }}
+              aria-label="Content reading text"
+              sx={{ minWidth: 0 }}
             />
+            <TextField
+              select
+              label="Font size"
+              size="small"
+              fullWidth
+              value={
+                page.readingFontSizePx == null || page.readingFontSizePx === ''
+                  ? ''
+                  : String(page.readingFontSizePx)
+              }
+              onChange={(e) => {
+                const next = e.target.value;
+                onPatch({
+                  readingFontSizePx: next === '' ? null : Number(next),
+                });
+              }}
+              aria-label="Content reading font size"
+              sx={{
+                minWidth: 0,
+                '& .MuiSelect-select': {
+                  fontSize: '0.8rem',
+                  py: 1,
+                },
+              }}
+            >
+              {CONTENT_READING_FONT_SIZE_PRESETS.map((preset) => (
+                <MenuItem key={preset.value || 'default'} value={preset.value}>
+                  {preset.label}
+                </MenuItem>
+              ))}
+            </TextField>
           </Box>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

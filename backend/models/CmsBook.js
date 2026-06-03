@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { assertReadingFontSizePx } = require('../utils/cmsContentReading.util');
 
 const pageTypes = [
   'cover',
@@ -93,6 +94,8 @@ const pageReadingSchema = new mongoose.Schema(
   {
     text: { type: String, default: null, trim: true },
     durationSec: { type: Number, default: null, min: 0 },
+    /** Optional px size for content-page reading text (built-in player). */
+    fontSizePx: { type: Number, default: null, min: 20, max: 72 },
     words: { type: [pageReadingWordSchema], default: [] },
   },
   { _id: false }
@@ -213,6 +216,8 @@ function validatePageByType(page) {
   }
 
   if (page.type === 'content' && reading) {
+    assertReadingFontSizePx(reading.fontSizePx);
+
     if (reading.durationSec != null && Number(reading.durationSec) <= 0) {
       throw new Error('content page reading.durationSec must be greater than 0');
     }

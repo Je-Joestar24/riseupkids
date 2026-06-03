@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { Box, Grid, Paper, Typography } from '@mui/material';
 import StarCamMissionHeader from '../../components/admin/starcammission/StarCamMissionHeader';
@@ -9,6 +9,7 @@ import StarCamRightPanelPreviewEdit from '../../components/admin/starcammission/
 import StarCamMissionCreateModal from '../../components/admin/starcammission/StarCamMissionCreateModal';
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
 import { showConfirmationDialog, showNotification } from '../../store/slices/uiSlice';
+import { sortStarCamCategoriesForAdminDisplay } from '../../utils/starCamCategoryDisplay';
 
 const normalizeTarget = (value) => String(value || '').trim().toLowerCase();
 
@@ -90,6 +91,10 @@ const AdminStarCamMissions = () => {
   });
   const [openCreateModal, setOpenCreateModal] = React.useState(false);
   const [editingMission, setEditingMission] = React.useState(null);
+  const displayCategories = useMemo(
+    () => sortStarCamCategoriesForAdminDisplay(categories),
+    [categories]
+  );
 
   useEffect(() => {
     void loadCategories().catch(() => {
@@ -347,7 +352,7 @@ const AdminStarCamMissions = () => {
         search={filters.search}
         status={filters.status}
         categoryId={filters.categoryId}
-        categories={categories}
+        categories={displayCategories}
         categoriesLoading={loading.categories}
         onSearchChange={(value) => updateFilters({ search: value, page: 1 })}
         onStatusChange={(value) => updateFilters({ status: value, page: 1 })}
@@ -418,7 +423,7 @@ const AdminStarCamMissions = () => {
       <StarCamMissionCreateModal
         open={openCreateModal}
         onClose={handleCloseMissionModal}
-        categories={categories}
+        categories={displayCategories}
         categoriesLoading={loading.categories}
         onCreateMission={handleCreateMission}
         onEditMission={handleEditMission}

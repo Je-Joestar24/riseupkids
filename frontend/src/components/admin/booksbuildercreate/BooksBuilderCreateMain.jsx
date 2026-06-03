@@ -481,10 +481,15 @@ const BooksBuilderCreateMain = () => {
               readingWords = buildWeightedWords(readingText, durationSec);
             }
           }
+          const readingFontSizePx =
+            page.readingFontSizePx == null || page.readingFontSizePx === ''
+              ? null
+              : Number(page.readingFontSizePx);
           pagePayload.reading = {
             text: readingText || null,
             durationSec: hasValidDuration ? durationSec : null,
             words: readingWords,
+            ...(Number.isFinite(readingFontSizePx) ? { fontSizePx: readingFontSizePx } : {}),
           };
         } else if (page.type === 'interactive') {
           const isTwoAnswer = page.interactionMode === 'two_options_two_answers';

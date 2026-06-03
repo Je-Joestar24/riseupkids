@@ -145,6 +145,36 @@ export function getScaledInteractiveMetrics(
   return isSingleLayout ? single : parallel;
 }
 
+const CONTENT_READING_FONT_SIZE_MIN = 20;
+const CONTENT_READING_FONT_SIZE_MAX = 72;
+
+/** Default content reading size when CMS does not set `reading.fontSizePx`. */
+export const DEFAULT_CONTENT_READING_FONT_PX = Math.round(20 * 1.1);
+
+function normalizeReadingFontSizePx(value: unknown): number | null {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const rounded = Math.round(parsed);
+  if (rounded < CONTENT_READING_FONT_SIZE_MIN || rounded > CONTENT_READING_FONT_SIZE_MAX) {
+    return null;
+  }
+  return rounded;
+}
+
+/** Resolves px for content reading display; null = use `DEFAULT_CONTENT_READING_FONT_PX`. */
+export function resolveContentReadingFontSizePx(
+  page: CmsPlayablePage | Record<string, unknown>
+): number {
+  const p = page as Record<string, unknown>;
+  const reading = p.reading as { fontSizePx?: unknown } | null | undefined;
+  const fromReading = normalizeReadingFontSizePx(reading?.fontSizePx);
+  if (fromReading != null) return fromReading;
+  const fromFlat = normalizeReadingFontSizePx(p.readingFontSizePx);
+  if (fromFlat != null) return fromFlat;
+  return DEFAULT_CONTENT_READING_FONT_PX;
+}
+
 /** Word timings from CMS reading payload (seconds); sorted by `start`. */
 export interface NormalizedReadingWord {
   w: string;

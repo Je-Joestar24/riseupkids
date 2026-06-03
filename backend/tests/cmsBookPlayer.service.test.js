@@ -182,7 +182,7 @@ describe('cmsBookPlayer.service', () => {
             type: 'content',
             title: 'Reading page',
             media: { audioMediaId: 'a1' },
-            reading: { text: 'I am a starfish', durationSec: 4.2 },
+            reading: { text: 'I am a starfish', durationSec: 4.2, fontSizePx: 44 },
             interaction: null,
             navigation: {},
             scoring: {},
@@ -200,6 +200,7 @@ describe('cmsBookPlayer.service', () => {
 
     const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
     expect(result.pages[0].reading).toBeTruthy();
+    expect(result.pages[0].reading.fontSizePx).toBe(44);
     expect(result.pages[0].reading.words).toHaveLength(4);
     expect(result.pages[0].media.audioMedia).toMatchObject({
       id: 'a1',

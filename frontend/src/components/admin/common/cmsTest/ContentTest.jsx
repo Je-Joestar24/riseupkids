@@ -7,6 +7,7 @@ import {
   imageActionButtonSx,
   pageFrameSx,
   resolveAudioUrl,
+  resolveContentReadingFontSizePx,
   resolveImageUrl,
 } from './shared';
 
@@ -48,6 +49,19 @@ const ContentTest = ({
         && currentTime < Number(word.end)
     );
   }, [currentTime, words]);
+
+  const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
+  const readingFontSx = useMemo(
+    () =>
+      readingFontSizePx != null
+        ? {
+            fontSize: `${readingFontSizePx}px`,
+          }
+        : {
+            fontSize: { xs: '1.7rem', md: '2.4rem' },
+          },
+    [readingFontSizePx]
+  );
 
   return (
     <Box sx={pageFrameSx}>
@@ -117,7 +131,7 @@ const ContentTest = ({
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 800,
-                fontSize: { xs: '1.7rem', md: '2.4rem' },
+                ...readingFontSx,
                 color: '#141414',
                 textAlign: 'center',
                 px: 1,

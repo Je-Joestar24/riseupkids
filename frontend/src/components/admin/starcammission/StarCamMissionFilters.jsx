@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, CircularProgress, InputAdornment, MenuItem, Paper, TextField } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
 
 const StarCamMissionFilters = ({
   search = '',
@@ -64,9 +65,7 @@ const StarCamMissionFilters = ({
         >
           <MenuItem value="">All</MenuItem>
           {categories.map((category) => (
-            <MenuItem key={category._id} value={category._id}>
-              {category.name}
-            </MenuItem>
+            <StarCamCategoryMenuItem key={category._id} category={category} />
           ))}
         </TextField>
       </Box>

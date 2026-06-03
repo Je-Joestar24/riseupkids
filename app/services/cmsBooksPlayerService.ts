@@ -44,6 +44,8 @@ export interface PlayerReadingWord {
 export interface PlayerReading {
   text: string | null;
   durationSec: number | null;
+  /** Optional px size for content-page reading text. */
+  fontSizePx?: number | null;
   words: PlayerReadingWord[];
 }
 

@@ -1,6 +1,7 @@
 const { CmsBook, Media } = require('../models');
 const s3Service = require('./s3.service');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
+const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
 
 const CMS_BOOK_STATUSES = ['draft', 'published', 'archived'];
 
@@ -110,6 +111,10 @@ function normalizeContentReading(page = {}) {
 
   if (hasDuration) reading.durationSec = Number(durationSec.toFixed(3));
   else delete reading.durationSec;
+
+  const fontSizePx = normalizeReadingFontSizePx(reading.fontSizePx);
+  if (fontSizePx != null) reading.fontSizePx = fontSizePx;
+  else delete reading.fontSizePx;
 
   if (Array.isArray(reading.words) && reading.words.length) {
     reading.words = normalizeReadingWords({ words: reading.words, durationSec: reading.durationSec });

@@ -12,11 +12,13 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import StarCamCategoryChip from './StarCamCategoryChip';
 
 const StarCamCreateVocabularyModa = ({
   open,
   onClose,
   missionTitle = '',
+  missionCategory = null,
   newVocab,
   onVocabChange,
   onSubmitVocabulary,
@@ -129,9 +131,12 @@ const StarCamCreateVocabularyModa = ({
       <DialogTitle sx={{ fontWeight: 700 }}>{mode === 'edit' ? 'Edit Vocabulary' : 'Add Vocabulary'}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.25}>
-          <Typography variant="body2" color="text.secondary">
-            {missionTitle ? `Mission: ${missionTitle}` : 'Fill in details and upload all required media files.'}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Typography variant="body2" color="text.secondary">
+              {missionTitle ? `Mission: ${missionTitle}` : 'Fill in details and upload all required media files.'}
+            </Typography>
+            {missionCategory ? <StarCamCategoryChip category={missionCategory} /> : null}
+          </Box>
           {mode === 'edit' ? (
             <Typography variant="caption" color="text.secondary">
               Editing vocabulary #{Number(editingSortOrder ?? 0) + 1}. Upload a new file only for the media you want to replace.

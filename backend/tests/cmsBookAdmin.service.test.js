@@ -332,6 +332,99 @@ describe('cmsBookAdmin.service', () => {
     expect(result.pages[0].reading.words[result.pages[0].reading.words.length - 1].end).toBe(4.2);
   });
 
+  it('normalizes reading.fontSizePx on content pages', async () => {
+    const doc = makeDoc({
+      pages: [
+        {
+          pageId: 'p-1',
+          order: 1,
+          type: 'content',
+          reading: { text: 'Hello world', durationSec: 2, fontSizePx: 40.6 },
+        },
+      ],
+    });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: {
+        pages: [
+          {
+            pageId: 'p-1',
+            order: 1,
+            type: 'content',
+            reading: { text: 'Hello world', durationSec: 2, fontSizePx: 40.6 },
+          },
+        ],
+      },
+    });
+
+    expect(result.pages[0].reading.fontSizePx).toBe(41);
+  });
+
+  it('strips invalid reading.fontSizePx on content pages', async () => {
+    const doc = makeDoc({
+      pages: [
+        {
+          pageId: 'p-1',
+          order: 1,
+          type: 'content',
+          reading: { text: 'Hello', durationSec: 2, fontSizePx: 99 },
+        },
+      ],
+    });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: {
+        pages: [
+          {
+            pageId: 'p-1',
+            order: 1,
+            type: 'content',
+            reading: { text: 'Hello', durationSec: 2, fontSizePx: 99 },
+          },
+        ],
+      },
+    });
+
+    expect(result.pages[0].reading.fontSizePx).toBeUndefined();
+  });
+
+  it('accepts 3XL reading.fontSizePx (72px) on content pages', async () => {
+    const doc = makeDoc({
+      pages: [
+        {
+          pageId: 'p-1',
+          order: 1,
+          type: 'content',
+          reading: { text: 'Big text', durationSec: 2, fontSizePx: 72 },
+        },
+      ],
+    });
+    CmsBook.findById.mockResolvedValue(doc);
+
+    const result = await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: {
+        pages: [
+          {
+            pageId: 'p-1',
+            order: 1,
+            type: 'content',
+            reading: { text: 'Big text', durationSec: 2, fontSizePx: 72 },
+          },
+        ],
+      },
+    });
+
+    expect(result.pages[0].reading.fontSizePx).toBe(72);
+  });
+
   it('throws validation error when reading.words is set without durationSec', async () => {
     const doc = makeDoc();
     CmsBook.findById.mockResolvedValue(doc);

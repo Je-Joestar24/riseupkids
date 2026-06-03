@@ -24,6 +24,7 @@ import {
   extractReadingWordsFromPage,
   getActiveReadingWordIndex,
   resolveAudioUrl,
+  resolveContentReadingFontSizePx,
   resolveImageUrl,
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
@@ -32,8 +33,6 @@ import {
 let cmsIntroAudioModeReady = false;
 
 const DOT_COUNT = 14;
-/** ~10% larger than previous 20px content reading size */
-const CONTENT_READING_FONT = Math.round(20 * 1.1);
 
 export function CmsIntroPage({
   page,
@@ -254,6 +253,11 @@ export function CmsContentPage({
   );
 
   const words = useMemo(() => extractReadingWordsFromPage(page), [page]);
+  const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
+  const readingTextStyles = useMemo(
+    () => ({ fontSize: readingFontSizePx }),
+    [readingFontSizePx]
+  );
 
   const wordTimingFingerprint = useMemo(
     () => words.map((w) => `${w.start}:${w.end}:${w.w}`).join('|'),
@@ -341,7 +345,10 @@ export function CmsContentPage({
                 {words.map((word, index) => (
                   <Text
                     key={`w-${index}-${word.w}-${word.start}`}
-                    style={index === activeWordIndex ? styles.wordActive : styles.wordIdle}
+                    style={[
+                      index === activeWordIndex ? styles.wordActive : styles.wordIdle,
+                      readingTextStyles,
+                    ]}
                   >
                     {word.w}
                     {index < words.length - 1 ? ' ' : ''}
@@ -349,7 +356,11 @@ export function CmsContentPage({
                 ))}
               </View>
             ) : (
-              <Text style={styles.readingText} accessibilityRole="text" accessibilityLabel="Reading text">
+              <Text
+                style={[styles.readingText, readingTextStyles]}
+                accessibilityRole="text"
+                accessibilityLabel="Reading text"
+              >
                 {readingText || page.subtitle || 'Subtitle'}
               </Text>
             )}
@@ -500,18 +511,15 @@ const styles = StyleSheet.create({
   },
   readingText: {
     fontFamily: Quicksand.bold,
-    fontSize: CONTENT_READING_FONT,
     color: '#141414',
     textAlign: 'center',
   },
   wordActive: {
     fontFamily: Quicksand.bold,
-    fontSize: CONTENT_READING_FONT,
     color: colors.accent,
   },
   wordIdle: {
     fontFamily: Quicksand.bold,
-    fontSize: CONTENT_READING_FONT,
     color: '#141414',
   },
   contentBack: {

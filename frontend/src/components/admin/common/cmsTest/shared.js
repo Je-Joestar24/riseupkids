@@ -75,3 +75,8 @@ export const resolveIntroBackgroundMusicUrl = (page = {}) =>
   || page?.media?.audioMedia?.cloudUrl
   || page?.media?.audio?.url
   || '';
+
+export {
+  CONTENT_READING_FONT_SIZE_PRESETS,
+  resolveContentReadingFontSizePx,
+} from '../../../../utils/cmsContentReading';

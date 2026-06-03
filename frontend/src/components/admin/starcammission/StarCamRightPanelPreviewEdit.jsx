@@ -18,6 +18,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarCamCreateVocabularyModa from './StarCamCreateVocabularyModa';
+import StarCamCategoryChip from './StarCamCategoryChip';
 
 const StarCamRightPanelPreviewEdit = ({
   mission,
@@ -88,6 +89,7 @@ const StarCamRightPanelPreviewEdit = ({
             {mission.title} ({mission.missionId})
           </Typography>
           <Box sx={{ mt: 1, display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
+            {mission.category ? <StarCamCategoryChip category={mission.category} /> : null}
             <Chip size="small" label={`Status: ${mission.status || '-'}`} />
             <Chip size="small" label={`Vocab: ${vocabList.length}/7`} />
             <Chip size="small" color={scanCount === 7 ? 'success' : 'default'} label={`Scan: ${scanCount}/7`} />
@@ -323,6 +325,7 @@ const StarCamRightPanelPreviewEdit = ({
         open={openAddVocabModal}
         onClose={() => setOpenAddVocabModal(false)}
         missionTitle={mission?.title || ''}
+        missionCategory={mission?.category}
         newVocab={newVocab}
         onVocabChange={onVocabChange}
         onSubmitVocabulary={async () => {
@@ -349,6 +352,7 @@ const StarCamRightPanelPreviewEdit = ({
           setEditingVocab(null);
         }}
         missionTitle={mission?.title || ''}
+        missionCategory={mission?.category}
         mode="edit"
         editingSortOrder={editingVocab?.sortOrder}
         existingVocabMedia={{

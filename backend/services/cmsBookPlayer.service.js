@@ -1,4 +1,5 @@
 const { CmsBook, Media } = require('../models');
+const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
 
 /**
  * Parent/teacher player for CmsBook (built-in book builder).
@@ -60,9 +61,11 @@ function normalizeReadingForPlayer(reading = null) {
   const text = String(reading.text || '').trim();
   const durationSec = Number(reading.durationSec);
   const hasDuration = Number.isFinite(durationSec) && durationSec > 0;
+  const fontSizePx = normalizeReadingFontSizePx(reading.fontSizePx);
   const normalized = {
     text: text || null,
     durationSec: hasDuration ? Number(durationSec.toFixed(3)) : null,
+    fontSizePx,
     words: [],
   };
 

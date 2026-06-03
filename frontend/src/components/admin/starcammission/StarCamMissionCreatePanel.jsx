@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Avatar, Box, Button, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
+import { Avatar, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
 
 const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating = false }) => {
   const theme = useTheme();
@@ -75,9 +76,7 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
           onChange={(e) => setForm((prev) => ({ ...prev, categoryId: e.target.value }))}
         >
           {categories.map((category) => (
-            <MenuItem key={category._id} value={category._id}>
-              {category.name}
-            </MenuItem>
+            <StarCamCategoryMenuItem key={category._id} category={category} />
           ))}
         </TextField>
         <Stack direction="row" spacing={1.2} alignItems="center">

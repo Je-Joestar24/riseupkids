@@ -4,6 +4,10 @@ import { useTheme } from '@mui/material/styles';
 import { AddCircleOutline, PlayArrow, Stop } from '@mui/icons-material';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
 import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
+import {
+  CONTENT_READING_FONT_SIZE_PRESETS,
+  resolveContentReadingFontSizePx,
+} from '../../../utils/cmsContentReading';
 import { buildWeightedWords, getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import bigLogo from '../../../assets/images/big-logo.png';
 
@@ -70,6 +74,15 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
         && contentCurrentTime < Number(word.end)
     );
   }, [contentCurrentTime, contentTimingWords]);
+
+  const contentReadingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
+  const contentReadingFontSx = useMemo(
+    () =>
+      contentReadingFontSizePx != null
+        ? { fontSize: `${contentReadingFontSizePx}px` }
+        : { fontSize: { xs: '1.15rem', md: '1.4rem' } },
+    [contentReadingFontSizePx]
+  );
 
   const contentDurationSec = useMemo(() => {
     const explicit = Number(page.audioDurationSec);
@@ -617,6 +630,15 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
 
             <Box
               sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 4fr) minmax(0, 1fr)' },
+                gap: { xs: 1, sm: 1.1 },
+                alignItems: 'start',
+                width: '100%',
+              }}
+            >
+            <Box
+              sx={{
                 position: 'relative',
                 minHeight: { xs: 108, md: 124 },
                 borderRadius: '12px',
@@ -625,6 +647,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                 px: 1.2,
                 py: 1,
                 overflow: 'hidden',
+                minWidth: 0,
               }}
             >
               <Box
@@ -632,7 +655,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
                   fontWeight: 700,
-                  fontSize: { xs: '1.15rem', md: '1.4rem' },
+                  ...contentReadingFontSx,
                   lineHeight: 1.45,
                   textAlign: 'center',
                   whiteSpace: 'pre-wrap',
@@ -680,7 +703,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                   '& .MuiOutlinedInput-input': {
                     fontFamily: 'Quicksand, sans-serif',
                     fontWeight: 700,
-                    fontSize: { xs: '1.15rem', md: '1.4rem' },
+                    ...contentReadingFontSx,
                     lineHeight: 1.45,
                     textAlign: 'center',
                     color: 'transparent',
@@ -696,6 +719,43 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                   },
                 }}
               />
+            </Box>
+
+            <TextField
+              select
+              label="Font size"
+              size="small"
+              fullWidth
+              value={
+                page.readingFontSizePx == null || page.readingFontSizePx === ''
+                  ? ''
+                  : String(page.readingFontSizePx)
+              }
+              onChange={(event) => {
+                const next = event.target.value;
+                onPatch({
+                  readingFontSizePx: next === '' ? null : Number(next),
+                });
+              }}
+              onClick={(event) => event.stopPropagation()}
+              aria-label="Content reading font size on canvas"
+              sx={{
+                minWidth: 0,
+                '& .MuiInputLabel-root': {
+                  fontSize: '0.72rem',
+                },
+                '& .MuiSelect-select': {
+                  fontSize: '0.72rem',
+                  py: 0.85,
+                },
+              }}
+            >
+              {CONTENT_READING_FONT_SIZE_PRESETS.map((preset) => (
+                <MenuItem key={`canvas-font-${preset.value || 'default'}`} value={preset.value}>
+                  {preset.label}
+                </MenuItem>
+              ))}
+            </TextField>
             </Box>
           </Box>
 

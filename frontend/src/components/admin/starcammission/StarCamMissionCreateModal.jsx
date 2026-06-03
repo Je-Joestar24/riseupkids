@@ -18,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
 
 /** Square Star Cam preview: crop wide video sides (object-fit cover), no re-encoding. */
 const starCamVideoSquareContainerSx = {
@@ -216,9 +217,7 @@ const StarCamMissionCreateModal = ({
                       inputProps={{ 'aria-label': 'Mission category' }}
                     >
                       {categories.map((category) => (
-                        <MenuItem key={category._id} value={category._id}>
-                          {category.name}
-                        </MenuItem>
+                        <StarCamCategoryMenuItem key={category._id} category={category} />
                       ))}
                     </TextField>
                   </Grid>
