@@ -343,6 +343,35 @@ async function createPagbankCheckout({
   }
 }
 
+/** Charge statuses that mean the customer completed payment (PagBank Charge object). */
+const SUCCESSFUL_CHARGE_STATUSES = new Set(['PAID', 'AUTHORIZED']);
+
+/**
+ * Normalize charge/payment entries from GET /checkouts/{id} (PagBank may use charges and/or payments).
+ * @param {object} apiCheckout
+ * @returns {Array<{ id?: string, status?: string }>}
+ */
+function extractCheckoutCharges(apiCheckout) {
+  const list = [];
+  if (Array.isArray(apiCheckout?.charges)) {
+    list.push(...apiCheckout.charges);
+  }
+  if (Array.isArray(apiCheckout?.payments)) {
+    for (const payment of apiCheckout.payments) {
+      if (payment?.id && payment?.status) {
+        list.push(payment);
+      } else if (payment?.charge?.id) {
+        list.push(payment.charge);
+      }
+    }
+  }
+  return list;
+}
+
+function findSuccessfulCharge(charges) {
+  return charges.find((c) => SUCCESSFUL_CHARGE_STATUSES.has(String(c.status || '').toUpperCase()));
+}
+
 /**
  * Map PagBank charge/checkout statuses to our PagSeguroCheckout status.
  * @param {object} apiCheckout - GET /checkouts/{id} response
@@ -354,14 +383,15 @@ function analyzeCheckoutPayment(apiCheckout) {
     return { status: 'expired', chargeIds: [] };
   }
 
-  const charges = Array.isArray(apiCheckout?.charges) ? apiCheckout.charges : [];
+  const charges = extractCheckoutCharges(apiCheckout);
   const chargeIds = charges.map((c) => c.id).filter(Boolean);
   const statuses = charges.map((c) => String(c.status || '').toUpperCase());
 
-  if (statuses.includes('PAID')) {
-    const paid = charges.find((c) => String(c.status).toUpperCase() === 'PAID');
-    return { status: 'paid', chargeIds, paidChargeId: paid?.id };
+  const successful = findSuccessfulCharge(charges);
+  if (successful) {
+    return { status: 'paid', chargeIds, paidChargeId: successful.id };
   }
+
   if (statuses.includes('IN_ANALYSIS')) {
     return { status: 'in_analysis', chargeIds };
   }
@@ -425,10 +455,14 @@ async function getPagbankCheckout(checkoutId) {
   }
 
   try {
-    const res = await axios.get(`${PAGSEGURO_API_BASE}/checkouts/${encodeURIComponent(checkoutId)}`, {
-      headers: getAuthHeaders(),
-      timeout: 20000,
-    });
+    const res = await axios.get(
+      `${PAGSEGURO_API_BASE}/checkouts/${encodeURIComponent(checkoutId)}`,
+      {
+        headers: getAuthHeaders(),
+        timeout: 20000,
+        params: { limit: 100 },
+      }
+    );
     return res.data;
   } catch (err) {
     if (err.response?.status === 404) {
@@ -438,6 +472,41 @@ async function getPagbankCheckout(checkoutId) {
     }
     throw new Error('PagBank getCheckout failed: ' + describeAxiosError(err));
   }
+}
+
+/**
+ * Resolve payment status from checkout payload and optional stored charge ids.
+ * @param {object} apiCheckout
+ * @param {{ storedChargeIds?: string[] }} [options]
+ */
+async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
+  let analysis = analyzeCheckoutPayment(apiCheckout);
+  if (analysis.status === 'paid') {
+    return analysis;
+  }
+
+  const idsToTry = [
+    ...new Set([...(analysis.chargeIds || []), ...(options.storedChargeIds || [])]),
+  ];
+
+  for (const chargeId of idsToTry) {
+    if (!chargeId || !String(chargeId).startsWith('CHAR_')) continue;
+    try {
+      const charge = await getPagbankCharge(chargeId);
+      const chargeStatus = String(charge.status || '').toUpperCase();
+      if (SUCCESSFUL_CHARGE_STATUSES.has(chargeStatus)) {
+        return {
+          status: 'paid',
+          chargeIds: idsToTry,
+          paidChargeId: charge.id,
+        };
+      }
+    } catch (err) {
+      console.warn('[PagSeguro] getCharge fallback failed for %s: %s', chargeId, err.message);
+    }
+  }
+
+  return analysis;
 }
 
 module.exports = {
@@ -457,6 +526,8 @@ module.exports = {
   getPagbankCheckout,
   getPagbankCharge,
   analyzeCheckoutPayment,
+  resolveCheckoutPaymentStatus,
+  extractCheckoutCharges,
   extractCheckoutIdFromCharge,
   extractPayUrl,
   describeAxiosError,

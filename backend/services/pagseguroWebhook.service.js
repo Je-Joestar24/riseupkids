@@ -9,6 +9,7 @@ const {
   getPagbankCheckout,
   getPagbankCharge,
   analyzeCheckoutPayment,
+  resolveCheckoutPaymentStatus,
   extractCheckoutIdFromCharge,
 } = require('./pagseguro.service');
 const { activateUserFromPagseguroCheckout } = require('./pagseguroActivation.service');
@@ -82,7 +83,9 @@ async function syncCheckoutAndActivate(record, meta = {}) {
   }
 
   const apiCheckout = await getPagbankCheckout(record.pagbankCheckoutId);
-  const analysis = analyzeCheckoutPayment(apiCheckout);
+  const analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
+    storedChargeIds: record.chargeIds || [],
+  });
 
   if (meta.fingerprint) {
     const exists = record.webhookEvents.some((e) => e.fingerprint === meta.fingerprint);

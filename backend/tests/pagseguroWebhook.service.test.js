@@ -56,6 +56,24 @@ describe('analyzeCheckoutPayment', () => {
     expect(result.paidChargeId).toBe('CHAR_1');
   });
 
+  it('detects AUTHORIZED from charges (approved card, pre-capture)', () => {
+    const result = analyzeCheckoutPayment({
+      status: 'INACTIVE',
+      charges: [{ id: 'CHAR_3', status: 'AUTHORIZED' }],
+    });
+    expect(result.status).toBe('paid');
+    expect(result.paidChargeId).toBe('CHAR_3');
+  });
+
+  it('detects PAID from payments array', () => {
+    const result = analyzeCheckoutPayment({
+      status: 'INACTIVE',
+      payments: [{ id: 'CHAR_4', status: 'PAID' }],
+    });
+    expect(result.status).toBe('paid');
+    expect(result.paidChargeId).toBe('CHAR_4');
+  });
+
   it('maps EXPIRED checkout', () => {
     expect(analyzeCheckoutPayment({ status: 'EXPIRED' }).status).toBe('expired');
   });

@@ -17,7 +17,7 @@ const {
   generateReferenceId,
   isPagseguroConfigured,
   getPagbankCheckout,
-  analyzeCheckoutPayment,
+  resolveCheckoutPaymentStatus,
 } = require('../services/pagseguro.service');
 const { processWebhookNotification } = require('../services/pagseguroWebhook.service');
 const { activateUserFromPagseguroCheckout } = require('../services/pagseguroActivation.service');
@@ -183,7 +183,9 @@ exports.getCheckoutDetails = async (req, res, next) => {
       });
     }
 
-    const analysis = analyzeCheckoutPayment(apiCheckout);
+    const analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
+      storedChargeIds: record.chargeIds || [],
+    });
     record.status = analysis.status;
     if (analysis.chargeIds.length) {
       record.chargeIds = [...new Set([...(record.chargeIds || []), ...analysis.chargeIds])];
