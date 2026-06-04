@@ -54,8 +54,35 @@ async function ensureCacheDir(): Promise<string> {
  * Returns a local file URI for remote media when cached; otherwise downloads then caches.
  * Safe to call repeatedly (deduped in-flight + memory map).
  */
+/** Returns a known local URI from memory/disk when already cached; otherwise null. */
+export async function getCachedMediaUriIfReady(remoteUrl: string): Promise<string | null> {
+  if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
+
+  const memo = resolvedUriCache.get(remoteUrl);
+  if (memo) {
+    const exists = await FileSystem.getInfoAsync(memo);
+    if (exists.exists) return memo;
+    resolvedUriCache.delete(remoteUrl);
+  }
+
+  const dir = await ensureCacheDir();
+  if (!dir) return null;
+
+  const ext = extensionFromUrl(remoteUrl) || '.bin';
+  const dest = `${dir}${simpleHash(remoteUrl)}${ext}`;
+  const info = await FileSystem.getInfoAsync(dest);
+  if (info.exists) {
+    resolvedUriCache.set(remoteUrl, dest);
+    return dest;
+  }
+  return null;
+}
+
 export async function resolveCachedMediaUri(remoteUrl: string): Promise<string> {
   if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
+
+  const ready = await getCachedMediaUriIfReady(remoteUrl);
+  if (ready && ready !== remoteUrl) return ready;
 
   const memo = resolvedUriCache.get(remoteUrl);
   if (memo) {
@@ -150,6 +177,53 @@ export interface PreloadSummary {
  * Preload all URLs; invokes onProgress with 0–100.
  * Uses bounded concurrency to avoid saturating the device.
  */
+/** True when URI is already on device (not a remote http/https URL). */
+export function isLocalMediaUri(uri: string | null | undefined): boolean {
+  if (!uri || typeof uri !== 'string') return false;
+  return !/^https?:\/\//i.test(uri.trim());
+}
+
+/**
+ * Preload every asset to disk (images + video + audio).
+ * Use for Star Cam missions so practice `<Image>` / `<Video>` can play from `file://` URIs.
+ */
+export async function preloadMediaAssetsToCache(
+  urls: string[],
+  onProgress?: (percent: number) => void,
+  concurrency = 4
+): Promise<PreloadSummary> {
+  const unique = Array.from(new Set(urls.filter(Boolean)));
+  const failed: string[] = [];
+  if (!unique.length) {
+    onProgress?.(100);
+    return { failed };
+  }
+
+  let completed = 0;
+  const report = () => {
+    onProgress?.(Math.round((completed / unique.length) * 100));
+  };
+
+  const queue = [...unique];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) {
+      const next = queue.shift();
+      if (!next) break;
+      try {
+        await resolveCachedMediaUri(next);
+      } catch {
+        failed.push(next);
+      }
+      completed += 1;
+      report();
+    }
+  });
+
+  await Promise.all(workers);
+  onProgress?.(100);
+  return { failed };
+}
+
 export async function preloadCmsPlayerAssets(
   urls: string[],
   onProgress?: (percent: number) => void,
@@ -186,4 +260,17 @@ export async function preloadCmsPlayerAssets(
 
 export function clearCmsPlayerResolvedUriCache(): void {
   resolvedUriCache.clear();
+}
+
+/** Remote URL → playable local URI map after `preloadMediaAssetsToCache`. */
+export async function snapshotCachedMediaUris(urls: string[]): Promise<Record<string, string>> {
+  const unique = Array.from(new Set(urls.filter((u) => u && isHttp(u))));
+  const map: Record<string, string> = {};
+  await Promise.all(
+    unique.map(async (remote) => {
+      const local = await getCachedMediaUriIfReady(remote);
+      map[remote] = local && isLocalMediaUri(local) ? local : await resolveCachedMediaUri(remote);
+    })
+  );
+  return map;
 }

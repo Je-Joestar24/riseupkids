@@ -44,6 +44,8 @@ export interface StarCamState {
 
   error: string | null;
   lastDetection: StarCamDetectObjectPayload | null;
+  /** Remote http(s) URL → local file URI after mission preload. */
+  cachedMediaUris: Record<string, string>;
 }
 
 export interface StarCamActions {
@@ -69,6 +71,8 @@ export interface StarCamActions {
     image: { uri: string; name?: string; type?: string },
     options?: { itemOrder?: number; sortOrder?: number }
   ) => Promise<StarCamDetectObjectPayload | null>;
+  /** Replace mission media URI map (after preload). */
+  setCachedMediaUris: (map: Record<string, string>) => void;
   /** Clear loaded mission flow. */
   clearMissionFlow: () => void;
   /** Clear error. */
@@ -91,6 +95,7 @@ const initialState: StarCamState = {
   isDetectingObject: false,
   error: null,
   lastDetection: null,
+  cachedMediaUris: {},
 };
 
 // ---------------------------------------------------------------------------
@@ -121,6 +126,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
       selectedMissionId: null,
       missionFlow: null,
       practiceMaterial: null,
+      cachedMediaUris: {},
       error: null,
     });
   },
@@ -133,6 +139,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
       missions: [],
       missionFlow: null,
       practiceMaterial: null,
+      cachedMediaUris: {},
     });
     try {
       const res = await childStarCamService.getLatestMissionsByCategory(childId, categoryKey);
@@ -146,7 +153,10 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     }
   },
 
-  selectMission: (missionId) => set({ selectedMissionId: missionId, missionFlow: null, practiceMaterial: null, error: null }),
+  selectMission: (missionId) =>
+    set({ selectedMissionId: missionId, missionFlow: null, practiceMaterial: null, cachedMediaUris: {}, error: null }),
+
+  setCachedMediaUris: (map) => set({ cachedMediaUris: map }),
 
   fetchMissionStartFlow: async (childId, missionIdOrSlug) => {
     set({ isLoadingMissionFlow: true, error: null, selectedMissionId: missionIdOrSlug, missionFlow: null });
@@ -195,7 +205,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     }
   },
 
-  clearMissionFlow: () => set({ missionFlow: null, practiceMaterial: null }),
+  clearMissionFlow: () => set({ missionFlow: null, practiceMaterial: null, cachedMediaUris: {} }),
 
   clearError: () => set({ error: null }),
 

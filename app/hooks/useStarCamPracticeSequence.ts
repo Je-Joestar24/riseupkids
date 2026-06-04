@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-export interface StarCamPracticeSequenceItem {
-  targetLabel: string;
-  pronunciationVideoUrl: string | null;
-  sampleImageUrl: string | null;
-}
+import { isLocalMediaUri } from '@/components/child/common/cms-player-media';
+import type { StarCamPracticeSequenceItem } from '@/services/starCamPracticeMedia';
+
+export type { StarCamPracticeSequenceItem };
 
 export interface UseStarCamPracticeSequenceParams {
   items: StarCamPracticeSequenceItem[];
@@ -49,7 +48,9 @@ export function useStarCamPracticeSequence({
   useEffect(() => {
     setIndex(0);
     setPassNumber(1);
-    setIsVideoLoading(Boolean(items?.[0]?.pronunciationVideoUrl));
+    setIsVideoLoading(
+      Boolean(items?.[0]?.pronunciationVideoUrl) && !isLocalMediaUri(items[0].pronunciationVideoUrl)
+    );
     setIsShowingNextIntro(false);
     setNextIntroText(null);
     transitionInProgressRef.current = false;
@@ -103,12 +104,18 @@ export function useStarCamPracticeSequence({
       }
       setPassNumber(nextPass);
       setIndex(nextIndex);
-      setIsVideoLoading(Boolean(items?.[nextIndex]?.pronunciationVideoUrl));
+      setIsVideoLoading(
+        Boolean(items?.[nextIndex]?.pronunciationVideoUrl) &&
+          !isLocalMediaUri(items[nextIndex]?.pronunciationVideoUrl ?? null)
+      );
       transitionInProgressRef.current = false;
     }, Math.max(stepDelayMs, nextToastMs));
   }, [index, items, nextToastMs, onComplete, passNumber, stepDelayMs]);
 
-  const onVideoLoadStart = useCallback(() => setIsVideoLoading(true), []);
+  const onVideoLoadStart = useCallback(() => {
+    if (isLocalMediaUri(current?.pronunciationVideoUrl ?? null)) return;
+    setIsVideoLoading(true);
+  }, [current?.pronunciationVideoUrl]);
   const onVideoLoad = useCallback(() => setIsVideoLoading(false), []);
 
   const onVideoError = useCallback(() => {

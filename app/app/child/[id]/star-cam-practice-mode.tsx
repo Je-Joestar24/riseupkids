@@ -1,26 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { StarCamPracticeModeScreen } from '@/components/child/starcampracticemode';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
-import { BACKEND_ORIGIN } from '@/config';
+import { colors } from '@/config/theme/colors';
 import { useStarCam } from '@/hooks/starCamHook';
-import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
-
-function resolveImageUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  const safePath = url.startsWith('/') ? url : `/${url}`;
-  return `${BACKEND_ORIGIN}${safePath}`;
-}
-
-function formatDisplayLabel(value: string | null | undefined): string {
-  const cleaned = String(value || '')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return cleaned ? cleaned.toUpperCase() : 'OBJECT';
-}
+import { useStarCamPracticeItems } from '@/hooks/useStarCamPracticeItems';
 
 export default function StarCamPracticeModeRoute() {
   const { id, category, missionId, title, imageUrl } = useLocalSearchParams<{
@@ -36,29 +22,13 @@ export default function StarCamPracticeModeRoute() {
   const missionSlug = missionId ?? null;
   const categoryKey = (category || 'reading').toLowerCase();
 
-  const { missionFlow, loadMissionFlow } = useStarCam();
-
-  useEffect(() => {
-    if (!childId || !missionSlug) return;
-    void loadMissionFlow(childId, missionSlug);
-  }, [childId, missionSlug, loadMissionFlow]);
+  const { missionFlow } = useStarCam();
+  const { items, isMediaReady } = useStarCamPracticeItems(missionFlow);
 
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
   }, [categoryKey]);
-
-  const items: StarCamPracticeSequenceItem[] = useMemo(() => {
-    const list = missionFlow?.flow?.practice?.items ?? [];
-    return list
-      .slice()
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((it) => ({
-        targetLabel: formatDisplayLabel(it.displayText || it.target || 'object'),
-        pronunciationVideoUrl: resolveImageUrl(it.pronunciationVideoUrl),
-        sampleImageUrl: resolveImageUrl(it.imageUrl),
-      }));
-  }, [missionFlow]);
 
   const onBack = () => {
     if (!id) {
@@ -77,6 +47,14 @@ export default function StarCamPracticeModeRoute() {
     );
   };
 
+  if (!missionFlow || !isMediaReady) {
+    return (
+      <View style={styles.boot} accessibilityLabel="Preparing practice media">
+        <ActivityIndicator size="large" color={categoryPreset.borderColor} />
+      </View>
+    );
+  }
+
   return (
     <StarCamPracticeModeScreen
       title="Let's practice"
@@ -89,3 +67,12 @@ export default function StarCamPracticeModeRoute() {
     />
   );
 }
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgSecondary,
+  },
+});

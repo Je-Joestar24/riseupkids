@@ -8,8 +8,8 @@ export * from './theme';
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5000/api';
 
-if (__DEV__) {
-  console.log('API_BASE_URL:', API_BASE_URL);
+if (__DEV__ || process.env.EXPO_PUBLIC_LOG_API_URL === 'true') {
+  console.log('[RiseUpKids] API_BASE_URL:', API_BASE_URL);
 }
 
 /** Backend origin (no /api) for WebView URLs e.g. HTML5 launch. Derived from API_BASE_URL when not set. */

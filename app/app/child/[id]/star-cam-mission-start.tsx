@@ -28,10 +28,13 @@ export default function StarCamMissionStartRoute() {
 
   const { missionFlow, isLoadingMissionFlow, loadMissionFlow } = useStarCam();
 
+  const cachedMissionSlug = missionFlow?.mission?.missionId ?? null;
+
   useEffect(() => {
     if (!childId || !missionSlug) return;
+    if (cachedMissionSlug === missionSlug) return;
     void loadMissionFlow(childId, missionSlug);
-  }, [childId, missionSlug, loadMissionFlow]);
+  }, [childId, missionSlug, loadMissionFlow, cachedMissionSlug]);
 
   const missionTitle = useMemo(
     () => missionFlow?.mission?.title || title || 'Mission',

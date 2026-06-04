@@ -214,7 +214,7 @@ function mapMissionListToMapBubblesWithCycle(
     missionId: m.missionId,
     title: m.title,
     emoji: emojiCycle[i % emojiCycle.length],
-    imageUrl: m.introImageUrl ?? null,
+    imageUrl: m.missionImageUrl ?? m.introImageUrl ?? null,
   }));
 }
 

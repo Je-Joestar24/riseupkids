@@ -14,11 +14,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://YOUR_IP:5000/api"
+        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
+      }
     }
   },
   "submit": {

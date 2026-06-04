@@ -114,8 +114,8 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                     ref={videoRef}
                     key={`${passNumber}-${progressText}-${pronunciationVideoUrl ?? 'no-video'}`}
                     source={{ uri: pronunciationVideoUrl || '' }}
-                    style={StyleSheet.absoluteFill}
-                    resizeMode={ResizeMode.CONTAIN}
+                    style={styles.mediaCover}
+                    resizeMode={ResizeMode.COVER}
                     shouldPlay={isFocused && !isShowingNextIntro}
                     isLooping={false}
                     rate={playbackRate}
@@ -156,8 +156,8 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                   {sampleImageUrl ? (
                     <Image
                       source={{ uri: sampleImageUrl }}
-                      resizeMode="contain"
-                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                      style={styles.mediaCover}
                       accessibilityLabel={`${targetLabel} sample image`}
                     />
                   ) : (
@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
   },
   mediaFrame: {
     width: '80%',
+    maxWidth: 280,
     aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 28,
@@ -254,6 +255,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#EDEDED',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
+  },
+  mediaCover: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
   },
   videoLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -263,6 +269,7 @@ const styles = StyleSheet.create({
   },
   sampleFrame: {
     width: '80%',
+    maxWidth: 280,
     aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 28,

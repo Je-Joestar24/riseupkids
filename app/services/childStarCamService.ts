@@ -13,9 +13,14 @@
  */
 
 import { api } from '@/services/api';
-import { API_BASE_URL } from '@/config';
-import { getAuthToken } from '@/services/tokenBridge';
-import { Platform } from 'react-native';
+import { postDetectObjectImage } from '@/services/starCamDetectUpload';
+import {
+  StarCamDetectObjectError,
+  mapDetectErrorCode,
+  type StarCamDetectErrorCode,
+} from '@/services/starCamDetectErrors';
+
+export { StarCamDetectObjectError, type StarCamDetectErrorCode };
 
 // ---------------------------------------------------------------------------
 // Generic API response (backend convention)
@@ -25,32 +30,6 @@ export interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
-}
-
-export type StarCamDetectErrorCode =
-  | 'STARCAM_UPLOAD_TIMEOUT'
-  | 'STARCAM_NETWORK_ERROR'
-  | 'STARCAM_IMAGE_REQUIRED'
-  | 'STARCAM_VISION_TIMEOUT'
-  | 'STARCAM_VISION_UNAVAILABLE'
-  | 'STARCAM_INVALID_STEP'
-  | 'STARCAM_DETECT_FAILED';
-
-export class StarCamDetectObjectError extends Error {
-  statusCode?: number;
-  code: StarCamDetectErrorCode;
-  details?: unknown;
-
-  constructor(
-    message: string,
-    options: { statusCode?: number; code?: StarCamDetectErrorCode; details?: unknown } = {}
-  ) {
-    super(message);
-    this.name = 'StarCamDetectObjectError';
-    this.statusCode = options.statusCode;
-    this.code = options.code ?? 'STARCAM_DETECT_FAILED';
-    this.details = options.details;
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +57,8 @@ export interface StarCamMissionListItem {
   missionId: string;
   title: string;
   introText: string;
+  /** Mission cover art (preferred for category map bubbles). */
+  missionImageUrl: string | null;
   introImageUrl: string | null;
   vocabCount: number;
   itemCount: number;
@@ -227,29 +208,15 @@ type StarCamDetectApiResponse = ApiResponse<StarCamDetectObjectPayload> & {
   details?: unknown;
 };
 
-const DETECT_UPLOAD_TIMEOUT_MS = 45000;
-
-function mapDetectErrorCode(status: number, message?: string): StarCamDetectErrorCode {
-  const safeMessage = String(message || '').toLowerCase();
-  if (status === 400 && safeMessage.includes('image file is required')) return 'STARCAM_IMAGE_REQUIRED';
-  if (status === 400 && safeMessage.includes('invalid hunt step')) return 'STARCAM_INVALID_STEP';
-  if (status === 503 || status === 504) {
-    if (safeMessage.includes('timed out') || safeMessage.includes('timeout')) return 'STARCAM_VISION_TIMEOUT';
-    if (safeMessage.includes('not available') || safeMessage.includes('not enabled')) return 'STARCAM_VISION_UNAVAILABLE';
-  }
-  return 'STARCAM_DETECT_FAILED';
-}
-
-async function parseDetectResponse(response: Response): Promise<StarCamDetectApiResponse | null> {
-  const text = await response.text();
-  if (!text) return null;
+function parseDetectResponseBody(body: string): StarCamDetectApiResponse | null {
+  if (!body) return null;
   try {
-    return JSON.parse(text) as StarCamDetectApiResponse;
+    return JSON.parse(body) as StarCamDetectApiResponse;
   } catch {
     return {
       success: false,
       data: null as never,
-      message: text,
+      message: body,
     };
   }
 }
@@ -319,85 +286,14 @@ export const childStarCamService = {
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
     const endpoint = `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/detect-object${query}`;
 
-    // Use fetch for React Native file upload reliability (Axios adapters can drop multipart file parts in some environments).
     return (async () => {
-      const safeName = image.name || `star-cam-${Date.now()}.jpg`;
-      const safeType = image.type || 'image/jpeg';
-      const normalizedUri =
-        Platform.OS === 'web'
-          ? image.uri
-          : image.uri.startsWith('file://') || image.uri.startsWith('content://')
-            ? image.uri
-            : `file://${image.uri}`;
-      const formData = new FormData();
-      if (Platform.OS === 'web') {
-        const blob = await fetch(normalizedUri).then((r) => r.blob());
-        formData.append('image', blob, safeName);
-      } else {
-        formData.append('image', {
-          uri: normalizedUri,
-          name: safeName,
-          type: safeType,
-        } as never);
-      }
-
-      const token = getAuthToken();
-      if (__DEV__) {
-        console.log('[StarCamDetectDebug][app] upload-request', {
-          endpoint,
-          platform: Platform.OS,
-          hasToken: Boolean(token),
-          imageName: safeName,
-          imageType: safeType,
-          uriPreview: normalizedUri.slice(0, 80),
-        });
-      }
-      const abortController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        abortController.abort();
-      }, DETECT_UPLOAD_TIMEOUT_MS);
-      let response: Response;
-      try {
-        response = await fetch(`${API_BASE_URL}${endpoint}`, {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          body: formData,
-          signal: abortController.signal,
-        });
-      } catch (err) {
-        const isAbort = err instanceof Error && err.name === 'AbortError';
-        if (__DEV__) {
-          console.log('[StarCamDetectDebug][app] upload-error', {
-            endpoint,
-            errorName: err instanceof Error ? err.name : null,
-            errorMessage: err instanceof Error ? err.message : String(err),
-          });
-        }
-        throw new StarCamDetectObjectError(
-          isAbort
-            ? 'The scan took too long. Please check your connection and try again.'
-            : 'The scan could not reach the server. Please check your connection and try again.',
-          {
-            statusCode: isAbort ? 408 : undefined,
-            code: isAbort ? 'STARCAM_UPLOAD_TIMEOUT' : 'STARCAM_NETWORK_ERROR',
-          }
-        );
-      } finally {
-        clearTimeout(timeoutId);
-      }
-
-      if (__DEV__) {
-        console.log('[StarCamDetectDebug][app] upload-response', {
-          status: response.status,
-          ok: response.ok,
-        });
-      }
-      const payload = await parseDetectResponse(response);
-      if (!response.ok || !payload?.success) {
-        const message = payload?.message || `Request failed (${response.status})`;
+      const { status, body } = await postDetectObjectImage(endpoint, image);
+      const payload = parseDetectResponseBody(body);
+      if (status < 200 || status >= 300 || !payload?.success) {
+        const message = payload?.message || `Request failed (${status})`;
         throw new StarCamDetectObjectError(message, {
-          statusCode: response.status,
-          code: payload?.code ?? mapDetectErrorCode(response.status, message),
+          statusCode: status,
+          code: payload?.code ?? mapDetectErrorCode(status, message),
           details: payload?.details,
         });
       }

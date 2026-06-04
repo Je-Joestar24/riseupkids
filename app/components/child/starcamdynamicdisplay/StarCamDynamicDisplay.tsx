@@ -1,9 +1,11 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StarCamMissionPreloadOverlay } from '@/components/child/starcam/StarCamMissionPreloadOverlay';
 import { colors } from '@/config/theme/colors';
 import { useStarCamCategoryMissions } from '@/hooks/starCamHook';
+import { useStarCamMissionPreload } from '@/hooks/useStarCamMissionPreload';
 
 import { STAR_CAM_CATEGORY_PRESETS } from './categoryPresets';
 import { StarCamCategoryMissionMap } from './StarCamCategoryMissionMap';
@@ -16,11 +18,10 @@ export function StarCamDynamicDisplay({
   onMissionPress,
 }: StarCamDynamicDisplayProps) {
   const preset = STAR_CAM_CATEGORY_PRESETS[categoryKey];
-  const { mapBubbles, selectMissionForFlow } = useStarCamCategoryMissions(
-    childId,
-    categoryKey,
-    preset.missionEmojiCycle
-  );
+  const { mapBubbles } = useStarCamCategoryMissions(childId, categoryKey, preset.missionEmojiCycle);
+  const { isPreloading, displayProgress, preloadSummary, preloadMission, reset } =
+    useStarCamMissionPreload(childId);
+  const [pendingMission, setPendingMission] = useState<StarCamMapMissionItem | null>(null);
 
   const displayMissions = useMemo(
     () => (mapBubbles.length > 0 ? mapBubbles : preset.sampleMissions),
@@ -29,13 +30,25 @@ export function StarCamDynamicDisplay({
 
   const handleMission = useCallback(
     async (item: StarCamMapMissionItem) => {
+      if (isPreloading) return;
+
       const isSample = item.missionId.startsWith('sample-');
-      if (!isSample && childId) {
-        await selectMissionForFlow(item.missionId);
+      if (isSample) {
+        onMissionPress?.(item);
+        return;
       }
-      onMissionPress?.(item);
+      if (!childId) return;
+
+      setPendingMission(item);
+      const flow = await preloadMission(item.missionId);
+      setPendingMission(null);
+      reset();
+
+      if (flow) {
+        onMissionPress?.(item);
+      }
     },
-    [onMissionPress, selectMissionForFlow, childId]
+    [onMissionPress, childId, preloadMission, reset, isPreloading]
   );
 
   return (
@@ -48,6 +61,14 @@ export function StarCamDynamicDisplay({
           onMissionPress={handleMission}
         />
       </View>
+      <StarCamMissionPreloadOverlay
+        visible={isPreloading}
+        progress={displayProgress}
+        missionTitle={pendingMission?.title}
+        gradientColors={preset.gradient}
+        borderColor={preset.borderColor}
+        failedCount={preloadSummary?.failed?.length ?? 0}
+      />
     </SafeAreaView>
   );
 }

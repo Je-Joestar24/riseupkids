@@ -1,5 +1,6 @@
 export { ChildStarCam } from './ChildStarCam';
 export { default } from './ChildStarCam';
+export { StarCamMissionPreloadOverlay } from './StarCamMissionPreloadOverlay';
 export { StarCamCategoryBubble } from './StarCamCategoryBubble';
 export { StarCamExplorerMap } from './StarCamExplorerMap';
 export { StarCamFooter } from './StarCamFooter';
