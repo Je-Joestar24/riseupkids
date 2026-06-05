@@ -73,9 +73,9 @@ function lightenColor(color: string, amount = 0.2): string {
   return color;
 }
 
-function resolveImageUrl(url: string | null): string | null {
+function resolveMediaUri(url: string | null): string | null {
   if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
+  if (/^(https?:|file:|content:)/i.test(url)) return url;
   const safePath = url.startsWith('/') ? url : `/${url}`;
   return `${BACKEND_ORIGIN}${safePath}`;
 }
@@ -97,10 +97,10 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   const isFocused = useIsFocused();
   const videoRef = useRef<Video | null>(null);
   const introAudioRef = useRef<Audio.Sound | null>(null);
-  const hasPlayedIntroAudioRef = useRef(false);
-  const resolvedImageUrl = resolveImageUrl(introImageUrl);
-  const resolvedVideoUrl = resolveImageUrl(introVideoUrl || null);
-  const resolvedIntroAudioUrl = resolveImageUrl(introAudioUrl || null);
+  const playedIntroAudioKeyRef = useRef<string | null>(null);
+  const resolvedImageUrl = resolveMediaUri(introImageUrl);
+  const resolvedVideoUrl = resolveMediaUri(introVideoUrl || null);
+  const resolvedIntroAudioUrl = resolveMediaUri(introAudioUrl || null);
   const [videoFailed, setVideoFailed] = useState(false);
   const defaultButtonColor = lightenColor(accentColor, 0.12);
   const pressedAccentColor = darkenColor(accentColor, 0.23);
@@ -130,17 +130,18 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
         // no-op
       }
       introAudioRef.current = null;
-      hasPlayedIntroAudioRef.current = false;
+      playedIntroAudioKeyRef.current = null;
     };
     void stopAndUnload();
   }, [isFocused]);
 
   useEffect(() => {
-    if (!isFocused || !resolvedIntroAudioUrl || hasPlayedIntroAudioRef.current) return;
+    if (!isFocused || !resolvedIntroAudioUrl) return;
+    if (playedIntroAudioKeyRef.current === resolvedIntroAudioUrl) return;
 
     let cancelled = false;
 
-    const playIntroAudio = async () => {
+    const playBackgroundIntroAudio = async () => {
       try {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -149,22 +150,34 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
           shouldDuckAndroid: true,
           playThroughEarpieceAndroid: false,
         });
+        try {
+          await introAudioRef.current?.stopAsync?.();
+        } catch {
+          // no-op
+        }
+        try {
+          await introAudioRef.current?.unloadAsync?.();
+        } catch {
+          // no-op
+        }
+        introAudioRef.current = null;
+
         const { sound } = await Audio.Sound.createAsync(
           { uri: resolvedIntroAudioUrl },
-          { shouldPlay: true, volume: 1 }
+          { shouldPlay: true, volume: 0.85, isLooping: false }
         );
         if (cancelled) {
           await sound.unloadAsync();
           return;
         }
         introAudioRef.current = sound;
-        hasPlayedIntroAudioRef.current = true;
+        playedIntroAudioKeyRef.current = resolvedIntroAudioUrl;
       } catch {
         // Optional intro — ignore playback failures and continue.
       }
     };
 
-    void playIntroAudio();
+    void playBackgroundIntroAudio();
 
     return () => {
       cancelled = true;

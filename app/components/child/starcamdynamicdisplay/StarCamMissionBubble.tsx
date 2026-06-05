@@ -30,7 +30,7 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
   const pulse = useRef(new Animated.Value(1)).current;
   const firstLetter = String(item.title || '?').trim().charAt(0).toUpperCase() || '?';
   const resolvedImageUrl = item.imageUrl
-    ? /^https?:\/\//i.test(item.imageUrl)
+    ? /^(https?:|file:|content:)/i.test(item.imageUrl)
       ? item.imageUrl
       : `${BACKEND_ORIGIN}${item.imageUrl.startsWith('/') ? item.imageUrl : `/${item.imageUrl}`}`
     : null;

@@ -48,6 +48,7 @@ export function collectStarCamMissionMediaUrls(
   const set = new Set<string>();
   const { start, practice, starCam, completion } = flow.flow;
 
+  pushUrl(set, start.missionImageUrl);
   pushUrl(set, start.introImageUrl);
   pushUrl(set, start.shortVideoUrl);
   pushUrl(set, start.introAudioUrl);
@@ -82,4 +83,16 @@ export function pickCachedMediaUri(
   const remote = resolveStarCamMediaUrl(remoteUrl);
   if (!remote) return null;
   return cacheMap[remote] ?? remote;
+}
+
+/** Resolve a playable URI (local cache file:// or remote https) for AV/Image components. */
+export function resolveStarCamPlayableUrl(
+  url: string | null | undefined,
+  cacheMap: Record<string, string> = {}
+): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (/^(file:|content:)/i.test(trimmed)) return trimmed;
+  return pickCachedMediaUri(trimmed, cacheMap);
 }

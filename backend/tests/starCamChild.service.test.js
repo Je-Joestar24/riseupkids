@@ -162,6 +162,7 @@ describe('starCamChild.service', () => {
     expect(result.flow.completion.rewardVideoUrl).toBe('/reward.mp4');
     expect(result.flow.start.shortVideoUrl).toBe('/short.mp4');
     expect(result.flow.start.introAudioUrl).toBe('/intro.mp3');
+    expect(result.flow.start.missionImageUrl).toBe('/mission.png');
     expect(result.flow.start.introImageUrl).toBe('/mission.png');
   });
 

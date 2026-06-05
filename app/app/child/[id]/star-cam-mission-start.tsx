@@ -3,17 +3,9 @@ import React, { useEffect, useMemo } from 'react';
 
 import { StarCamMissionStartScreen } from '@/components/child/starcammissionstart';
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
-import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
-import { pickCachedMediaUri } from '@/services/starCamMissionMedia';
+import { resolveStarCamPlayableUrl } from '@/services/starCamMissionMedia';
 import { useStarCamStore } from '@/store/starCamStore';
-
-function resolveMediaUrl(url: string | null | undefined): string | null {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  const safePath = url.startsWith('/') ? url : `/${url}`;
-  return `${BACKEND_ORIGIN}${safePath}`;
-}
 
 export default function StarCamMissionStartRoute() {
   const { id, category, missionId, title, imageUrl } = useLocalSearchParams<{
@@ -39,6 +31,8 @@ export default function StarCamMissionStartRoute() {
     void loadMissionFlow(childId, missionSlug);
   }, [childId, missionSlug, loadMissionFlow, cachedMissionSlug]);
 
+  const startFlow = missionFlow?.flow?.start;
+
   const missionTitle = useMemo(
     () => missionFlow?.mission?.title || title || 'Mission',
     [missionFlow?.mission?.title, title]
@@ -51,16 +45,27 @@ export default function StarCamMissionStartRoute() {
       .replace(/\b\w/g, (c) => c.toUpperCase());
     return `${pretty} Hunt`;
   }, [missionFlow?.mission?.category?.name, categoryKey]);
-  const introText = missionFlow?.flow?.start?.introText || 'Get ready for your mission!';
-  const introImageUrl = missionFlow?.flow?.start?.introImageUrl || imageUrl || null;
-  const introVideoUrl = resolveMediaUrl(
-    pickCachedMediaUri(missionFlow?.flow?.start?.shortVideoUrl, cachedMediaUris)
-      || missionFlow?.flow?.start?.shortVideoUrl
+  const introText = startFlow?.introText || 'Get ready for your mission!';
+
+  const introImageUrl = useMemo(
+    () =>
+      resolveStarCamPlayableUrl(
+        startFlow?.missionImageUrl ?? startFlow?.introImageUrl ?? imageUrl ?? null,
+        cachedMediaUris
+      ),
+    [startFlow?.missionImageUrl, startFlow?.introImageUrl, imageUrl, cachedMediaUris]
   );
-  const introAudioUrl = resolveMediaUrl(
-    pickCachedMediaUri(missionFlow?.flow?.start?.introAudioUrl, cachedMediaUris)
-      || missionFlow?.flow?.start?.introAudioUrl
+
+  const introVideoUrl = useMemo(
+    () => resolveStarCamPlayableUrl(startFlow?.shortVideoUrl, cachedMediaUris),
+    [startFlow?.shortVideoUrl, cachedMediaUris]
   );
+
+  const introAudioUrl = useMemo(
+    () => resolveStarCamPlayableUrl(startFlow?.introAudioUrl, cachedMediaUris),
+    [startFlow?.introAudioUrl, cachedMediaUris]
+  );
+
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
@@ -92,7 +97,7 @@ export default function StarCamMissionStartRoute() {
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}
-      loading={isLoadingMissionFlow}
+      loading={isLoadingMissionFlow && !missionFlow}
       onBack={onBack}
       onStartMission={onStartMission}
     />

@@ -141,9 +141,11 @@ export interface StarCamChildMissionStartPayload {
     start: {
       promptTitle: string;
       introText: string;
+      /** Mission cover art (preferred thumbnail when short video is absent). */
+      missionImageUrl?: string | null;
       introImageUrl: string | null;
       shortVideoUrl?: string | null;
-      /** Spoken mission intro played on the start screen. */
+      /** Mission intro audio — plays once on the start screen. */
       introAudioUrl?: string | null;
     };
     practice: {

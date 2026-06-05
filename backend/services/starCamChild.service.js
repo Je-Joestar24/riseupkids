@@ -180,7 +180,7 @@ async function getLatestMissionsByCategoryForChild({
       missionId: m.missionId,
       title: m.title,
       introText: m.introText || '',
-      introImageUrl: m.introImage?.url || m.missionImage?.url || null,
+      introImageUrl: m.missionImage?.url || m.introImage?.url || null,
       missionImageUrl: m.missionImage?.url || null,
       vocabCount: Array.isArray(m.vocab) ? m.vocab.length : 0,
       itemCount: Array.isArray(m.items) ? m.items.length : 0,
@@ -267,7 +267,8 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       start: {
         promptTitle: 'Start Mission',
         introText: mission.introText || '',
-        introImageUrl: mission.introImage?.url || mission.missionImage?.url || null,
+        missionImageUrl: mission.missionImage?.url || null,
+        introImageUrl: mission.missionImage?.url || mission.introImage?.url || null,
         shortVideoUrl: mission.missionShortVideo?.url || null,
         introAudioUrl: mission.missionIntroAudio?.url || null,
       },
