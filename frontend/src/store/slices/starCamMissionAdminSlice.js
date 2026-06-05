@@ -147,10 +147,11 @@ export const uploadStarCamMissionImage = createAsyncThunk(
 
 export const uploadStarCamMissionMedia = createAsyncThunk(
   'starCamMissionAdmin/uploadMissionMedia',
-  async ({ missionId, shortVideoFile, rewardAudioFile, rewardVideoFile }, { rejectWithValue }) => {
+  async ({ missionId, shortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile }, { rejectWithValue }) => {
     try {
       const response = await starCamMissionAdminServices.uploadMissionMedia(missionId, {
         shortVideoFile,
+        missionIntroAudioFile,
         rewardAudioFile,
         rewardVideoFile,
       });
@@ -278,6 +279,7 @@ const normalizeMission = (mission) => {
     ? mission.items.map((item) => normalizeMissionItem(item, vocab))
     : mission.items;
   const hasMissionShortVideo = Boolean(mission.missionShortVideo?._id || mission.missionShortVideo);
+  const hasMissionIntroAudio = Boolean(mission.missionIntroAudio?._id || mission.missionIntroAudio);
   const hasRewardAudio = Boolean(mission.rewardAudio?._id || mission.rewardAudio);
   const hasRewardVideo = Boolean(mission.rewardVideo?._id || mission.rewardVideo);
   const hasScanQuestionSet =
@@ -294,10 +296,12 @@ const normalizeMission = (mission) => {
     vocabCount,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideoUrl || mission.missionShortVideo?.url || null,
+    missionIntroAudioUrl: mission.missionIntroAudioUrl || mission.missionIntroAudio?.url || null,
     rewardAudioUrl: mission.rewardAudioUrl || mission.rewardAudio?.url || null,
     rewardVideoUrl: mission.rewardVideoUrl || mission.rewardVideo?.url || null,
     mediaCompleteness: {
       hasMissionShortVideo,
+      hasMissionIntroAudio,
       hasRewardAudio,
       hasRewardVideo,
       hasVocabSet: vocabCount === 7,

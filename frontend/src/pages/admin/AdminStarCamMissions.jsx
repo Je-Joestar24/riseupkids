@@ -272,7 +272,15 @@ const AdminStarCamMissions = () => {
     categoryId: filters.categoryId || undefined,
   };
 
-  const handleCreateMission = async ({ title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile, rewardVideoFile }) => {
+  const handleCreateMission = async ({
+    title,
+    categoryId,
+    missionImageFile,
+    missionShortVideoFile,
+    missionIntroAudioFile,
+    rewardAudioFile,
+    rewardVideoFile,
+  }) => {
     const created = await addMission(
       { title, categoryId },
       { notifySuccess: false }
@@ -281,9 +289,10 @@ const AdminStarCamMissions = () => {
     if (createdMissionId && missionImageFile) {
       await uploadMissionImage(createdMissionId, missionImageFile, { notifySuccess: false });
     }
-    if (createdMissionId && (missionShortVideoFile || rewardAudioFile || rewardVideoFile)) {
+    if (createdMissionId && (missionShortVideoFile || missionIntroAudioFile || rewardAudioFile || rewardVideoFile)) {
       await updateMissionMedia(createdMissionId, {
         shortVideoFile: missionShortVideoFile,
+        missionIntroAudioFile,
         rewardAudioFile,
         rewardVideoFile,
       }, { notifySuccess: false });
@@ -294,15 +303,16 @@ const AdminStarCamMissions = () => {
 
   const handleEditMission = async (
     missionId,
-    { title, categoryId, missionImageFile, missionShortVideoFile, rewardAudioFile, rewardVideoFile }
+    { title, categoryId, missionImageFile, missionShortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile }
   ) => {
     await editMission(missionId, { title, categoryId }, { notifySuccess: false });
     if (missionImageFile) {
       await uploadMissionImage(missionId, missionImageFile, { notifySuccess: false });
     }
-    if (missionShortVideoFile || rewardAudioFile || rewardVideoFile) {
+    if (missionShortVideoFile || missionIntroAudioFile || rewardAudioFile || rewardVideoFile) {
       await updateMissionMedia(missionId, {
         shortVideoFile: missionShortVideoFile,
+        missionIntroAudioFile,
         rewardAudioFile,
         rewardVideoFile,
       }, { notifySuccess: false });

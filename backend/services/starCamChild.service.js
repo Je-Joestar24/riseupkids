@@ -204,6 +204,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
     .populate({ path: 'introImage', select: 'url type' })
     .populate({ path: 'introVideo', select: 'url type duration' })
     .populate({ path: 'missionShortVideo', select: 'url type duration' })
+    .populate({ path: 'missionIntroAudio', select: 'url type duration' })
     .populate({ path: 'rewardImage', select: 'url type' })
     .populate({ path: 'rewardAudio', select: 'url type duration' })
     .populate({ path: 'rewardVideo', select: 'url type duration' })
@@ -268,6 +269,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
         introText: mission.introText || '',
         introImageUrl: mission.introImage?.url || mission.missionImage?.url || null,
         shortVideoUrl: mission.missionShortVideo?.url || null,
+        introAudioUrl: mission.missionIntroAudio?.url || null,
       },
       practice: {
         promptTitle: 'Practice',

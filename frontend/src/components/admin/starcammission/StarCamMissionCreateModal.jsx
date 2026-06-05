@@ -46,6 +46,7 @@ const initialForm = {
   categoryId: '',
   missionImageFile: null,
   missionShortVideoFile: null,
+  missionIntroAudioFile: null,
   rewardAudioFile: null,
   rewardVideoFile: null,
 };
@@ -64,10 +65,12 @@ const StarCamMissionCreateModal = ({
   const [form, setForm] = useState(initialForm);
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
+  const [introAudioPreviewUrl, setIntroAudioPreviewUrl] = useState('');
   const [audioPreviewUrl, setAudioPreviewUrl] = useState('');
   const [rewardVideoPreviewUrl, setRewardVideoPreviewUrl] = useState('');
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
+  const introAudioInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const rewardVideoInputRef = useRef(null);
 
@@ -93,6 +96,16 @@ const StarCamMissionCreateModal = ({
     setVideoPreviewUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [form.missionShortVideoFile]);
+
+  useEffect(() => {
+    if (!form.missionIntroAudioFile) {
+      setIntroAudioPreviewUrl('');
+      return undefined;
+    }
+    const objectUrl = URL.createObjectURL(form.missionIntroAudioFile);
+    setIntroAudioPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [form.missionIntroAudioFile]);
 
   useEffect(() => {
     if (!form.rewardAudioFile) {
@@ -122,11 +135,13 @@ const StarCamMissionCreateModal = ({
         categoryId: String(editingMission?.category?._id || editingMission?.categoryId || ''),
         missionImageFile: null,
         missionShortVideoFile: null,
+        missionIntroAudioFile: null,
         rewardAudioFile: null,
         rewardVideoFile: null,
       });
       setImagePreviewUrl(editingMission?.missionImageUrl || editingMission?.missionImage?.url || '');
       setVideoPreviewUrl(editingMission?.missionShortVideoUrl || editingMission?.missionShortVideo?.url || '');
+      setIntroAudioPreviewUrl(editingMission?.missionIntroAudioUrl || editingMission?.missionIntroAudio?.url || '');
       setAudioPreviewUrl(editingMission?.rewardAudioUrl || editingMission?.rewardAudio?.url || '');
       setRewardVideoPreviewUrl(editingMission?.rewardVideoUrl || editingMission?.rewardVideo?.url || '');
       return;
@@ -134,6 +149,7 @@ const StarCamMissionCreateModal = ({
     setForm(initialForm);
     setImagePreviewUrl('');
     setVideoPreviewUrl('');
+    setIntroAudioPreviewUrl('');
     setAudioPreviewUrl('');
     setRewardVideoPreviewUrl('');
   }, [open, isEditMode, editingMission]);
@@ -143,6 +159,7 @@ const StarCamMissionCreateModal = ({
     setForm(initialForm);
     setImagePreviewUrl('');
     setVideoPreviewUrl('');
+    setIntroAudioPreviewUrl('');
     setAudioPreviewUrl('');
     setRewardVideoPreviewUrl('');
   }, [open]);
@@ -154,6 +171,7 @@ const StarCamMissionCreateModal = ({
       categoryId: form.categoryId,
       missionImageFile: form.missionImageFile,
       missionShortVideoFile: form.missionShortVideoFile,
+      missionIntroAudioFile: form.missionIntroAudioFile,
       rewardAudioFile: form.rewardAudioFile,
       rewardVideoFile: form.rewardVideoFile,
     };
@@ -353,6 +371,63 @@ const StarCamMissionCreateModal = ({
                       ) : (
                         <Typography variant="caption" color="text.secondary">
                           Click to upload reward audio
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+                </Paper>
+                
+                <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px' }}>
+                  <Stack spacing={1}>
+                    <Typography sx={{ fontWeight: 700 }}>Mission Intro Audio</Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Optional spoken intro played when the child opens the mission start screen.
+                    </Typography>
+                    <input
+                      ref={introAudioInputRef}
+                      hidden
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setForm((prev) => ({ ...prev, missionIntroAudioFile: e.target.files?.[0] || null }))}
+                    />
+                    <Box
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => introAudioInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') introAudioInputRef.current?.click();
+                      }}
+                      sx={{
+                        minHeight: 56,
+                        borderRadius: '10px',
+                        border: introAudioPreviewUrl ? `1px solid ${theme.palette.divider}` : `1px dashed ${theme.palette.divider}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        px: 0,
+                        cursor: 'pointer',
+                        position: 'relative',
+                        backgroundColor: theme.palette.background.paper,
+                      }}
+                    >
+                      {introAudioPreviewUrl ? (
+                        <>
+                          <Box component="audio" controls src={introAudioPreviewUrl} sx={{ width: '100%', display: 'block' }} />
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              introAudioInputRef.current?.click();
+                            }}
+                            sx={{ position: 'absolute', top: 8, right: 8, minWidth: 'unset', px: 1, py: 0.25 }}
+                          >
+                            Change
+                          </Button>
+                        </>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary">
+                          Click to upload mission intro audio
                         </Typography>
                       )}
                     </Box>

@@ -99,6 +99,7 @@ const StarCamRightPanelPreviewEdit = ({
               label={mission.mediaCompleteness?.hasScanQuestionSet ? 'Scan Audio Ready' : 'Scan Audio Incomplete'}
             />
             <Chip size="small" color={mission.missionShortVideo ? 'success' : 'default'} label={mission.missionShortVideo ? 'Short Video Ready' : 'Short Video Missing'} />
+            <Chip size="small" color={mission.missionIntroAudio ? 'success' : 'default'} label={mission.missionIntroAudio ? 'Intro Audio Ready' : 'Intro Audio Missing'} />
             <Chip size="small" color={mission.rewardAudio ? 'success' : 'default'} label={mission.rewardAudio ? 'Reward Audio Ready' : 'Reward Audio Missing'} />
           </Box>
         </Box>

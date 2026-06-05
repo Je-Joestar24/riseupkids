@@ -85,6 +85,7 @@ describe('starCamChild.service', () => {
         missionImage: { url: '/mission.png' },
         introImage: null,
         missionShortVideo: { url: '/short.mp4' },
+        missionIntroAudio: { url: '/intro.mp3' },
         rewardTitle: 'Mission Accomplished!',
         rewardSubtitle: 'Great job, Explorer!',
         rewardImage: { url: '/reward.png' },
@@ -160,6 +161,7 @@ describe('starCamChild.service', () => {
     expect(result.flow.completion.rewardAudioUrl).toBe('/reward.mp3');
     expect(result.flow.completion.rewardVideoUrl).toBe('/reward.mp4');
     expect(result.flow.start.shortVideoUrl).toBe('/short.mp4');
+    expect(result.flow.start.introAudioUrl).toBe('/intro.mp3');
     expect(result.flow.start.introImageUrl).toBe('/mission.png');
   });
 

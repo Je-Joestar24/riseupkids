@@ -5,6 +5,8 @@ import { StarCamMissionStartScreen } from '@/components/child/starcammissionstar
 import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
+import { pickCachedMediaUri } from '@/services/starCamMissionMedia';
+import { useStarCamStore } from '@/store/starCamStore';
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -27,6 +29,7 @@ export default function StarCamMissionStartRoute() {
   const categoryKey = (category || 'reading').toLowerCase();
 
   const { missionFlow, isLoadingMissionFlow, loadMissionFlow } = useStarCam();
+  const cachedMediaUris = useStarCamStore((s) => s.cachedMediaUris);
 
   const cachedMissionSlug = missionFlow?.mission?.missionId ?? null;
 
@@ -50,7 +53,14 @@ export default function StarCamMissionStartRoute() {
   }, [missionFlow?.mission?.category?.name, categoryKey]);
   const introText = missionFlow?.flow?.start?.introText || 'Get ready for your mission!';
   const introImageUrl = missionFlow?.flow?.start?.introImageUrl || imageUrl || null;
-  const introVideoUrl = resolveMediaUrl(missionFlow?.flow?.start?.shortVideoUrl);
+  const introVideoUrl = resolveMediaUrl(
+    pickCachedMediaUri(missionFlow?.flow?.start?.shortVideoUrl, cachedMediaUris)
+      || missionFlow?.flow?.start?.shortVideoUrl
+  );
+  const introAudioUrl = resolveMediaUrl(
+    pickCachedMediaUri(missionFlow?.flow?.start?.introAudioUrl, cachedMediaUris)
+      || missionFlow?.flow?.start?.introAudioUrl
+  );
   const categoryPreset = useMemo(() => {
     const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
     return STAR_CAM_CATEGORY_PRESETS[safeKey];
@@ -78,6 +88,7 @@ export default function StarCamMissionStartRoute() {
       introText={introText}
       introImageUrl={introImageUrl}
       introVideoUrl={introVideoUrl}
+      introAudioUrl={introAudioUrl}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}

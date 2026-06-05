@@ -195,12 +195,14 @@ const uploadMissionMedia = async (req, res) => {
   try {
     const { id } = req.params;
     const shortVideoFile = req.files?.shortVideo?.[0] || null;
+    const missionIntroAudioFile = req.files?.missionIntroAudio?.[0] || null;
     const rewardAudioFile = req.files?.rewardAudio?.[0] || null;
     const rewardVideoFile = req.files?.rewardVideo?.[0] || null;
     const data = await starCamMissionsAdminService.uploadMissionMedia({
       id,
       userId: req.user?._id,
       shortVideoFile,
+      missionIntroAudioFile,
       rewardAudioFile,
       rewardVideoFile,
     });

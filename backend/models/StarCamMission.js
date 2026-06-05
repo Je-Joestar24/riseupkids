@@ -87,6 +87,8 @@ const starCamMissionSchema = new mongoose.Schema(
     videoEnabled: { type: Boolean, default: false },
     introVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     missionShortVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Mission short video is required'] },
+    /** Optional spoken intro played when the child opens the mission start screen. */
+    missionIntroAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
 
     vocab: {
       type: [missionVocabSchema],

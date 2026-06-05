@@ -50,6 +50,7 @@ export function collectStarCamMissionMediaUrls(
 
   pushUrl(set, start.introImageUrl);
   pushUrl(set, start.shortVideoUrl);
+  pushUrl(set, start.introAudioUrl);
 
   (practice.items || []).forEach((item) => collectPracticeItemUrls(set, item));
   collectPracticeItemUrls(set, practice.featuredItem);

@@ -193,6 +193,7 @@ function buildPopulate() {
     { path: 'introImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'introVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'missionShortVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
+    { path: 'missionIntroAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'rewardImage', select: 'type url title mimeType size duration width height isActive isPublished' },
     { path: 'rewardAudio', select: 'type url title mimeType size duration isActive isPublished' },
     { path: 'rewardVideo', select: 'type url title mimeType size duration width height isActive isPublished' },
@@ -338,6 +339,7 @@ async function updateMission({ id, userId, patch } = {}) {
   if (patch.introImage !== undefined) doc.introImage = ensureObjectId(patch.introImage, 'introImage');
   if (patch.introVideo !== undefined) doc.introVideo = ensureObjectId(patch.introVideo, 'introVideo');
   if (patch.missionShortVideo !== undefined) doc.missionShortVideo = ensureObjectId(patch.missionShortVideo, 'missionShortVideo');
+  if (patch.missionIntroAudio !== undefined) doc.missionIntroAudio = ensureObjectId(patch.missionIntroAudio, 'missionIntroAudio');
   if (patch.rewardImage !== undefined) doc.rewardImage = ensureObjectId(patch.rewardImage, 'rewardImage');
   if (patch.rewardAudio !== undefined) doc.rewardAudio = ensureObjectId(patch.rewardAudio, 'rewardAudio');
   if (patch.rewardVideo !== undefined) doc.rewardVideo = ensureObjectId(patch.rewardVideo, 'rewardVideo');
@@ -1095,7 +1097,7 @@ async function uploadMissionImage({ id, userId, imageFile } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile, rewardVideoFile } = {}) {
+async function uploadMissionMedia({ id, userId, shortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
@@ -1107,14 +1109,15 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile,
     err.statusCode = 400;
     throw err;
   }
-  if (!shortVideoFile && !rewardAudioFile && !rewardVideoFile) {
-    const err = new Error('shortVideo, rewardAudio, or rewardVideo file is required');
+  if (!shortVideoFile && !missionIntroAudioFile && !rewardAudioFile && !rewardVideoFile) {
+    const err = new Error('shortVideo, missionIntroAudio, rewardAudio, or rewardVideo file is required');
     err.statusCode = 400;
     throw err;
   }
 
   const uploads = [];
   if (shortVideoFile) uploads.push(s3Service.uploadFileFromMulter(shortVideoFile, 'media/videos'));
+  if (missionIntroAudioFile) uploads.push(s3Service.uploadFileFromMulter(missionIntroAudioFile, 'media/audio'));
   if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(rewardAudioFile, 'media/audio'));
   if (rewardVideoFile) uploads.push(s3Service.uploadFileFromMulter(rewardVideoFile, 'media/videos'));
   const uploaded = await Promise.all(uploads);
@@ -1133,6 +1136,21 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, rewardAudioFile,
       isPublished: true,
     });
     doc.missionShortVideo = shortVideoMedia._id;
+  }
+
+  if (missionIntroAudioFile) {
+    const { url, s3Key } = uploaded[idx++];
+    const missionIntroAudioMedia = await Media.create({
+      type: 'audio',
+      title: missionIntroAudioFile.originalname,
+      filePath: s3Key,
+      url,
+      mimeType: missionIntroAudioFile.mimetype,
+      size: missionIntroAudioFile.size,
+      uploadedBy: userId,
+      isPublished: true,
+    });
+    doc.missionIntroAudio = missionIntroAudioMedia._id;
   }
 
   if (rewardAudioFile) {

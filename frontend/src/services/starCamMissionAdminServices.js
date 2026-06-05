@@ -65,6 +65,7 @@ const normalizeMission = (mission) => {
     items,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideo?.url || null,
+    missionIntroAudioUrl: mission.missionIntroAudio?.url || null,
     rewardAudioUrl: mission.rewardAudio?.url || null,
     rewardVideoUrl: mission.rewardVideo?.url || null,
     mediaCompleteness: {
@@ -262,9 +263,10 @@ const starCamMissionAdminServices = {
     }
   },
 
-  uploadMissionMedia: async (id, { shortVideoFile, rewardAudioFile, rewardVideoFile }) => {
+  uploadMissionMedia: async (id, { shortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile }) => {
     const formData = new FormData();
     if (shortVideoFile) formData.append('shortVideo', shortVideoFile);
+    if (missionIntroAudioFile) formData.append('missionIntroAudio', missionIntroAudioFile);
     if (rewardAudioFile) formData.append('rewardAudio', rewardAudioFile);
     if (rewardVideoFile) formData.append('rewardVideo', rewardVideoFile);
     try {

@@ -679,6 +679,10 @@ const uploadStarCamMissionMedia = multer({
       if (file.mimetype && file.mimetype.startsWith('video/')) return cb(null, true);
       return cb(new Error('shortVideo must be a video file'), false);
     }
+    if (file.fieldname === 'missionIntroAudio') {
+      if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
+      return cb(new Error('missionIntroAudio must be an audio file'), false);
+    }
     if (file.fieldname === 'rewardAudio') {
       if (file.mimetype && file.mimetype.startsWith('audio/')) return cb(null, true);
       return cb(new Error('rewardAudio must be an audio file'), false);
@@ -694,6 +698,7 @@ const uploadStarCamMissionMedia = multer({
   },
 }).fields([
   { name: 'shortVideo', maxCount: 1 },
+  { name: 'missionIntroAudio', maxCount: 1 },
   { name: 'rewardAudio', maxCount: 1 },
   { name: 'rewardVideo', maxCount: 1 },
 ]);

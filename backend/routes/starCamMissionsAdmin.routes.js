@@ -39,6 +39,7 @@ const {
  * - POST   /:id/archive    Archive mission (read-only)
  * - POST   /:id/vocab      Add vocabulary (image, main audio, tryAgain + success audio; optional introAudio, optional pronunciationVideo)
  * - POST   /:id/mission-image Upload/replace mission cover image (optional)
+ * - POST   /:id/mission-media Upload/replace short video, mission intro audio, reward audio, or reward video
  */
 
 router.use(protect);

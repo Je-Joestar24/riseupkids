@@ -1,4 +1,4 @@
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import React, { memo, useEffect, useRef, useState } from 'react';
@@ -15,6 +15,7 @@ export interface StarCamMissionStartScreenProps {
   introText: string;
   introImageUrl: string | null;
   introVideoUrl?: string | null;
+  introAudioUrl?: string | null;
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
@@ -85,6 +86,7 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   introText,
   introImageUrl,
   introVideoUrl = null,
+  introAudioUrl = null,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
@@ -94,8 +96,11 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
 }: StarCamMissionStartScreenProps) {
   const isFocused = useIsFocused();
   const videoRef = useRef<Video | null>(null);
+  const introAudioRef = useRef<Audio.Sound | null>(null);
+  const hasPlayedIntroAudioRef = useRef(false);
   const resolvedImageUrl = resolveImageUrl(introImageUrl);
   const resolvedVideoUrl = resolveImageUrl(introVideoUrl || null);
+  const resolvedIntroAudioUrl = resolveImageUrl(introAudioUrl || null);
   const [videoFailed, setVideoFailed] = useState(false);
   const defaultButtonColor = lightenColor(accentColor, 0.12);
   const pressedAccentColor = darkenColor(accentColor, 0.23);
@@ -114,9 +119,57 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
       } catch {
         // no-op
       }
+      try {
+        await introAudioRef.current?.stopAsync?.();
+      } catch {
+        // no-op
+      }
+      try {
+        await introAudioRef.current?.unloadAsync?.();
+      } catch {
+        // no-op
+      }
+      introAudioRef.current = null;
+      hasPlayedIntroAudioRef.current = false;
     };
     void stopAndUnload();
   }, [isFocused]);
+
+  useEffect(() => {
+    if (!isFocused || !resolvedIntroAudioUrl || hasPlayedIntroAudioRef.current) return;
+
+    let cancelled = false;
+
+    const playIntroAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: resolvedIntroAudioUrl },
+          { shouldPlay: true, volume: 1 }
+        );
+        if (cancelled) {
+          await sound.unloadAsync();
+          return;
+        }
+        introAudioRef.current = sound;
+        hasPlayedIntroAudioRef.current = true;
+      } catch {
+        // Optional intro — ignore playback failures and continue.
+      }
+    };
+
+    void playIntroAudio();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isFocused, resolvedIntroAudioUrl]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
