@@ -13,9 +13,16 @@ dotenv.config();
  */
 
 const users = [
-  {
+/*   {
     name: 'Viviana',
     email: 'viviana@riseup.kids',
+    password: 'Password@09',
+    role: 'admin',
+    isActive: true,
+  }, */
+  {
+    name: 'Super Admin',
+    email: 'super@gmail.com',
     password: 'Password@09',
     role: 'admin',
     isActive: true,
