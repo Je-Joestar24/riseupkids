@@ -18,7 +18,12 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
+import {
+  createStarCamCategoryRenderValue,
+  renderStarCamCategoryMenuItems,
+  starCamCategorySelectMenuProps,
+  starCamCategoryTextFieldLabelProps,
+} from './starCamCategorySelectOptions';
 
 /** Square Star Cam preview: crop wide video sides (object-fit cover), no re-encoding. */
 const starCamVideoSquareContainerSx = {
@@ -114,7 +119,7 @@ const StarCamMissionCreateModal = ({
     if (isEditMode) {
       setForm({
         title: editingMission?.title || '',
-        categoryId: editingMission?.category?._id || editingMission?.categoryId || '',
+        categoryId: String(editingMission?.category?._id || editingMission?.categoryId || ''),
         missionImageFile: null,
         missionShortVideoFile: null,
         rewardAudioFile: null,
@@ -196,10 +201,11 @@ const StarCamMissionCreateModal = ({
                       size="small"
                       label="Category"
                       select
-                      value={form.categoryId}
+                      value={form.categoryId != null ? String(form.categoryId) : ''}
                       onChange={(e) => setForm((prev) => ({ ...prev, categoryId: e.target.value }))}
                       fullWidth
                       disabled={categoriesLoading || categories.length === 0}
+                      {...starCamCategoryTextFieldLabelProps}
                       helperText={
                         categoriesLoading
                           ? 'Loading categories…'
@@ -208,17 +214,20 @@ const StarCamMissionCreateModal = ({
                             : undefined
                       }
                       SelectProps={{
+                        displayEmpty: true,
+                        renderValue: createStarCamCategoryRenderValue(categories, 'Select category'),
+                        MenuProps: starCamCategorySelectMenuProps,
+                      }}
+                      InputProps={{
                         endAdornment: categoriesLoading ? (
-                          <InputAdornment position="end" sx={{ mr: 3 }}>
+                          <InputAdornment position="end">
                             <CircularProgress color="inherit" size={18} aria-label="Loading categories" />
                           </InputAdornment>
                         ) : undefined,
                       }}
                       inputProps={{ 'aria-label': 'Mission category' }}
                     >
-                      {categories.map((category) => (
-                        <StarCamCategoryMenuItem key={category._id} category={category} />
-                      ))}
+                      {renderStarCamCategoryMenuItems(categories)}
                     </TextField>
                   </Grid>
                 </Grid>

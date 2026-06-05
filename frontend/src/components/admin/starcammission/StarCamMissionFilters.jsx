@@ -1,7 +1,12 @@
 import React from 'react';
 import { Box, CircularProgress, InputAdornment, MenuItem, Paper, TextField } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
+import {
+  createStarCamCategoryRenderValue,
+  renderStarCamCategoryMenuItems,
+  starCamCategoryFilterSelectMenuProps,
+  starCamCategoryTextFieldLabelProps,
+} from './starCamCategorySelectOptions';
 
 const StarCamMissionFilters = ({
   search = '',
@@ -14,6 +19,7 @@ const StarCamMissionFilters = ({
   onCategoryChange,
 }) => {
   const theme = useTheme();
+  const normalizedCategoryId = categoryId != null ? String(categoryId) : '';
 
   return (
     <Paper
@@ -51,22 +57,26 @@ const StarCamMissionFilters = ({
           size="small"
           label="Category"
           select
-          value={categoryId}
+          value={normalizedCategoryId}
           onChange={(e) => onCategoryChange(e.target.value)}
           disabled={categoriesLoading}
-          SelectProps={{
+          {...starCamCategoryTextFieldLabelProps}
+          InputProps={{
             endAdornment: categoriesLoading ? (
-              <InputAdornment position="end" sx={{ mr: 2 }}>
+              <InputAdornment position="end">
                 <CircularProgress color="inherit" size={18} aria-label="Loading categories" />
               </InputAdornment>
             ) : undefined,
           }}
+          SelectProps={{
+            displayEmpty: true,
+            renderValue: createStarCamCategoryRenderValue(categories, 'All', { mutedEmpty: false }),
+            MenuProps: starCamCategoryFilterSelectMenuProps,
+          }}
           inputProps={{ 'aria-label': 'Filter missions by category' }}
         >
           <MenuItem value="">All</MenuItem>
-          {categories.map((category) => (
-            <StarCamCategoryMenuItem key={category._id} category={category} />
-          ))}
+          {renderStarCamCategoryMenuItems(categories)}
         </TextField>
       </Box>
     </Paper>
@@ -74,4 +84,3 @@ const StarCamMissionFilters = ({
 };
 
 export default StarCamMissionFilters;
-

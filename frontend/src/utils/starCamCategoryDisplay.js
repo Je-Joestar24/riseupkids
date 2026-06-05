@@ -18,7 +18,7 @@ const DISPLAY_LABEL_BY_KEY = {
   book: 'Learning',
 };
 
-/** Icon slot for StarCamCategoryMenuItem */
+/** Icon slot for admin category selects */
 export const STAR_CAM_CATEGORY_ICON_SLOT = {
   nature: 'nature',
   recipes: 'food',
@@ -54,6 +54,12 @@ export function getStarCamCategoryDisplayLabel(category) {
 export function getStarCamCategoryIconSlot(category) {
   const resolved = resolveStarCamCategoryKey(category);
   return STAR_CAM_CATEGORY_ICON_SLOT[resolved] || null;
+}
+
+export function getStarCamCategoryId(category) {
+  const raw = category?._id ?? category?.id;
+  if (raw == null || raw === '') return '';
+  return String(raw);
 }
 
 export function sortStarCamCategoriesForAdminDisplay(categories = []) {

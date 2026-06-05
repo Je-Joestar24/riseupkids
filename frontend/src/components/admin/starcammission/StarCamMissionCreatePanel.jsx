@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import StarCamCategoryMenuItem from './StarCamCategoryMenuItem';
+import {
+  createStarCamCategoryRenderValue,
+  renderStarCamCategoryMenuItems,
+  starCamCategoryFilterSelectMenuProps,
+  starCamCategoryTextFieldLabelProps,
+} from './starCamCategorySelectOptions';
 
 const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating = false }) => {
   const theme = useTheme();
@@ -31,6 +36,7 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
     setForm((prev) => ({
       ...prev,
       title: '',
+      categoryId: '',
       missionImageFile: null,
       missionShortVideoFile: null,
       rewardAudioFile: null,
@@ -72,12 +78,16 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
           size="small"
           label="Category"
           select
-          value={form.categoryId}
+          value={form.categoryId != null ? String(form.categoryId) : ''}
           onChange={(e) => setForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+          {...starCamCategoryTextFieldLabelProps}
+          SelectProps={{
+            displayEmpty: true,
+            renderValue: createStarCamCategoryRenderValue(categories, 'Select category'),
+            MenuProps: starCamCategoryFilterSelectMenuProps,
+          }}
         >
-          {categories.map((category) => (
-            <StarCamCategoryMenuItem key={category._id} category={category} />
-          ))}
+          {renderStarCamCategoryMenuItems(categories)}
         </TextField>
         <Stack direction="row" spacing={1.2} alignItems="center">
           <Avatar
@@ -179,4 +189,3 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
 };
 
 export default StarCamMissionCreatePanel;
-
