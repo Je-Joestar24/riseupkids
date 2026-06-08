@@ -7,7 +7,13 @@
 
 jest.mock('axios');
 const axios = require('axios');
-const { subscribeToFlodesk, submitInvitationToFlodesk, splitParentName } = require('../services/flodeskService');
+const {
+  subscribeToFlodesk,
+  submitInvitationToFlodesk,
+  submitSchoolApplicationToFlodesk,
+  getSchoolSegmentId,
+  splitParentName,
+} = require('../services/flodeskService');
 
 describe('flodeskService', () => {
   const originalEnv = process.env;
@@ -18,6 +24,9 @@ describe('flodeskService', () => {
     process.env.FLODESK_API_KEY = 'test-api-key';
     process.env.SUBSCRIBED_FORM_ID = '688a6cfd8ba84ca33972c2e9';
     process.env.INVITATION_FORM_ID = '688a7f36506c930c8ea45928';
+    process.env.FLODESK_SCHOOL_SEGMENT_EN = '6a26b4a83e683dae80d0eae9';
+    process.env.FLODESK_SCHOOL_SEGMENT_ES = '6a26b505c6a4160d3a136820';
+    process.env.FLODESK_SCHOOL_SEGMENT_PT = '6a26b4bb6b0d638a5d97ac60';
   });
 
   afterAll(() => {
@@ -251,6 +260,91 @@ describe('flodeskService', () => {
 
       const payload = axios.post.mock.calls[0][1];
       expect(payload.custom_fields).toEqual({});
+    });
+  });
+
+  describe('getSchoolSegmentId', () => {
+    it('returns segment ID for each supported language', () => {
+      expect(getSchoolSegmentId('en')).toBe('6a26b4a83e683dae80d0eae9');
+      expect(getSchoolSegmentId('es')).toBe('6a26b505c6a4160d3a136820');
+      expect(getSchoolSegmentId('pt')).toBe('6a26b4bb6b0d638a5d97ac60');
+    });
+
+    it('throws for invalid language', () => {
+      expect(() => getSchoolSegmentId('fr')).toThrow('language must be one of pt, en, es');
+    });
+
+    it('throws when segment env is missing', () => {
+      delete process.env.FLODESK_SCHOOL_SEGMENT_EN;
+      expect(() => getSchoolSegmentId('en')).toThrow('FLODESK_SCHOOL_SEGMENT_EN');
+    });
+  });
+
+  describe('submitSchoolApplicationToFlodesk', () => {
+    const schoolData = {
+      schoolName: 'Rise Academy',
+      cityCountry: 'Madrid, Spain',
+      role: 'principal',
+      whatsapp: '+34 600 000 000',
+      email: 'school@example.com',
+      studentCount: '120',
+      ageGroup: '6-12',
+      currentEnglish: 'no',
+      interest: 'Pilot program interest',
+      language: 'es',
+    };
+
+    it('sends POST with language-specific segment and school custom_fields', async () => {
+      const subscriber = { id: 'school_sub_1', email: 'school@example.com' };
+      axios.post.mockResolvedValueOnce({ data: subscriber });
+
+      const result = await submitSchoolApplicationToFlodesk(schoolData);
+
+      expect(result).toEqual(subscriber);
+      expect(axios.post).toHaveBeenCalledWith(
+        'https://api.flodesk.com/v1/subscribers',
+        {
+          email: 'school@example.com',
+          first_name: 'Rise',
+          last_name: 'Academy',
+          segment_ids: ['6a26b505c6a4160d3a136820'],
+          double_optin: true,
+          custom_fields: {
+            school_name: 'Rise Academy',
+            city_country: 'Madrid, Spain',
+            role: 'principal',
+            whatsapp: '+34 600 000 000',
+            student_count: '120',
+            age_group: '6-12',
+            current_english: 'no',
+            interest: 'Pilot program interest',
+            language: 'es',
+          },
+        },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            Authorization: expect.stringMatching(/^Basic /),
+          }),
+        })
+      );
+    });
+
+    it('uses Portuguese segment when language is pt', async () => {
+      axios.post.mockResolvedValueOnce({ data: { id: '1' } });
+
+      await submitSchoolApplicationToFlodesk({ ...schoolData, language: 'pt' });
+
+      const payload = axios.post.mock.calls[0][1];
+      expect(payload.segment_ids).toEqual(['6a26b4bb6b0d638a5d97ac60']);
+      expect(payload.custom_fields.language).toBe('pt');
+    });
+
+    it('throws when email is missing', async () => {
+      await expect(
+        submitSchoolApplicationToFlodesk({ ...schoolData, email: '' })
+      ).rejects.toThrow('email is required');
+      expect(axios.post).not.toHaveBeenCalled();
     });
   });
 });

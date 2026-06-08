@@ -18,6 +18,7 @@ import lessonPlanManagementReducer from './slices/lessonPlanManagementSlice';
 import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
 import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
+import schoolProspectsReducer from './slices/schoolProspectsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -40,6 +41,7 @@ export const store = configureStore({
     starCamMissionAdmin: starCamMissionAdminReducer, // Star Cam mission/category admin state
     cmsBookAdmin: cmsBookAdminReducer, // Admin CMS book builder state
     cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state
+    schoolProspects: schoolProspectsReducer, // Admin school prospects list
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

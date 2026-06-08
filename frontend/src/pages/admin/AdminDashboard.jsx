@@ -11,6 +11,7 @@ import {
 } from '@mui/icons-material';
 import DashboardList from '../../components/admin/dashboard/DashboardList';
 import DashboardLeadsList from '../../components/admin/dashboard/DashboardLeadsList';
+import DashboardSchoolProspectsList from '../../components/admin/dashboard/DashboardSchoolProspectsList';
 
 /**
  * AdminDashboard Page
@@ -143,6 +144,10 @@ const AdminDashboard = () => {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <DashboardList sx={{ height: '100%' }} />
         </Box>
+      </Box>
+
+      <Box sx={{ mt: 3, width: '100%' }}>
+        <DashboardSchoolProspectsList />
       </Box>
     </Box>
   );

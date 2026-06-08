@@ -19,6 +19,34 @@ const getSegmentId = () =>
   process.env.FLODESK_SEGMENT_ID || process.env.SUBSCRIBED_FORM_ID;
 const getInvitationSegmentId = () => process.env.INVITATION_FORM_ID;
 
+const SCHOOL_SEGMENT_ENV_KEYS = {
+  en: 'FLODESK_SCHOOL_SEGMENT_EN',
+  es: 'FLODESK_SCHOOL_SEGMENT_ES',
+  pt: 'FLODESK_SCHOOL_SEGMENT_PT',
+};
+
+/**
+ * Resolve Flodesk segment ID for school applications by language.
+ *
+ * @param {string} language - pt | en | es
+ * @returns {string} Segment ID from env
+ * @throws {Error} If language is invalid or env var is missing
+ */
+function getSchoolSegmentId(language) {
+  const lang = (language || '').toString().trim().toLowerCase();
+  const envKey = SCHOOL_SEGMENT_ENV_KEYS[lang];
+  if (!envKey) {
+    throw new Error('language must be one of pt, en, es');
+  }
+
+  const segmentId = process.env[envKey];
+  if (!segmentId || !segmentId.trim()) {
+    throw new Error(`${envKey} environment variable is not set`);
+  }
+
+  return segmentId.trim();
+}
+
 /**
  * Split a full name into first_name and last_name.
  * First word = first_name; remaining words = last_name.
@@ -193,6 +221,123 @@ async function submitInvitationToFlodesk(data) {
   }
 }
 
+/**
+ * Submit schools page application to Flodesk.
+ * Segment is chosen by language so one form can trigger EN/ES/PT workflows.
+ *
+ * @param {Object} data
+ * @param {string} data.schoolName
+ * @param {string} data.cityCountry
+ * @param {string} data.role
+ * @param {string} data.whatsapp
+ * @param {string} data.email
+ * @param {string} data.studentCount
+ * @param {string} data.ageGroup
+ * @param {string} data.currentEnglish
+ * @param {string} data.interest
+ * @param {string} data.language - pt | en | es
+ * @returns {Promise<Object>} Flodesk API response (subscriber object)
+ */
+async function submitSchoolApplicationToFlodesk(data) {
+  const apiKey = process.env.FLODESK_API_KEY;
+  if (!apiKey) {
+    throw new Error('FLODESK_API_KEY environment variable is not set');
+  }
+
+  const {
+    schoolName,
+    cityCountry,
+    role,
+    whatsapp,
+    email,
+    studentCount,
+    ageGroup,
+    currentEnglish,
+    interest,
+    language,
+  } = data || {};
+
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    throw new Error('email is required and must be a non-empty string');
+  }
+
+  const segmentId = getSchoolSegmentId(language);
+  const { first_name, last_name } = splitParentName(schoolName);
+
+  const payload = {
+    email: email.trim(),
+    first_name,
+    last_name,
+    segment_ids: [segmentId],
+    double_optin: true,
+    custom_fields: {},
+  };
+
+  const customFields = payload.custom_fields;
+  if (schoolName != null && String(schoolName).trim() !== '') {
+    customFields.school_name = String(schoolName).trim();
+  }
+  if (cityCountry != null && String(cityCountry).trim() !== '') {
+    customFields.city_country = String(cityCountry).trim();
+  }
+  if (role != null && String(role).trim() !== '') {
+    customFields.role = String(role).trim();
+  }
+  if (whatsapp != null && String(whatsapp).trim() !== '') {
+    customFields.whatsapp = String(whatsapp).trim();
+  }
+  if (studentCount != null && String(studentCount).trim() !== '') {
+    customFields.student_count = String(studentCount).trim();
+  }
+  if (ageGroup != null && String(ageGroup).trim() !== '') {
+    customFields.age_group = String(ageGroup).trim();
+  }
+  if (currentEnglish != null && String(currentEnglish).trim() !== '') {
+    customFields.current_english = String(currentEnglish).trim();
+  }
+  if (interest != null && String(interest).trim() !== '') {
+    customFields.interest = String(interest).trim();
+  }
+  if (language != null && String(language).trim() !== '') {
+    customFields.language = String(language).trim().toLowerCase();
+  }
+
+  const auth = Buffer.from(`${apiKey}:`).toString('base64');
+  const baseUrl = getBaseUrl().replace(/\/$/, '');
+
+  try {
+    const response = await axios.post(`${baseUrl}/subscribers`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${auth}`,
+        'User-Agent': 'Rise Up Kids (https://riseupkids.com)',
+      },
+      validateStatus: (status) => status >= 200 && status < 300,
+    });
+
+    return response.data;
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status;
+      const resData = err.response?.data;
+      const message = resData?.message || resData?.error || err.message;
+      console.error('[Flodesk] School application API error:', {
+        status,
+        message,
+        email: email.trim(),
+        language,
+        segmentId,
+        responseData: resData,
+      });
+      throw new Error(
+        `Flodesk school application failed: ${message || `HTTP ${status}`}`
+      );
+    }
+    console.error('[Flodesk] School application unexpected error:', err.message);
+    throw err;
+  }
+}
+
 /** Alias for clarity when used for signup form. */
 async function subscribeSignupToFlodesk(email) {
   return subscribeToFlodesk(email);
@@ -202,5 +347,7 @@ module.exports = {
   subscribeToFlodesk,
   subscribeSignupToFlodesk,
   submitInvitationToFlodesk,
+  submitSchoolApplicationToFlodesk,
+  getSchoolSegmentId,
   splitParentName,
 };
