@@ -127,6 +127,7 @@ const AdminDashboard = () => {
         ))}
       </Grid>
 
+
       <Box
         sx={{
           mt: 3,
@@ -145,7 +146,6 @@ const AdminDashboard = () => {
           <DashboardList sx={{ height: '100%' }} />
         </Box>
       </Box>
-
       <Box sx={{ mt: 3, width: '100%' }}>
         <DashboardSchoolProspectsList />
       </Box>

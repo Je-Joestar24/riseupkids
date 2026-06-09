@@ -10,6 +10,7 @@ import {
   IconButton,
   Tooltip,
   Button,
+  Pagination,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import SearchIcon from '@mui/icons-material/Search';
@@ -54,12 +55,19 @@ const langChip = (lang) => {
   return { label: 'EN', color: 'default' };
 };
 
+const DASHBOARD_LEADS_LIMIT = 10;
+
 const DashboardLeadsList = ({ sx }) => {
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState(null);
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +75,11 @@ const DashboardLeadsList = ({ sx }) => {
     const fetchLeads = async () => {
       setLoading(true);
       try {
-        const response = await adminDashboardService.getLeads({ page: 1, limit: 20, q: q || undefined });
+        const response = await adminDashboardService.getLeads({
+          page,
+          limit: DASHBOARD_LEADS_LIMIT,
+          q: q || undefined,
+        });
         if (cancelled) return;
         setItems(response.data?.items || []);
         setMeta(response.data?.meta || null);
@@ -87,7 +99,7 @@ const DashboardLeadsList = ({ sx }) => {
       cancelled = true;
       clearTimeout(id);
     };
-  }, [q]);
+  }, [q, page]);
 
   const rows = useMemo(() => {
     return (items || []).map((lead) => {
@@ -132,7 +144,7 @@ const DashboardLeadsList = ({ sx }) => {
                 fontSize: '0.875rem',
               }}
             >
-              Sales page invitations (stored in database)
+              Sales page invitations (newest first, {DASHBOARD_LEADS_LIMIT} per page)
               {meta?.total != null ? ` • ${meta.total} total` : ''}
             </Typography>
           </Box>
@@ -260,6 +272,19 @@ const DashboardLeadsList = ({ sx }) => {
               );
             })}
           </Box>
+
+          {meta?.totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2.5 }}>
+              <Pagination
+                count={meta.totalPages}
+                page={meta.page}
+                onChange={(_, nextPage) => setPage(nextPage)}
+                color="primary"
+                shape="rounded"
+                aria-label="Leads pagination"
+              />
+            </Box>
+          )}
         </Box>
       )}
     </Paper>

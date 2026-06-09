@@ -1,6 +1,10 @@
 import api from '../api/axios';
 
 const lessonPlanManagementService = {
+  /**
+   * @param {Object} params
+   * @param {boolean} [params.isPublished] - Filter by draft (false) or published (true)
+   */
   getModules: async (params = {}) => {
     try {
       const response = await api.get('/admin/program-lesson-plans/modules', { params });

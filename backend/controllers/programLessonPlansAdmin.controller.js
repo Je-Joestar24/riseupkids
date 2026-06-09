@@ -2,8 +2,13 @@ const programLessonPlansAdminService = require('../services/programLessonPlansAd
 
 const listModules = async (req, res) => {
   try {
-    const { page, limit, search } = req.query;
-    const data = await programLessonPlansAdminService.listModulesWithLessonPlans({ page, limit, search });
+    const { page, limit, search, isPublished } = req.query;
+    const data = await programLessonPlansAdminService.listModulesWithLessonPlans({
+      page,
+      limit,
+      search,
+      isPublished,
+    });
     return res.status(200).json({ success: true, data });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || 'Failed to list modules' });

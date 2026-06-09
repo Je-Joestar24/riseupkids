@@ -42,6 +42,7 @@ const PrintablesWorkspace = ({ variant = 'page' }) => {
     page: 1,
     limit: isDashboard ? 5 : 10,
     search: '',
+    isPublished: undefined,
   });
   const [printableQuery, setPrintableQuery] = useState({
     page: 1,
@@ -68,6 +69,13 @@ const PrintablesWorkspace = ({ variant = 'page' }) => {
     setSelectedCourse(module);
     setPrintableQuery((prev) => ({ ...prev, page: 1 }));
   };
+
+  useEffect(() => {
+    if (!selectedCourse?.id || !course?.id) return;
+    if (String(course.id) !== String(selectedCourse.id)) return;
+    if (course.isPublished === selectedCourse.isPublished) return;
+    setSelectedCourse((prev) => (prev ? { ...prev, isPublished: course.isPublished } : prev));
+  }, [course, selectedCourse?.id, selectedCourse?.isPublished]);
 
   const handleBackToTable = () => {
     setSelectedCourse(null);
@@ -137,8 +145,8 @@ const PrintablesWorkspace = ({ variant = 'page' }) => {
             }}
           >
             {selectedCourse
-              ? `Managing printables for "${selectedCourse.title}". Select another module in the table to switch.`
-              : `Upload and manage PDF printables per module. ${totalModules} module${totalModules === 1 ? '' : 's'} available.`}
+              ? `Managing printables for "${selectedCourse.title}"${selectedCourse.isPublished === false ? ' (draft)' : ''}. Select another module in the table to switch.`
+              : `Upload and manage PDF printables per module, including drafts before publishing. ${totalModules} module${totalModules === 1 ? '' : 's'} available.`}
           </Typography>
         </Paper>
       ) : (
@@ -151,9 +159,13 @@ const PrintablesWorkspace = ({ variant = 'page' }) => {
 
       <PrintablesFilters
         search={moduleQuery.search}
+        isPublished={moduleQuery.isPublished}
         placeholder="Search modules by title or description..."
         onSearchChange={(search) => setModuleQuery((prev) => ({ ...prev, search, page: 1 }))}
-        onClear={() => setModuleQuery((prev) => ({ ...prev, search: '', page: 1 }))}
+        onPublishedChange={(isPublished) => setModuleQuery((prev) => ({ ...prev, isPublished, page: 1 }))}
+        onClear={() =>
+          setModuleQuery((prev) => ({ ...prev, search: '', isPublished: undefined, page: 1 }))
+        }
       />
 
       {error ? (

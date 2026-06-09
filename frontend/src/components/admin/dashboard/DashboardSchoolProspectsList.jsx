@@ -101,7 +101,7 @@ const DashboardSchoolProspectsList = ({ sx }) => {
                 fontSize: '0.875rem',
               }}
             >
-              Schools page applications
+              Schools page applications (newest first, 10 per page)
               {meta?.total != null ? ` • ${meta.total} total` : ''}
             </Typography>
           </Box>

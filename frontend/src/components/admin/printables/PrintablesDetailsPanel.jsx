@@ -11,6 +11,8 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import AddPrintableMaterialModal from './AddPrintableMaterialModal';
+import DraftModuleBanner from './DraftModuleBanner';
+import ModuleStatusChip from './ModuleStatusChip';
 import PrintablesPagination from './PrintablesPagination';
 
 const ActionSvgIcon = ({ path, size = 18, stroke = 'currentColor' }) => (
@@ -49,6 +51,7 @@ const PrintablesDetailsPanel = ({
   const [editingPrintable, setEditingPrintable] = useState(null);
 
   const list = useMemo(() => printables || [], [printables]);
+  const isPublished = course?.isPublished;
 
   return (
     <Paper
@@ -65,9 +68,12 @@ const PrintablesDetailsPanel = ({
             <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
               {sectionTitle}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {course?.title || '-'}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Typography variant="body2" color="text.secondary">
+                {course?.title || '-'}
+              </Typography>
+              {course?.title ? <ModuleStatusChip isPublished={isPublished} /> : null}
+            </Box>
           </Box>
           <Button
             variant="contained"
@@ -77,6 +83,8 @@ const PrintablesDetailsPanel = ({
             {`Add ${itemLabel.charAt(0).toUpperCase()}${itemLabel.slice(1)}`}
           </Button>
         </Box>
+
+        <DraftModuleBanner isPublished={isPublished} itemLabelPlural={itemLabelPlural} />
 
         {loading ? (
           <Box sx={{ py: 6, textAlign: 'center' }}>
@@ -252,6 +260,7 @@ const PrintablesDetailsPanel = ({
         onSubmit={onAddPrintable}
         loading={adding}
         courseTitle={course?.title}
+        courseIsPublished={isPublished}
         itemLabel={itemLabel}
       />
 
@@ -266,6 +275,7 @@ const PrintablesDetailsPanel = ({
         courseTitle={course?.title}
         mode="edit"
         initialData={editingPrintable}
+        courseIsPublished={isPublished}
         itemLabel={itemLabel}
       />
     </Paper>

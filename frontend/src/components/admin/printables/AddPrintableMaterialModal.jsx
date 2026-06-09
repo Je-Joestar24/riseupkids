@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Button,
+  Alert,
   Dialog,
   DialogActions,
   DialogContent,
@@ -18,6 +19,7 @@ const AddPrintableMaterialModal = ({
   onSubmit,
   loading,
   courseTitle,
+  courseIsPublished,
   mode = 'add',
   initialData = null,
   itemLabel = 'printable',
@@ -100,6 +102,12 @@ const AddPrintableMaterialModal = ({
         {isEditMode ? `Edit ${itemTitleCase}` : `Add ${itemTitleCase}`}
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
+        {courseIsPublished === false ? (
+          <Alert severity="info" sx={{ mb: 2, borderRadius: '10px' }} role="status">
+            This module is a draft. {itemTitleCase}s you add here will be ready for parents once the
+            module is published.
+          </Alert>
+        ) : null}
         <Box
           sx={{
             display: 'grid',
@@ -364,7 +372,7 @@ const AddPrintableMaterialModal = ({
           Cancel
         </Button>
         <Button variant="contained" onClick={handleSubmit} disabled={!isValid || loading} sx={{ textTransform: 'none' }}>
-          {loading ? 'Saving...' : isEditMode ? 'Save Changes' : 'Add Printable'}
+          {loading ? 'Saving...' : isEditMode ? 'Save Changes' : `Add ${itemTitleCase}`}
         </Button>
       </DialogActions>
     </Dialog>

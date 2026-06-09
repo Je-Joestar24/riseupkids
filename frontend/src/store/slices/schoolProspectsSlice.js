@@ -20,7 +20,7 @@ const initialState = {
   items: [],
   meta: {
     page: 1,
-    limit: 20,
+    limit: 10,
     total: 0,
     totalPages: 1,
     hasNext: false,
@@ -29,7 +29,7 @@ const initialState = {
   filters: {
     q: '',
     page: 1,
-    limit: 20,
+    limit: 10,
     language: '',
     role: '',
     flodeskStatus: '',

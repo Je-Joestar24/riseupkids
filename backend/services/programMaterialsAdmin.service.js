@@ -7,6 +7,16 @@ function parsePositiveInt(value, fallback) {
   return n;
 }
 
+function parseOptionalBoolean(value) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const normalized = String(value).toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return undefined;
+}
+
+const manageableCourseFilter = { isArchived: false };
+
 const orderCoursesForModules = (courses) => {
   // Match existing CourseProgress ordering: stepOrder first, then createdAt
   return courses.sort((a, b) => {
@@ -19,13 +29,17 @@ const orderCoursesForModules = (courses) => {
   });
 };
 
-const listModulesWithPrintables = async ({ page = 1, limit = 10, search = '' } = {}) => {
+const listModulesWithPrintables = async ({ page = 1, limit = 10, search = '', isPublished } = {}) => {
   const safePage = parsePositiveInt(page, 1);
   const safeLimit = Math.min(parsePositiveInt(limit, 10), 100);
   const skip = (safePage - 1) * safeLimit;
   const safeSearch = String(search || '').trim();
+  const publishedFilter = parseOptionalBoolean(isPublished);
 
-  const query = { isPublished: true, isArchived: false };
+  const query = { ...manageableCourseFilter };
+  if (publishedFilter !== undefined) {
+    query.isPublished = publishedFilter;
+  }
   if (safeSearch) {
     query.$or = [
       { title: { $regex: safeSearch, $options: 'i' } },
@@ -35,7 +49,7 @@ const listModulesWithPrintables = async ({ page = 1, limit = 10, search = '' } =
 
   const total = await Course.countDocuments(query);
   const courses = await Course.find(query)
-    .select('_id title description coverImage stepOrder contents createdAt')
+    .select('_id title description coverImage stepOrder contents createdAt isPublished')
     .sort({ stepOrder: 1, createdAt: 1 })
     .skip(skip)
     .limit(safeLimit)
@@ -77,6 +91,7 @@ const listModulesWithPrintables = async ({ page = 1, limit = 10, search = '' } =
         description: c.description || null,
         coverImage: c.coverImage || null,
         contentCount: Array.isArray(c.contents) ? c.contents.length : 0,
+        isPublished: Boolean(c.isPublished),
         printableCount: printables.length,
         latestPrintableAt: printables.length ? printables[printables.length - 1].updatedAt : null,
       };
@@ -88,7 +103,7 @@ const uploadModulePrintable = async ({ courseId, userId, title, description, cov
   if (!courseId) throw new Error('courseId is required');
   if (!pdfFile) throw new Error('pdfFile is required');
   if (!title) throw new Error('title is required');
-  const course = await Course.findOne({ _id: courseId, isPublished: true, isArchived: false }).select('_id');
+  const course = await Course.findOne({ _id: courseId, ...manageableCourseFilter }).select('_id');
   if (!course) throw new Error('Course not found');
 
   // Upload files to S3 first
@@ -215,8 +230,8 @@ const deleteCoursePrintable = async ({ courseId, printableId }) => {
 
 const listCoursePrintables = async ({ courseId, page = 1, limit = 10, search = '' }) => {
   if (!courseId) throw new Error('courseId is required');
-  const course = await Course.findOne({ _id: courseId, isPublished: true, isArchived: false })
-    .select('_id title description coverImage stepOrder')
+  const course = await Course.findOne({ _id: courseId, ...manageableCourseFilter })
+    .select('_id title description coverImage stepOrder isPublished')
     .lean();
   if (!course) throw new Error('Course not found');
 
@@ -247,6 +262,7 @@ const listCoursePrintables = async ({ courseId, page = 1, limit = 10, search = '
       description: course.description || null,
       coverImage: course.coverImage || null,
       stepOrder: course.stepOrder || null,
+      isPublished: Boolean(course.isPublished),
     },
     pagination: {
       page: safePage,

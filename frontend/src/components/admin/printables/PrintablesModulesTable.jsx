@@ -13,8 +13,16 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import ModuleStatusChip from './ModuleStatusChip';
 
-const PrintablesModulesTable = ({ modules, loading, selectedModuleId, onSelectModule }) => {
+const PrintablesModulesTable = ({
+  modules,
+  loading,
+  selectedModuleId,
+  onSelectModule,
+  countField = 'printableCount',
+  countLabel = 'Printables',
+}) => {
   const theme = useTheme();
 
   if (loading && (!modules || modules.length === 0)) {
@@ -48,7 +56,8 @@ const PrintablesModulesTable = ({ modules, loading, selectedModuleId, onSelectMo
           <TableRow>
             <TableCell sx={{ fontWeight: 700 }}>#</TableCell>
             <TableCell sx={{ fontWeight: 700 }}>Module</TableCell>
-            <TableCell sx={{ fontWeight: 700 }}>Printables</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+            <TableCell sx={{ fontWeight: 700 }}>{countLabel}</TableCell>
             <TableCell sx={{ fontWeight: 700 }} align="center">Select</TableCell>
           </TableRow>
         </TableHead>
@@ -70,7 +79,10 @@ const PrintablesModulesTable = ({ modules, loading, selectedModuleId, onSelectMo
                   </Typography>
                 </Box>
               </TableCell>
-              <TableCell>{module.printableCount || 0}</TableCell>
+              <TableCell>
+                <ModuleStatusChip isPublished={module.isPublished} />
+              </TableCell>
+              <TableCell>{module[countField] || 0}</TableCell>
               <TableCell align="center">
                 <Radio
                   checked={selectedModuleId === module.id}

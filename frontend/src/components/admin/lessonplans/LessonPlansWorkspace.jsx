@@ -33,7 +33,12 @@ const LessonPlansWorkspace = ({ variant = 'page' }) => {
   } = useLessonPlanMaterials();
 
   const [selectedCourse, setSelectedCourse] = useState(null);
-  const [moduleQuery, setModuleQuery] = useState({ page: 1, limit: isDashboard ? 5 : 10, search: '' });
+  const [moduleQuery, setModuleQuery] = useState({
+    page: 1,
+    limit: isDashboard ? 5 : 10,
+    search: '',
+    isPublished: undefined,
+  });
   const [lessonPlanQuery, setLessonPlanQuery] = useState({ page: 1, limit: isDashboard ? 5 : 10, search: '' });
 
   useEffect(() => {
@@ -55,6 +60,13 @@ const LessonPlansWorkspace = ({ variant = 'page' }) => {
     setSelectedCourse(module);
     setLessonPlanQuery((prev) => ({ ...prev, page: 1 }));
   };
+
+  useEffect(() => {
+    if (!selectedCourse?.id || !course?.id) return;
+    if (String(course.id) !== String(selectedCourse.id)) return;
+    if (course.isPublished === selectedCourse.isPublished) return;
+    setSelectedCourse((prev) => (prev ? { ...prev, isPublished: course.isPublished } : prev));
+  }, [course, selectedCourse?.id, selectedCourse?.isPublished]);
 
   const handleBackToTable = () => {
     setSelectedCourse(null);
@@ -113,16 +125,20 @@ const LessonPlansWorkspace = ({ variant = 'page' }) => {
         </Box>
         <Typography variant="body2" sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
           {selectedCourse
-            ? `Managing lesson plans for "${selectedCourse.title}".`
-            : `Manage teacher lesson plans per module. Total modules: ${totalModules}.`}
+            ? `Managing lesson plans for "${selectedCourse.title}"${selectedCourse.isPublished === false ? ' (draft)' : ''}.`
+            : `Manage teacher lesson plans per module, including drafts before publishing. Total modules: ${totalModules}.`}
         </Typography>
       </Paper>
 
       <PrintablesFilters
         search={moduleQuery.search}
+        isPublished={moduleQuery.isPublished}
         placeholder="Search modules by title or description..."
         onSearchChange={(search) => setModuleQuery((prev) => ({ ...prev, search, page: 1 }))}
-        onClear={() => setModuleQuery((prev) => ({ ...prev, search: '', page: 1 }))}
+        onPublishedChange={(isPublished) => setModuleQuery((prev) => ({ ...prev, isPublished, page: 1 }))}
+        onClear={() =>
+          setModuleQuery((prev) => ({ ...prev, search: '', isPublished: undefined, page: 1 }))
+        }
       />
 
       {error ? (
@@ -162,6 +178,8 @@ const LessonPlansWorkspace = ({ variant = 'page' }) => {
             loading={loadingModules}
             selectedModuleId={selectedCourse?.id || null}
             onSelectModule={handleSelectCourse}
+            countField="lessonPlanCount"
+            countLabel="Lesson Plans"
           />
           <PrintablesPagination
             pagination={modulesPagination}
@@ -178,6 +196,8 @@ const LessonPlansWorkspace = ({ variant = 'page' }) => {
               loading={loadingModules}
               selectedModuleId={selectedCourse?.id || null}
               onSelectModule={handleSelectCourse}
+              countField="lessonPlanCount"
+              countLabel="Lesson Plans"
             />
             <PrintablesPagination
               pagination={modulesPagination}

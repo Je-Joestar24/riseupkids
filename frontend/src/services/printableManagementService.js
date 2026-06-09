@@ -8,6 +8,11 @@ import api from '../api/axios';
 const printableManagementService = {
   /**
    * Get paginated/searchable module list with printable summary.
+   * @param {Object} params
+   * @param {number} [params.page]
+   * @param {number} [params.limit]
+   * @param {string} [params.search]
+   * @param {boolean} [params.isPublished] - Filter by draft (false) or published (true)
    */
   getModules: async (params = {}) => {
     try {

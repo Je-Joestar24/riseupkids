@@ -56,8 +56,8 @@ const PrintablesHeader = ({ selectedCourse, totalModules = 0, onBackToTable }) =
           }}
         >
           {selectedCourse
-            ? `Viewing printable materials for "${selectedCourse.title}".`
-            : `Manage printable materials per module. Total modules: ${totalModules}.`}
+            ? `Viewing printable materials for "${selectedCourse.title}"${selectedCourse.isPublished === false ? ' (draft module)' : ''}.`
+            : `Manage printable materials per module, including drafts before publishing. Total modules: ${totalModules}.`}
         </Typography>
       </Stack>
     </Paper>

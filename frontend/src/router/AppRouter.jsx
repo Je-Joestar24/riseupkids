@@ -356,7 +356,7 @@ const AppRouter = () => {
         <Route
           path="/admin/lesson-plans"
           element={
-            <AuthedAccess allowedRoles={['teacher']}>
+            <AuthedAccess allowedRoles={['admin', 'teacher']}>
               <AdminLayout>
                 <AdminLessonPlans />
               </AdminLayout>
