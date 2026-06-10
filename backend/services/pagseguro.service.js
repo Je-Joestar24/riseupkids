@@ -158,6 +158,33 @@ function describeAxiosError(err) {
   return parts.join(' | ');
 }
 
+/** PagBank requires public HTTPS redirect/notification URLs (no localhost). */
+function isValidPagbankPublicHttpsUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url.trim());
+    if (parsed.protocol !== 'https:') return false;
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolvePagbankRedirectUrls(successUrl, cancelUrl) {
+  const saleBase = getSaleAppBaseUrl();
+  const defaultSuccess = `${saleBase}/checkout/success?provider=pagseguro`;
+  const defaultCancel = `${saleBase}/checkout/register`;
+
+  return {
+    successUrl: isValidPagbankPublicHttpsUrl(successUrl) ? successUrl.trim() : defaultSuccess,
+    cancelUrl: isValidPagbankPublicHttpsUrl(cancelUrl) ? cancelUrl.trim() : defaultCancel,
+  };
+}
+
 function mapPagbankErrorToClientMessage(err) {
   const messages = err.response?.data?.error_messages;
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -169,6 +196,13 @@ function mapPagbankErrorToClientMessage(err) {
   }
   if (first.parameter_name === 'customer.tax_id' || first.code === 'invalid_format') {
     return 'Invalid CPF. Please check your tax ID and try again.';
+  }
+  if (
+    first.parameter_name === 'redirect_url' ||
+    first.parameter_name === 'return_url' ||
+    first.parameter_name === 'notification_urls'
+  ) {
+    return 'Checkout redirect URLs must be public HTTPS (not localhost). Use staging sale URL or deploy.';
   }
   return first.description || 'Invalid checkout data. Please review your information.';
 }
@@ -231,15 +265,11 @@ function buildCheckoutPayload({
 
   const { items } = buildCheckoutLineItems(childCount, addBox);
   const webhookBase = getWebhookBaseUrl();
-  const saleBase = getSaleAppBaseUrl();
-
-  // PagBank validates URL fields strictly; avoid unsupported placeholders.
-  // We use provider flag + sessionStorage checkout id for success verification.
-  const finalSuccessUrl =
-    successUrl ||
-    `${saleBase}/checkout/success?provider=pagseguro`;
-  const finalCancelUrl = cancelUrl || `${saleBase}/checkout/register`;
-  const finalReturnUrl = cancelUrl || `${saleBase}/checkout/register`;
+  const { successUrl: finalSuccessUrl, cancelUrl: finalCancelUrl } = resolvePagbankRedirectUrls(
+    successUrl,
+    cancelUrl
+  );
+  const finalReturnUrl = finalCancelUrl;
 
   return {
     reference_id: referenceId,
@@ -475,22 +505,46 @@ async function getPagbankCheckout(checkoutId) {
 }
 
 /**
- * Resolve payment status from checkout payload and optional stored charge ids.
- * @param {object} apiCheckout
- * @param {{ storedChargeIds?: string[] }} [options]
+ * Normalize GET /orders?reference_id= response (list or single order).
+ * @param {object} data
+ * @returns {object[]}
  */
-async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
-  let analysis = analyzeCheckoutPayment(apiCheckout);
-  if (analysis.status === 'paid') {
-    return analysis;
+function extractOrdersFromListResponse(data) {
+  if (!data || typeof data !== 'object') return [];
+  if (Array.isArray(data.orders)) return data.orders;
+  if (data.id && String(data.id).startsWith('ORDE_')) return [data];
+  return [];
+}
+
+/**
+ * List orders by our checkout reference_id (payment may live on ORDE_, not CHEC_ GET).
+ */
+async function getPagbankOrdersByReferenceId(referenceId) {
+  if (!isPagseguroConfigured()) {
+    throw new Error('PagBank is not configured.');
+  }
+  if (!referenceId || typeof referenceId !== 'string') {
+    throw new Error('referenceId is required.');
   }
 
-  const idsToTry = [
-    ...new Set([...(analysis.chargeIds || []), ...(options.storedChargeIds || [])]),
-  ];
+  try {
+    const res = await axios.get(`${PAGSEGURO_API_BASE}/orders`, {
+      headers: getAuthHeaders(),
+      timeout: 20000,
+      params: { reference_id: referenceId.trim() },
+    });
+    return res.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return { orders: [] };
+    }
+    throw new Error('PagBank listOrders failed: ' + describeAxiosError(err));
+  }
+}
 
+async function tryResolvePaidFromChargeIds(chargeIds) {
+  const idsToTry = [...new Set((chargeIds || []).filter((id) => id && String(id).startsWith('CHAR_')))];
   for (const chargeId of idsToTry) {
-    if (!chargeId || !String(chargeId).startsWith('CHAR_')) continue;
     try {
       const charge = await getPagbankCharge(chargeId);
       const chargeStatus = String(charge.status || '').toUpperCase();
@@ -503,6 +557,62 @@ async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
       }
     } catch (err) {
       console.warn('[PagSeguro] getCharge fallback failed for %s: %s', chargeId, err.message);
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve payment status from checkout payload and optional stored charge ids.
+ * @param {object} apiCheckout
+ * @param {{ storedChargeIds?: string[], referenceId?: string }} [options]
+ */
+async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
+  let analysis = analyzeCheckoutPayment(apiCheckout);
+  if (analysis.status === 'paid') {
+    return analysis;
+  }
+
+  let chargeIds = [
+    ...new Set([...(analysis.chargeIds || []), ...(options.storedChargeIds || [])]),
+  ];
+
+  const paidFromCharges = await tryResolvePaidFromChargeIds(chargeIds);
+  if (paidFromCharges) {
+    return paidFromCharges;
+  }
+
+  const referenceId = options.referenceId || apiCheckout?.reference_id;
+  if (referenceId) {
+    try {
+      const ordersData = await getPagbankOrdersByReferenceId(referenceId);
+      const orders = extractOrdersFromListResponse(ordersData);
+
+      for (const order of orders) {
+        const orderAnalysis = analyzeCheckoutPayment(order);
+        chargeIds = [...new Set([...chargeIds, ...(orderAnalysis.chargeIds || [])])];
+
+        if (orderAnalysis.status === 'paid') {
+          return {
+            status: 'paid',
+            chargeIds,
+            paidChargeId: orderAnalysis.paidChargeId,
+          };
+        }
+      }
+
+      const paidFromOrders = await tryResolvePaidFromChargeIds(chargeIds);
+      if (paidFromOrders) {
+        return paidFromOrders;
+      }
+
+      analysis = { ...analysis, chargeIds };
+    } catch (err) {
+      console.warn(
+        '[PagSeguro] orders by reference_id failed for %s: %s',
+        referenceId,
+        err.message
+      );
     }
   }
 
@@ -525,6 +635,8 @@ module.exports = {
   createPagbankCheckout,
   getPagbankCheckout,
   getPagbankCharge,
+  getPagbankOrdersByReferenceId,
+  extractOrdersFromListResponse,
   analyzeCheckoutPayment,
   resolveCheckoutPaymentStatus,
   extractCheckoutCharges,
@@ -532,4 +644,6 @@ module.exports = {
   extractPayUrl,
   describeAxiosError,
   isPagseguroConfigured,
+  isValidPagbankPublicHttpsUrl,
+  resolvePagbankRedirectUrls,
 };

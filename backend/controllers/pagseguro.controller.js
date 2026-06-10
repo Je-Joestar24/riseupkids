@@ -185,6 +185,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
 
     const analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
       storedChargeIds: record.chargeIds || [],
+      referenceId: record.referenceId,
     });
     record.status = analysis.status;
     if (analysis.chargeIds.length) {

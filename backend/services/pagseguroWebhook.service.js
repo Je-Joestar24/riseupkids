@@ -183,6 +183,7 @@ async function syncCheckoutAndActivate(record, meta = {}, options = {}) {
         ...(options.extraChargeIds || []),
         extractPrimaryChargeId(options.webhookPayload),
       ].filter(Boolean),
+      referenceId: record.referenceId,
     });
   }
 

@@ -34,6 +34,8 @@ const {
   getPlanAmountCents,
   createPagbankCheckout,
   buildCheckoutPayload,
+  extractOrdersFromListResponse,
+  resolveCheckoutPaymentStatus,
 } = require('../services/pagseguro.service');
 
 describe('pagseguro.service', () => {
@@ -129,6 +131,22 @@ describe('pagseguro.service', () => {
         })
       ).toThrow(/Invalid CPF/);
     });
+
+    it('replaces localhost redirect URLs with server SALE_APP_BASE_URL', () => {
+      process.env.SALE_APP_BASE_URL = 'https://riseup.kids';
+      const payload = buildCheckoutPayload({
+        referenceId: 'ref123',
+        user,
+        taxId: '52998224725',
+        phone: { area: '11', number: '987654321' },
+        childCount: 1,
+        addBox: false,
+        successUrl: 'http://localhost:4175/checkout/success?provider=pagseguro',
+        cancelUrl: 'http://localhost:4175/checkout/register',
+      });
+      expect(payload.redirect_url).toBe('https://riseup.kids/checkout/success?provider=pagseguro');
+      expect(payload.return_url).toBe('https://riseup.kids/checkout/register');
+    });
   });
 
   describe('createPagbankCheckout', () => {
@@ -200,6 +218,82 @@ describe('pagseguro.service', () => {
   describe('getPlanAmountCents', () => {
     it('reads from pricing config', () => {
       expect(getPlanAmountCents(2)).toBe(129900);
+    });
+  });
+
+  describe('extractOrdersFromListResponse', () => {
+    it('reads orders array from list response', () => {
+      const orders = [{ id: 'ORDE_1' }, { id: 'ORDE_2' }];
+      expect(extractOrdersFromListResponse({ orders })).toEqual(orders);
+    });
+
+    it('wraps single order object', () => {
+      const order = { id: 'ORDE_1', charges: [] };
+      expect(extractOrdersFromListResponse(order)).toEqual([order]);
+    });
+  });
+
+  describe('resolveCheckoutPaymentStatus', () => {
+    it('falls back to GET /orders?reference_id when checkout has no charges', async () => {
+      axios.get.mockImplementation((url) => {
+        if (String(url).includes('/orders')) {
+          return Promise.resolve({
+            data: {
+              orders: [
+                {
+                  id: 'ORDE_PAID',
+                  reference_id: 'ref-abc',
+                  charges: [{ id: 'CHAR_FROM_ORDER', status: 'PAID' }],
+                },
+              ],
+            },
+          });
+        }
+        return Promise.reject(new Error('unexpected url: ' + url));
+      });
+
+      const result = await resolveCheckoutPaymentStatus(
+        { id: 'CHEC_1', status: 'INACTIVE', reference_id: 'ref-abc' },
+        { referenceId: 'ref-abc' }
+      );
+
+      expect(result.status).toBe('paid');
+      expect(result.paidChargeId).toBe('CHAR_FROM_ORDER');
+      expect(axios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/orders'),
+        expect.objectContaining({
+          params: { reference_id: 'ref-abc' },
+        })
+      );
+    });
+
+    it('resolves PAID via GET /charges when order lists charge id only', async () => {
+      axios.get.mockImplementation((url) => {
+        if (String(url).includes('/orders')) {
+          return Promise.resolve({
+            data: {
+              orders: [
+                {
+                  id: 'ORDE_1',
+                  charges: [{ id: 'CHAR_REMOTE', status: 'WAITING' }],
+                },
+              ],
+            },
+          });
+        }
+        if (String(url).includes('/charges/CHAR_REMOTE')) {
+          return Promise.resolve({ data: { id: 'CHAR_REMOTE', status: 'PAID' } });
+        }
+        return Promise.reject(new Error('unexpected url: ' + url));
+      });
+
+      const result = await resolveCheckoutPaymentStatus(
+        { id: 'CHEC_1', status: 'ACTIVE' },
+        { referenceId: 'ref-xyz' }
+      );
+
+      expect(result.status).toBe('paid');
+      expect(result.paidChargeId).toBe('CHAR_REMOTE');
     });
   });
 });
