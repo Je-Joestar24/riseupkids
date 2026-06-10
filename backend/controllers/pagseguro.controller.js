@@ -173,6 +173,59 @@ exports.getCheckoutDetails = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Checkout session not found.' });
     }
 
+    const clientIp =
+      req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
+
+    const existingUser = await User.findById(record.userId).select('-password');
+    const alreadySettled =
+      record.status === 'paid' ||
+      Boolean(record.paidAt) ||
+      (existingUser?.subscriptionStatus === 'active' &&
+        existingUser?.paymentProvider === 'pagseguro' &&
+        existingUser?.pagseguroCheckoutId === record.pagbankCheckoutId);
+
+    if (alreadySettled) {
+      record.status = 'paid';
+      record.paidAt = record.paidAt || new Date();
+      await record.save();
+      await activateUserFromPagseguroCheckout(record, {
+        chargeId: record.chargeIds?.[0],
+        setTermsIp: clientIp,
+      });
+
+      const user = await User.findById(record.userId).select('-password');
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found.' });
+      }
+
+      if (!user.termsAcceptedIp && clientIp) {
+        user.termsAcceptedIp = clientIp;
+        await user.save();
+      }
+
+      const token = generateToken(user._id);
+      const userResponse = await User.findById(record.userId).select('-password').lean();
+
+      return res.json({
+        success: true,
+        user: userResponse,
+        token,
+        checkoutId: record.pagbankCheckoutId,
+        diagnostics: {
+          env: process.env.PAGSEGURO_ENV || 'sandbox',
+          resolution: { status: 'paid', source: 'local_webhook_or_prior_activation' },
+          local: {
+            referenceId: record.referenceId,
+            pagbankCheckoutId: record.pagbankCheckoutId,
+            localStatus: record.status,
+            chargeIds: record.chargeIds || [],
+            paidAt: record.paidAt,
+            webhookEventsCount: record.webhookEvents?.length || 0,
+          },
+        },
+      });
+    }
+
     let apiCheckout;
     try {
       apiCheckout = await getPagbankCheckout(checkoutId.trim());
@@ -190,7 +243,13 @@ exports.getCheckoutDetails = async (req, res, next) => {
       referenceId: record.referenceId,
       trace,
     });
-    record.status = analysis.status;
+
+    const webhookIndicatesPaid =
+      (record.webhookEvents?.length || 0) > 0 && (record.chargeIds?.length || 0) > 0;
+    const effectiveStatus =
+      analysis.status === 'paid' || webhookIndicatesPaid ? 'paid' : analysis.status;
+
+    record.status = effectiveStatus;
     if (analysis.chargeIds.length) {
       record.chargeIds = [...new Set([...(record.chargeIds || []), ...analysis.chargeIds])];
     }
@@ -198,19 +257,16 @@ exports.getCheckoutDetails = async (req, res, next) => {
     const diagnostics = buildVerificationDiagnostics({
       record,
       apiCheckout,
-      analysis,
+      analysis: { ...analysis, status: effectiveStatus },
       trace,
       ordersLookup: analysis.ordersLookup || null,
     });
 
-    const clientIp =
-      req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
-
-    if (analysis.status === 'paid') {
+    if (effectiveStatus === 'paid') {
       record.paidAt = record.paidAt || new Date();
       await record.save();
       await activateUserFromPagseguroCheckout(record, {
-        chargeId: analysis.paidChargeId,
+        chargeId: analysis.paidChargeId || record.chargeIds?.[0],
         setTermsIp: clientIp,
       });
     } else {
@@ -218,7 +274,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Payment not completed yet.',
-        status: analysis.status,
+        status: effectiveStatus,
         diagnostics,
       });
     }

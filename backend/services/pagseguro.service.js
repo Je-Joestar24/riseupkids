@@ -212,6 +212,7 @@ function getAuthHeaders() {
     Authorization: `Bearer ${PAGSEGURO_ACCESS_TOKEN}`,
     'Content-Type': 'application/json',
     accept: 'application/json',
+    'x-api-version': '4.0',
   };
 }
 
@@ -490,7 +491,6 @@ async function getPagbankCheckout(checkoutId) {
       {
         headers: getAuthHeaders(),
         timeout: 20000,
-        params: { limit: 100 },
       }
     );
     return res.data;

@@ -315,6 +315,10 @@ async function syncCheckoutAndActivate(record, meta = {}, options = {}) {
     }
   }
 
+  if (record.status === 'paid' && analysis.status !== 'paid') {
+    analysis.status = 'paid';
+  }
+
   record.status = analysis.status;
   if (analysis.chargeIds.length > 0) {
     record.chargeIds = [...new Set([...(record.chargeIds || []), ...analysis.chargeIds])];
