@@ -1,5 +1,5 @@
 /**
- * Structured PagBank diagnostics returned in API/webhook responses (not only EC2 logs).
+ * PagBank diagnostics for server-side logging (PAGSEGURO_DEBUG=true). Not exposed in API responses.
  */
 
 const { PAGSEGURO_ENV } = require('../config/pagseguro');

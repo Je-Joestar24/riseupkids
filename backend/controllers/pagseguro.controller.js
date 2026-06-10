@@ -23,6 +23,13 @@ const { processWebhookNotification } = require('../services/pagseguroWebhook.ser
 const { activateUserFromPagseguroCheckout } = require('../services/pagseguroActivation.service');
 const { buildVerificationDiagnostics } = require('../services/pagseguroDiagnostics.service');
 
+/** Internal only — set PAGSEGURO_DEBUG=true on EC2 to log verify/webhook diagnostics. */
+function logPagseguroDiagnostics(label, data) {
+  if (process.env.PAGSEGURO_DEBUG === 'true' && data) {
+    console.info('[PagSeguro]', label, JSON.stringify(data));
+  }
+}
+
 /**
  * GET /api/pagseguro/config
  */
@@ -211,18 +218,6 @@ exports.getCheckoutDetails = async (req, res, next) => {
         user: userResponse,
         token,
         checkoutId: record.pagbankCheckoutId,
-        diagnostics: {
-          env: process.env.PAGSEGURO_ENV || 'sandbox',
-          resolution: { status: 'paid', source: 'local_webhook_or_prior_activation' },
-          local: {
-            referenceId: record.referenceId,
-            pagbankCheckoutId: record.pagbankCheckoutId,
-            localStatus: record.status,
-            chargeIds: record.chargeIds || [],
-            paidAt: record.paidAt,
-            webhookEventsCount: record.webhookEvents?.length || 0,
-          },
-        },
       });
     }
 
@@ -261,6 +256,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
       trace,
       ordersLookup: analysis.ordersLookup || null,
     });
+    logPagseguroDiagnostics('checkout-verify', diagnostics);
 
     if (effectiveStatus === 'paid') {
       record.paidAt = record.paidAt || new Date();
@@ -275,7 +271,6 @@ exports.getCheckoutDetails = async (req, res, next) => {
         success: false,
         message: 'Payment not completed yet.',
         status: effectiveStatus,
-        diagnostics,
       });
     }
 
@@ -297,7 +292,6 @@ exports.getCheckoutDetails = async (req, res, next) => {
       user: userResponse,
       token,
       checkoutId: record.pagbankCheckoutId,
-      diagnostics,
     });
   } catch (error) {
     next(error);
@@ -314,16 +308,19 @@ exports.handleCheckoutWebhook = async (req, res) => {
       authenticityToken: req.pagseguroAuthenticityToken,
       webhookKind: 'checkout',
     });
-    return res.status(200).json({ received: true, ...result });
+    return res.status(200).json({
+      received: true,
+      processed: Boolean(result?.processed),
+    });
   } catch (error) {
     const status = error.statusCode || 500;
+    logPagseguroDiagnostics('webhook-checkout-error', error.diagnostics);
     if (status >= 500) {
       console.error('[PagSeguro Webhook] checkout error:', error.message);
     }
     return res.status(status).json({
       success: false,
       message: error.message || 'Webhook processing failed.',
-      diagnostics: error.diagnostics || null,
     });
   }
 };
@@ -338,16 +335,19 @@ exports.handlePaymentWebhook = async (req, res) => {
       authenticityToken: req.pagseguroAuthenticityToken,
       webhookKind: 'payment',
     });
-    return res.status(200).json({ received: true, ...result });
+    return res.status(200).json({
+      received: true,
+      processed: Boolean(result?.processed),
+    });
   } catch (error) {
     const status = error.statusCode || 500;
+    logPagseguroDiagnostics('webhook-payment-error', error.diagnostics);
     if (status >= 500) {
       console.error('[PagSeguro Webhook] payment error:', error.message);
     }
     return res.status(status).json({
       success: false,
       message: error.message || 'Webhook processing failed.',
-      diagnostics: error.diagnostics || null,
     });
   }
 };
