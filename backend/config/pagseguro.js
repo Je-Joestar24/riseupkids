@@ -11,7 +11,9 @@ const DEFAULT_API_BASE =
     : 'https://sandbox.api.pagseguro.com';
 
 const PAGSEGURO_API_BASE = (process.env.PAGSEGURO_API_BASE || DEFAULT_API_BASE).replace(/\/$/, '');
-const PAGSEGURO_ACCESS_TOKEN = process.env.PAGSEGURO_ACCESS_TOKEN || '';
+const PAGSEGURO_ACCESS_TOKEN = (process.env.PAGSEGURO_ACCESS_TOKEN || '').trim();
+/** Optional separate signing token (some accounts use iBanking token distinct from Connect Bearer). */
+const PAGSEGURO_WEBHOOK_TOKEN = (process.env.PAGSEGURO_WEBHOOK_TOKEN || '').trim();
 
 const INSTALLMENTS_LIMIT = Math.min(
   12,
@@ -30,6 +32,15 @@ const SOFT_DESCRIPTOR = (process.env.PAGSEGURO_SOFT_DESCRIPTOR || 'RISEUPKIDS').
 
 function isPagseguroConfigured() {
   return Boolean(PAGSEGURO_ACCESS_TOKEN && PAGSEGURO_API_BASE);
+}
+
+function isPagseguroSandbox() {
+  return PAGSEGURO_ENV !== 'production';
+}
+
+/** Tokens tried for SHA256 webhook verification (Bearer + optional webhook token). */
+function getWebhookSigningTokens() {
+  return [...new Set([PAGSEGURO_ACCESS_TOKEN, PAGSEGURO_WEBHOOK_TOKEN].filter(Boolean))];
 }
 
 function getWebhookBaseUrl() {
@@ -52,10 +63,13 @@ module.exports = {
   PAGSEGURO_ENV,
   PAGSEGURO_API_BASE,
   PAGSEGURO_ACCESS_TOKEN,
+  PAGSEGURO_WEBHOOK_TOKEN,
   INSTALLMENTS_LIMIT,
   INTEREST_FREE_INSTALLMENTS,
   SOFT_DESCRIPTOR,
   isPagseguroConfigured,
+  isPagseguroSandbox,
+  getWebhookSigningTokens,
   getWebhookBaseUrl,
   getSaleAppBaseUrl,
 };

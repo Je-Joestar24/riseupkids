@@ -4,35 +4,44 @@
 
 const crypto = require('crypto');
 const PagSeguroCheckout = require('../models/PagSeguroCheckout');
-const { PAGSEGURO_ACCESS_TOKEN } = require('../config/pagseguro');
+const { getWebhookSigningTokens } = require('../config/pagseguro');
 const {
   getPagbankCheckout,
   getPagbankCharge,
-  analyzeCheckoutPayment,
   resolveCheckoutPaymentStatus,
   extractCheckoutIdFromCharge,
 } = require('./pagseguro.service');
 const { activateUserFromPagseguroCheckout } = require('./pagseguroActivation.service');
 
+const SUCCESSFUL_CHARGE_STATUSES = new Set(['PAID', 'AUTHORIZED']);
+
 /**
  * SHA256 hex of `{token}-{rawBody}` per PagBank docs.
- * @param {string} rawBody - exact JSON string received (no re-formatting)
- * @param {string} authenticityToken - x-authenticity-token header
+ * @see https://developer.pagbank.com.br/reference/confirmar-autenticidade-da-notificacao
  */
-function verifyWebhookSignature(rawBody, authenticityToken) {
-  if (!PAGSEGURO_ACCESS_TOKEN || !authenticityToken || typeof rawBody !== 'string') {
-    return false;
-  }
-  const expected = crypto
+function computeWebhookSignature(rawBody, signingToken) {
+  return crypto
     .createHash('sha256')
-    .update(`${PAGSEGURO_ACCESS_TOKEN}-${rawBody}`, 'utf8')
+    .update(`${signingToken}-${rawBody}`, 'utf8')
     .digest('hex');
-  const a = Buffer.from(expected, 'utf8');
-  const b = Buffer.from(String(authenticityToken).trim().toLowerCase(), 'utf8');
-  if (a.length !== b.length) {
+}
+
+function verifyWebhookSignature(rawBody, authenticityToken) {
+  if (!authenticityToken || typeof rawBody !== 'string' || !rawBody.length) {
     return false;
   }
-  return crypto.timingSafeEqual(a, b);
+
+  const received = String(authenticityToken).trim().toLowerCase();
+  const signingTokens = getWebhookSigningTokens();
+  if (!signingTokens.length) return false;
+
+  return signingTokens.some((token) => {
+    const expected = computeWebhookSignature(rawBody, token);
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(received, 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  });
 }
 
 function webhookFingerprint(rawBody) {
@@ -40,21 +49,102 @@ function webhookFingerprint(rawBody) {
 }
 
 /**
- * Resolve local checkout record from webhook payload.
+ * Payment webhooks for Checkout often send an ORDER (ORDE_) payload with nested charges.
  * @param {object} payload
+ * @returns {{ status: string, chargeIds: string[], paidChargeId?: string }}
+ */
+function analyzeWebhookPayloadPayment(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return { status: 'pending', chargeIds: [] };
+  }
+
+  if (payload.id?.startsWith('CHAR_')) {
+    const st = String(payload.status || '').toUpperCase();
+    if (SUCCESSFUL_CHARGE_STATUSES.has(st)) {
+      return { status: 'paid', chargeIds: [payload.id], paidChargeId: payload.id };
+    }
+    return { status: st.toLowerCase() || 'pending', chargeIds: [payload.id] };
+  }
+
+  const charges = Array.isArray(payload.charges) ? payload.charges : [];
+  const chargeIds = charges.map((c) => c.id).filter(Boolean);
+  const paidCharge = charges.find((c) =>
+    SUCCESSFUL_CHARGE_STATUSES.has(String(c.status || '').toUpperCase())
+  );
+
+  if (paidCharge?.id) {
+    return { status: 'paid', chargeIds, paidChargeId: paidCharge.id };
+  }
+
+  return { status: 'pending', chargeIds };
+}
+
+function extractPrimaryChargeId(payload) {
+  const analysis = analyzeWebhookPayloadPayment(payload);
+  return analysis.paidChargeId || analysis.chargeIds[0] || null;
+}
+
+/**
+ * When SHA256 header verification fails (CloudFront/body drift), confirm with PagBank API.
+ * Safe for production: we only trust GET /charges/{id} using our server token.
+ */
+async function confirmWebhookViaPagbankApi(payload) {
+  const record = await findCheckoutRecord(payload);
+  if (!record) return false;
+
+  const payment = analyzeWebhookPayloadPayment(payload);
+  if (payment.status !== 'paid' || !payment.paidChargeId) {
+    return false;
+  }
+
+  if (payload.reference_id && payload.reference_id !== record.referenceId) {
+    return false;
+  }
+
+  try {
+    const charge = await getPagbankCharge(payment.paidChargeId);
+    const chargeStatus = String(charge.status || '').toUpperCase();
+    if (!SUCCESSFUL_CHARGE_STATUSES.has(chargeStatus)) {
+      return false;
+    }
+
+    if (charge.reference_id && charge.reference_id !== record.referenceId) {
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('[PagSeguro Webhook] API confirmation failed:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Resolve local checkout record from webhook payload.
+ * Supports CHEC_, CHAR_, ORDE_ (payment_notification_urls), and reference_id.
  */
 async function findCheckoutRecord(payload) {
   if (!payload || typeof payload !== 'object') {
     return null;
   }
 
+  if (payload.reference_id) {
+    const byRef = await PagSeguroCheckout.findOne({ referenceId: payload.reference_id });
+    if (byRef) return byRef;
+  }
+
   if (payload.id?.startsWith('CHEC_')) {
     return PagSeguroCheckout.findOne({ pagbankCheckoutId: payload.id });
   }
 
-  if (payload.reference_id) {
-    const byRef = await PagSeguroCheckout.findOne({ referenceId: payload.reference_id });
-    if (byRef) return byRef;
+  if (payload.id?.startsWith('ORDE_') && Array.isArray(payload.charges)) {
+    for (const charge of payload.charges) {
+      const checkoutId = extractCheckoutIdFromCharge(charge);
+      if (checkoutId) {
+        const byCheckout = await PagSeguroCheckout.findOne({ pagbankCheckoutId: checkoutId });
+        if (byCheckout) return byCheckout;
+      }
+    }
   }
 
   if (payload.id?.startsWith('CHAR_')) {
@@ -63,6 +153,9 @@ async function findCheckoutRecord(payload) {
       const checkoutId = extractCheckoutIdFromCharge(charge);
       if (checkoutId) {
         return PagSeguroCheckout.findOne({ pagbankCheckoutId: checkoutId });
+      }
+      if (charge.reference_id) {
+        return PagSeguroCheckout.findOne({ referenceId: charge.reference_id });
       }
     } catch (err) {
       console.error('[PagSeguro Webhook] Failed to resolve charge to checkout:', err.message);
@@ -73,19 +166,25 @@ async function findCheckoutRecord(payload) {
 }
 
 /**
- * Sync local record from PagBank GET checkout and activate if PAID.
- * @param {import('../models/PagSeguroCheckout')} record
- * @param {{ webhookKind?: string, fingerprint?: string, setTermsIp?: string|null }} [meta]
+ * Sync local record from PagBank and activate if PAID.
  */
-async function syncCheckoutAndActivate(record, meta = {}) {
+async function syncCheckoutAndActivate(record, meta = {}, options = {}) {
   if (!record.pagbankCheckoutId) {
     throw new Error('Checkout record missing pagbankCheckoutId.');
   }
 
-  const apiCheckout = await getPagbankCheckout(record.pagbankCheckoutId);
-  const analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
-    storedChargeIds: record.chargeIds || [],
-  });
+  let analysis = options.webhookPayment || null;
+
+  if (!analysis || analysis.status !== 'paid') {
+    const apiCheckout = await getPagbankCheckout(record.pagbankCheckoutId);
+    analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
+      storedChargeIds: [
+        ...(record.chargeIds || []),
+        ...(options.extraChargeIds || []),
+        extractPrimaryChargeId(options.webhookPayload),
+      ].filter(Boolean),
+    });
+  }
 
   if (meta.fingerprint) {
     const exists = record.webhookEvents.some((e) => e.fingerprint === meta.fingerprint);
@@ -110,24 +209,17 @@ async function syncCheckoutAndActivate(record, meta = {}) {
       chargeId: analysis.paidChargeId,
       setTermsIp: meta.setTermsIp,
     });
-    return { status: 'paid', activated: true, checkoutStatus: apiCheckout.status };
+    return { status: 'paid', activated: true };
   }
 
   await record.save();
-  return { status: analysis.status, activated: false, checkoutStatus: apiCheckout.status };
+  return { status: analysis.status, activated: false };
 }
 
 /**
  * Process PagBank webhook notification.
- * @param {{ rawBody: string, authenticityToken: string, webhookKind: 'checkout'|'payment' }} input
  */
 async function processWebhookNotification({ rawBody, authenticityToken, webhookKind }) {
-  if (!verifyWebhookSignature(rawBody, authenticityToken)) {
-    const err = new Error('Invalid webhook signature.');
-    err.statusCode = 401;
-    throw err;
-  }
-
   let payload;
   try {
     payload = JSON.parse(rawBody);
@@ -135,6 +227,33 @@ async function processWebhookNotification({ rawBody, authenticityToken, webhookK
     const err = new Error('Invalid webhook JSON body.');
     err.statusCode = 400;
     throw err;
+  }
+
+  const signatureOk = authenticityToken
+    ? verifyWebhookSignature(rawBody, authenticityToken)
+    : false;
+
+  if (!signatureOk) {
+    const apiConfirmed = await confirmWebhookViaPagbankApi(payload);
+    if (!apiConfirmed) {
+      const reason = authenticityToken ? 'Invalid webhook signature.' : 'Missing authenticity token.';
+      console.error(
+        '[PagSeguro Webhook] Auth failed – kind=%s, hasHeader=%s, payloadId=%s, reference=%s, bodyLen=%s',
+        webhookKind,
+        Boolean(authenticityToken),
+        payload.id,
+        payload.reference_id,
+        rawBody.length
+      );
+      const err = new Error(reason);
+      err.statusCode = 401;
+      throw err;
+    }
+    console.warn(
+      '[PagSeguro Webhook] Accepted via PagBank API confirmation (signature/header issue) – kind=%s, id=%s',
+      webhookKind,
+      payload.id
+    );
   }
 
   const fingerprint = webhookFingerprint(rawBody);
@@ -164,21 +283,32 @@ async function processWebhookNotification({ rawBody, authenticityToken, webhookK
     return { processed: true, duplicate: true, status: 'paid', checkoutId: record.pagbankCheckoutId };
   }
 
-  const result = await syncCheckoutAndActivate(record, {
-    webhookKind,
-    fingerprint,
-  });
+  const webhookPayment = analyzeWebhookPayloadPayment(payload);
+
+  const result = await syncCheckoutAndActivate(
+    record,
+    { webhookKind, fingerprint },
+    {
+      webhookPayment: webhookPayment.status === 'paid' ? webhookPayment : null,
+      webhookPayload: payload,
+      extraChargeIds: webhookPayment.chargeIds,
+    }
+  );
 
   return {
     processed: true,
     checkoutId: record.pagbankCheckoutId,
+    authMethod: signatureOk ? 'signature' : 'api_confirmation',
     ...result,
   };
 }
 
 module.exports = {
+  computeWebhookSignature,
   verifyWebhookSignature,
   webhookFingerprint,
+  analyzeWebhookPayloadPayment,
+  confirmWebhookViaPagbankApi,
   processWebhookNotification,
   syncCheckoutAndActivate,
   findCheckoutRecord,

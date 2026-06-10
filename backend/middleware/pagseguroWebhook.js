@@ -1,18 +1,18 @@
 /**
  * PagBank webhook middleware — raw body + x-authenticity-token (SHA256).
- * Must run after express.raw({ type: 'application/json' }).
+ * Must run after pagseguroRawBody middleware.
  */
 
 const { isPagseguroConfigured } = require('../config/pagseguro');
 
-function getRawBodyString(req) {
-  if (Buffer.isBuffer(req.body)) {
-    return req.body.toString('utf8');
+function readHeader(req, name) {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (key.toLowerCase() !== target) continue;
+    if (Array.isArray(value)) return value[0] || '';
+    return value || '';
   }
-  if (typeof req.body === 'string') {
-    return req.body;
-  }
-  return JSON.stringify(req.body);
+  return '';
 }
 
 const pagseguroWebhook = (req, res, next) => {
@@ -24,20 +24,18 @@ const pagseguroWebhook = (req, res, next) => {
     });
   }
 
-  const authenticityToken =
-    req.headers['x-authenticity-token'] ||
-    req.headers['X-Authenticity-Token'];
-
-  if (!authenticityToken) {
-    console.error('[PagSeguro Webhook] Missing x-authenticity-token header');
-    return res.status(401).json({
+  if (typeof req.pagseguroRawBody !== 'string' || !req.pagseguroRawBody.length) {
+    console.error('[PagSeguro Webhook] Missing raw body string');
+    return res.status(400).json({
       success: false,
-      message: 'Missing authenticity token.',
+      message: 'Invalid webhook body.',
     });
   }
 
-  req.pagseguroRawBody = getRawBodyString(req);
-  req.pagseguroAuthenticityToken = authenticityToken;
+  req.pagseguroAuthenticityToken = readHeader(req, 'x-authenticity-token').trim();
+  req.pagseguroProductOrigin = readHeader(req, 'x-product-origin').trim();
+  req.pagseguroProductId = readHeader(req, 'x-product-id').trim();
+
   next();
 };
 

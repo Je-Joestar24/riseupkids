@@ -109,35 +109,25 @@ app.post(
   }
 );
 
-// PagBank webhooks need raw body for SHA256 authenticity (before express.json)
-const pagseguroRawBody = express.raw({ type: 'application/json' });
+// PagBank webhooks need exact raw bytes for SHA256 x-authenticity-token (before express.json)
+const {
+  pagseguroRawBodyParser,
+  attachPagseguroRawBodyString,
+} = require('./middleware/pagseguroRawBody');
 const pagseguroWebhook = require('./middleware/pagseguroWebhook');
 const {
   handleCheckoutWebhook,
   handlePaymentWebhook,
 } = require('./controllers/pagseguro.controller');
 
-const pagseguroRawBodyParser = (req, res, next) => {
-  if (!Buffer.isBuffer(req.body)) {
-    req.body = Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body));
-  }
-  next();
-};
+const pagseguroWebhookChain = [
+  pagseguroRawBodyParser,
+  attachPagseguroRawBodyString,
+  pagseguroWebhook,
+];
 
-app.post(
-  '/api/pagseguro/webhooks/checkout',
-  pagseguroRawBody,
-  pagseguroRawBodyParser,
-  pagseguroWebhook,
-  handleCheckoutWebhook
-);
-app.post(
-  '/api/pagseguro/webhooks/payment',
-  pagseguroRawBody,
-  pagseguroRawBodyParser,
-  pagseguroWebhook,
-  handlePaymentWebhook
-);
+app.post('/api/pagseguro/webhooks/checkout', ...pagseguroWebhookChain, handleCheckoutWebhook);
+app.post('/api/pagseguro/webhooks/payment', ...pagseguroWebhookChain, handlePaymentWebhook);
 
 // Regular JSON parsing for all other routes
 app.use(express.json());

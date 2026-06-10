@@ -8,7 +8,9 @@ process.env.PAGSEGURO_ACCESS_TOKEN = 'test-webhook-token';
 
 const {
   verifyWebhookSignature,
+  computeWebhookSignature,
   webhookFingerprint,
+  analyzeWebhookPayloadPayment,
 } = require('../services/pagseguroWebhook.service');
 
 const { analyzeCheckoutPayment } = require('../services/pagseguro.service');
@@ -16,16 +18,18 @@ const { analyzeCheckoutPayment } = require('../services/pagseguro.service');
 describe('pagseguroWebhook.service', () => {
   const rawBody = '{"id":"CHEC_TEST-1","status":"ACTIVE","reference_id":"ref1"}';
 
-  function expectedSignature(body) {
-    return crypto
-      .createHash('sha256')
-      .update(`test-webhook-token-${body}`, 'utf8')
-      .digest('hex');
+  function expectedSignature(body, token = 'test-webhook-token') {
+    return computeWebhookSignature(body, token);
   }
 
   describe('verifyWebhookSignature', () => {
     it('accepts valid x-authenticity-token', () => {
       const token = expectedSignature(rawBody);
+      expect(verifyWebhookSignature(rawBody, token)).toBe(true);
+    });
+
+    it('accepts uppercase hex in header', () => {
+      const token = expectedSignature(rawBody).toUpperCase();
       expect(verifyWebhookSignature(rawBody, token)).toBe(true);
     });
 
@@ -36,6 +40,35 @@ describe('pagseguroWebhook.service', () => {
 
     it('rejects wrong token', () => {
       expect(verifyWebhookSignature(rawBody, 'deadbeef')).toBe(false);
+    });
+
+    it('rejects empty authenticity token', () => {
+      expect(verifyWebhookSignature(rawBody, '')).toBe(false);
+    });
+  });
+
+  describe('analyzeWebhookPayloadPayment', () => {
+    it('detects PAID from ORDE payload with nested charges', () => {
+      const result = analyzeWebhookPayloadPayment({
+        id: 'ORDE_F53E721D-A38A-4ACD-A000-4354F2BAD40D',
+        reference_id: '59b73dd40547492da4946120787102bc',
+        charges: [
+          {
+            id: 'CHAR_4C354EED-74B7-43E4-A8D7-FEF898396130',
+            status: 'PAID',
+          },
+        ],
+      });
+      expect(result.status).toBe('paid');
+      expect(result.paidChargeId).toBe('CHAR_4C354EED-74B7-43E4-A8D7-FEF898396130');
+    });
+
+    it('detects AUTHORIZED from CHAR payload', () => {
+      const result = analyzeWebhookPayloadPayment({
+        id: 'CHAR_1',
+        status: 'AUTHORIZED',
+      });
+      expect(result.status).toBe('paid');
     });
   });
 
