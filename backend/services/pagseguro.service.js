@@ -542,12 +542,27 @@ async function getPagbankOrdersByReferenceId(referenceId) {
   }
 }
 
-async function tryResolvePaidFromChargeIds(chargeIds) {
+function pushTrace(trace, entry) {
+  if (Array.isArray(trace)) {
+    trace.push({ at: new Date().toISOString(), ...entry });
+  }
+}
+
+async function tryResolvePaidFromChargeIds(chargeIds, trace) {
   const idsToTry = [...new Set((chargeIds || []).filter((id) => id && String(id).startsWith('CHAR_')))];
+  pushTrace(trace, { step: 'get_charges_by_id', chargeIds: idsToTry });
+
   for (const chargeId of idsToTry) {
     try {
       const charge = await getPagbankCharge(chargeId);
       const chargeStatus = String(charge.status || '').toUpperCase();
+      pushTrace(trace, {
+        step: 'get_charge',
+        chargeId,
+        ok: true,
+        status: charge.status,
+        reference_id: charge.reference_id || null,
+      });
       if (SUCCESSFUL_CHARGE_STATUSES.has(chargeStatus)) {
         return {
           status: 'paid',
@@ -556,6 +571,7 @@ async function tryResolvePaidFromChargeIds(chargeIds) {
         };
       }
     } catch (err) {
+      pushTrace(trace, { step: 'get_charge', chargeId, ok: false, error: err.message });
       console.warn('[PagSeguro] getCharge fallback failed for %s: %s', chargeId, err.message);
     }
   }
@@ -563,23 +579,79 @@ async function tryResolvePaidFromChargeIds(chargeIds) {
 }
 
 /**
+ * Retrieve order from PagBank (payment webhooks often send ORDE_ id).
+ */
+async function getPagbankOrder(orderId) {
+  if (!isPagseguroConfigured()) {
+    throw new Error('PagBank is not configured.');
+  }
+  try {
+    const res = await axios.get(
+      `${PAGSEGURO_API_BASE}/orders/${encodeURIComponent(orderId)}`,
+      { headers: getAuthHeaders(), timeout: 20000 }
+    );
+    return res.data;
+  } catch (err) {
+    throw new Error('PagBank getOrder failed: ' + describeAxiosError(err));
+  }
+}
+
+/**
+ * List charges by reference_id (works after payment in many sandbox accounts).
+ */
+async function getPagbankChargesByReferenceId(referenceId) {
+  if (!referenceId) return { charges: [] };
+  try {
+    const res = await axios.get(`${PAGSEGURO_API_BASE}/charges`, {
+      headers: getAuthHeaders(),
+      timeout: 20000,
+      params: { reference_id: referenceId.trim() },
+    });
+    return res.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return { charges: [] };
+    }
+    throw new Error('PagBank listCharges failed: ' + describeAxiosError(err));
+  }
+}
+
+function extractChargesFromListResponse(data) {
+  if (!data || typeof data !== 'object') return [];
+  if (Array.isArray(data.charges)) return data.charges;
+  if (data.id && String(data.id).startsWith('CHAR_')) return [data];
+  return [];
+}
+
+/**
  * Resolve payment status from checkout payload and optional stored charge ids.
  * @param {object} apiCheckout
- * @param {{ storedChargeIds?: string[], referenceId?: string }} [options]
+ * @param {{ storedChargeIds?: string[], referenceId?: string, trace?: object[] }} [options]
+ * @returns {Promise<{ status: string, chargeIds: string[], paidChargeId?: string, ordersLookup?: object }>}
  */
 async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
+  const trace = options.trace;
+  let ordersLookup = null;
+
   let analysis = analyzeCheckoutPayment(apiCheckout);
+  pushTrace(trace, {
+    step: 'analyze_checkout',
+    checkoutStatus: apiCheckout?.status,
+    resultStatus: analysis.status,
+    chargeIds: analysis.chargeIds,
+  });
+
   if (analysis.status === 'paid') {
-    return analysis;
+    return { ...analysis, ordersLookup };
   }
 
   let chargeIds = [
     ...new Set([...(analysis.chargeIds || []), ...(options.storedChargeIds || [])]),
   ];
 
-  const paidFromCharges = await tryResolvePaidFromChargeIds(chargeIds);
+  const paidFromCharges = await tryResolvePaidFromChargeIds(chargeIds, trace);
   if (paidFromCharges) {
-    return paidFromCharges;
+    return { ...paidFromCharges, ordersLookup };
   }
 
   const referenceId = options.referenceId || apiCheckout?.reference_id;
@@ -587,6 +659,16 @@ async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
     try {
       const ordersData = await getPagbankOrdersByReferenceId(referenceId);
       const orders = extractOrdersFromListResponse(ordersData);
+      ordersLookup = {
+        referenceId,
+        orderCount: orders.length,
+        orders: orders.map((order) => ({
+          id: order.id,
+          status: order.status,
+          charges: extractCheckoutCharges(order).map((c) => ({ id: c.id, status: c.status })),
+        })),
+      };
+      pushTrace(trace, { step: 'list_orders_by_reference_id', ok: true, ...ordersLookup });
 
       for (const order of orders) {
         const orderAnalysis = analyzeCheckoutPayment(order);
@@ -597,26 +679,72 @@ async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
             status: 'paid',
             chargeIds,
             paidChargeId: orderAnalysis.paidChargeId,
+            ordersLookup,
           };
         }
       }
 
-      const paidFromOrders = await tryResolvePaidFromChargeIds(chargeIds);
+      const paidFromOrders = await tryResolvePaidFromChargeIds(chargeIds, trace);
       if (paidFromOrders) {
-        return paidFromOrders;
+        return { ...paidFromOrders, ordersLookup };
       }
 
       analysis = { ...analysis, chargeIds };
     } catch (err) {
+      ordersLookup = { referenceId, error: err.message };
+      pushTrace(trace, {
+        step: 'list_orders_by_reference_id',
+        ok: false,
+        referenceId,
+        error: err.message,
+      });
       console.warn(
         '[PagSeguro] orders by reference_id failed for %s: %s',
         referenceId,
         err.message
       );
     }
+
+    try {
+      const chargesData = await getPagbankChargesByReferenceId(referenceId);
+      const listedCharges = extractChargesFromListResponse(chargesData);
+      pushTrace(trace, {
+        step: 'list_charges_by_reference_id',
+        ok: true,
+        chargeCount: listedCharges.length,
+        charges: listedCharges.map((c) => ({ id: c.id, status: c.status })),
+      });
+
+      for (const charge of listedCharges) {
+        if (charge.id) chargeIds.push(charge.id);
+        const chargeStatus = String(charge.status || '').toUpperCase();
+        if (SUCCESSFUL_CHARGE_STATUSES.has(chargeStatus)) {
+          return {
+            status: 'paid',
+            chargeIds: [...new Set(chargeIds)],
+            paidChargeId: charge.id,
+            ordersLookup,
+          };
+        }
+      }
+
+      const paidFromListed = await tryResolvePaidFromChargeIds(chargeIds, trace);
+      if (paidFromListed) {
+        return { ...paidFromListed, ordersLookup };
+      }
+
+      analysis = { ...analysis, chargeIds: [...new Set(chargeIds)] };
+    } catch (err) {
+      pushTrace(trace, {
+        step: 'list_charges_by_reference_id',
+        ok: false,
+        referenceId,
+        error: err.message,
+      });
+    }
   }
 
-  return analysis;
+  return { ...analysis, ordersLookup };
 }
 
 module.exports = {
@@ -635,8 +763,11 @@ module.exports = {
   createPagbankCheckout,
   getPagbankCheckout,
   getPagbankCharge,
+  getPagbankOrder,
   getPagbankOrdersByReferenceId,
+  getPagbankChargesByReferenceId,
   extractOrdersFromListResponse,
+  extractChargesFromListResponse,
   analyzeCheckoutPayment,
   resolveCheckoutPaymentStatus,
   extractCheckoutCharges,

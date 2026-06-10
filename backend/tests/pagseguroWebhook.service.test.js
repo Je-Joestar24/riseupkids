@@ -9,6 +9,7 @@ process.env.PAGSEGURO_ACCESS_TOKEN = 'test-webhook-token';
 const {
   verifyWebhookSignature,
   computeWebhookSignature,
+  diagnoseWebhookSignature,
   webhookFingerprint,
   analyzeWebhookPayloadPayment,
 } = require('../services/pagseguroWebhook.service');
@@ -44,6 +45,14 @@ describe('pagseguroWebhook.service', () => {
 
     it('rejects empty authenticity token', () => {
       expect(verifyWebhookSignature(rawBody, '')).toBe(false);
+    });
+
+    it('diagnoseWebhookSignature reports token attempt details', () => {
+      const token = expectedSignature(rawBody);
+      const diag = diagnoseWebhookSignature(rawBody, token);
+      expect(diag.signatureMatched).toBe(true);
+      expect(diag.signingTokensConfigured).toBeGreaterThan(0);
+      expect(diag.tokenAttempts[0].matches).toBe(true);
     });
   });
 

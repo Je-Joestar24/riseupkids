@@ -21,6 +21,7 @@ const {
 } = require('../services/pagseguro.service');
 const { processWebhookNotification } = require('../services/pagseguroWebhook.service');
 const { activateUserFromPagseguroCheckout } = require('../services/pagseguroActivation.service');
+const { buildVerificationDiagnostics } = require('../services/pagseguroDiagnostics.service');
 
 /**
  * GET /api/pagseguro/config
@@ -183,14 +184,24 @@ exports.getCheckoutDetails = async (req, res, next) => {
       });
     }
 
+    const trace = [];
     const analysis = await resolveCheckoutPaymentStatus(apiCheckout, {
       storedChargeIds: record.chargeIds || [],
       referenceId: record.referenceId,
+      trace,
     });
     record.status = analysis.status;
     if (analysis.chargeIds.length) {
       record.chargeIds = [...new Set([...(record.chargeIds || []), ...analysis.chargeIds])];
     }
+
+    const diagnostics = buildVerificationDiagnostics({
+      record,
+      apiCheckout,
+      analysis,
+      trace,
+      ordersLookup: analysis.ordersLookup || null,
+    });
 
     const clientIp =
       req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
@@ -208,6 +219,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
         success: false,
         message: 'Payment not completed yet.',
         status: analysis.status,
+        diagnostics,
       });
     }
 
@@ -229,6 +241,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
       user: userResponse,
       token,
       checkoutId: record.pagbankCheckoutId,
+      diagnostics,
     });
   } catch (error) {
     next(error);
@@ -254,6 +267,7 @@ exports.handleCheckoutWebhook = async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'Webhook processing failed.',
+      diagnostics: error.diagnostics || null,
     });
   }
 };
@@ -277,6 +291,7 @@ exports.handlePaymentWebhook = async (req, res) => {
     return res.status(status).json({
       success: false,
       message: error.message || 'Webhook processing failed.',
+      diagnostics: error.diagnostics || null,
     });
   }
 };
