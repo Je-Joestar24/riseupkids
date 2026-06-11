@@ -71,8 +71,10 @@ export interface StarCamActions {
     image: { uri: string; name?: string; type?: string },
     options?: { itemOrder?: number; sortOrder?: number }
   ) => Promise<StarCamDetectObjectPayload | null>;
-  /** Replace mission media URI map (after preload). */
+  /** Replace mission media URI map. */
   setCachedMediaUris: (map: Record<string, string>) => void;
+  /** Merge downloaded URIs into the cache map (after preload). */
+  mergeCachedMediaUris: (map: Record<string, string>) => void;
   /** Clear loaded mission flow. */
   clearMissionFlow: () => void;
   /** Clear error. */
@@ -157,6 +159,10 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     set({ selectedMissionId: missionId, missionFlow: null, practiceMaterial: null, cachedMediaUris: {}, error: null }),
 
   setCachedMediaUris: (map) => set({ cachedMediaUris: map }),
+  mergeCachedMediaUris: (map) =>
+    set((state) => ({
+      cachedMediaUris: { ...state.cachedMediaUris, ...map },
+    })),
 
   fetchMissionStartFlow: async (childId, missionIdOrSlug) => {
     set({ isLoadingMissionFlow: true, error: null, selectedMissionId: missionIdOrSlug, missionFlow: null });

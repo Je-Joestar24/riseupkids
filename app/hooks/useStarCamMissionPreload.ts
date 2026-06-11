@@ -1,97 +1,81 @@
 import { useCallback, useRef, useState } from 'react';
 
-import {
-  type PreloadSummary,
-  preloadMediaAssetsToCache,
-  snapshotCachedMediaUris,
-} from '@/components/child/common/cms-player-media';
 import type { StarCamChildMissionStartPayload } from '@/services/childStarCamService';
 import { collectStarCamMissionMediaUrls } from '@/services/starCamMissionMedia';
+import { preloadStarCamMediaUrls } from '@/services/starCamMediaCache';
 import { useStarCamStore } from '@/store/starCamStore';
 
-import { usePerceivedLoadProgress } from './usePerceivedLoadProgress';
-
-const COMPLETE_DWELL_MS = 320;
+export interface StarCamMissionPreloadResult {
+  flow: StarCamChildMissionStartPayload;
+  failedCount: number;
+}
 
 export interface UseStarCamMissionPreloadReturn {
   isPreloading: boolean;
-  displayProgress: number;
-  realProgress: number;
+  progress: number;
   error: string | null;
-  preloadSummary: PreloadSummary | null;
-  /** Fetch mission flow + cache all media; returns flow when ready. */
-  preloadMission: (missionId: string) => Promise<StarCamChildMissionStartPayload | null>;
-  reset: () => void;
+  failedCount: number;
+  preloadMission: (missionId: string) => Promise<StarCamMissionPreloadResult | null>;
+  clearError: () => void;
 }
 
 export function useStarCamMissionPreload(childId: string | null): UseStarCamMissionPreloadReturn {
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
-  const setCachedMediaUris = useStarCamStore((s) => s.setCachedMediaUris);
+  const mergeCachedMediaUris = useStarCamStore((s) => s.mergeCachedMediaUris);
 
   const [isPreloading, setIsPreloading] = useState(false);
-  const [realProgress, setRealProgress] = useState(0);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [preloadSummary, setPreloadSummary] = useState<PreloadSummary | null>(null);
+  const [failedCount, setFailedCount] = useState(0);
   const runIdRef = useRef(0);
 
-  const displayProgress = usePerceivedLoadProgress(realProgress, isPreloading);
-
-  const reset = useCallback(() => {
-    setIsPreloading(false);
-    setRealProgress(0);
-    setError(null);
-    setPreloadSummary(null);
-  }, []);
+  const clearError = useCallback(() => setError(null), []);
 
   const preloadMission = useCallback(
-    async (missionId: string): Promise<StarCamChildMissionStartPayload | null> => {
+    async (missionId: string): Promise<StarCamMissionPreloadResult | null> => {
       if (!childId || !missionId) return null;
 
       const runId = runIdRef.current + 1;
       runIdRef.current = runId;
 
       setIsPreloading(true);
-      setRealProgress(0);
+      setProgress(0);
       setError(null);
-      setPreloadSummary(null);
+      setFailedCount(0);
 
       try {
         const flow = await fetchMissionStartFlow(childId, missionId);
         if (runIdRef.current !== runId) return null;
 
         if (!flow) {
-          setError('Could not load this mission. Please try again.');
-          setIsPreloading(false);
+          setError('Could not load this mission. Check your connection and try again.');
           return null;
         }
 
         const urls = collectStarCamMissionMediaUrls(flow);
-        const summary = urls.length
-          ? await preloadMediaAssetsToCache(
-              urls,
-              (pct) => {
-                if (runIdRef.current === runId) setRealProgress(pct);
-              },
-              6
-            )
-          : { failed: [] as string[] };
-        if (!urls.length && runIdRef.current === runId) {
-          setRealProgress(100);
+        let mediaFailed = 0;
+
+        if (urls.length) {
+          const { failed, uriMap } = await preloadStarCamMediaUrls(
+            urls,
+            (pct) => {
+              if (runIdRef.current === runId) setProgress(pct);
+            },
+            3
+          );
+          mediaFailed = failed.length;
+          if (runIdRef.current === runId) {
+            mergeCachedMediaUris(uriMap);
+            setFailedCount(mediaFailed);
+            setProgress(100);
+          }
+        } else if (runIdRef.current === runId) {
+          setProgress(100);
         }
 
         if (runIdRef.current !== runId) return null;
 
-        const uriMap = urls.length ? await snapshotCachedMediaUris(urls) : {};
-        if (runIdRef.current === runId) {
-          setCachedMediaUris(uriMap);
-        }
-
-        setRealProgress(100);
-        setPreloadSummary(summary);
-        await new Promise((resolve) => setTimeout(resolve, COMPLETE_DWELL_MS));
-
-        if (runIdRef.current !== runId) return null;
-        return flow;
+        return { flow, failedCount: mediaFailed };
       } catch (err) {
         if (runIdRef.current !== runId) return null;
         const msg = err instanceof Error ? err.message : 'Failed to prepare mission media';
@@ -103,16 +87,15 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
         }
       }
     },
-    [childId, fetchMissionStartFlow, setCachedMediaUris]
+    [childId, fetchMissionStartFlow, mergeCachedMediaUris]
   );
 
   return {
     isPreloading,
-    displayProgress,
-    realProgress,
+    progress,
     error,
-    preloadSummary,
+    failedCount,
     preloadMission,
-    reset,
+    clearError,
   };
 }

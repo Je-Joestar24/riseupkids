@@ -16,6 +16,8 @@ export interface StarCamMissionPreloadOverlayProps {
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   failedCount?: number;
+  errorMessage?: string | null;
+  onDismiss?: () => void;
 }
 
 export const StarCamMissionPreloadOverlay = memo(function StarCamMissionPreloadOverlay({
@@ -25,6 +27,8 @@ export const StarCamMissionPreloadOverlay = memo(function StarCamMissionPreloadO
   gradientColors = ['#fde8de', '#f5c7b8', colors.orange],
   borderColor = colors.orange,
   failedCount = 0,
+  errorMessage = null,
+  onDismiss,
 }: StarCamMissionPreloadOverlayProps) {
   const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
 
@@ -35,7 +39,7 @@ export const StarCamMissionPreloadOverlay = memo(function StarCamMissionPreloadO
       animationType="fade"
       statusBarTranslucent
       accessibilityViewIsModal
-      onRequestClose={() => {}}>
+      onRequestClose={() => onDismiss?.()}>
       <View style={styles.backdrop}>
         <LinearGradient
           colors={[gradientColors[0], gradientColors[1], gradientColors[2]]}
@@ -60,9 +64,11 @@ export const StarCamMissionPreloadOverlay = memo(function StarCamMissionPreloadO
 
             <ThemedText style={styles.percent}>{safeProgress}% ready</ThemedText>
 
-            {failedCount > 0 ? (
+            {errorMessage ? (
+              <ThemedText style={styles.error}>{errorMessage}</ThemedText>
+            ) : failedCount > 0 ? (
               <ThemedText style={styles.warn}>
-                Some files could not be cached, but your mission will still work.
+                Some files could not be saved on device, but your mission will still work.
               </ThemedText>
             ) : null}
           </View>
@@ -133,6 +139,13 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     textAlign: 'center',
     color: colors.textSecondary,
+  },
+  error: {
+    marginTop: spacing[3],
+    fontSize: typography.sizes.sm,
+    textAlign: 'center',
+    color: '#c0392b',
+    fontFamily: Quicksand.bold,
   },
 });
 
