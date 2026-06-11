@@ -11,6 +11,8 @@ const MEDIA_SUBDIR = 'starcam-mission-media/';
 const inflight = new Map<string, Promise<string>>();
 const memoryMap = new Map<string, string>();
 
+let fileSystemUsable: boolean | null = null;
+
 function simpleHash(input: string): string {
   let h = 0;
   for (let i = 0; i < input.length; i += 1) {
@@ -29,18 +31,42 @@ function isHttp(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
+/** Probe once whether expo-file-system native module works (APK-safe). */
+async function canUseFileSystem(): Promise<boolean> {
+  if (fileSystemUsable !== null) return fileSystemUsable;
+  const root = FileSystem.documentDirectory || FileSystem.cacheDirectory;
+  if (!root) {
+    fileSystemUsable = false;
+    return false;
+  }
+  try {
+    await FileSystem.getInfoAsync(root);
+    fileSystemUsable = true;
+  } catch {
+    fileSystemUsable = false;
+  }
+  return fileSystemUsable;
+}
+
 async function ensureMediaDir(): Promise<string> {
+  if (!(await canUseFileSystem())) return '';
   const root = FileSystem.documentDirectory || FileSystem.cacheDirectory;
   if (!root) return '';
   const dir = `${root}${MEDIA_SUBDIR}`;
-  const info = await FileSystem.getInfoAsync(dir);
-  if (!info.exists) {
-    await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  try {
+    const info = await FileSystem.getInfoAsync(dir);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+    }
+    return dir;
+  } catch {
+    fileSystemUsable = false;
+    return '';
   }
-  return dir;
 }
 
 async function fileExists(uri: string): Promise<boolean> {
+  if (!(await canUseFileSystem())) return false;
   try {
     const info = await FileSystem.getInfoAsync(uri);
     return Boolean(info.exists);
@@ -72,6 +98,8 @@ async function downloadWithRetry(remoteUrl: string, dest: string, retries = 2): 
 export async function cacheStarCamMediaUrl(remoteUrl: string): Promise<string> {
   if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
 
+  if (!(await canUseFileSystem())) return remoteUrl;
+
   const memo = memoryMap.get(remoteUrl);
   if (memo && (await fileExists(memo))) return memo;
 
@@ -79,19 +107,23 @@ export async function cacheStarCamMediaUrl(remoteUrl: string): Promise<string> {
   if (existing) return existing;
 
   const task = (async () => {
-    const dir = await ensureMediaDir();
-    if (!dir) return remoteUrl;
+    try {
+      const dir = await ensureMediaDir();
+      if (!dir) return remoteUrl;
 
-    const dest = `${dir}${simpleHash(remoteUrl)}${extensionFromUrl(remoteUrl)}`;
-    if (await fileExists(dest)) {
-      memoryMap.set(remoteUrl, dest);
-      return dest;
-    }
+      const dest = `${dir}${simpleHash(remoteUrl)}${extensionFromUrl(remoteUrl)}`;
+      if (await fileExists(dest)) {
+        memoryMap.set(remoteUrl, dest);
+        return dest;
+      }
 
-    const local = await downloadWithRetry(remoteUrl, dest);
-    if (local) {
-      memoryMap.set(remoteUrl, local);
-      return local;
+      const local = await downloadWithRetry(remoteUrl, dest);
+      if (local) {
+        memoryMap.set(remoteUrl, local);
+        return local;
+      }
+    } catch {
+      fileSystemUsable = false;
     }
     return remoteUrl;
   })();
@@ -107,6 +139,7 @@ export async function cacheStarCamMediaUrl(remoteUrl: string): Promise<string> {
 export interface StarCamPreloadResult {
   failed: string[];
   uriMap: Record<string, string>;
+  usedDiskCache: boolean;
 }
 
 /** Preload mission media with real per-file progress (0–100). */
@@ -118,10 +151,20 @@ export async function preloadStarCamMediaUrls(
   const unique = Array.from(new Set(urls.filter((u) => u && isHttp(u))));
   const failed: string[] = [];
   const uriMap: Record<string, string> = {};
+  const diskOk = await canUseFileSystem();
 
   if (!unique.length) {
     onProgress?.(100);
-    return { failed, uriMap };
+    return { failed, uriMap, usedDiskCache: diskOk };
+  }
+
+  if (!diskOk) {
+    unique.forEach((remote) => {
+      uriMap[remote] = remote;
+      failed.push(remote);
+    });
+    onProgress?.(100);
+    return { failed, uriMap, usedDiskCache: false };
   }
 
   let completed = 0;
@@ -146,5 +189,5 @@ export async function preloadStarCamMediaUrls(
 
   await Promise.all(workers);
   onProgress?.(100);
-  return { failed, uriMap };
+  return { failed, uriMap, usedDiskCache: true };
 }

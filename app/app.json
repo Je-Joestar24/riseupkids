@@ -59,7 +59,8 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-file-system"
     ],
     "experiments": {
       "typedRoutes": true,
