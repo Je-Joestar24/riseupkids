@@ -4,6 +4,7 @@ const {
   isStarCamCategoryActiveDoc,
   isStarCamCategoryExplicitlyInactive,
 } = require('../utils/starCamCategoryQuery');
+const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const s3Service = require('./s3.service');
 
 function parsePositiveInt(value, fallback) {
@@ -802,6 +803,13 @@ async function addMissionVocabularyEntry({
     throw err;
   }
 
+  const [preparedAudio, preparedIntroAudio, preparedTryAgainAudio, preparedSuccessAudio] = await Promise.all([
+    prepareAudioMulterFile(audioFile),
+    introAudioFile ? prepareAudioMulterFile(introAudioFile) : Promise.resolve({ file: null, durationSec: null }),
+    prepareAudioMulterFile(tryAgainAudioFile),
+    prepareAudioMulterFile(successAudioFile),
+  ]);
+
   const [
     { url: imageUrl, s3Key: imageS3Key },
     { url: audioUrl, s3Key: audioS3Key },
@@ -810,9 +818,9 @@ async function addMissionVocabularyEntry({
     pronunciationVideoUpload,
   ] = await Promise.all([
     s3Service.uploadFileFromMulter(imageFile, 'media/images'),
-    s3Service.uploadFileFromMulter(audioFile, 'media/audio'),
-    s3Service.uploadFileFromMulter(tryAgainAudioFile, 'media/audio'),
-    s3Service.uploadFileFromMulter(successAudioFile, 'media/audio'),
+    s3Service.uploadFileFromMulter(preparedAudio.file, 'media/audio'),
+    s3Service.uploadFileFromMulter(preparedTryAgainAudio.file, 'media/audio'),
+    s3Service.uploadFileFromMulter(preparedSuccessAudio.file, 'media/audio'),
     pronunciationVideoFile ? s3Service.uploadFileFromMulter(pronunciationVideoFile, 'media/videos') : Promise.resolve(null),
   ]);
 
@@ -832,8 +840,9 @@ async function addMissionVocabularyEntry({
       title: audioFile.originalname,
       filePath: audioS3Key,
       url: audioUrl,
-      mimeType: audioFile.mimetype,
-      size: audioFile.size,
+      mimeType: preparedAudio.file.mimetype,
+      size: preparedAudio.file.size,
+      duration: preparedAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     }),
@@ -842,8 +851,9 @@ async function addMissionVocabularyEntry({
       title: tryAgainAudioFile.originalname,
       filePath: tryAgainAudioS3Key,
       url: tryAgainAudioUrl,
-      mimeType: tryAgainAudioFile.mimetype,
-      size: tryAgainAudioFile.size,
+      mimeType: preparedTryAgainAudio.file.mimetype,
+      size: preparedTryAgainAudio.file.size,
+      duration: preparedTryAgainAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     }),
@@ -852,8 +862,9 @@ async function addMissionVocabularyEntry({
       title: successAudioFile.originalname,
       filePath: successAudioS3Key,
       url: successAudioUrl,
-      mimeType: successAudioFile.mimetype,
-      size: successAudioFile.size,
+      mimeType: preparedSuccessAudio.file.mimetype,
+      size: preparedSuccessAudio.file.size,
+      duration: preparedSuccessAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     }),
@@ -872,15 +883,16 @@ async function addMissionVocabularyEntry({
   ]);
 
   let introAudioMedia = null;
-  if (introAudioFile) {
-    const { url: introAudioUrl, s3Key: introAudioS3Key } = await s3Service.uploadFileFromMulter(introAudioFile, 'media/audio');
+  if (introAudioFile && preparedIntroAudio.file) {
+    const { url: introAudioUrl, s3Key: introAudioS3Key } = await s3Service.uploadFileFromMulter(preparedIntroAudio.file, 'media/audio');
     introAudioMedia = await Media.create({
       type: 'audio',
       title: introAudioFile.originalname,
       filePath: introAudioS3Key,
       url: introAudioUrl,
-      mimeType: introAudioFile.mimetype,
-      size: introAudioFile.size,
+      mimeType: preparedIntroAudio.file.mimetype,
+      size: preparedIntroAudio.file.size,
+      duration: preparedIntroAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     });
@@ -921,15 +933,38 @@ function getMissionVocabIndexBySortOrder(vocabList, sortOrder) {
   return idx;
 }
 
+async function prepareAudioMulterFile(file) {
+  if (!file) return { file: null, durationSec: null };
+  const trimmed = await trimLeadingTrailingSilence(file);
+  return {
+    file: {
+      ...file,
+      buffer: trimmed.buffer,
+      size: trimmed.size,
+      mimetype: trimmed.mimetype,
+    },
+    durationSec: trimmed.durationSec,
+  };
+}
+
 async function uploadMediaAndCreateDoc(file, { folder, type, userId }) {
-  const { url, s3Key } = await s3Service.uploadFileFromMulter(file, folder);
+  let uploadFile = file;
+  let durationSec = null;
+  if (type === 'audio') {
+    const prepared = await prepareAudioMulterFile(file);
+    uploadFile = prepared.file;
+    durationSec = prepared.durationSec;
+  }
+
+  const { url, s3Key } = await s3Service.uploadFileFromMulter(uploadFile, folder);
   return Media.create({
     type,
     title: file.originalname,
     filePath: s3Key,
     url,
-    mimeType: file.mimetype,
-    size: file.size,
+    mimeType: uploadFile.mimetype,
+    size: uploadFile.size,
+    duration: durationSec,
     uploadedBy: userId,
     isPublished: true,
   });
@@ -1115,10 +1150,15 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, missionIntroAudi
     throw err;
   }
 
+  const [preparedMissionIntroAudio, preparedRewardAudio] = await Promise.all([
+    missionIntroAudioFile ? prepareAudioMulterFile(missionIntroAudioFile) : Promise.resolve({ file: null, durationSec: null }),
+    rewardAudioFile ? prepareAudioMulterFile(rewardAudioFile) : Promise.resolve({ file: null, durationSec: null }),
+  ]);
+
   const uploads = [];
   if (shortVideoFile) uploads.push(s3Service.uploadFileFromMulter(shortVideoFile, 'media/videos'));
-  if (missionIntroAudioFile) uploads.push(s3Service.uploadFileFromMulter(missionIntroAudioFile, 'media/audio'));
-  if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(rewardAudioFile, 'media/audio'));
+  if (missionIntroAudioFile) uploads.push(s3Service.uploadFileFromMulter(preparedMissionIntroAudio.file, 'media/audio'));
+  if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(preparedRewardAudio.file, 'media/audio'));
   if (rewardVideoFile) uploads.push(s3Service.uploadFileFromMulter(rewardVideoFile, 'media/videos'));
   const uploaded = await Promise.all(uploads);
   let idx = 0;
@@ -1145,8 +1185,9 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, missionIntroAudi
       title: missionIntroAudioFile.originalname,
       filePath: s3Key,
       url,
-      mimeType: missionIntroAudioFile.mimetype,
-      size: missionIntroAudioFile.size,
+      mimeType: preparedMissionIntroAudio.file.mimetype,
+      size: preparedMissionIntroAudio.file.size,
+      duration: preparedMissionIntroAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     });
@@ -1160,8 +1201,9 @@ async function uploadMissionMedia({ id, userId, shortVideoFile, missionIntroAudi
       title: rewardAudioFile.originalname,
       filePath: s3Key,
       url,
-      mimeType: rewardAudioFile.mimetype,
-      size: rewardAudioFile.size,
+      mimeType: preparedRewardAudio.file.mimetype,
+      size: preparedRewardAudio.file.size,
+      duration: preparedRewardAudio.durationSec,
       uploadedBy: userId,
       isPublished: true,
     });

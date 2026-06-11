@@ -7,6 +7,7 @@ jest.mock('../models', () => ({
   },
   Media: {
     findOne: jest.fn(),
+    create: jest.fn(),
   },
   StarCamCategory: {
     find: jest.fn(),
@@ -15,8 +16,16 @@ jest.mock('../models', () => ({
     create: jest.fn(),
   },
 }));
+jest.mock('../services/s3.service', () => ({
+  uploadFileFromMulter: jest.fn(),
+}));
+jest.mock('../utils/audioSilenceTrim.util', () => ({
+  trimLeadingTrailingSilence: jest.fn(),
+}));
 
 const { StarCamMission, Media, StarCamCategory } = require('../models');
+const s3Service = require('../services/s3.service');
+const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const {
   listMissions,
   listCategories,
@@ -96,6 +105,19 @@ function makeItems7(overrides = {}) {
 describe('starCamMissionsAdmin.service', () => {
   beforeEach(() => {
     jest.resetAllMocks();
+    trimLeadingTrailingSilence.mockImplementation(async (file) => ({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      size: file.size,
+      durationSec: null,
+      trimMeta: {
+        applied: false,
+        originalDurationSec: null,
+        trimmedDurationSec: null,
+        trimmedStartSec: 0,
+        trimmedEndSec: 0,
+      },
+    }));
     const categoryLookup = {
       select: jest.fn().mockReturnThis(),
       lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
@@ -681,6 +703,81 @@ describe('starCamMissionsAdmin.service', () => {
     expect(doc.vocab[0].target).toBe('notebook');
     expect(doc.save).toHaveBeenCalled();
     expect(result).toMatchObject({ missionId: 'nature_01' });
+  });
+
+  it('trims vocabulary audio before upload when replacing audio file', async () => {
+    const trimmedBuffer = Buffer.from('trimmed-vocab-audio');
+    const inputFile = {
+      buffer: Buffer.from('raw-vocab-audio'),
+      mimetype: 'audio/mpeg',
+      originalname: 'main.mp3',
+      size: 16,
+    };
+    trimLeadingTrailingSilence.mockResolvedValue({
+      buffer: trimmedBuffer,
+      mimetype: 'audio/mpeg',
+      size: trimmedBuffer.length,
+      durationSec: 2.4,
+      trimMeta: {
+        applied: true,
+        originalDurationSec: 3.1,
+        trimmedDurationSec: 2.4,
+        trimmedStartSec: 0.4,
+        trimmedEndSec: 0.3,
+      },
+    });
+    s3Service.uploadFileFromMulter.mockResolvedValue({
+      url: 'https://cdn.example.com/audio/main-trimmed.mp3',
+      s3Key: 'media/audio/main-trimmed.mp3',
+    });
+    Media.create.mockResolvedValue({ _id: 'new-audio-media' });
+
+    const doc = makeDoc({
+      status: 'draft',
+      vocab: [
+        {
+          word: 'book',
+          displayText: 'Book',
+          target: 'book',
+          image: 'img1',
+          audio: 'aud1',
+          tryAgainAudio: 'try1',
+          successAudio: 'success1',
+          pronunciationVideo: null,
+          sortOrder: 0,
+        },
+      ],
+    });
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', vocab: [{ audio: 'new-audio-media', sortOrder: 0 }] }),
+      });
+
+    await updateMissionVocabularyEntry({
+      id: 'mission-1',
+      userId: 'u1',
+      sortOrder: 0,
+      audioFile: inputFile,
+    });
+
+    expect(trimLeadingTrailingSilence).toHaveBeenCalledWith(inputFile);
+    expect(s3Service.uploadFileFromMulter).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buffer: trimmedBuffer,
+        mimetype: 'audio/mpeg',
+        size: trimmedBuffer.length,
+      }),
+      'media/audio'
+    );
+    expect(Media.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'audio',
+        duration: 2.4,
+      })
+    );
+    expect(doc.vocab[0].audio).toBe('new-audio-media');
   });
 
   it('deletes one vocabulary entry by sortOrder and reorders list', async () => {

@@ -12,6 +12,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import StarCamCategoryChip from './StarCamCategoryChip';
 
 const StarCamCreateVocabularyModa = ({
@@ -39,6 +40,18 @@ const StarCamCreateVocabularyModa = ({
   const [tryAgainAudioPreview, setTryAgainAudioPreview] = useState('');
   const [successAudioPreview, setSuccessAudioPreview] = useState('');
   const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
+  const { processAudioFileForUpload } = useAudioFileWithSilenceTrim();
+
+  const handleAudioFieldChange = async (fieldKey, event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      onVocabChange(fieldKey, null);
+      return;
+    }
+    const result = await processAudioFileForUpload(file);
+    if (result?.file) onVocabChange(fieldKey, result.file);
+  };
 
   const isValid = useMemo(() => {
     const hasRequiredFilesFromExisting = Boolean(
@@ -275,10 +288,10 @@ const StarCamCreateVocabularyModa = ({
                 <Paper variant="outlined" sx={{ p: 1.25, borderRadius: '12px', flex: '0 0 auto' }}>
                   <Stack spacing={1}>
                     <Typography sx={{ fontWeight: 700 }}>Audio Set</Typography>
-                    <input ref={audioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('audioFile', e.target.files?.[0] || null)} />
-                    <input ref={introAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('introAudioFile', e.target.files?.[0] || null)} />
-                    <input ref={tryAgainAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('tryAgainAudioFile', e.target.files?.[0] || null)} />
-                    <input ref={successAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => onVocabChange('successAudioFile', e.target.files?.[0] || null)} />
+                    <input ref={audioInputRef} hidden type="file" accept="audio/*" onChange={(e) => handleAudioFieldChange('audioFile', e)} />
+                    <input ref={introAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => handleAudioFieldChange('introAudioFile', e)} />
+                    <input ref={tryAgainAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => handleAudioFieldChange('tryAgainAudioFile', e)} />
+                    <input ref={successAudioInputRef} hidden type="file" accept="audio/*" onChange={(e) => handleAudioFieldChange('successAudioFile', e)} />
 
                     {[
                       {
