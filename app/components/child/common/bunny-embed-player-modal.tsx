@@ -250,16 +250,6 @@ export function BunnyEmbedPlayerModal({
                 accessibilityLabel="Exit fullscreen">
                 <MaterialCommunityIcons name="fullscreen-exit" size={32} color={colors.textInverse} />
               </Pressable>
-              {showFinishButton ? (
-                <Pressable
-                  style={[styles.fullscreenFinishBtn, isRecordingWatch && styles.finishedBtnDisabled]}
-                  onPress={handleMarkFinished}
-                  disabled={isRecordingWatch}
-                  accessibilityRole="button"
-                  accessibilityLabel="I finished watching">
-                  <ThemedText style={styles.finishedBtnText}>I finished watching</ThemedText>
-                </Pressable>
-              ) : null}
             </View>
           ) : (
             <View style={styles.card}>
@@ -383,17 +373,6 @@ const styles = StyleSheet.create({
     top: spacing[6],
     right: spacing[4],
     padding: spacing[2],
-    zIndex: 10,
-  },
-  fullscreenFinishBtn: {
-    position: 'absolute',
-    bottom: spacing[6],
-    left: spacing[4],
-    right: spacing[4],
-    backgroundColor: colors.accent,
-    paddingVertical: spacing[3],
-    alignItems: 'center',
-    borderRadius: radii.lg,
     zIndex: 10,
   },
   card: {

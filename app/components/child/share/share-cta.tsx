@@ -13,13 +13,13 @@ import { typography } from '@/config/theme/typography';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export interface ShareCtaSubmitPayload {
-  photo: { uri: string };
+  photo: { uri: string; name?: string; type?: string };
   title: string;
   description: string;
 }
 
 export interface ShareCtaProps {
-  photo: { uri: string } | null;
+  photo: { uri: string; name?: string; type?: string } | null;
   title: string;
   description: string;
   onSubmit: (payload: ShareCtaSubmitPayload) => void | Promise<void>;
@@ -42,7 +42,11 @@ export function ShareCta({
   const handleSubmit = () => {
     if (isDisabled || !photo) return;
     onSubmit({
-      photo: { uri: photo.uri },
+      photo: {
+        uri: photo.uri,
+        name: photo.name,
+        type: photo.type,
+      },
       title: title.trim(),
       description: description.trim(),
     });

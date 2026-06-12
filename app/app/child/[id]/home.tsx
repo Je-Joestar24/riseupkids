@@ -73,7 +73,7 @@ export default function ChildHomeScreen() {
   }, [id]);
 
   const handleStartLearning = () => {
-    if (id) router.push(`/child/${id}/explore` as never);
+    if (id) router.push(`/child/${id}/journey` as never);
   };
 
   if (loading) {

@@ -125,6 +125,9 @@ export const useKidsWallStore = create<KidsWallState & KidsWallActions>((set, ge
     try {
       const res = await kidswallService.createPost(childId, postData, imageFile);
       const created = res?.success && res.data ? res.data : null;
+      if (!created) {
+        throw new Error(res?.message || 'Failed to share your work. Please try again.');
+      }
       const ctx = get().lastFetchContext;
       if (created && ctx) {
         if (ctx.mode === 'feed') {

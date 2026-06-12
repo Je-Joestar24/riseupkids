@@ -14,8 +14,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const CAMERA_ICON = require('@/assets/images/camera.png');
 
+export interface SharePhotoAsset {
+  uri: string;
+  name?: string;
+  type?: string;
+}
+
 export interface SharePhotoProps {
-  selectedPhoto: { uri: string } | null;
+  selectedPhoto: SharePhotoAsset | null;
   onPhotoSelect: () => void;
 }
 

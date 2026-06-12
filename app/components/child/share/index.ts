@@ -6,6 +6,6 @@ export { ShareFooter } from './share-footer';
 export { ShareHeader } from './share-header';
 export type { ShareHeaderProps } from './share-header';
 export { SharePhoto } from './share-photo';
-export type { SharePhotoProps } from './share-photo';
+export type { SharePhotoAsset, SharePhotoProps } from './share-photo';
 export { ShareTitle } from './share-title';
 export type { ShareTitleProps } from './share-title';

@@ -9,6 +9,7 @@
  */
 
 import { api } from '@/services/api';
+import { createKidsWallPostWithImage } from '@/services/kidsWallUpload';
 
 // ---------------------------------------------------------------------------
 // Types (match backend KidsWallPost populated responses)
@@ -125,25 +126,7 @@ const kidswallService = {
     postData: CreatePostInput,
     imageFile: { uri: string; name?: string; type?: string }
   ): Promise<KidsWallApiResponse<KidsWallPost>> => {
-    const formData = new FormData();
-    formData.append('title', postData.title.trim());
-    formData.append('content', postData.content.trim());
-    formData.append('image', {
-      uri: imageFile.uri,
-      name: imageFile.name ?? 'image.jpg',
-      type: imageFile.type ?? 'image/jpeg',
-    } as unknown as Blob);
-
-    const res = await api.post<KidsWallApiResponse<KidsWallPost>>(
-      `/kids-wall/child/${encodeURIComponent(childId)}`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
-    return res as KidsWallApiResponse<KidsWallPost>;
+    return createKidsWallPostWithImage(childId, postData, imageFile);
   },
 
   /**

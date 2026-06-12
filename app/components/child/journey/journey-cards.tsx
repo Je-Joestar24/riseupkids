@@ -78,7 +78,6 @@ function truncateDescription(text: string | undefined, maxLength: number = 50): 
 
 const CARD_GAP = spacing[4];
 const MAX_CONTENT_WIDTH = 848;
-const IMAGE_HEIGHT = 180;
 const STATUS_ICON_SIZE = 24;
 const STATUS_ICON_WRAP = 40;
 const LOCK_WRAP = 92;
@@ -252,7 +251,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: IMAGE_HEIGHT,
+    aspectRatio: 1,
     backgroundColor: colors.bgTertiary,
     overflow: 'hidden',
     position: 'relative',

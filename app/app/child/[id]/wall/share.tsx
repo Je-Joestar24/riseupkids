@@ -8,7 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { ShareCta } from '@/components/child/share/share-cta';
+import { ShareCta, type ShareCtaSubmitPayload } from '@/components/child/share/share-cta';
+import type { SharePhotoAsset } from '@/components/child/share/share-photo';
 import { ShareDescription } from '@/components/child/share/share-description';
 import { ShareFooter } from '@/components/child/share/share-footer';
 import { ShareHeader } from '@/components/child/share/share-header';
@@ -24,7 +25,7 @@ export default function WallShareScreen() {
   const router = useRouter();
   const childId = id ?? null;
 
-  const [photo, setPhoto] = useState<{ uri: string } | null>(null);
+  const [photo, setPhoto] = useState<SharePhotoAsset | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
@@ -39,7 +40,15 @@ export default function WallShareScreen() {
 
   const handlePhotoSelect = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return;
+    if (!permission.granted) {
+      showDialog({
+        message: 'We need photo access to add your picture.',
+        subtitle: 'Ask a grown-up to allow photos in your device Settings.',
+        type: 'error',
+        duration: 5000,
+      });
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -47,20 +56,25 @@ export default function WallShareScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhoto({ uri: result.assets[0].uri });
+      const asset = result.assets[0];
+      setPhoto({
+        uri: asset.uri,
+        name: asset.fileName ?? `kids-wall-${Date.now()}.jpg`,
+        type: asset.mimeType ?? 'image/jpeg',
+      });
     }
-  }, []);
+  }, [showDialog]);
 
   const handleSubmit = useCallback(
-    async (payload: { photo: { uri: string }; title: string; description: string }) => {
+    async (payload: ShareCtaSubmitPayload) => {
       if (!childId || !createPost) return;
       try {
         await createPost(
           { title: payload.title, content: payload.description },
           {
             uri: payload.photo.uri,
-            name: 'image.jpg',
-            type: 'image/jpeg',
+            name: payload.photo.name ?? 'image.jpg',
+            type: payload.photo.type ?? 'image/jpeg',
           }
         );
         showDialog({
@@ -70,8 +84,12 @@ export default function WallShareScreen() {
           duration: 5000,
           onClose: () => router.back(),
         });
-      } catch {
-        // Error surfaced by store/hook; keep form open
+      } catch (e) {
+        showDialog({
+          message: (e as Error)?.message ?? 'Failed to share your work. Please try again.',
+          type: 'error',
+          duration: 5000,
+        });
       }
     },
     [childId, createPost, router, showDialog]
