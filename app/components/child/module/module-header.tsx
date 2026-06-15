@@ -16,7 +16,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
-const COVER_HEIGHT = 256;
+const COVER_HEIGHT = Math.round(256 * 1.1);
 const BACK_ICON_SIZE = 24;
 
 export interface ModuleHeaderProps {

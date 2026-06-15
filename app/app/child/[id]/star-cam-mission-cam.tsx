@@ -295,11 +295,18 @@ export default function StarCamMissionCamRoute() {
   }, [currentItemIndex, missionSlug, playAudio, questionAudioUrl]);
 
   const replayQuestionAudio = useCallback(() => {
-    void playAudio(questionAudioUrl);
-  }, [playAudio, questionAudioUrl]);
+    if (!questionAudioUrl) return;
+    audioRequestIdRef.current += 1;
+    void (async () => {
+      await unloadActiveAudio();
+      if (!isScreenActiveRef.current) return;
+      await playAudio(questionAudioUrl);
+    })();
+  }, [playAudio, questionAudioUrl, unloadActiveAudio]);
 
   const playQuestionAudioForScan = useCallback(() => {
     if (!questionAudioUrl) return wait(700);
+    audioRequestIdRef.current += 1;
     return playAudio(questionAudioUrl, { waitForFinish: true, fallbackMs: 2500 });
   }, [playAudio, questionAudioUrl]);
 
@@ -471,6 +478,7 @@ export default function StarCamMissionCamRoute() {
       isLoadingCameraPermission={isLoadingCameraPermission}
       hasCameraPermission={hasCameraPermission}
       isDetecting={isCheckingScan || isDetectingObject || isAdvancing}
+      isReplayPromptDisabled={isCheckingScan || isAdvancing}
       notificationVisible={notificationState.visible}
       notificationTone={notificationState.tone}
       notificationTitle={notificationState.title}

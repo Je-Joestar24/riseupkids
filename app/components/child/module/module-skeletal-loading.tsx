@@ -18,7 +18,7 @@ import {
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
-const COVER_HEIGHT = 256;
+const COVER_HEIGHT = Math.round(256 * 1.1);
 const MAX_CONTENT_WIDTH = 848;
 
 function SkeletonBone({

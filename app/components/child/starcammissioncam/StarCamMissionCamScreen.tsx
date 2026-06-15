@@ -24,6 +24,7 @@ export interface StarCamMissionCamScreenProps {
   isLoadingCameraPermission: boolean;
   hasCameraPermission: boolean;
   isDetecting?: boolean;
+  isReplayPromptDisabled?: boolean;
   notificationVisible?: boolean;
   notificationTone?: 'success' | 'retry' | 'checking';
   notificationTitle?: string;
@@ -46,6 +47,7 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   isLoadingCameraPermission,
   hasCameraPermission,
   isDetecting = false,
+  isReplayPromptDisabled = false,
   notificationVisible = false,
   notificationTone = 'success',
   notificationTitle = '',
@@ -78,25 +80,28 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
         </View>
 
         <View style={styles.content}>
+        <View style={styles.promptBlock}>
           <ThemedText style={styles.promptText}>{displayPrompt}</ThemedText>
           {hasPromptAudio && onReplayPromptAudio ? (
             <Pressable
               onPress={onReplayPromptAudio}
-              disabled={isDetecting}
+              disabled={isReplayPromptDisabled}
               accessibilityRole="button"
               accessibilityLabel="Replay scan question audio"
+              accessibilityState={{ disabled: isReplayPromptDisabled }}
+              hitSlop={8}
               style={({ pressed }) => [
                 styles.audioReplayButton,
-                isDetecting && styles.audioReplayButtonDisabled,
-                pressed && styles.audioReplayButtonPressed,
+                isReplayPromptDisabled && styles.audioReplayButtonDisabled,
+                pressed && !isReplayPromptDisabled && styles.audioReplayButtonPressed,
               ]}>
               <MaterialIcons name="volume-up" size={18} color="#FFFFFF" />
               <ThemedText style={styles.audioReplayText}>LISTEN AGAIN</ThemedText>
             </Pressable>
           ) : null}
+        </View>
 
-
-          <View style={styles.magnifierWrap}>
+          <View style={styles.magnifierWrap} pointerEvents="box-none">
             <View style={styles.cameraCircle}>
               {isLoadingCameraPermission ? (
                 <View style={styles.centered}>
@@ -117,7 +122,14 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
               )}
             </View>
 
-            <Image source={MAGNIFYING_GLASS} style={styles.magnifierImage} resizeMode="contain" accessibilityLabel="Magnifying glass overlay" />
+            <View pointerEvents="none" style={styles.magnifierImageWrap}>
+              <Image
+                source={MAGNIFYING_GLASS}
+                style={styles.magnifierImage}
+                resizeMode="contain"
+                accessibilityLabel="Magnifying glass overlay"
+              />
+            </View>
           </View>
 
           <Pressable
@@ -186,6 +198,13 @@ const styles = StyleSheet.create({
   starIconEmpty: {
     opacity: 0.95,
   },
+  promptBlock: {
+    zIndex: 10,
+    elevation: 10,
+    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
+  },
   promptText: {
     textAlign: 'center',
     fontWeight: '800',
@@ -253,9 +272,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  magnifierImageWrap: {
+    width: '80%',
+    position: 'absolute',
+    top: 150,
+  },
   magnifierImage: {
-    width: '80%',    position: 'fixed',
-   top: 150,
+    width: '100%',
+    height: '100%',
   },
   captureButton: {
     marginTop: 18,

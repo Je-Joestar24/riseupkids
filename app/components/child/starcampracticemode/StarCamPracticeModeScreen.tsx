@@ -97,14 +97,14 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
               {progressText} • Round {passNumber}/2
             </ThemedText>
           </View>
-          {isShowingNextIntro && nextIntroText ? (
+{/*           {isShowingNextIntro && nextIntroText ? (
             <View
               style={[styles.nextToast, { borderColor: accentColor }]}
               accessibilityRole="text"
               accessibilityLabel={nextIntroText}>
               <ThemedText style={[styles.nextToastText, { color: accentColor }]}>{nextIntroText}</ThemedText>
             </View>
-          ) : null}
+          ) : null} */}
 
           <View style={styles.stack}>
             <View style={styles.block}>
