@@ -6,7 +6,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   StyleSheet,
   View,
@@ -23,6 +22,7 @@ import {
 } from '@/constants/explore';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
 import { useExploreStore } from '@/store/exploreStore';
+import { ExploreVideoCollectionSkeleton } from './explore-skeletal-loading';
 
 export interface ExploreVideoCollectionProps {
   childId: string | null;
@@ -150,11 +150,7 @@ export function ExploreVideoCollection({
   }, [lastExploreStarsAwardedAt]);
 
   if (loading) {
-    return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.secondary} />
-      </View>
-    );
+    return <ExploreVideoCollectionSkeleton />;
   }
 
   return (
@@ -179,11 +175,6 @@ export function ExploreVideoCollection({
 }
 
 const styles = StyleSheet.create({
-  loadingWrap: {
-    minHeight: 320,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

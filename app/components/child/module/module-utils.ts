@@ -98,3 +98,28 @@ export function buildPublicUrl(
   const path = urlStr.startsWith('/') ? urlStr : `/${urlStr}`;
   return `${base}${path}`;
 }
+
+type JourneyCourseRef = {
+  course?: { _id?: string; title?: string } | null;
+};
+
+/**
+ * Module header/breadcrumb label.
+ * Welcome is step 0 (first course in journey order) — show title only.
+ * Later courses use sequential steps (1, 2, 3…), not raw stepOrder gaps (10, 20…).
+ */
+export function getModuleBadgeLabel(
+  courses: JourneyCourseRef[],
+  courseId: string,
+  courseTitle: string
+): string {
+  const title = courseTitle?.trim() || 'Course';
+  if (!courseId) return title;
+
+  const courseIndex = courses.findIndex((item) => item.course?._id === courseId);
+  if (courseIndex <= 0) {
+    return title;
+  }
+
+  return `Step ${courseIndex}`;
+}

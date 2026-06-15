@@ -12,11 +12,11 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
 export interface ModuleBreadcrumbsProps {
-  stepNumber: number;
+  badgeLabel: string;
   childId: string;
 }
 
-export function ModuleBreadcrumbs({ stepNumber, childId }: ModuleBreadcrumbsProps) {
+export function ModuleBreadcrumbs({ badgeLabel, childId }: ModuleBreadcrumbsProps) {
   const router = useRouter();
 
   const onJourneyClick = () => {
@@ -38,7 +38,9 @@ export function ModuleBreadcrumbs({ stepNumber, childId }: ModuleBreadcrumbsProp
       </View>
       <View style={styles.stepBadge}>
         <ThemedText style={styles.stepEmoji}>📚</ThemedText>
-        <ThemedText style={styles.stepLabel}>Step {stepNumber}</ThemedText>
+        <ThemedText style={styles.stepLabel} numberOfLines={2}>
+          {badgeLabel}
+        </ThemedText>
       </View>
     </View>
   );

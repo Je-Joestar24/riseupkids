@@ -1,3 +1,4 @@
+export { WallCardsSkeleton } from './wall-skeletal-loading';
 export { WallCards } from './wall-cards';
 export type { WallCardsProps } from './wall-cards';
 export { WallFooter } from './wall-footer';

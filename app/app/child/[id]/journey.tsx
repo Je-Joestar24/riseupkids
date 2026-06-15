@@ -5,15 +5,11 @@
 
 import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { JourneyCards } from '@/components/child/journey/journey-cards';
 import { JourneyHeader } from '@/components/child/journey/journey-header';
+import { JourneySkeletalLoading } from '@/components/child/journey/journey-skeletal-loading';
 import { JourneySummary } from '@/components/child/journey/journey-summary';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
@@ -29,15 +25,7 @@ export default function ChildJourneyScreen() {
     (courseProgress.inProgressCount > 0 ? 1 : 0);
   const totalSteps = Math.max(courseProgress.totalCourses, 1);
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.textInverse} />
-      </View>
-    );
-  }
-
-  if (error) {
+  if (error && !loading) {
     return (
       <View style={[styles.centered, styles.container]}>
         <ThemedText style={styles.errorText}>{error}</ThemedText>
@@ -50,15 +38,19 @@ export default function ChildJourneyScreen() {
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}>
-      <JourneyHeader week={step} totalWeeks={totalSteps} />
-      {id && (
-        <JourneyCards courses={coursesWithProgress} childId={id} />
+      {loading ? (
+        <JourneySkeletalLoading />
+      ) : (
+        <>
+          <JourneyHeader week={step} totalWeeks={totalSteps} />
+          {id ? <JourneyCards courses={coursesWithProgress} childId={id} /> : null}
+          <JourneySummary
+            completed={courseProgress.completedCount}
+            current={courseProgress.inProgressCount}
+            locked={courseProgress.lockedCount}
+          />
+        </>
       )}
-      <JourneySummary
-        completed={courseProgress.completedCount}
-        current={courseProgress.inProgressCount}
-        locked={courseProgress.lockedCount}
-      />
     </ScrollView>
   );
 }

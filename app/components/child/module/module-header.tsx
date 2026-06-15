@@ -20,14 +20,14 @@ const COVER_HEIGHT = 256;
 const BACK_ICON_SIZE = 24;
 
 export interface ModuleHeaderProps {
-  stepNumber: number;
+  badgeLabel: string;
   childId: string;
   coverImageUrl: string | null;
   courseTitle: string;
 }
 
 export function ModuleHeader({
-  stepNumber,
+  badgeLabel,
   childId,
   coverImageUrl,
   courseTitle,
@@ -56,7 +56,9 @@ export function ModuleHeader({
       </Pressable>
       <View style={styles.stepBadge}>
         <View style={styles.stepBox} />
-        <ThemedText style={styles.stepText}>Step {stepNumber}</ThemedText>
+        <ThemedText style={styles.stepText} numberOfLines={2}>
+          {badgeLabel}
+        </ThemedText>
       </View>
     </>
   );

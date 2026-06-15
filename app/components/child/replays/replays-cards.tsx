@@ -6,13 +6,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
 } from 'react-native';
+
+import { ReplaysCardsSkeleton } from '@/components/child/replays/replays-skeletal-loading';
 
 import { ExploreVideoPlayerModal } from '@/components/child/common/explore-video-player-modal';
 import { ThemedText } from '@/components/themed-text';
@@ -116,12 +116,7 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
   }, [selected, getExploreVideoWatchStatus]);
 
   if (loading) {
-    return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.secondary} />
-        <ThemedText style={styles.loadingText}>Loading replays...</ThemedText>
-      </View>
-    );
+    return <ReplaysCardsSkeleton />;
   }
 
   if (!videos.length) {
@@ -210,16 +205,6 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
 }
 
 const styles = StyleSheet.create({
-  loadingWrap: {
-    paddingVertical: spacing[10],
-    alignItems: 'center',
-    gap: spacing[4],
-  },
-  loadingText: {
-    fontSize: typography.sizes.lg,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textSecondary,
-  },
   emptyWrap: {
     paddingVertical: spacing[10],
     alignItems: 'center',

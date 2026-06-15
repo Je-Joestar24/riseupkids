@@ -5,7 +5,6 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +18,7 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
 import type { ExploreContentItem } from '@/services/exploreService';
+import { ExploreReplaysSkeleton } from './explore-skeletal-loading';
 import { ExploreReplaysCard } from './explore-replays-card';
 
 export interface ExploreReplaysProps {
@@ -34,6 +34,7 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selectedContent, setSelectedContent] = useState<ExploreContentItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const loadedRef = useRef(false);
 
   const cacheKey = { videoType: 'replay', page: 1, limit: 4 };
@@ -43,10 +44,14 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
     if (loadedRef.current) return;
     let cancelled = false;
     (async () => {
-      const list = await fetchByType('video', { ...cacheKey });
-      if (cancelled) return;
-      setReplayContent(Array.isArray(list) ? list : []);
-      loadedRef.current = true;
+      try {
+        const list = await fetchByType('video', { ...cacheKey });
+        if (cancelled) return;
+        setReplayContent(Array.isArray(list) ? list : []);
+        loadedRef.current = true;
+      } finally {
+        if (!cancelled) setIsInitialLoad(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -98,13 +103,11 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
     }
   }, [selectedContent, childId, getExploreVideoWatchStatus]);
 
-  if (loading && replayContent.length === 0) {
-    return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.secondary} />
-        <ThemedText style={styles.loadingText}>Loading replays...</ThemedText>
-      </View>
-    );
+  const showReplaysSkeleton =
+    (isInitialLoad || loading) && replayContent.length === 0;
+
+  if (showReplaysSkeleton) {
+    return <ExploreReplaysSkeleton />;
   }
 
   if (!replayContent.length) return null;
@@ -207,14 +210,5 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing[4],
     paddingBottom: spacing[2],
-  },
-  loadingWrap: {
-    paddingVertical: spacing[8],
-    alignItems: 'center',
-    gap: spacing[4],
-  },
-  loadingText: {
-    fontSize: 18,
-    color: colors.textSecondary,
   },
 });

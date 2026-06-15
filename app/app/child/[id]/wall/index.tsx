@@ -6,14 +6,10 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect } from 'react';
-import {
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { WallCards } from '@/components/child/wall/wall-cards';
+import { WallCardsSkeleton } from '@/components/child/wall/wall-skeletal-loading';
 import { WallFooter } from '@/components/child/wall/wall-footer';
 import { WallHeader } from '@/components/child/wall/wall-header';
 import { WallShareSomething } from '@/components/child/wall/wall-sharesomething';
@@ -91,10 +87,7 @@ export default function ChildWallScreen() {
           />
         ) : null}
         {loading ? (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={colors.secondary} />
-            <ThemedText style={styles.loadingText}>Loading posts...</ThemedText>
-          </View>
+          <WallCardsSkeleton />
         ) : (
           <WallCards
             posts={posts}
@@ -121,18 +114,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing[4],
     paddingBottom: spacing[12],
-  },
-  loadingWrap: {
-    paddingVertical: spacing[10],
-    alignItems: 'center',
-    gap: spacing[4],
-    minHeight: 160,
-    justifyContent: 'center',
-  },
-  loadingText: {
-    fontSize: 18,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textInverse,
   },
   center: {
     flex: 1,

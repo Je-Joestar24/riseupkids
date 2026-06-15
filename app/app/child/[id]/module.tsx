@@ -5,9 +5,8 @@
  */
 
 import { useGlobalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -38,11 +37,13 @@ import { ModuleBreadcrumbs } from '@/components/child/module/module-breadcrumbs'
 import { ModuleChants } from '@/components/child/module/module-chants';
 import { ModuleFooter } from '@/components/child/module/module-footer';
 import { ModuleHeader } from '@/components/child/module/module-header';
+import { ModuleShellSkeletalLoading } from '@/components/child/module/module-skeletal-loading';
 import { ModuleProgress } from '@/components/child/module/module-progress';
 import {
   getBuiltinCmsBookId,
   getCoverImageUrl,
   getLinkedCmsBookId,
+  getModuleBadgeLabel,
   isBuiltinCmsVideoFollowUp,
   isHtml5VideoFollowUp,
   isBuiltinCmsBook,
@@ -52,6 +53,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useCmsBookPlayer } from '@/hooks/cmsBookPlayerHook';
+import { useJourney } from '@/hooks/journeyHook';
 import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
 import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
@@ -112,6 +114,18 @@ export default function ChildModuleScreen() {
     isChantCompleted,
     getAudioStatus,
   } = useModule();
+
+  const { coursesWithProgress } = useJourney(childId);
+
+  const badgeLabel = useMemo(
+    () =>
+      getModuleBadgeLabel(
+        coursesWithProgress,
+        String(courseId ?? ''),
+        course?.title ?? 'Course'
+      ),
+    [coursesWithProgress, courseId, course?.title]
+  );
 
   const {
     selectedBook: cmsPlayableBook,
@@ -344,9 +358,12 @@ export default function ChildModuleScreen() {
 
   if (isLoading && !course) {
     return (
-      <View style={[styles.centered, styles.container]}>
-        <ActivityIndicator size="large" color={colors.textInverse} />
-      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        <ModuleShellSkeletalLoading childId={childId} />
+      </ScrollView>
     );
   }
 
@@ -362,22 +379,18 @@ export default function ChildModuleScreen() {
     return null;
   }
 
-  const stepNumber = course.stepOrder ?? 1;
-  // API returns coverImage (e.g. /uploads/courses/xxx.jpeg); fallback to coverImagePath
-  const coverUrl = getCoverImageUrl(course.coverImage ?? course.coverImagePath ?? undefined);
-
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}>
       <ModuleHeader
-        stepNumber={stepNumber}
+        badgeLabel={badgeLabel}
         childId={childId}
-        coverImageUrl={coverUrl}
+        coverImageUrl={getCoverImageUrl(course.coverImage ?? course.coverImagePath ?? undefined)}
         courseTitle={course.title ?? 'Course'}
       />
-      <ModuleBreadcrumbs stepNumber={stepNumber} childId={childId} />
+      <ModuleBreadcrumbs badgeLabel={badgeLabel} childId={childId} />
       <ModuleProgress
         courseTitle={course.title ?? 'Course Title'}
         courseDescription={course.description ?? undefined}
