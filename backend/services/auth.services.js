@@ -42,7 +42,7 @@ const register = async (userData) => {
 
   // Validate role - only admin and parent can be created via public registration
   if (!['admin', 'parent'].includes(role)) {
-    throw new Error('Invalid role. Must be admin or parent. Teachers must be created by an admin. Children are created as ChildProfile records, not User accounts.');
+    throw new Error('Invalid role. Must be admin or parent. Teachers and content creators must be created by an admin. Children are created as ChildProfile records, not User accounts.');
   }
 
   // Check if user already exists

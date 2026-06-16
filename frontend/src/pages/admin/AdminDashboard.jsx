@@ -4,9 +4,7 @@ import { Box, Typography, Paper, Grid } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   PeopleOutlined,
-  SchoolOutlined,
   MenuBookOutlined,
-  PlayCircleOutlined,
   WallpaperOutlined,
 } from '@mui/icons-material';
 import DashboardList from '../../components/admin/dashboard/DashboardList';
@@ -26,15 +24,9 @@ const AdminDashboard = () => {
   const quickActions = [
     {
       title: 'Users',
-      description: 'Manage parent accounts and user access.',
+      description: 'Manage parent, teacher, and content creator accounts.',
       icon: <PeopleOutlined sx={{ fontSize: 34 }} />,
       path: '/admin/users',
-    },
-    {
-      title: 'Teachers',
-      description: 'Manage teacher accounts and permissions.',
-      icon: <SchoolOutlined sx={{ fontSize: 34 }} />,
-      path: '/admin/teachers',
     },
     {
       title: 'Courses',

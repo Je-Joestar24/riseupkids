@@ -57,7 +57,6 @@ const AdminSidebar = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardOutlined />, path: '/admin/dashboard' },
     { text: 'Users', icon: <PeopleOutline />, path: '/admin/users' },
-    { text: 'Teachers', icon: <SchoolOutlined />, path: '/admin/teachers' },
     {
       text: 'Courses',
       icon: <MenuBookOutlined />,

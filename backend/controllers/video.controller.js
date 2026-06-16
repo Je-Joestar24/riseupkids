@@ -1,5 +1,7 @@
 const videoService = require('../services/video.services');
 
+const CONTENT_MANAGER_ROLES = ['admin', 'teacher', 'content_creator'];
+
 function isVideoBadRequest(message) {
   const m = String(message || '');
   return /invalid|required|provide|embedurl|https|do not attach|must be|not a valid|too long|path must|not supported|empty|cannot|only be updated/i.test(
@@ -7,34 +9,27 @@ function isVideoBadRequest(message) {
   );
 }
 
+function resolveErrorStatus(error, { notFound = 404, fallback = 500 } = {}) {
+  if (error?.statusCode === 403) return 403;
+  const message = String(error?.message || '');
+  if (message.includes('not found')) return notFound;
+  if (isVideoBadRequest(message)) return 400;
+  return fallback;
+}
+
 /**
  * @desc    Create new video
  * @route   POST /api/videos
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (required)
- * - description: String (optional)
- * - duration: Number (optional) - in seconds
- * - starsAwarded: Number (optional, default: 10)
- * - requiredWatchCount: Number (optional, default: 5) - Number of times video must be watched to earn stars
- * - badgeAwarded: String (optional) - Badge ID
- * - tags: JSON String (optional) - Array of tag strings
- * - videoSource: String (optional, default: upload) - `upload` | `embed` (Bunny iframe)
- * - embedUrl: String (required when videoSource is embed) - HTTPS iframe.mediadelivery.net/embed/…
- * - videoFile: File (required when videoSource is upload) - Playable video file
- * - scormFile: File (optional, upload only) - SCORM ZIP (not allowed with embed)
- * - coverImage: File (optional) - Cover image/thumbnail for the video
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const createVideo = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can create videos',
+        message: 'Only admins, teachers, and content creators can create videos',
       });
     }
 
@@ -46,8 +41,7 @@ const createVideo = async (req, res) => {
       data: video,
     });
   } catch (error) {
-    const statusCode = isVideoBadRequest(error.message) ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error, { fallback: 500 })).json({
       success: false,
       message: error.message || 'Failed to create video',
     });
@@ -57,26 +51,18 @@ const createVideo = async (req, res) => {
 /**
  * @desc    Get all videos
  * @route   GET /api/videos
- * @access  Private (Admin/Teacher only)
- * 
- * Query parameters:
- * - isActive: Filter by active status (true/false, default: true)
- * - isPublished: Filter by published status (true/false)
- * - search: Search in title/description
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 10)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getAllVideos = async (req, res) => {
   try {
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access videos',
+        message: 'Only admins, teachers, and content creators can access videos',
       });
     }
 
-    const result = await videoService.getAllVideos(req.query);
+    const result = await videoService.getAllVideos({ ...req.query, user: req.user });
 
     res.status(200).json({
       success: true,
@@ -85,7 +71,7 @@ const getAllVideos = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve videos',
     });
@@ -95,21 +81,20 @@ const getAllVideos = async (req, res) => {
 /**
  * @desc    Get single video by ID
  * @route   GET /api/videos/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getVideoById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access videos',
+        message: 'Only admins, teachers, and content creators can access videos',
       });
     }
 
-    const video = await videoService.getVideoById(id);
+    const video = await videoService.getVideoById(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -117,8 +102,7 @@ const getVideoById = async (req, res) => {
       data: video,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve video',
     });
@@ -128,31 +112,21 @@ const getVideoById = async (req, res) => {
 /**
  * @desc    Update video
  * @route   PUT /api/videos/:id
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (optional)
- * - description: String (optional)
- * - duration: Number (optional) - in seconds
- * - starsAwarded: Number (optional)
- * - requiredWatchCount: Number (optional) - Number of times video must be watched to earn stars
- * - coverImage: File (optional) - New cover image/thumbnail
- * - embedUrl: String (optional) - New Bunny embed URL (only when the video was created as embed)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const updateVideo = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can update videos',
+        message: 'Only admins, teachers, and content creators can update videos',
       });
     }
 
-    const video = await videoService.updateVideo(id, userId, req.body, req.files);
+    const video = await videoService.updateVideo(id, userId, req.body, req.files, req.user);
 
     res.status(200).json({
       success: true,
@@ -160,9 +134,7 @@ const updateVideo = async (req, res) => {
       data: video,
     });
   } catch (error) {
-    const msg = error.message || '';
-    const statusCode = msg.includes('not found') ? 404 : isVideoBadRequest(msg) ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to update video',
     });
@@ -172,21 +144,20 @@ const updateVideo = async (req, res) => {
 /**
  * @desc    Delete video
  * @route   DELETE /api/videos/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const deleteVideo = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can delete videos',
+        message: 'Only admins, teachers, and content creators can delete videos',
       });
     }
 
-    const result = await videoService.deleteVideo(id);
+    const result = await videoService.deleteVideo(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -194,8 +165,7 @@ const deleteVideo = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to delete video',
     });
@@ -209,4 +179,3 @@ module.exports = {
   updateVideo,
   deleteVideo,
 };
-

@@ -21,10 +21,10 @@ const createActivity = async (req, res) => {
     const userId = req.user._id;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can create activities',
+        message: 'Only admins, teachers, and content creators can create activities',
       });
     }
 
@@ -59,14 +59,14 @@ const createActivity = async (req, res) => {
 const getAllActivities = async (req, res) => {
   try {
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access activities',
+        message: 'Only admins, teachers, and content creators can access activities',
       });
     }
 
-    const result = await activityService.getAllActivities(req.query);
+    const result = await activityService.getAllActivities({ ...req.query, user: req.user });
 
     res.status(200).json({
       success: true,
@@ -92,14 +92,14 @@ const getActivityById = async (req, res) => {
     const { id } = req.params;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access activities',
+        message: 'Only admins, teachers, and content creators can access activities',
       });
     }
 
-    const activity = await activityService.getActivityById(id);
+    const activity = await activityService.getActivityById(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -133,14 +133,14 @@ const updateActivity = async (req, res) => {
     const userId = req.user._id;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can update activities',
+        message: 'Only admins, teachers, and content creators can update activities',
       });
     }
 
-    const activity = await activityService.updateActivity(id, userId, req.body, req.files);
+    const activity = await activityService.updateActivity(id, userId, req.body, req.files, req.user);
 
     res.status(200).json({
       success: true,
@@ -166,14 +166,14 @@ const archiveActivity = async (req, res) => {
     const { id } = req.params;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can archive activities',
+        message: 'Only admins, teachers, and content creators can archive activities',
       });
     }
 
-    const activity = await activityService.archiveActivity(id);
+    const activity = await activityService.archiveActivity(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -199,14 +199,14 @@ const restoreActivity = async (req, res) => {
     const { id } = req.params;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!['admin', 'teacher', 'content_creator'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can restore activities',
+        message: 'Only admins, teachers, and content creators can restore activities',
       });
     }
 
-    const activity = await activityService.restoreActivity(id);
+    const activity = await activityService.restoreActivity(id, req.user);
 
     res.status(200).json({
       success: true,

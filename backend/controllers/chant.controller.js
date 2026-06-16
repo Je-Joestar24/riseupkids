@@ -1,33 +1,28 @@
 const chantService = require('../services/chant.services');
 
+const CONTENT_MANAGER_ROLES = ['admin', 'teacher', 'content_creator'];
+
+function resolveErrorStatus(error, { notFound = 404, badRequest = 400, fallback = 500 } = {}) {
+  if (error?.statusCode === 403) return 403;
+  const message = String(error?.message || '');
+  if (message.includes('not found')) return notFound;
+  if (message.includes('Invalid') || message.includes('required') || message.includes('empty')) return badRequest;
+  return fallback;
+}
+
 /**
  * @desc    Create new chant
  * @route   POST /api/chants
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (required)
- * - description: String (optional)
- * - instructions: String (optional)
- * - estimatedDuration: Number (optional) - in minutes
- * - starsAwarded: Number (optional, default: 10)
- * - badgeAwarded: String (optional) - Badge ID
- * - tags: JSON String (optional) - Array of tag strings
- * - isPublished: Boolean (optional, default: false)
- * - audio: File (optional) - Audio file
- * - instructionVideo: File (optional) - Instruction video played while child records
- * - scormFile: File (optional) - SCORM ZIP file
- * - coverImage: File (optional) - Cover image for the chant
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const createChant = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can create chants',
+        message: 'Only admins, teachers, and content creators can create chants',
       });
     }
 
@@ -39,8 +34,7 @@ const createChant = async (req, res) => {
       data: chant,
     });
   } catch (error) {
-    const statusCode = error.message.includes('Invalid') || error.message.includes('required') ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to create chant',
     });
@@ -50,25 +44,18 @@ const createChant = async (req, res) => {
 /**
  * @desc    Get all chants
  * @route   GET /api/chants
- * @access  Private (Admin/Teacher only)
- * 
- * Query parameters:
- * - isPublished: Filter by published status (true/false)
- * - search: Search in title/description/instructions
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 10)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getAllChants = async (req, res) => {
   try {
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access chants',
+        message: 'Only admins, teachers, and content creators can access chants',
       });
     }
 
-    const result = await chantService.getAllChants(req.query);
+    const result = await chantService.getAllChants({ ...req.query, user: req.user });
 
     res.status(200).json({
       success: true,
@@ -77,7 +64,7 @@ const getAllChants = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve chants',
     });
@@ -87,21 +74,20 @@ const getAllChants = async (req, res) => {
 /**
  * @desc    Get single chant by ID
  * @route   GET /api/chants/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getChantById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access chants',
+        message: 'Only admins, teachers, and content creators can access chants',
       });
     }
 
-    const chant = await chantService.getChantById(id);
+    const chant = await chantService.getChantById(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -109,8 +95,7 @@ const getChantById = async (req, res) => {
       data: chant,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve chant',
     });
@@ -120,31 +105,21 @@ const getChantById = async (req, res) => {
 /**
  * @desc    Update chant
  * @route   PUT /api/chants/:id
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (optional)
- * - description: String (optional)
- * - instructions: String (optional)
- * - estimatedDuration: Number (optional) - in minutes
- * - starsAwarded: Number (optional)
- * - coverImage: File (optional) - New cover image/thumbnail
- * - instructionVideo: File (optional) - New instruction video
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const updateChant = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can update chants',
+        message: 'Only admins, teachers, and content creators can update chants',
       });
     }
 
-    const chant = await chantService.updateChant(id, userId, req.body, req.files);
+    const chant = await chantService.updateChant(id, userId, req.body, req.files, req.user);
 
     res.status(200).json({
       success: true,
@@ -152,8 +127,7 @@ const updateChant = async (req, res) => {
       data: chant,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') || error.message.includes('Invalid') || error.message.includes('empty') ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to update chant',
     });
@@ -163,21 +137,20 @@ const updateChant = async (req, res) => {
 /**
  * @desc    Delete chant
  * @route   DELETE /api/chants/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const deleteChant = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can delete chants',
+        message: 'Only admins, teachers, and content creators can delete chants',
       });
     }
 
-    const result = await chantService.deleteChant(id);
+    const result = await chantService.deleteChant(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -185,8 +158,7 @@ const deleteChant = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to delete chant',
     });

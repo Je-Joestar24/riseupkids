@@ -12,12 +12,9 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Clear as ClearIcon } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { USER_ROLES } from '../../../config/constants';
+import { ADMIN_USER_ROLE_OPTIONS, isParentRole } from '../../../utils/adminUserRoles';
 
-/**
- * AdminUsersFilters Component
- * 
- * Filter controls for parent users list
- */
 const AdminUsersFilters = () => {
   const theme = useTheme();
   const { filters, updateFilters, resetFilters, fetchParents } = useParents();
@@ -25,7 +22,6 @@ const AdminUsersFilters = () => {
   const handleSearchChange = (event) => {
     const newFilters = { ...filters, search: event.target.value, page: 1 };
     updateFilters(newFilters);
-    // Debounce search - fetch after user stops typing
     clearTimeout(window.searchTimeout);
     window.searchTimeout = setTimeout(() => {
       fetchParents(newFilters);
@@ -34,6 +30,9 @@ const AdminUsersFilters = () => {
 
   const handleFilterChange = (field, value) => {
     const newFilters = { ...filters, [field]: value, page: 1 };
+    if (field === 'role' && value !== USER_ROLES.PARENT) {
+      newFilters.subscriptionStatus = undefined;
+    }
     updateFilters(newFilters);
     fetchParents(newFilters);
   };
@@ -46,62 +45,46 @@ const AdminUsersFilters = () => {
   const hasActiveFilters =
     filters.search ||
     filters.isActive !== undefined ||
-    filters.subscriptionStatus;
+    filters.subscriptionStatus ||
+    filters.role !== USER_ROLES.PARENT;
+
+  const showSubscriptionFilter = isParentRole(filters.role);
 
   return (
     <Paper
       sx={{
         padding: 2.5,
         borderRadius: '12px',
-        backgroundColor: theme.palette.background.paper,
         border: `1px solid ${theme.palette.border.main}`,
         marginBottom: 2,
-        boxShadow: theme.shadows[2],
       }}
     >
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        {/* Search Field */}
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
           placeholder="Search by name or email..."
           value={filters.search || ''}
           onChange={handleSearchChange}
           size="small"
-          sx={{
-            flex: 1,
-            minWidth: 250,
-            '& .MuiOutlinedInput-root': {
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-              '& fieldset': {
-                borderColor: theme.palette.border.main,
-              },
-              '&:hover fieldset': {
-                borderColor: theme.palette.primary.main,
-              },
-              '&.Mui-focused fieldset': {
-                borderColor: theme.palette.primary.main,
-              },
-            },
-          }}
+          sx={{ flex: 1, minWidth: 250 }}
         />
 
-        {/* Active Status Filter */}
-        <FormControl size="small" sx={{ minWidth: 150 }}>
-          <InputLabel
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
+        <FormControl size="small" sx={{ minWidth: 170 }}>
+          <InputLabel>Role</InputLabel>
+          <Select
+            value={filters.role || USER_ROLES.PARENT}
+            label="Role"
+            onChange={(e) => handleFilterChange('role', e.target.value)}
           >
-            Status
-          </InputLabel>
+            {ADMIN_USER_ROLE_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl size="small" sx={{ minWidth: 150 }}>
+          <InputLabel>Status</InputLabel>
           <Select
             value={filters.isActive !== undefined ? String(filters.isActive) : ''}
             label="Status"
@@ -111,11 +94,6 @@ const AdminUsersFilters = () => {
                 e.target.value === '' ? undefined : e.target.value === 'true'
               )
             }
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-            }}
           >
             <MenuItem value="">All</MenuItem>
             <MenuItem value="true">Active</MenuItem>
@@ -123,47 +101,27 @@ const AdminUsersFilters = () => {
           </Select>
         </FormControl>
 
-        {/* Subscription Status Filter */}
-        <FormControl size="small" sx={{ minWidth: 180 }}>
-          <InputLabel
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-            }}
-          >
-            Subscription
-          </InputLabel>
-          <Select
-            value={filters.subscriptionStatus || ''}
-            label="Subscription"
-            onChange={(e) =>
-              handleFilterChange('subscriptionStatus', e.target.value || undefined)
-            }
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              borderRadius: '8px',
-              backgroundColor: theme.palette.custom.bgSecondary,
-            }}
-          >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="active">Active</MenuItem>
-            <MenuItem value="inactive">Inactive</MenuItem>
-            <MenuItem value="canceled">Canceled</MenuItem>
-            <MenuItem value="past_due">Past Due</MenuItem>
-          </Select>
-        </FormControl>
+        {showSubscriptionFilter && (
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>Subscription</InputLabel>
+            <Select
+              value={filters.subscriptionStatus || ''}
+              label="Subscription"
+              onChange={(e) =>
+                handleFilterChange('subscriptionStatus', e.target.value || undefined)
+              }
+            >
+              <MenuItem value="">All</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+              <MenuItem value="canceled">Canceled</MenuItem>
+              <MenuItem value="past_due">Past Due</MenuItem>
+            </Select>
+          </FormControl>
+        )}
 
-        {/* Clear Filters Button */}
         {hasActiveFilters && (
-          <IconButton
-            onClick={handleClearFilters}
-            sx={{
-              color: theme.palette.text.secondary,
-              '&:hover': {
-                backgroundColor: `${theme.palette.error.main}20`,
-                color: theme.palette.error.main,
-              },
-            }}
-          >
+          <IconButton onClick={handleClearFilters} aria-label="Clear filters">
             <ClearIcon />
           </IconButton>
         )}
@@ -173,4 +131,3 @@ const AdminUsersFilters = () => {
 };
 
 export default AdminUsersFilters;
-

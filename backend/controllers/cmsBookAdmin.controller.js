@@ -23,6 +23,7 @@ const createCmsBook = async (req, res) => {
 const listCmsBooks = async (req, res) => {
   try {
     const data = await cmsBookAdminService.listCmsBooks({
+      user: req.user,
       page: req.query.page,
       limit: req.query.limit,
       search: req.query.search,
@@ -42,6 +43,7 @@ const listCmsBooks = async (req, res) => {
 const getCmsBookById = async (req, res) => {
   try {
     const data = await cmsBookAdminService.getCmsBookById({
+      user: req.user,
       bookId: req.params.id,
       includeArchived: true,
     });
@@ -57,6 +59,7 @@ const getCmsBookById = async (req, res) => {
 const updateCmsBook = async (req, res) => {
   try {
     const data = await cmsBookAdminService.updateCmsBook({
+      user: req.user,
       bookId: req.params.id,
       userId: req.user?._id,
       patch: req.body,
@@ -73,6 +76,7 @@ const updateCmsBook = async (req, res) => {
 const publishCmsBook = async (req, res) => {
   try {
     const data = await cmsBookAdminService.publishCmsBook({
+      user: req.user,
       bookId: req.params.id,
       userId: req.user?._id,
     });
@@ -88,6 +92,7 @@ const publishCmsBook = async (req, res) => {
 const unpublishCmsBook = async (req, res) => {
   try {
     const data = await cmsBookAdminService.unpublishCmsBook({
+      user: req.user,
       bookId: req.params.id,
       userId: req.user?._id,
     });
@@ -103,6 +108,7 @@ const unpublishCmsBook = async (req, res) => {
 const archiveCmsBook = async (req, res) => {
   try {
     const data = await cmsBookAdminService.archiveCmsBook({
+      user: req.user,
       bookId: req.params.id,
       userId: req.user?._id,
     });
@@ -118,6 +124,7 @@ const archiveCmsBook = async (req, res) => {
 const deleteCmsBook = async (req, res) => {
   try {
     const data = await cmsBookAdminService.deleteCmsBook({
+      user: req.user,
       bookId: req.params.id,
       userId: req.user?._id,
     });

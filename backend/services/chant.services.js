@@ -2,6 +2,7 @@ const { Chant, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Chant Service
@@ -172,6 +173,7 @@ const createChant = async (userId, chantData, files = {}) => {
  */
 const getAllChants = async (queryParams = {}) => {
   const {
+    user,
     isPublished,
     search,
     page = 1,
@@ -179,7 +181,7 @@ const getAllChants = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -233,7 +235,7 @@ const getAllChants = async (queryParams = {}) => {
  * @returns {Object} Chant with populated data
  * @throws {Error} If chant not found
  */
-const getChantById = async (chantId) => {
+const getChantById = async (chantId, user = null) => {
   const chant = await Chant.findById(chantId)
     .populate('audio', 'type title url mimeType size duration')
     .populate('instructionVideo', 'type title url mimeType size duration')
@@ -245,6 +247,8 @@ const getChantById = async (chantId) => {
   if (!chant) {
     throw new Error('Chant not found');
   }
+
+  assertCreatorOwnsDocument(user, chant);
 
   return chant;
 };
@@ -263,7 +267,7 @@ const getChantById = async (chantId) => {
  * @returns {Object} Updated chant with populated data
  * @throws {Error} If chant not found or validation fails
  */
-const updateChant = async (chantId, userId, updateData, files = {}) => {
+const updateChant = async (chantId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -279,6 +283,8 @@ const updateChant = async (chantId, userId, updateData, files = {}) => {
   if (!chant) {
     throw new Error('Chant not found');
   }
+
+  assertCreatorOwnsDocument(user, chant);
 
   // Update title
   if (title !== undefined) {
@@ -361,12 +367,14 @@ const updateChant = async (chantId, userId, updateData, files = {}) => {
  * @returns {Object} Deleted chant info
  * @throws {Error} If chant not found
  */
-const deleteChant = async (chantId) => {
+const deleteChant = async (chantId, user = null) => {
   const chant = await Chant.findById(chantId);
 
   if (!chant) {
     throw new Error('Chant not found');
   }
+
+  assertCreatorOwnsDocument(user, chant);
 
   if (chant.audio) {
     try {

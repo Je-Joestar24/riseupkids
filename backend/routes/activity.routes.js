@@ -31,7 +31,7 @@ const { uploadActivity, uploadActivityUpdate } = require('../middleware/upload')
 router.use(protect);
 
 // All routes require admin/teacher role
-router.use(authorize('admin', 'teacher'));
+router.use(authorize('admin', 'teacher', 'content_creator'));
 
 // Create new activity (with SCORM file and cover image upload)
 router.post('/', uploadActivity, createActivity);

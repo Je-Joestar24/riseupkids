@@ -2,6 +2,7 @@ const { ExploreContent, Media } = require('../models');
 const fs = require('fs');
 const s3Service = require('./s3.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 /** Fields returned on populated explore `videoFile` (upload + Bunny embed). */
 const VIDEO_FILE_POPULATE_SELECT =
@@ -205,6 +206,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
  */
 const getAllExploreContent = async (queryParams = {}) => {
   const {
+    user,
     type,
     videoType,
     category,
@@ -217,7 +219,7 @@ const getAllExploreContent = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
 
   if (type) {
     query.type = type;
@@ -295,7 +297,7 @@ const getAllExploreContent = async (queryParams = {}) => {
  * @returns {Object} Explore content with populated data
  * @throws {Error} If content not found
  */
-const getExploreContentById = async (contentId) => {
+const getExploreContentById = async (contentId, user = null) => {
   const content = await ExploreContent.findById(contentId)
     .populate('videoFile', VIDEO_FILE_POPULATE_SELECT)
     .populate('contentRef')
@@ -305,6 +307,8 @@ const getExploreContentById = async (contentId) => {
   if (!content) {
     throw new Error('Explore content not found');
   }
+
+  assertCreatorOwnsDocument(user, content);
 
   return content;
 };
@@ -322,7 +326,7 @@ const getExploreContentById = async (contentId) => {
  * @returns {Object} Updated explore content with populated data
  * @throws {Error} If content not found or validation fails
  */
-const updateExploreContent = async (contentId, userId, updateData, files = {}) => {
+const updateExploreContent = async (contentId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -344,6 +348,8 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
   if (!content) {
     throw new Error('Explore content not found');
   }
+
+  assertCreatorOwnsDocument(user, content);
 
   // Update title
   if (title !== undefined) {
@@ -477,12 +483,14 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}) =
  * @returns {Object} Deleted content info
  * @throws {Error} If content not found
  */
-const deleteExploreContent = async (contentId) => {
+const deleteExploreContent = async (contentId, user = null) => {
   const content = await ExploreContent.findById(contentId);
 
   if (!content) {
     throw new Error('Explore content not found');
   }
+
+  assertCreatorOwnsDocument(user, content);
 
   if (content.videoFilePath) {
     try {

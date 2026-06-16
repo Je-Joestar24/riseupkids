@@ -2,6 +2,7 @@ const { CmsBook, Media } = require('../models');
 const s3Service = require('./s3.service');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 const CMS_BOOK_STATUSES = ['draft', 'published', 'archived'];
 
@@ -357,13 +358,13 @@ async function createCmsBook({ userId, payload }) {
   }
 }
 
-async function listCmsBooks({ page = 1, limit = 10, search = '', status, language, includeArchived = false } = {}) {
+async function listCmsBooks({ user, page = 1, limit = 10, search = '', status, language, includeArchived = false } = {}) {
   const safePage = parsePositiveInt(page, 1);
   const safeLimit = Math.min(parsePositiveInt(limit, 10), 100);
   const skip = (safePage - 1) * safeLimit;
   const safeSearch = normalizeSearch(search);
 
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
   if (!includeArchived) query.isArchived = false;
   if (status) query.status = status;
   if (language) query.language = language;
@@ -395,10 +396,10 @@ async function listCmsBooks({ page = 1, limit = 10, search = '', status, languag
   };
 }
 
-async function getCmsBookById({ bookId, includeArchived = true }) {
+async function getCmsBookById({ user, bookId, includeArchived = true }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
 
-  const query = { _id: bookId };
+  const query = applyCreatorOwnershipFilter(user, { _id: bookId });
   if (!includeArchived) query.isArchived = false;
 
   const book = await CmsBook.findOne(query).lean();
@@ -406,12 +407,13 @@ async function getCmsBookById({ bookId, includeArchived = true }) {
   return enrichBookWithCoverPageMedia(book);
 }
 
-async function updateCmsBook({ bookId, userId, patch }) {
+async function updateCmsBook({ user, bookId, userId, patch }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
   if (!userId) throw createHttpError('userId is required', 400);
 
   const book = await CmsBook.findById(bookId);
   if (!book || book.isArchived) throw createHttpError('Book not found', 404);
+  assertCreatorOwnsDocument(user, book);
 
   const safePatch = { ...(patch || {}) };
   delete safePatch._id;
@@ -443,12 +445,13 @@ async function updateCmsBook({ bookId, userId, patch }) {
   }
 }
 
-async function publishCmsBook({ bookId, userId }) {
+async function publishCmsBook({ user, bookId, userId }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
   if (!userId) throw createHttpError('userId is required', 400);
 
   const book = await CmsBook.findById(bookId);
   if (!book || book.isArchived) throw createHttpError('Book not found', 404);
+  assertCreatorOwnsDocument(user, book);
   if (book.status === 'archived') {
     throw createHttpError('Archived books cannot be published', 400);
   }
@@ -464,12 +467,13 @@ async function publishCmsBook({ bookId, userId }) {
   }
 }
 
-async function unpublishCmsBook({ bookId, userId }) {
+async function unpublishCmsBook({ user, bookId, userId }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
   if (!userId) throw createHttpError('userId is required', 400);
 
   const book = await CmsBook.findById(bookId);
   if (!book || book.isArchived) throw createHttpError('Book not found', 404);
+  assertCreatorOwnsDocument(user, book);
 
   book.status = 'draft';
   book.updatedBy = userId;
@@ -482,12 +486,13 @@ async function unpublishCmsBook({ bookId, userId }) {
   }
 }
 
-async function archiveCmsBook({ bookId, userId }) {
+async function archiveCmsBook({ user, bookId, userId }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
   if (!userId) throw createHttpError('userId is required', 400);
 
   const book = await CmsBook.findById(bookId);
   if (!book) throw createHttpError('Book not found', 404);
+  assertCreatorOwnsDocument(user, book);
   if (book.isArchived) throw createHttpError('Book is already archived', 400);
 
   book.isArchived = true;
@@ -497,12 +502,13 @@ async function archiveCmsBook({ bookId, userId }) {
   return { id: String(book._id) };
 }
 
-async function deleteCmsBook({ bookId, userId }) {
+async function deleteCmsBook({ user, bookId, userId }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
   if (!userId) throw createHttpError('userId is required', 400);
 
   const book = await CmsBook.findById(bookId);
   if (!book) throw createHttpError('Book not found', 404);
+  assertCreatorOwnsDocument(user, book);
 
   const serializedBook = typeof book.toObject === 'function' ? book.toObject() : book;
   const mediaIds = collectBookMediaIds(serializedBook);

@@ -22,6 +22,7 @@ import {
   Edit as EditIcon,
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { getAdminUserRoleLabel, isParentRole } from '../../../utils/adminUserRoles';
 import { useDispatch } from 'react-redux';
 import { showConfirmationDialog } from '../../../store/slices/uiSlice';
 import AdminViewModal from './AdminViewModal';
@@ -47,37 +48,40 @@ const AdminUsersTable = () => {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedParentId, setSelectedParentId] = useState(null);
+  const [selectedUserRole, setSelectedUserRole] = useState(null);
 
-  const handleArchive = (parent) => {
+  const showParentColumns = isParentRole(filters.role);
+
+  const handleArchive = (user) => {
+    const role = user.role || filters.role;
     dispatch(
       showConfirmationDialog({
-        title: 'Archive Parent',
-        message: `Are you sure you want to archive ${parent.name}? This will also archive all associated child profiles.`,
+        title: 'Archive User',
+        message: `Are you sure you want to archive ${user.name}?`,
         onConfirm: async () => {
           try {
-            await archiveParentData(parent._id);
-            // Refresh the list with current filters
+            await archiveParentData(user._id, role);
             fetchParents(filters);
-          } catch (error) {
-            // Error is handled by the hook
+          } catch (_error) {
+            // handled in hook
           }
         },
       })
     );
   };
 
-  const handleRestore = (parent) => {
+  const handleRestore = (user) => {
+    const role = user.role || filters.role;
     dispatch(
       showConfirmationDialog({
-        title: 'Restore Parent',
-        message: `Are you sure you want to restore ${parent.name}?`,
+        title: 'Restore User',
+        message: `Are you sure you want to restore ${user.name}?`,
         onConfirm: async () => {
           try {
-            await restoreParentData(parent._id);
-            // Refresh the list with current filters
+            await restoreParentData(user._id, role);
             fetchParents(filters);
-          } catch (error) {
-            // Error is handled by the hook
+          } catch (_error) {
+            // handled in hook
           }
         },
       })
@@ -118,7 +122,7 @@ const AdminUsersTable = () => {
             color: theme.palette.text.secondary,
           }}
         >
-          No parents found
+          No users found
         </Typography>
       </Paper>
     );
@@ -153,137 +157,72 @@ const AdminUsersTable = () => {
           >
             <TableCell>Name</TableCell>
             <TableCell>Email</TableCell>
-            <TableCell>Children</TableCell>
+            <TableCell>Role</TableCell>
+            {showParentColumns && <TableCell>Children</TableCell>}
             <TableCell>Status</TableCell>
-            <TableCell>Subscription</TableCell>
+            {showParentColumns && <TableCell>Subscription</TableCell>}
             <TableCell>Last Login</TableCell>
             <TableCell align="center">Actions</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
-          {parents.map((parent) => (
-            <TableRow
-              key={parent._id}
-              sx={{
-                '&:hover': {
-                  backgroundColor: theme.palette.custom.bgTertiary,
-                },
-                '& td': {
-                  fontFamily: 'Quicksand, sans-serif',
-                  padding: 2,
-                  borderBottom: `1px solid ${theme.palette.border.main}`,
-                },
-              }}
-            >
+          {parents.map((user) => (
+            <TableRow key={user._id}>
               <TableCell>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    color: theme.palette.text.primary,
-                  }}
-                >
-                  {parent.name}
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {user.name}
                 </Typography>
               </TableCell>
               <TableCell>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: theme.palette.text.secondary,
-                  }}
-                >
-                  {parent.email}
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  {user.email}
                 </Typography>
               </TableCell>
               <TableCell>
                 <Chip
-                  label={`${parent.childProfilesCount || 0} active`}
+                  label={getAdminUserRoleLabel(user.role || filters.role)}
                   size="small"
-                  sx={{
-                    backgroundColor: `${theme.palette.primary.main}20`,
-                    color: theme.palette.primary.main,
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '0.75rem',
-                  }}
                 />
               </TableCell>
+              {showParentColumns && (
+                <TableCell>
+                  <Chip label={`${user.childProfilesCount || 0} active`} size="small" />
+                </TableCell>
+              )}
               <TableCell>
                 <Chip
-                  label={parent.isActive ? 'Active' : 'Archived'}
+                  label={user.isActive ? 'Active' : 'Archived'}
                   size="small"
-                  sx={{
-                    backgroundColor: parent.isActive
-                      ? `${theme.palette.success.main}20`
-                      : `${theme.palette.text.secondary}20`,
-                    color: parent.isActive
-                      ? theme.palette.success.main
-                      : theme.palette.text.secondary,
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '0.75rem',
-                  }}
+                  color={user.isActive ? 'success' : 'default'}
                 />
               </TableCell>
+              {showParentColumns && (
+                <TableCell>
+                  <Chip
+                    label={user.subscriptionStatus || 'inactive'}
+                    size="small"
+                    sx={{ textTransform: 'capitalize' }}
+                  />
+                </TableCell>
+              )}
               <TableCell>
-                <Chip
-                  label={parent.subscriptionStatus || 'inactive'}
-                  size="small"
-                  sx={{
-                    backgroundColor: `${theme.palette.orange.main}20`,
-                    color: theme.palette.orange.main,
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 500,
-                    fontSize: '0.75rem',
-                    textTransform: 'capitalize',
-                  }}
-                />
-              </TableCell>
-              <TableCell>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: theme.palette.text.secondary,
-                    fontSize: '0.75rem',
-                  }}
-                >
-                  {parent.lastLogin
-                    ? new Date(parent.lastLogin).toLocaleDateString()
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  {user.lastLogin
+                    ? new Date(user.lastLogin).toLocaleDateString()
                     : 'Never'}
                 </Typography>
               </TableCell>
               <TableCell align="center">
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                  {parent.isActive ? (
+                  {user.isActive ? (
                     <Tooltip title="Archive">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleArchive(parent)}
-                        sx={{
-                          color: theme.palette.text.secondary,
-                          '&:hover': {
-                            backgroundColor: `${theme.palette.error.main}20`,
-                            color: theme.palette.error.main,
-                          },
-                        }}
-                      >
+                      <IconButton size="small" onClick={() => handleArchive(user)} aria-label="Archive user">
                         <ArchiveIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   ) : (
                     <Tooltip title="Restore">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRestore(parent)}
-                        sx={{
-                          color: theme.palette.text.secondary,
-                          '&:hover': {
-                            backgroundColor: `${theme.palette.success.main}20`,
-                            color: theme.palette.success.main,
-                          },
-                        }}
-                      >
+                      <IconButton size="small" onClick={() => handleRestore(user)} aria-label="Restore user">
                         <RestoreIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
@@ -292,16 +231,11 @@ const AdminUsersTable = () => {
                     <IconButton
                       size="small"
                       onClick={() => {
-                        setSelectedParentId(parent._id);
+                        setSelectedParentId(user._id);
+                        setSelectedUserRole(user.role || filters.role);
                         setViewModalOpen(true);
                       }}
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        '&:hover': {
-                          backgroundColor: `${theme.palette.primary.main}20`,
-                          color: theme.palette.primary.main,
-                        },
-                      }}
+                      aria-label="View user"
                     >
                       <VisibilityIcon fontSize="small" />
                     </IconButton>
@@ -310,16 +244,11 @@ const AdminUsersTable = () => {
                     <IconButton
                       size="small"
                       onClick={() => {
-                        setSelectedParentId(parent._id);
+                        setSelectedParentId(user._id);
+                        setSelectedUserRole(user.role || filters.role);
                         setEditModalOpen(true);
                       }}
-                      sx={{
-                        color: theme.palette.text.secondary,
-                        '&:hover': {
-                          backgroundColor: `${theme.palette.orange.main}20`,
-                          color: theme.palette.orange.main,
-                        },
-                      }}
+                      aria-label="Edit user"
                     >
                       <EditIcon fontSize="small" />
                     </IconButton>
@@ -337,8 +266,10 @@ const AdminUsersTable = () => {
         onClose={() => {
           setViewModalOpen(false);
           setSelectedParentId(null);
+          setSelectedUserRole(null);
         }}
         parentId={selectedParentId}
+        userRole={selectedUserRole}
       />
 
       {/* Edit Modal */}
@@ -347,10 +278,11 @@ const AdminUsersTable = () => {
         onClose={() => {
           setEditModalOpen(false);
           setSelectedParentId(null);
-          // Refresh the list after edit
+          setSelectedUserRole(null);
           fetchParents(filters);
         }}
         parentId={selectedParentId}
+        userRole={selectedUserRole}
       />
     </>
   );

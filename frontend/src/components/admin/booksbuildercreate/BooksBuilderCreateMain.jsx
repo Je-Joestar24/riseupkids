@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button } from '@mui/material';
 import { AddCircleOutline } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
+import useContentBasePath from '../../../hooks/useContentBasePath';
 import useCmsBookAdmin from '../../../hooks/cmsBookAdminHook';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import CmsBooksModalTest from '../common/CmsBooksModalTest';
@@ -32,6 +33,7 @@ import {
 
 const BooksBuilderCreateMain = () => {
   const navigate = useNavigate();
+  const basePath = useContentBasePath();
   const { bookId } = useParams();
   const isEditMode = Boolean(bookId);
   const {
@@ -657,12 +659,12 @@ const BooksBuilderCreateMain = () => {
 
       if (publishAfterSave) {
         resetBuilderDraft();
-        navigate('/admin/built-in-books');
+        navigate(`${basePath}/built-in-books`);
         return;
       }
 
       if (!isEditMode && savedBookId) {
-        navigate(`/admin/built-in-books/${savedBookId}/edit`, { replace: true });
+        navigate(`${basePath}/built-in-books/${savedBookId}/edit`, { replace: true });
         return;
       }
 
@@ -714,7 +716,7 @@ const BooksBuilderCreateMain = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <BooksBuilderCreateHeader
-        onBack={() => navigate('/admin/built-in-books')}
+        onBack={() => navigate(`${basePath}/built-in-books`)}
         status={bookStatus}
         isEditMode={isEditMode}
       />

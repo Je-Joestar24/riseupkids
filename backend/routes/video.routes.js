@@ -29,7 +29,7 @@ const { uploadVideo, uploadVideoUpdate } = require('../middleware/upload');
 router.use(protect);
 
 // All routes require admin/teacher role
-router.use(authorize('admin', 'teacher'));
+router.use(authorize('admin', 'teacher', 'content_creator'));
 
 // Create new video (with video file, SCORM file, and cover image upload)
 router.post('/', uploadVideo, createVideo);

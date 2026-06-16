@@ -8,6 +8,7 @@ function resolveStatusCode(error, fallback = 500) {
 const listPlayableBooks = async (req, res) => {
   try {
     const data = await cmsBookPlayerService.listPlayableCmsBooksForParent({
+      user: req.user,
       userRole: req.user?.role,
       page: req.query.page,
       limit: req.query.limit,
@@ -26,6 +27,7 @@ const listPlayableBooks = async (req, res) => {
 const getPlayableBookById = async (req, res) => {
   try {
     const data = await cmsBookPlayerService.getPlayableCmsBookForParent({
+      user: req.user,
       userRole: req.user?.role,
       bookId: req.params.id,
     });

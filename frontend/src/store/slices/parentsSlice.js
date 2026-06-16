@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import parentsService from '../../services/parentsService';
+import adminUsersService from '../../services/adminUsersService';
+import { USER_ROLES } from '../../config/constants';
 
 /**
  * Async thunk for getting all parents
@@ -8,85 +9,70 @@ export const fetchAllParents = createAsyncThunk(
   'parents/fetchAllParents',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const response = await parentsService.getAllParents(params);
+      const response = await adminUsersService.getUsers(params);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch parents');
+      return rejectWithValue(error.message || 'Failed to fetch users');
     }
   }
 );
 
-/**
- * Async thunk for getting single parent by ID
- */
 export const fetchParentById = createAsyncThunk(
   'parents/fetchParentById',
-  async (parentId, { rejectWithValue }) => {
+  async ({ userId, role }, { rejectWithValue }) => {
     try {
-      const response = await parentsService.getParentById(parentId);
+      const response = await adminUsersService.getUserById(userId, role);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to fetch parent');
+      return rejectWithValue(error.message || 'Failed to fetch user');
     }
   }
 );
 
-/**
- * Async thunk for creating parent
- */
 export const createParent = createAsyncThunk(
   'parents/createParent',
-  async (parentData, { rejectWithValue }) => {
+  async (userData, { rejectWithValue }) => {
     try {
-      const response = await parentsService.createParent(parentData);
+      const response = await adminUsersService.createUser(userData);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to create parent');
+      return rejectWithValue(error.message || 'Failed to create user');
     }
   }
 );
 
-/**
- * Async thunk for updating parent
- */
 export const updateParent = createAsyncThunk(
   'parents/updateParent',
-  async ({ parentId, updateData }, { rejectWithValue }) => {
+  async ({ parentId, role, updateData }, { rejectWithValue }) => {
     try {
-      const response = await parentsService.updateParent(parentId, updateData);
+      const response = await adminUsersService.updateUser(parentId, role, updateData);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update parent');
+      return rejectWithValue(error.message || 'Failed to update user');
     }
   }
 );
 
-/**
- * Async thunk for archiving parent
- */
 export const archiveParent = createAsyncThunk(
   'parents/archiveParent',
-  async (parentId, { rejectWithValue }) => {
+  async ({ userId, role }, { rejectWithValue }) => {
     try {
-      const response = await parentsService.archiveParent(parentId);
+      const response = await adminUsersService.archiveUser(userId, role);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to archive parent');
+      return rejectWithValue(error.message || 'Failed to archive user');
     }
   }
 );
 
-/**
- * Async thunk for restoring parent
- */
 export const restoreParent = createAsyncThunk(
   'parents/restoreParent',
-  async (parentId, { rejectWithValue }) => {
+  async ({ userId, role }, { rejectWithValue }) => {
     try {
-      const response = await parentsService.restoreParent(parentId);
+      const response = await adminUsersService.restoreUser(userId, role);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to restore parent');
+      return rejectWithValue(error.message || 'Failed to restore user');
     }
   }
 );
@@ -104,11 +90,14 @@ const initialState = {
     hasPrevPage: false,
   },
   filters: {
+    role: USER_ROLES.PARENT,
     search: '',
     isActive: undefined,
     subscriptionStatus: undefined,
     sortBy: 'createdAt',
     sortOrder: 'desc',
+    page: 1,
+    limit: 10,
   },
   loading: false,
   error: null,

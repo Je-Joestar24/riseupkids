@@ -15,7 +15,7 @@ import useParents from '../../hooks/parentsHook';
  */
 const AdminUsers = () => {
   const theme = useTheme();
-  const { fetchParents, loading } = useParents();
+  const { fetchParents } = useParents();
   const [addModalOpen, setAddModalOpen] = useState(false);
 
   // Fetch parents on component mount
@@ -60,7 +60,7 @@ const AdminUsers = () => {
                   marginTop: 1,
                 }}
               >
-                Manage user accounts, view parent information, and handle account status
+                Manage parent, teacher, and content creator accounts
               </Typography>
             </Box>
             <Button
@@ -81,7 +81,7 @@ const AdminUsers = () => {
                 },
               }}
             >
-              Add Parent
+              Add User
             </Button>
           </Box>
         </Stack>
@@ -99,11 +99,7 @@ const AdminUsers = () => {
       {/* Add User Modal */}
       <AdminAddUserModal
         open={addModalOpen}
-        onClose={() => {
-          setAddModalOpen(false);
-          // Refresh the list after adding
-          fetchParents();
-        }}
+        onClose={() => setAddModalOpen(false)}
       />
     </Box>
   );

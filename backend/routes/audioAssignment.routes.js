@@ -70,7 +70,7 @@ router.post('/:id/child/:childId/review', authorize('admin', 'teacher'), reviewA
 // ------------------------------------------------------------
 
 // All routes below require admin/teacher role
-router.use(authorize('admin', 'teacher'));
+router.use(authorize('admin', 'teacher', 'content_creator'));
 
 // Create new audio assignment (with reference audio and cover image upload)
 router.post('/', uploadAudioAssignment, createAudioAssignment);

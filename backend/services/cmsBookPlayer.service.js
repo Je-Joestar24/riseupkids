@@ -1,5 +1,6 @@
 const { CmsBook, Media } = require('../models');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
 
 /**
  * Parent/teacher player for CmsBook (built-in book builder).
@@ -19,9 +20,9 @@ function parsePositiveInt(value, fallback) {
 }
 
 function ensurePlayerAccess(userRole) {
-  const allowedRoles = ['parent', 'admin', 'teacher'];
+  const allowedRoles = ['parent', 'admin', 'teacher', 'content_creator'];
   if (!allowedRoles.includes(userRole)) {
-    throw createHttpError('Only parent/admin/teacher can access book player', 403);
+    throw createHttpError('Only parent/admin/teacher/content creator can access book player', 403);
   }
 }
 
@@ -183,6 +184,7 @@ function enrichPageMedia(page, mediaMap) {
 }
 
 async function listPlayableCmsBooksForParent({
+  user,
   userRole,
   page = 1,
   limit = 10,
@@ -196,7 +198,7 @@ async function listPlayableCmsBooksForParent({
   const skip = (safePage - 1) * safeLimit;
   const safeSearch = String(search || '').trim();
 
-  const query = { status: 'published', isArchived: false };
+  let query = applyCreatorOwnershipFilter(user, { status: 'published', isArchived: false });
   if (language) query.language = language;
   if (safeSearch) {
     query.$or = [
@@ -242,17 +244,21 @@ async function listPlayableCmsBooksForParent({
   };
 }
 
-async function getPlayableCmsBookForParent({ userRole, bookId }) {
+async function getPlayableCmsBookForParent({ user, userRole, bookId }) {
   ensurePlayerAccess(userRole);
   if (!bookId) throw createHttpError('bookId is required', 400);
 
-  const book = await CmsBook.findOne({
+  const query = applyCreatorOwnershipFilter(user, {
     _id: bookId,
-    status: 'published',
     isArchived: false,
-  }).lean();
+    ...(isContentCreator(user) ? {} : { status: 'published' }),
+  });
+
+  const book = await CmsBook.findOne(query).lean();
 
   if (!book) throw createHttpError('Playable book not found', 404);
+
+  assertCreatorOwnsDocument(user, book);
 
   const orderedPages = [...(book.pages || [])].sort((a, b) => a.order - b.order);
   const mediaIds = collectMediaIdsFromPages(orderedPages);

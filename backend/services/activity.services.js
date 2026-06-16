@@ -2,6 +2,7 @@ const { Activity, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Activity Service
@@ -125,6 +126,7 @@ const createActivity = async (userId, activityData, files = {}) => {
  */
 const getAllActivities = async (queryParams = {}) => {
   const {
+    user,
     type,
     isPublished,
     isArchived,
@@ -134,7 +136,7 @@ const getAllActivities = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query
-  const query = {};
+  let query = applyCreatorOwnershipFilter(user, {});
 
   // Note: type filter removed since activities are now SCORM-based only
   // Filter by archived status (default: show only non-archived)
@@ -193,7 +195,7 @@ const getAllActivities = async (queryParams = {}) => {
  * @returns {Object} Activity with populated data
  * @throws {Error} If activity not found
  */
-const getActivityById = async (activityId) => {
+const getActivityById = async (activityId, user) => {
   const activity = await Activity.findById(activityId)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
@@ -203,6 +205,8 @@ const getActivityById = async (activityId) => {
   if (!activity) {
     throw new Error('Activity not found');
   }
+
+  assertCreatorOwnsDocument(user, activity);
 
   return activity;
 };
@@ -220,7 +224,7 @@ const getActivityById = async (activityId) => {
  * @returns {Object} Updated activity with populated data
  * @throws {Error} If activity not found or validation fails
  */
-const updateActivity = async (activityId, userId, updateData, files = {}) => {
+const updateActivity = async (activityId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -235,8 +239,7 @@ const updateActivity = async (activityId, userId, updateData, files = {}) => {
     throw new Error('Activity not found');
   }
 
-  // Verify user is the creator or admin (you can add role check if needed)
-  // For now, we'll allow any admin to edit
+  assertCreatorOwnsDocument(user, activity);
 
   // Update title
   if (title !== undefined) {
@@ -293,12 +296,14 @@ const updateActivity = async (activityId, userId, updateData, files = {}) => {
  * @returns {Object} Archived activity
  * @throws {Error} If activity not found
  */
-const archiveActivity = async (activityId) => {
+const archiveActivity = async (activityId, user = null) => {
   const activity = await Activity.findById(activityId);
 
   if (!activity) {
     throw new Error('Activity not found');
   }
+
+  assertCreatorOwnsDocument(user, activity);
 
   // Archive activity (set isArchived to true and isPublished to false)
   activity.isArchived = true;
@@ -324,12 +329,14 @@ const archiveActivity = async (activityId) => {
  * @returns {Object} Restored activity
  * @throws {Error} If activity not found
  */
-const restoreActivity = async (activityId) => {
+const restoreActivity = async (activityId, user = null) => {
   const activity = await Activity.findById(activityId);
 
   if (!activity) {
     throw new Error('Activity not found');
   }
+
+  assertCreatorOwnsDocument(user, activity);
 
   // Restore activity (set isArchived to false)
   activity.isArchived = false;

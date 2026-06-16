@@ -1,6 +1,7 @@
 const { AudioAssignment, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Audio Assignment Service
@@ -139,6 +140,7 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
  */
 const getAllAudioAssignments = async (queryParams = {}) => {
   const {
+    user,
     isPublished,
     isStarAssignment,
     search,
@@ -147,7 +149,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -204,7 +206,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
  * @returns {Object} Audio assignment with populated data
  * @throws {Error} If audio assignment not found
  */
-const getAudioAssignmentById = async (assignmentId) => {
+const getAudioAssignmentById = async (assignmentId, user = null) => {
   const audioAssignment = await AudioAssignment.findById(assignmentId)
     .populate('referenceAudio', 'type title url mimeType size duration')
     .populate('instructionVideo', 'type title url mimeType size duration')
@@ -215,6 +217,8 @@ const getAudioAssignmentById = async (assignmentId) => {
   if (!audioAssignment) {
     throw new Error('Audio assignment not found');
   }
+
+  assertCreatorOwnsDocument(user, audioAssignment);
 
   return audioAssignment;
 };
@@ -233,7 +237,7 @@ const getAudioAssignmentById = async (assignmentId) => {
  * @returns {Object} Updated audio assignment with populated data
  * @throws {Error} If audio assignment not found or validation fails
  */
-const updateAudioAssignment = async (assignmentId, userId, updateData, files = {}) => {
+const updateAudioAssignment = async (assignmentId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -250,6 +254,8 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
   if (!audioAssignment) {
     throw new Error('Audio assignment not found');
   }
+
+  assertCreatorOwnsDocument(user, audioAssignment);
 
   // Update title
   if (title !== undefined) {
@@ -339,12 +345,14 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
  * @returns {Object} Deleted audio assignment info
  * @throws {Error} If audio assignment not found
  */
-const deleteAudioAssignment = async (assignmentId) => {
+const deleteAudioAssignment = async (assignmentId, user = null) => {
   const audioAssignment = await AudioAssignment.findById(assignmentId);
 
   if (!audioAssignment) {
     throw new Error('Audio assignment not found');
   }
+
+  assertCreatorOwnsDocument(user, audioAssignment);
 
   if (audioAssignment.referenceAudio) {
     try {

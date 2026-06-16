@@ -1,33 +1,28 @@
 const audioAssignmentService = require('../services/audioAssignment.services');
 
+const CONTENT_MANAGER_ROLES = ['admin', 'teacher', 'content_creator'];
+
+function resolveErrorStatus(error, { notFound = 404, badRequest = 400, fallback = 500 } = {}) {
+  if (error?.statusCode === 403) return 403;
+  const message = String(error?.message || '');
+  if (message.includes('not found')) return notFound;
+  if (message.includes('Invalid') || message.includes('required') || message.includes('empty')) return badRequest;
+  return fallback;
+}
+
 /**
  * @desc    Create new audio assignment
  * @route   POST /api/audio-assignments
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (required)
- * - description: String (optional)
- * - instructions: String (required)
- * - estimatedDuration: Number (optional) - in minutes
- * - starsAwarded: Number (optional, default: 10)
- * - isStarAssignment: Boolean (optional, default: false)
- * - badgeAwarded: String (optional) - Badge ID
- * - tags: JSON String (optional) - Array of tag strings
- * - isPublished: Boolean (optional, default: false)
- * - referenceAudio: File (optional) - Reference/example audio file
- * - instructionVideo: File (optional) - Instruction video played while child records
- * - coverImage: File (optional) - Cover image for the assignment
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const createAudioAssignment = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can create audio assignments',
+        message: 'Only admins, teachers, and content creators can create audio assignments',
       });
     }
 
@@ -39,8 +34,7 @@ const createAudioAssignment = async (req, res) => {
       data: audioAssignment,
     });
   } catch (error) {
-    const statusCode = error.message.includes('Invalid') || error.message.includes('required') ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to create audio assignment',
     });
@@ -50,26 +44,18 @@ const createAudioAssignment = async (req, res) => {
 /**
  * @desc    Get all audio assignments
  * @route   GET /api/audio-assignments
- * @access  Private (Admin/Teacher only)
- * 
- * Query parameters:
- * - isPublished: Filter by published status (true/false)
- * - isStarAssignment: Filter by star assignment status (true/false)
- * - search: Search in title/description/instructions
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 10)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getAllAudioAssignments = async (req, res) => {
   try {
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access audio assignments',
+        message: 'Only admins, teachers, and content creators can access audio assignments',
       });
     }
 
-    const result = await audioAssignmentService.getAllAudioAssignments(req.query);
+    const result = await audioAssignmentService.getAllAudioAssignments({ ...req.query, user: req.user });
 
     res.status(200).json({
       success: true,
@@ -78,7 +64,7 @@ const getAllAudioAssignments = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    res.status(500).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve audio assignments',
     });
@@ -88,21 +74,20 @@ const getAllAudioAssignments = async (req, res) => {
 /**
  * @desc    Get single audio assignment by ID
  * @route   GET /api/audio-assignments/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const getAudioAssignmentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can access audio assignments',
+        message: 'Only admins, teachers, and content creators can access audio assignments',
       });
     }
 
-    const audioAssignment = await audioAssignmentService.getAudioAssignmentById(id);
+    const audioAssignment = await audioAssignmentService.getAudioAssignmentById(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -110,8 +95,7 @@ const getAudioAssignmentById = async (req, res) => {
       data: audioAssignment,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to retrieve audio assignment',
     });
@@ -121,33 +105,21 @@ const getAudioAssignmentById = async (req, res) => {
 /**
  * @desc    Update audio assignment
  * @route   PUT /api/audio-assignments/:id
- * @access  Private (Admin/Teacher only)
- * 
- * Request (multipart/form-data):
- * - title: String (optional)
- * - description: String (optional)
- * - instructions: String (optional)
- * - estimatedDuration: Number (optional)
- * - starsAwarded: Number (optional)
- * - isStarAssignment: Boolean (optional)
- * - isPublished: Boolean (optional)
- * - coverImage: File (optional) - New cover image
- * - instructionVideo: File (optional) - New instruction video
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const updateAudioAssignment = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user._id;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can update audio assignments',
+        message: 'Only admins, teachers, and content creators can update audio assignments',
       });
     }
 
-    const audioAssignment = await audioAssignmentService.updateAudioAssignment(id, userId, req.body, req.files);
+    const audioAssignment = await audioAssignmentService.updateAudioAssignment(id, userId, req.body, req.files, req.user);
 
     res.status(200).json({
       success: true,
@@ -155,8 +127,7 @@ const updateAudioAssignment = async (req, res) => {
       data: audioAssignment,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') || error.message.includes('Invalid') || error.message.includes('empty') ? 400 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to update audio assignment',
     });
@@ -166,21 +137,20 @@ const updateAudioAssignment = async (req, res) => {
 /**
  * @desc    Delete audio assignment
  * @route   DELETE /api/audio-assignments/:id
- * @access  Private (Admin/Teacher only)
+ * @access  Private (Admin/Teacher/Content creator)
  */
 const deleteAudioAssignment = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can delete audio assignments',
+        message: 'Only admins, teachers, and content creators can delete audio assignments',
       });
     }
 
-    const result = await audioAssignmentService.deleteAudioAssignment(id);
+    const result = await audioAssignmentService.deleteAudioAssignment(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -188,8 +158,7 @@ const deleteAudioAssignment = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
-    res.status(statusCode).json({
+    res.status(resolveErrorStatus(error)).json({
       success: false,
       message: error.message || 'Failed to delete audio assignment',
     });
@@ -203,4 +172,3 @@ module.exports = {
   updateAudioAssignment,
   deleteAudioAssignment,
 };
-

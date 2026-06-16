@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, Navigate } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
 import ForgetPassword from '../pages/auth/ForgetPassword';
 import SendCode from '../pages/auth/SendCode';
@@ -14,7 +14,6 @@ import ParentsDashboardPrintableTab from '../pages/parents/ParentsDashboardPrint
 import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminUsers from '../pages/admin/AdminUsers';
-import AdminTeachers from '../pages/admin/AdminTeachers';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
@@ -25,6 +24,8 @@ import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
 import AdminPrintables from '../pages/admin/AdminPrintables';
 import AdminLessonPlans from '../pages/admin/AdminLessonPlans';
 import AdminStarCamMissions from '../pages/admin/AdminStarCamMissions';
+import ContentCreatorLayout from '../layouts/ContentCreatorLayout';
+import ContentCreatorDashboard from '../pages/contentcreator/ContentCreatorDashboard';
 import AdminBooksBuilder from '../pages/admin/AdminBooksBuilder';
 import AdminBooksBuilderCreate from '../pages/admin/AdminBooksBuilderCreate';
 import AdminLayout from '../layouts/AdminLayout';
@@ -263,16 +264,8 @@ const AppRouter = () => {
             </AuthedAccess>
           }
         />
-        <Route
-          path="/admin/teachers"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminTeachers />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
+        <Route path="/admin/content-creators" element={<Navigate to="/admin/users" replace />} />
+        <Route path="/admin/teachers" element={<Navigate to="/admin/users" replace />} />
         <Route
           path="/admin/courses/contents"
           element={
@@ -410,6 +403,88 @@ const AppRouter = () => {
               <AdminLayout>
                 <AdminDashboard />
               </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+
+        {/* Content Creator Routes */}
+        <Route
+          path="/content-creator/dashboard"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <ContentCreatorDashboard />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/contents"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminActivities />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/explore"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminExplore />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/built-in-books"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminBooksBuilder />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/built-in-books/create"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminBooksBuilderCreate />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/built-in-books/:bookId/edit"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminBooksBuilderCreate />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/star-cam-missions"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <AdminStarCamMissions />
+              </ContentCreatorLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/content-creator/*"
+          element={
+            <AuthedAccess allowedRoles={['content_creator']}>
+              <ContentCreatorLayout>
+                <ContentCreatorDashboard />
+              </ContentCreatorLayout>
             </AuthedAccess>
           }
         />

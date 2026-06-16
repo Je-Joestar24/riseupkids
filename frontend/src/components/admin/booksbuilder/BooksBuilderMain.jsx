@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { Box, MenuItem, Paper, Stack, TextField } from '@mui/material';
 import { CMS_BOOK_STATUS } from '../../../services/cmsBookAdminService';
 import { useNavigate } from 'react-router-dom';
+import useContentBasePath from '../../../hooks/useContentBasePath';
 import BooksBuilderHeader from './BooksBuilderHeader';
 import BooksBuilderBooksCards from './BooksBuilderBooksCards';
 import BooksBuilderPagination from './BooksBuilderPagination';
@@ -14,6 +15,7 @@ import { showConfirmationDialog } from '../../../store/slices/uiSlice';
 const BooksBuilderMain = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const basePath = useContentBasePath();
   const { books, pagination, loading, filters, loadBooks, updateFilters, removeBook } = useCmsBookAdmin();
   const {
     loadPlayableBookById,
@@ -91,7 +93,7 @@ const BooksBuilderMain = () => {
     const targetId = book?._id || book?.id;
     if (!targetId) return;
     setEditingBookId(targetId);
-    navigate(`/admin/built-in-books/${targetId}/edit`);
+    navigate(`${basePath}/built-in-books/${targetId}/edit`);
   };
 
   const handleDeleteBookConfirm = (book) => {
@@ -128,7 +130,7 @@ const BooksBuilderMain = () => {
     <Box sx={{ p: 3, minHeight: '100vh' }}>
       <BooksBuilderHeader
         totalBooks={totalBooks}
-        onBuild={() => navigate('/admin/built-in-books/create')}
+        onBuild={() => navigate(`${basePath}/built-in-books/create`)}
       />
 
       <Paper sx={{ p: 2, mb: 2, borderRadius: '12px' }}>

@@ -56,7 +56,7 @@ router.post(
 // ------------------------------------------------------------
 
 // All routes below require admin/teacher role
-router.use(authorize('admin', 'teacher'));
+router.use(authorize('admin', 'teacher', 'content_creator'));
 
 // Create new chant (with optional audio, optional SCORM file, and optional cover image upload)
 router.post('/', uploadChant, createChant);

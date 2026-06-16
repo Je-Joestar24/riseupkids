@@ -26,21 +26,22 @@ import {
   ChildCare as ChildCareIcon,
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { getAdminUserRoleLabel, isParentRole } from '../../../utils/adminUserRoles';
 
 /**
  * AdminViewModal Component
  * 
  * View modal for displaying parent user details with child profiles
  */
-const AdminViewModal = ({ open, onClose, parentId }) => {
+const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
   const theme = useTheme();
-  const { fetchParent, currentParent, loading } = useParents();
+  const { fetchParent, currentParent, loading, filters } = useParents();
 
   useEffect(() => {
     if (open && parentId) {
-      fetchParent(parentId);
+      fetchParent(parentId, userRole || filters.role);
     }
-  }, [open, parentId]);
+  }, [open, parentId, userRole, filters.role]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
@@ -50,6 +51,9 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
       day: 'numeric',
     });
   };
+
+  const resolvedRole = currentParent?.role || userRole || filters.role;
+  const showParentDetails = isParentRole(resolvedRole);
 
   return (
     <Dialog
@@ -89,7 +93,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
             color: theme.palette.text.primary,
           }}
         >
-          Parent Details
+          User Details
         </Typography>
         <Button
           onClick={onClose}
@@ -146,7 +150,12 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                     >
                       {currentParent.name}
                     </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginTop: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginTop: 1, flexWrap: 'wrap' }}>
+                      <Chip
+                        label={getAdminUserRoleLabel(resolvedRole)}
+                        size="small"
+                        sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}
+                      />
                       <EmailIcon sx={{ fontSize: '1rem', color: theme.palette.text.secondary }} />
                       <Typography
                         variant="body2"
@@ -182,6 +191,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
 
                 {/* Details Grid */}
                 <Grid container spacing={2}>
+                  {showParentDetails && (
                   <Grid item xs={12} sm={6}>
                     <Box>
                       <Typography
@@ -212,6 +222,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                       />
                     </Box>
                   </Grid>
+                  )}
                   <Grid item xs={12} sm={6}>
                     <Box>
                       <Typography
@@ -272,6 +283,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                       </Box>
                     </Box>
                   </Grid>
+                  {showParentDetails && (
                   <Grid item xs={12} sm={6}>
                     <Box>
                       <Typography
@@ -313,11 +325,12 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                       </Box>
                     </Box>
                   </Grid>
+                  )}
                 </Grid>
               </Stack>
             </Paper>
 
-            {/* Children Section */}
+            {showParentDetails && (
             <Paper
               sx={{
                 padding: 3,
@@ -436,6 +449,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                 </Box>
               )}
             </Paper>
+            )}
           </Box>
         ) : (
           <Box sx={{ padding: 3, textAlign: 'center' }}>
@@ -446,7 +460,7 @@ const AdminViewModal = ({ open, onClose, parentId }) => {
                 color: theme.palette.text.secondary,
               }}
             >
-              Parent not found
+              User not found
             </Typography>
           </Box>
         )}

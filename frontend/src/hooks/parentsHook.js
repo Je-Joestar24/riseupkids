@@ -12,12 +12,8 @@ import {
   clearCurrentParent,
 } from '../store/slices/parentsSlice';
 import { showNotification } from '../store/slices/uiSlice';
+import { getAdminUserRoleLabel } from '../utils/adminUserRoles';
 
-/**
- * Custom hook for parents management
- * 
- * Provides easy access to parents state and management methods
- */
 export const useParents = () => {
   const dispatch = useDispatch();
   const {
@@ -29,187 +25,115 @@ export const useParents = () => {
     error,
   } = useSelector((state) => state.parents);
 
-  /**
-   * Fetch all parents with filters
-   * @param {Object} params - Query parameters (optional, uses current filters if not provided)
-   * @returns {Promise} Fetch result
-   */
+  const resolveRole = (role) => role || filters.role;
+
   const fetchParents = async (params = null) => {
     try {
       const queryParams = params || filters;
-      const result = await dispatch(fetchAllParents(queryParams)).unwrap();
-      return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to fetch parents',
-        type: 'error',
-      }));
-      throw error;
+      return await dispatch(fetchAllParents(queryParams)).unwrap();
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to fetch users', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Fetch single parent by ID
-   * @param {String} parentId - Parent's ID
-   * @returns {Promise} Fetch result
-   */
-  const fetchParent = async (parentId) => {
+  const fetchParent = async (userId, role = filters.role) => {
     try {
-      const result = await dispatch(fetchParentById(parentId)).unwrap();
-      return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to fetch parent',
-        type: 'error',
-      }));
-      throw error;
+      return await dispatch(fetchParentById({ userId, role: resolveRole(role) })).unwrap();
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to fetch user', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Create new parent
-   * @param {Object} parentData - Parent data
-   * @param {String} parentData.name - Parent's name
-   * @param {String} parentData.email - Parent's email
-   * @param {String} parentData.password - Parent's password
-   * @returns {Promise} Create result
-   */
-  const createNewParent = async (parentData) => {
+  const createNewParent = async (userData) => {
     try {
-      const result = await dispatch(createParent(parentData)).unwrap();
-      
-      dispatch(showNotification({
-        message: 'Parent created successfully!',
-        type: 'success',
-      }));
-      
+      const result = await dispatch(createParent(userData)).unwrap();
+      const roleLabel = getAdminUserRoleLabel(userData.role);
+      dispatch(showNotification({ message: `${roleLabel} created successfully!`, type: 'success' }));
       return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to create parent',
-        type: 'error',
-      }));
-      throw error;
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to create user', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Update parent
-   * @param {String} parentId - Parent's ID
-   * @param {Object} updateData - Data to update
-   * @returns {Promise} Update result
-   */
-  const updateParentData = async (parentId, updateData) => {
+  const updateParentData = async (userId, updateData, role = filters.role) => {
     try {
-      const result = await dispatch(updateParent({ parentId, updateData })).unwrap();
-      
-      dispatch(showNotification({
-        message: 'Parent updated successfully!',
-        type: 'success',
-      }));
-      
+      const result = await dispatch(
+        updateParent({ parentId: userId, role: resolveRole(role), updateData })
+      ).unwrap();
+      dispatch(showNotification({ message: 'User updated successfully!', type: 'success' }));
       return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to update parent',
-        type: 'error',
-      }));
-      throw error;
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to update user', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Archive parent (soft delete)
-   * @param {String} parentId - Parent's ID
-   * @returns {Promise} Archive result
-   */
-  const archiveParentData = async (parentId) => {
+  const archiveParentData = async (userId, role = filters.role) => {
     try {
-      const result = await dispatch(archiveParent(parentId)).unwrap();
-      
-      dispatch(showNotification({
-        message: 'Parent archived successfully',
-        type: 'success',
-      }));
-      
+      const result = await dispatch(
+        archiveParent({ userId, role: resolveRole(role) })
+      ).unwrap();
+      dispatch(showNotification({ message: 'User archived successfully', type: 'success' }));
       return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to archive parent',
-        type: 'error',
-      }));
-      throw error;
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to archive user', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Restore archived parent
-   * @param {String} parentId - Parent's ID
-   * @returns {Promise} Restore result
-   */
-  const restoreParentData = async (parentId) => {
+  const restoreParentData = async (userId, role = filters.role) => {
     try {
-      const result = await dispatch(restoreParent(parentId)).unwrap();
-      
-      dispatch(showNotification({
-        message: 'Parent restored successfully!',
-        type: 'success',
-      }));
-      
+      const result = await dispatch(
+        restoreParent({ userId, role: resolveRole(role) })
+      ).unwrap();
+      dispatch(showNotification({ message: 'User restored successfully!', type: 'success' }));
       return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to restore parent',
-        type: 'error',
-      }));
-      throw error;
+    } catch (err) {
+      dispatch(showNotification({ message: err || 'Failed to restore user', type: 'error' }));
+      throw err;
     }
   };
 
-  /**
-   * Update filters
-   * @param {Object} newFilters - Filter values to update
-   */
   const updateFilters = (newFilters) => {
     dispatch(setFilters(newFilters));
   };
 
-  /**
-   * Clear all filters
-   */
   const resetFilters = () => {
     dispatch(clearFilters());
   };
 
-  /**
-   * Clear current parent
-   */
   const clearParent = () => {
     dispatch(clearCurrentParent());
   };
 
-  /**
-   * Clear error state
-   */
   const clearParentsError = () => {
     dispatch(clearError());
   };
 
   return {
-    // State
     parents,
+    users: parents,
     currentParent,
+    currentUser: currentParent,
     pagination,
     filters,
     loading,
     error,
-    // Methods
     fetchParents,
+    fetchUsers: fetchParents,
     fetchParent,
+    fetchUser: fetchParent,
     createNewParent,
+    createUser: createNewParent,
     updateParentData,
+    updateUserData: updateParentData,
     archiveParentData,
+    archiveUserData: archiveParentData,
     restoreParentData,
+    restoreUserData: restoreParentData,
     updateFilters,
     resetFilters,
     clearParent,
@@ -218,4 +142,3 @@ export const useParents = () => {
 };
 
 export default useParents;
-

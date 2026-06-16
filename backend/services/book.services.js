@@ -6,6 +6,7 @@ const html5handlerService = require('./html5handler.service');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const cloudfrontService = require('./cloudfront.service');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Book Service
@@ -199,6 +200,7 @@ const createBook = async (userId, bookData, files = {}) => {
  */
 const getAllBooks = async (queryParams = {}) => {
   const {
+    user,
     isPublished,
     isArchived,
     language,
@@ -209,7 +211,7 @@ const getAllBooks = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -275,7 +277,7 @@ const getAllBooks = async (queryParams = {}) => {
  * @returns {Object} Book with populated data
  * @throws {Error} If book not found
  */
-const getBookById = async (bookId) => {
+const getBookById = async (bookId, user = null) => {
   const book = await Book.findById(bookId)
     .populate('scormFile', 'type title url mimeType size')
     .populate('cmsBookId', 'title description status language version isArchived')
@@ -286,6 +288,8 @@ const getBookById = async (bookId) => {
   if (!book) {
     throw new Error('Book not found');
   }
+
+  assertCreatorOwnsDocument(user, book);
 
   return book;
 };
@@ -299,11 +303,13 @@ const getBookById = async (bookId) => {
  * @returns {Object} Archived book info
  * @throws {Error} If book not found or already archived
  */
-const archiveBook = async (bookId) => {
+const archiveBook = async (bookId, user = null) => {
   const book = await Book.findById(bookId);
   if (!book) {
     throw new Error('Book not found');
   }
+
+  assertCreatorOwnsDocument(user, book);
 
   if (book.isArchived) {
     throw new Error('Book is already archived');
@@ -325,11 +331,13 @@ const archiveBook = async (bookId) => {
  * @returns {Object} Unarchived book info
  * @throws {Error} If book not found or not archived
  */
-const unarchiveBook = async (bookId) => {
+const unarchiveBook = async (bookId, user = null) => {
   const book = await Book.findById(bookId);
   if (!book) {
     throw new Error('Book not found');
   }
+
+  assertCreatorOwnsDocument(user, book);
 
   if (!book.isArchived) {
     throw new Error('Book is not archived');
@@ -356,7 +364,7 @@ const unarchiveBook = async (bookId) => {
  * @returns {Object} Updated book with populated data
  * @throws {Error} If book not found or validation fails
  */
-const updateBook = async (bookId, userId, updateData, files = {}) => {
+const updateBook = async (bookId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -376,6 +384,8 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
   if (!book) {
     throw new Error('Book not found');
   }
+
+  assertCreatorOwnsDocument(user, book);
 
   // Update title
   if (title !== undefined) {
@@ -493,12 +503,14 @@ const updateBook = async (bookId, userId, updateData, files = {}) => {
  * @returns {Object} Deleted book info
  * @throws {Error} If book not found
  */
-const deleteBook = async (bookId) => {
+const deleteBook = async (bookId, user = null) => {
   const book = await Book.findById(bookId);
 
   if (!book) {
     throw new Error('Book not found');
   }
+
+  assertCreatorOwnsDocument(user, book);
 
   if (!book.isArchived) {
     throw new Error('Book must be archived before permanent deletion');

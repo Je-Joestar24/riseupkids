@@ -5,6 +5,7 @@ const {
   isStarCamCategoryExplicitlyInactive,
 } = require('../utils/starCamCategoryQuery');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
 
 function parsePositiveInt(value, fallback) {
@@ -210,12 +211,12 @@ function buildPopulate() {
   ];
 }
 
-async function listMissions({ page = 1, limit = 20, status, search, categoryId } = {}) {
+async function listMissions({ user, page = 1, limit = 20, status, search, categoryId } = {}) {
   const safePage = parsePositiveInt(page, 1);
   const safeLimit = Math.min(parsePositiveInt(limit, 20), 100);
   const skip = (safePage - 1) * safeLimit;
 
-  const query = {};
+  const query = applyCreatorOwnershipFilter(user, {});
   if (status && ['draft', 'published', 'archived'].includes(String(status))) query.status = String(status);
   const cId = ensureObjectId(categoryId, 'categoryId');
   if (cId) {
@@ -287,23 +288,26 @@ async function createMission({ userId, missionId, title, categoryId } = {}) {
   return doc.toObject();
 }
 
-async function getMissionById({ id }) {
+async function getMissionById({ id, user } = {}) {
   const doc = await StarCamMission.findById(id).populate(buildPopulate()).lean();
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+  assertCreatorOwnsDocument(user, doc);
   return doc;
 }
 
-async function updateMission({ id, userId, patch } = {}) {
+async function updateMission({ id, user, userId, patch } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
 
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
@@ -396,13 +400,16 @@ function getMissionItemIndexBySortOrder(items, sortOrder) {
   return idx;
 }
 
-async function updateMissionItem({ id, userId, sortOrder, patch } = {}) {
+async function updateMissionItem({ id, user, userId, sortOrder, patch } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -443,13 +450,16 @@ async function updateMissionItem({ id, userId, sortOrder, patch } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function deleteMissionItem({ id, userId, sortOrder } = {}) {
+async function deleteMissionItem({ id, user, userId, sortOrder } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -474,13 +484,16 @@ async function deleteMissionItem({ id, userId, sortOrder } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function publishMission({ id, userId } = {}) {
+async function publishMission({ id, user, userId } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be published');
     err.statusCode = 400;
@@ -644,13 +657,16 @@ async function publishMission({ id, userId } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function unpublishMission({ id, userId } = {}) {
+async function unpublishMission({ id, user, userId } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be unpublished');
     err.statusCode = 400;
@@ -662,13 +678,16 @@ async function unpublishMission({ id, userId } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function archiveMission({ id, userId } = {}) {
+async function archiveMission({ id, user, userId } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   doc.status = 'archived';
   doc.updatedBy = userId;
   await doc.save();
@@ -743,6 +762,7 @@ async function createCategory({ key, name, description, sortOrder, isActive } = 
 
 async function addMissionVocabularyEntry({
   id,
+  user,
   userId,
   displayText,
   target,
@@ -759,6 +779,9 @@ async function addMissionVocabularyEntry({
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -972,6 +995,7 @@ async function uploadMediaAndCreateDoc(file, { folder, type, userId }) {
 
 async function updateMissionVocabularyEntry({
   id,
+  user,
   userId,
   sortOrder,
   displayText,
@@ -989,6 +1013,9 @@ async function updateMissionVocabularyEntry({
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -1056,13 +1083,16 @@ async function updateMissionVocabularyEntry({
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function deleteMissionVocabularyEntry({ id, userId, sortOrder } = {}) {
+async function deleteMissionVocabularyEntry({ id, user, userId, sortOrder } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -1095,13 +1125,16 @@ async function deleteMissionVocabularyEntry({ id, userId, sortOrder } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function uploadMissionImage({ id, userId, imageFile } = {}) {
+async function uploadMissionImage({ id, user, userId, imageFile } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;
@@ -1132,13 +1165,16 @@ async function uploadMissionImage({ id, userId, imageFile } = {}) {
   return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
-async function uploadMissionMedia({ id, userId, shortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile } = {}) {
+async function uploadMissionMedia({ id, user, userId, shortVideoFile, missionIntroAudioFile, rewardAudioFile, rewardVideoFile } = {}) {
   const doc = await StarCamMission.findById(id);
   if (!doc) {
     const err = new Error('Mission not found');
     err.statusCode = 404;
     throw err;
   }
+
+  assertCreatorOwnsDocument(user, doc);
+
   if (doc.status === 'archived') {
     const err = new Error('Archived missions cannot be edited');
     err.statusCode = 400;

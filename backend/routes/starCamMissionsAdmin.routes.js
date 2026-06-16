@@ -43,7 +43,7 @@ const {
  */
 
 router.use(protect);
-router.use(authorize('admin', 'teacher'));
+router.use(authorize('admin', 'teacher', 'content_creator'));
 
 router.get('/categories', listCategories);
 router.post('/categories', createCategory);

@@ -8,21 +8,23 @@ import {
   TextField,
   Stack,
   Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { USER_ROLES } from '../../../config/constants';
+import { ADMIN_USER_ROLE_OPTIONS, isParentRole } from '../../../utils/adminUserRoles';
 
-/**
- * AdminAddUserModal Component
- * 
- * Add modal for creating new parent user
- */
 const AdminAddUserModal = ({ open, onClose }) => {
   const theme = useTheme();
-  const { createNewParent, loading } = useParents();
+  const { createUser, loading, filters, updateFilters, fetchParents } = useParents();
 
   const [formData, setFormData] = useState({
+    role: USER_ROLES.PARENT,
     name: '',
     email: '',
     password: '',
@@ -31,11 +33,7 @@ const AdminAddUserModal = ({ open, onClose }) => {
 
   const handleChange = (field) => (event) => {
     const value = event.target.value;
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    // Clear error for this field
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: null }));
     }
@@ -43,44 +41,44 @@ const AdminAddUserModal = ({ open, onClose }) => {
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-
+    if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
-
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
-
+    if (!validateForm()) return;
     try {
-      await createNewParent(formData);
+      await createUser(formData);
+      const createdRole = formData.role;
+      const newFilters = {
+        ...filters,
+        role: createdRole,
+        page: 1,
+        ...(isParentRole(createdRole) ? {} : { subscriptionStatus: undefined }),
+      };
+      updateFilters(newFilters);
+      await fetchParents(newFilters);
       handleClose();
-    } catch (error) {
-      // Error is handled by the hook
+    } catch (_error) {
+      // handled in hook
     }
   };
 
   const handleClose = () => {
     setFormData({
+      role: USER_ROLES.PARENT,
       name: '',
       email: '',
       password: '',
@@ -90,64 +88,41 @@ const AdminAddUserModal = ({ open, onClose }) => {
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: '12px',
-          padding: 0,
-        },
-      }}
-    >
-      {/* Header */}
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontWeight: 700,
-          fontSize: '1.25rem',
-          color: theme.palette.text.primary,
-          padding: 3,
-          paddingBottom: 2,
           borderBottom: `1px solid ${theme.palette.border.main}`,
-          backgroundColor: theme.palette.custom.bgSecondary,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}
       >
-        <Typography
-          variant="h6"
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 700,
-            fontSize: '1.25rem',
-            color: theme.palette.text.primary,
-          }}
-        >
-          Add New Parent
-        </Typography>
-        <Button
-          onClick={handleClose}
-          sx={{
-            minWidth: 'auto',
-            padding: 0.5,
-            color: theme.palette.text.secondary,
-            '&:hover': {
-              backgroundColor: theme.palette.custom.bgTertiary,
-            },
-          }}
-        >
+        Add New User
+        <Button onClick={handleClose} sx={{ minWidth: 'auto', p: 0.5 }}>
           <CloseIcon />
         </Button>
       </DialogTitle>
 
       <form onSubmit={handleSubmit}>
-        <DialogContent sx={{ padding: 3 }}>
+        <DialogContent sx={{ pt: 3 }}>
           <Stack spacing={2.5}>
-            {/* Name Field */}
+            <FormControl fullWidth required>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={formData.role}
+                label="Role"
+                onChange={handleChange('role')}
+              >
+                {ADMIN_USER_ROLE_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <TextField
               label="Name"
               value={formData.name}
@@ -156,28 +131,7 @@ const AdminAddUserModal = ({ open, onClose }) => {
               required
               error={!!errors.name}
               helperText={errors.name}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                  borderRadius: '8px',
-                  backgroundColor: theme.palette.background.paper,
-                  '& fieldset': {
-                    borderColor: theme.palette.border.main,
-                  },
-                  '&:hover fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
             />
-
-            {/* Email Field */}
             <TextField
               label="Email"
               type="email"
@@ -187,28 +141,7 @@ const AdminAddUserModal = ({ open, onClose }) => {
               required
               error={!!errors.email}
               helperText={errors.email}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                  borderRadius: '8px',
-                  backgroundColor: theme.palette.background.paper,
-                  '& fieldset': {
-                    borderColor: theme.palette.border.main,
-                  },
-                  '&:hover fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
             />
-
-            {/* Password Field */}
             <TextField
               label="Password"
               type="password"
@@ -218,78 +151,16 @@ const AdminAddUserModal = ({ open, onClose }) => {
               required
               error={!!errors.password}
               helperText={errors.password}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                  borderRadius: '8px',
-                  backgroundColor: theme.palette.background.paper,
-                  '& fieldset': {
-                    borderColor: theme.palette.border.main,
-                  },
-                  '&:hover fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: theme.palette.primary.main,
-                  },
-                },
-                '& .MuiInputLabel-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
             />
           </Stack>
         </DialogContent>
 
-        <DialogActions
-          sx={{
-            padding: 3,
-            paddingTop: 2,
-            borderTop: `1px solid ${theme.palette.border.main}`,
-            backgroundColor: theme.palette.custom.bgSecondary,
-            gap: 1,
-          }}
-        >
-          <Button
-            onClick={handleClose}
-            variant="outlined"
-            disabled={loading}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              padding: '8px 24px',
-              borderRadius: '8px',
-              textTransform: 'none',
-              borderColor: theme.palette.border.main,
-              color: theme.palette.text.primary,
-              '&:hover': {
-                borderColor: theme.palette.text.secondary,
-                backgroundColor: theme.palette.custom.bgTertiary,
-              },
-            }}
-          >
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading}
-            sx={{
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 500,
-              fontSize: '0.875rem',
-              padding: '8px 24px',
-              borderRadius: '8px',
-              textTransform: 'none',
-              backgroundColor: theme.palette.orange.main,
-              color: theme.palette.textCustom.inverse,
-              '&:hover': {
-                backgroundColor: theme.palette.orange.dark,
-              },
-            }}
-          >
-            {loading ? 'Creating...' : 'Create Parent'}
+          <Button type="submit" variant="contained" disabled={loading}>
+            {loading ? 'Creating...' : 'Create User'}
           </Button>
         </DialogActions>
       </form>
@@ -298,4 +169,3 @@ const AdminAddUserModal = ({ open, onClose }) => {
 };
 
 export default AdminAddUserModal;
-

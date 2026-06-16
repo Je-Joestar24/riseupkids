@@ -34,6 +34,7 @@ const AuthLoginForm = () => {
     if (role === 'parent') return '/parents/child';
     if (role === 'admin') return '/admin/dashboard';
     if (role === 'teacher') return '/teacher/dashboard';
+    if (role === 'content_creator') return '/content-creator/dashboard';
     return '/';
   };
 

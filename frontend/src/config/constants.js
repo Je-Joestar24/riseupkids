@@ -21,6 +21,8 @@ export const RISEUP_CHECKOUT_URL = 'https://riseup.kids/checkout';
 // User Roles
 export const USER_ROLES = {
   ADMIN: 'admin',
+  TEACHER: 'teacher',
+  CONTENT_CREATOR: 'content_creator',
   PARENT: 'parent',
   CHILD: 'child',
 };

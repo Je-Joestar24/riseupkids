@@ -16,15 +16,16 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { isParentRole } from '../../../utils/adminUserRoles';
 
 /**
  * AdminEditUserModal Component
  * 
  * Edit modal for updating parent user information
  */
-const AdminEditUserModal = ({ open, onClose, parentId }) => {
+const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
   const theme = useTheme();
-  const { fetchParent, currentParent, updateParentData, loading } = useParents();
+  const { fetchParent, currentParent, updateParentData, loading, filters } = useParents();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -36,9 +37,9 @@ const AdminEditUserModal = ({ open, onClose, parentId }) => {
 
   useEffect(() => {
     if (open && parentId) {
-      fetchParent(parentId);
+      fetchParent(parentId, userRole || filters.role);
     }
-  }, [open, parentId]);
+  }, [open, parentId, userRole, filters.role]);
 
   useEffect(() => {
     if (currentParent) {
@@ -88,7 +89,16 @@ const AdminEditUserModal = ({ open, onClose, parentId }) => {
     }
 
     try {
-      await updateParentData(parentId, formData);
+      const role = currentParent?.role || userRole || filters.role;
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        isActive: formData.isActive,
+      };
+      if (isParentRole(role)) {
+        payload.subscriptionStatus = formData.subscriptionStatus;
+      }
+      await updateParentData(parentId, payload, role);
       onClose();
     } catch (error) {
       // Error is handled by the hook
@@ -144,7 +154,7 @@ const AdminEditUserModal = ({ open, onClose, parentId }) => {
             color: theme.palette.text.primary,
           }}
         >
-          Edit Parent
+          Edit User
         </Typography>
         <Button
           onClick={handleClose}

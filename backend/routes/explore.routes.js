@@ -41,7 +41,7 @@ router.get('/featured', getFeaturedExploreContent);
 router.get('/type/:type', getExploreContentByType);
 
 // Create new explore content (admin/teacher only, with file uploads)
-router.post('/', authorize('admin', 'teacher'), uploadExplore, createExploreContent);
+router.post('/', authorize('admin', 'teacher', 'content_creator'), uploadExplore, createExploreContent);
 
 // Reorder explore content (admin/teacher only) - must be before /:id to avoid conflict
 router.post('/reorder', authorize('admin', 'teacher'), reorderExploreContent);
@@ -53,10 +53,10 @@ router.get('/', getAllExploreContent);
 router.get('/:id', getExploreContentById);
 
 // Update explore content (admin/teacher only, with optional file uploads)
-router.put('/:id', authorize('admin', 'teacher'), uploadExploreUpdate, updateExploreContent);
+router.put('/:id', authorize('admin', 'teacher', 'content_creator'), uploadExploreUpdate, updateExploreContent);
 
-// Delete explore content (admin/teacher only)
-router.delete('/:id', authorize('admin', 'teacher'), deleteExploreContent);
+// Delete explore content (admin/teacher/content_creator — own items only in service)
+router.delete('/:id', authorize('admin', 'teacher', 'content_creator'), deleteExploreContent);
 
 module.exports = router;
 

@@ -3,6 +3,20 @@ const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const html5handlerService = require('./html5handler.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
+const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
+
+const applyVideoOwnershipFilter = (user, baseQuery = {}) => {
+  const ownerFilter = applyCreatorOwnershipFilter(user, baseQuery);
+  if (isContentCreator(user)) {
+    ownerFilter.uploadedBy = ownerFilter.createdBy;
+    delete ownerFilter.createdBy;
+  }
+  return ownerFilter;
+};
+
+const assertVideoOwnership = (user, video, message) => {
+  assertCreatorOwnsDocument(user, { ...video, createdBy: video?.uploadedBy ?? video?.createdBy }, message);
+};
 
 /**
  * Create Video Service
@@ -234,6 +248,7 @@ const createVideo = async (userId, videoData, files = {}) => {
  */
 const getAllVideos = async (queryParams = {}) => {
   const {
+    user,
     isActive,
     search,
     page = 1,
@@ -241,9 +256,9 @@ const getAllVideos = async (queryParams = {}) => {
   } = queryParams;
 
   // Build query - videos are Media with type='video' (SCORM is optional)
-  const query = {
+  const query = applyVideoOwnershipFilter(user, {
     type: 'video',
-  };
+  });
 
   // Support both isActive and isPublished filters
   if (isActive !== undefined) {
@@ -303,7 +318,7 @@ const getAllVideos = async (queryParams = {}) => {
  * @returns {Object} Video with populated data
  * @throws {Error} If video not found
  */
-const getVideoById = async (videoId) => {
+const getVideoById = async (videoId, user = null) => {
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
@@ -317,6 +332,8 @@ const getVideoById = async (videoId) => {
   if (!video) {
     throw new Error('Video not found');
   }
+
+  assertVideoOwnership(user, video);
 
   return video;
 };
@@ -334,7 +351,7 @@ const getVideoById = async (videoId) => {
  * @returns {Object} Updated video with populated data
  * @throws {Error} If video not found or validation fails
  */
-const updateVideo = async (videoId, userId, updateData, files = {}) => {
+const updateVideo = async (videoId, userId, updateData, files = {}, user = null) => {
   const {
     title,
     description,
@@ -357,6 +374,8 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
   if (!video) {
     throw new Error('Video not found');
   }
+
+  assertVideoOwnership(user, video);
 
   // Update title
   if (title !== undefined) {
@@ -509,7 +528,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}) => {
  * @returns {Object} Deleted video info
  * @throws {Error} If video not found
  */
-const deleteVideo = async (videoId) => {
+const deleteVideo = async (videoId, user = null) => {
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
@@ -518,6 +537,8 @@ const deleteVideo = async (videoId) => {
   if (!video) {
     throw new Error('Video not found');
   }
+
+  assertVideoOwnership(user, video);
 
   try {
     if ((video.videoSource || 'upload') !== 'embed' && video.filePath) {

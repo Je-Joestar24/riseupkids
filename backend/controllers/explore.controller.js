@@ -1,5 +1,12 @@
 const exploreService = require('../services/explore.services');
 
+const CONTENT_MANAGER_ROLES = ['admin', 'teacher', 'content_creator'];
+
+function resolveErrorStatus(error, { notFound = 404, fallback = 500 } = {}) {
+  if (error?.statusCode === 403) return 403;
+  return fallback;
+}
+
 /** Map common validation failures to HTTP 400 (embed URL rules, missing fields, etc.). */
 function isExploreBadRequest(message) {
   const m = String(message || '');
@@ -36,10 +43,10 @@ const createExploreContent = async (req, res) => {
     const userId = req.user._id;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can create explore content',
+        message: 'Only admins, teachers, and content creators can create explore content',
       });
     }
 
@@ -51,7 +58,7 @@ const createExploreContent = async (req, res) => {
       data: content,
     });
   } catch (error) {
-    const statusCode = isExploreBadRequest(error.message) ? 400 : 500;
+    const statusCode = error?.statusCode === 403 ? 403 : isExploreBadRequest(error.message) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to create explore content',
@@ -77,11 +84,11 @@ const createExploreContent = async (req, res) => {
 const getAllExploreContent = async (req, res) => {
   try {
     // Admin/Teacher can see all content, others only see published
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       req.query.isPublished = true;
     }
 
-    const result = await exploreService.getAllExploreContent(req.query);
+    const result = await exploreService.getAllExploreContent({ ...req.query, user: req.user });
 
     res.status(200).json({
       success: true,
@@ -90,7 +97,8 @@ const getAllExploreContent = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    res.status(500).json({
+    const statusCode = error?.statusCode === 403 ? 403 : 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to retrieve explore content',
     });
@@ -106,10 +114,9 @@ const getExploreContentById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const content = await exploreService.getExploreContentById(id);
+    const content = await exploreService.getExploreContentById(id, req.user);
 
-    // Non-admin/teacher users can only see published content
-    if (!['admin', 'teacher'].includes(req.user.role) && !content.isPublished) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role) && !content.isPublished) {
       return res.status(404).json({
         success: false,
         message: 'Explore content not found',
@@ -122,7 +129,8 @@ const getExploreContentById = async (req, res) => {
       data: content,
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
+    const msg = error.message || '';
+    const statusCode = error?.statusCode === 403 ? 403 : msg.includes('not found') ? 404 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to retrieve explore content',
@@ -156,14 +164,14 @@ const updateExploreContent = async (req, res) => {
     const userId = req.user._id;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can update explore content',
+        message: 'Only admins, teachers, and content creators can update explore content',
       });
     }
 
-    const content = await exploreService.updateExploreContent(id, userId, req.body, req.files);
+    const content = await exploreService.updateExploreContent(id, userId, req.body, req.files, req.user);
 
     res.status(200).json({
       success: true,
@@ -172,7 +180,7 @@ const updateExploreContent = async (req, res) => {
     });
   } catch (error) {
     const msg = error.message || '';
-    const statusCode = msg.includes('not found') ? 404 : isExploreBadRequest(msg) ? 400 : 500;
+    const statusCode = error?.statusCode === 403 ? 403 : msg.includes('not found') ? 404 : isExploreBadRequest(msg) ? 400 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to update explore content',
@@ -190,14 +198,14 @@ const deleteExploreContent = async (req, res) => {
     const { id } = req.params;
 
     // Verify user is admin/teacher
-    if (!['admin', 'teacher'].includes(req.user.role)) {
+    if (!CONTENT_MANAGER_ROLES.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Only admins and teachers can delete explore content',
+        message: 'Only admins, teachers, and content creators can delete explore content',
       });
     }
 
-    const result = await exploreService.deleteExploreContent(id);
+    const result = await exploreService.deleteExploreContent(id, req.user);
 
     res.status(200).json({
       success: true,
@@ -205,7 +213,8 @@ const deleteExploreContent = async (req, res) => {
       data: { id: result.id },
     });
   } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 500;
+    const msg = error.message || '';
+    const statusCode = error?.statusCode === 403 ? 403 : msg.includes('not found') ? 404 : 500;
     res.status(statusCode).json({
       success: false,
       message: error.message || 'Failed to delete explore content',
