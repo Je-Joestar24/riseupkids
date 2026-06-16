@@ -616,7 +616,6 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 4fr) minmax(0, 1fr)' },
                 gap: { xs: 1, sm: 1.1 },
                 alignItems: 'start',
                 width: '100%',
