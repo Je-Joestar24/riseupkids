@@ -1,5 +1,7 @@
 import { colors } from '@/config/theme/colors';
 
+import type { StarCamCategoryPresetKey } from '@/components/child/starcamdynamicdisplay/types';
+
 export const STARCAM_BACKGROUND = require('@/assets/images/starcam_background.png');
 export const TEMP_BOOK = require('@/assets/images/temporary_book.png');
 export const TEMP_RECIPE = require('@/assets/images/temporary_recipe.png');
@@ -7,15 +9,10 @@ export const TEMP_RECIPE = require('@/assets/images/temporary_recipe.png');
 export const BUBBLE_SIZE = 135;
 export const PING_SIZE = 18;
 
-/** Legacy API may still send `adventure`; canonical key is `nature`. */
-export function normalizeStarCamCategoryKey(key: string): string {
-  return key === 'adventure' ? 'nature' : key;
-}
-
 export const FALLBACK_BUBBLES = [
   {
-    key: 'reading',
-    title: 'Reading Time',
+    presetKey: 'reading' as StarCamCategoryPresetKey,
+    title: 'Learning',
     left: 40,
     top: 56,
     color: colors.orange,
@@ -23,8 +20,8 @@ export const FALLBACK_BUBBLES = [
     image: TEMP_BOOK,
   },
   {
-    key: 'recipes',
-    title: 'Yummy Recipes',
+    presetKey: 'recipes' as StarCamCategoryPresetKey,
+    title: 'Food/Recipes',
     left: 215,
     top: 56,
     color: '#f5c247',
@@ -32,8 +29,8 @@ export const FALLBACK_BUBBLES = [
     image: TEMP_RECIPE,
   },
   {
-    key: 'nature',
-    title: 'Nature Walk',
+    presetKey: 'nature' as StarCamCategoryPresetKey,
+    title: 'Nature',
     left: 40,
     top: 216,
     color: '#3a9d8f',
@@ -41,21 +38,12 @@ export const FALLBACK_BUBBLES = [
     emoji: '🌿',
   },
   {
-    key: 'sing',
-    title: 'Sing Along',
+    presetKey: 'sing' as StarCamCategoryPresetKey,
+    title: 'Home',
     left: 215,
     top: 216,
     color: 'rgb(233, 138, 104)',
     iconType: 'emoji' as const,
     emoji: '🏠',
-  },
-  {
-    key: 'school',
-    title: 'School Time',
-    left: 127,
-    top: 376,
-    color: '#2563eb',
-    iconType: 'emoji' as const,
-    emoji: '🎒',
   },
 ] as const;

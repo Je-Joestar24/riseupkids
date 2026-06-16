@@ -7,7 +7,7 @@ import { colors } from '@/config/theme/colors';
 import { useStarCamCategoryMissions } from '@/hooks/starCamHook';
 import { useStarCamMissionPreload } from '@/hooks/useStarCamMissionPreload';
 
-import { STAR_CAM_CATEGORY_PRESETS } from './categoryPresets';
+import { getStarCamCategoryPreset } from './categoryDisplay';
 import { StarCamCategoryMissionMap } from './StarCamCategoryMissionMap';
 import type { StarCamDynamicDisplayProps, StarCamMapMissionItem } from './types';
 
@@ -17,7 +17,7 @@ export function StarCamDynamicDisplay({
   onBack,
   onMissionPress,
 }: StarCamDynamicDisplayProps) {
-  const preset = STAR_CAM_CATEGORY_PRESETS[categoryKey];
+  const preset = getStarCamCategoryPreset(categoryKey);
   const { mapBubbles } = useStarCamCategoryMissions(childId, categoryKey, preset.missionEmojiCycle);
   const { isPreloading, progress, error, failedCount, preloadMission, clearError } =
     useStarCamMissionPreload(childId);

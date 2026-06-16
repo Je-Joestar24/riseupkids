@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 
 import { StarCamMissionSuccessScreen } from '@/components/child/starcammissionsuccess';
-import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
+import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
 
@@ -32,10 +32,7 @@ export default function StarCamMissionSuccessRoute() {
     void loadMissionFlow(childId, missionSlug);
   }, [childId, missionSlug, loadMissionFlow]);
 
-  const categoryPreset = useMemo(() => {
-    const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
-    return STAR_CAM_CATEGORY_PRESETS[safeKey];
-  }, [categoryKey]);
+  const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
   const completion = missionFlow?.flow?.completion;
   const missionTitle = completion?.title || missionFlow?.mission?.title || title || 'Mission Complete';
