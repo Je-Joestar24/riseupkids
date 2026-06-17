@@ -4,6 +4,7 @@ const scormService = require('./scorm.service');
 const html5handlerService = require('./html5handler.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
+const { getStarCamMissionVideoMediaIds } = require('../utils/starCamMissionMedia.util');
 
 const applyVideoOwnershipFilter = (user, baseQuery = {}) => {
   const ownerFilter = applyCreatorOwnershipFilter(user, baseQuery);
@@ -277,6 +278,11 @@ const getAllVideos = async (queryParams = {}) => {
       { title: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
     ];
+  }
+
+  const missionVideoIds = await getStarCamMissionVideoMediaIds();
+  if (missionVideoIds.length > 0) {
+    query._id = { $nin: missionVideoIds };
   }
 
   // Pagination

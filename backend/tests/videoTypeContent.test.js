@@ -30,10 +30,15 @@ jest.mock('../services/html5handler.service', () => ({
   extractAndUploadToS3Only: jest.fn(),
 }));
 
+jest.mock('../utils/starCamMissionMedia.util', () => ({
+  getStarCamMissionVideoMediaIds: jest.fn().mockResolvedValue([]),
+}));
+
 const { Media, Badge, CmsBook } = require('../models');
 const s3Service = require('../services/s3.service');
 const scormService = require('../services/scorm.service');
 const html5handlerService = require('../services/html5handler.service');
+const { getStarCamMissionVideoMediaIds } = require('../utils/starCamMissionMedia.util');
 
 describe('video.services — content type video (upload vs Bunny embed)', () => {
   const userId = '507f1f77bcf86cd799439011';
@@ -483,5 +488,37 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     await deleteVideo('media1');
 
     expect(s3Service.deleteByKey).toHaveBeenCalledWith('media/videos/x.mp4');
+  });
+
+  it('getAllVideos excludes Star Cam mission video media from the content list', async () => {
+    getStarCamMissionVideoMediaIds.mockResolvedValue(['mission-video-1', 'mission-video-2']);
+
+    const findChain = {
+      populate: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([{ _id: 'course-video-1', title: 'Course Video' }]),
+    };
+    Media.find.mockReturnValue(findChain);
+    Media.countDocuments.mockResolvedValue(1);
+
+    const { getAllVideos } = require('../services/video.services');
+    const result = await getAllVideos({ page: 1, limit: 10 });
+
+    expect(Media.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'video',
+        isActive: true,
+        _id: { $nin: ['mission-video-1', 'mission-video-2'] },
+      })
+    );
+    expect(Media.countDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: { $nin: ['mission-video-1', 'mission-video-2'] },
+      })
+    );
+    expect(result.videos).toHaveLength(1);
+    expect(result.videos[0]._id).toBe('course-video-1');
   });
 });
