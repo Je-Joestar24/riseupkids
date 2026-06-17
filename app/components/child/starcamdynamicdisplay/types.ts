@@ -4,7 +4,10 @@ import type { StarCamMissionMapBubble } from '@/services/childStarCamService';
 
 export type StarCamMapMissionItem = StarCamMissionMapBubble;
 
-export type StarCamCategoryKey = 'reading' | 'recipes' | 'nature' | 'sing' | 'school';
+export type StarCamCategoryPresetKey = 'reading' | 'recipes' | 'nature' | 'sing';
+
+/** @deprecated Use StarCamCategoryPresetKey — kept for route/query compatibility */
+export type StarCamCategoryKey = StarCamCategoryPresetKey | 'school' | 'book' | 'home' | 'adventure';
 
 export type StarCamCategoryHeader =
   | {
@@ -24,7 +27,7 @@ export type StarCamCategoryHeader =
 export type StarCamDecorItem = { emoji: string; style: StyleProp<ViewStyle> };
 
 export interface StarCamCategoryPreset {
-  key: StarCamCategoryKey;
+  key: StarCamCategoryPresetKey;
   gradient: readonly [string, string, string];
   gradientLocations?: readonly [number, number, number];
   borderColor: string;
@@ -37,7 +40,8 @@ export interface StarCamCategoryPreset {
 }
 
 export interface StarCamDynamicDisplayProps {
-  categoryKey: StarCamCategoryKey;
+  /** API category key from backend (may be legacy aliases like book/home). */
+  categoryKey: string;
   childId: string | null;
   onBack: () => void;
   onMissionPress?: (item: StarCamMapMissionItem) => void;

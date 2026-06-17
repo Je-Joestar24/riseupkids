@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { StarCamPracticeModeScreen } from '@/components/child/starcampracticemode';
-import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
+import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { colors } from '@/config/theme/colors';
 import { useStarCam } from '@/hooks/starCamHook';
 import { useStarCamPracticeItems } from '@/hooks/useStarCamPracticeItems';
@@ -25,10 +25,7 @@ export default function StarCamPracticeModeRoute() {
   const { missionFlow } = useStarCam();
   const { items, isMediaReady } = useStarCamPracticeItems(missionFlow);
 
-  const categoryPreset = useMemo(() => {
-    const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
-    return STAR_CAM_CATEGORY_PRESETS[safeKey];
-  }, [categoryKey]);
+  const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
   const onBack = () => {
     if (!id) {

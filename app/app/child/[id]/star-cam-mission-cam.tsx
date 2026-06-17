@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
-import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
+import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
 import { StarCamDetectObjectError } from '@/services/childStarCamService';
@@ -145,10 +145,7 @@ export default function StarCamMissionCamRoute() {
     void loadMissionFlow(childId, missionSlug);
   }, [childId, missionSlug, loadMissionFlow]);
 
-  const categoryPreset = useMemo(() => {
-    const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
-    return STAR_CAM_CATEGORY_PRESETS[safeKey];
-  }, [categoryKey]);
+  const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
   useEffect(() => {
     if (huntItems.length === 0) return;

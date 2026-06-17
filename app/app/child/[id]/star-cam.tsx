@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 
 import { ChildStarCam } from '@/components/child/starcam';
+import { isStarCamMapCategory } from '@/components/child/starcamdynamicdisplay';
 
 export default function ChildStarCamScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -11,9 +12,8 @@ export default function ChildStarCamScreen() {
   const onSelectCategory = useCallback(
     (categoryKey: string) => {
       if (!id) return;
-      const key = categoryKey === 'adventure' ? 'nature' : categoryKey;
-      const mapKeys = new Set(['recipes', 'nature', 'sing', 'school']);
-      if (key === 'reading' || mapKeys.has(key)) {
+      const key = categoryKey.trim().toLowerCase();
+      if (isStarCamMapCategory(key)) {
         router.push(`/child/${id}/star-cam-category?category=${encodeURIComponent(key)}` as never);
       }
     },

@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo } from 'react';
 
 import { StarCamMissionStartScreen } from '@/components/child/starcammissionstart';
-import { STAR_CAM_CATEGORY_PRESETS, type StarCamCategoryKey } from '@/components/child/starcamdynamicdisplay';
+import { getStarCamCategoryDisplayLabel, getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { useStarCam } from '@/hooks/starCamHook';
 import { resolveStarCamPlayableUrl } from '@/services/starCamMissionMedia';
 import { useStarCamStore } from '@/store/starCamStore';
@@ -38,13 +38,11 @@ export default function StarCamMissionStartRoute() {
     [missionFlow?.mission?.title, title]
   );
   const categoryHuntTitle = useMemo(() => {
-    const categoryName = missionFlow?.mission?.category?.name || categoryKey;
-    const pretty = String(categoryName || 'Category')
-      .replace(/[_-]+/g, ' ')
-      .trim()
-      .replace(/\b\w/g, (c) => c.toUpperCase());
-    return `${pretty} Hunt`;
-  }, [missionFlow?.mission?.category?.name, categoryKey]);
+    const label = missionFlow?.mission?.category
+      ? getStarCamCategoryDisplayLabel(missionFlow.mission.category)
+      : getStarCamCategoryDisplayLabel(categoryKey);
+    return `${label} Hunt`;
+  }, [missionFlow?.mission?.category, categoryKey]);
   const introText = startFlow?.introText || 'Get ready for your mission!';
 
   const introImageUrl = useMemo(
@@ -66,10 +64,7 @@ export default function StarCamMissionStartRoute() {
     [startFlow?.introAudioUrl, cachedMediaUris]
   );
 
-  const categoryPreset = useMemo(() => {
-    const safeKey = (categoryKey in STAR_CAM_CATEGORY_PRESETS ? categoryKey : 'reading') as StarCamCategoryKey;
-    return STAR_CAM_CATEGORY_PRESETS[safeKey];
-  }, [categoryKey]);
+  const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
   const onBack = () => {
     if (!id) {
