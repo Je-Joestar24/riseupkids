@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xl,
     fontFamily: Quicksand.bold,
     textAlign: 'center',
-    color: colors.textPrimary,
+    color: colors.text,
     marginBottom: spacing[2],
   },
   subtitle: {
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.lg,
     fontFamily: Quicksand.bold,
     textAlign: 'center',
-    color: colors.textPrimary,
+    color: colors.text,
   },
   warn: {
     marginTop: spacing[3],

@@ -16,8 +16,11 @@ export interface StarCamMissionPreloadResult {
 }
 
 export interface UseStarCamMissionPreloadReturn {
-  preparingMissionId: string | null;
+  isPreloading: boolean;
+  progress: number;
   error: string | null;
+  failedCount: number;
+  preparingMissionId: string | null;
   preloadMission: (missionId: string) => Promise<StarCamMissionPreloadResult | null>;
   clearError: () => void;
   cancelPreload: () => void;
@@ -27,35 +30,24 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
   const mergeCachedMediaUris = useStarCamStore((s) => s.mergeCachedMediaUris);
 
-  const [preparingMissionId, setPreparingMissionId] = useState<string | null>(null);
+  const [isPreloading, setIsPreloading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [failedCount, setFailedCount] = useState(0);
+  const [preparingMissionId, setPreparingMissionId] = useState<string | null>(null);
   const runIdRef = useRef(0);
 
   const clearError = useCallback(() => setError(null), []);
 
   const cancelPreload = useCallback(() => {
     runIdRef.current += 1;
+    setIsPreloading(false);
     setPreparingMissionId(null);
+    setProgress(0);
     setError(null);
+    setFailedCount(0);
     void stopStarCamMissionIntroAudio();
   }, []);
-
-  const preloadMediaInBackground = useCallback(
-    async (flow: StarCamChildMissionStartPayload, runId: number) => {
-      const urls = collectStarCamMissionMediaUrls(flow);
-      if (!urls.length || runIdRef.current !== runId) return;
-
-      try {
-        const { uriMap } = await preloadStarCamMediaUrls(urls, undefined, 3);
-        if (runIdRef.current === runId) {
-          mergeCachedMediaUris(uriMap);
-        }
-      } catch {
-        // Background cache — mission already opened; ignore failures.
-      }
-    },
-    [mergeCachedMediaUris]
-  );
 
   const preloadMission = useCallback(
     async (missionId: string): Promise<StarCamMissionPreloadResult | null> => {
@@ -64,8 +56,11 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
       const runId = runIdRef.current + 1;
       runIdRef.current = runId;
 
+      setIsPreloading(true);
       setPreparingMissionId(missionId);
+      setProgress(0);
       setError(null);
+      setFailedCount(0);
 
       try {
         const flow = await fetchMissionStartFlow(childId, missionId);
@@ -82,9 +77,30 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
           void ensureStarCamMissionIntroAudio(introPlayableUri, introAssetKey);
         }
 
-        void preloadMediaInBackground(flow, runId);
+        const urls = collectStarCamMissionMediaUrls(flow);
+        let mediaFailed = 0;
 
-        return { flow, failedCount: 0 };
+        if (urls.length) {
+          const { failed, uriMap } = await preloadStarCamMediaUrls(
+            urls,
+            (pct) => {
+              if (runIdRef.current === runId) setProgress(pct);
+            },
+            3
+          );
+          mediaFailed = failed.length;
+          if (runIdRef.current === runId) {
+            mergeCachedMediaUris(uriMap);
+            setFailedCount(mediaFailed);
+            setProgress(100);
+          }
+        } else if (runIdRef.current === runId) {
+          setProgress(100);
+        }
+
+        if (runIdRef.current !== runId) return null;
+
+        return { flow, failedCount: mediaFailed };
       } catch (err) {
         if (runIdRef.current !== runId) return null;
         const msg = err instanceof Error ? err.message : 'Failed to prepare mission media';
@@ -92,16 +108,20 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
         return null;
       } finally {
         if (runIdRef.current === runId) {
+          setIsPreloading(false);
           setPreparingMissionId(null);
         }
       }
     },
-    [childId, fetchMissionStartFlow, preloadMediaInBackground]
+    [childId, fetchMissionStartFlow, mergeCachedMediaUris]
   );
 
   return {
-    preparingMissionId,
+    isPreloading,
+    progress,
     error,
+    failedCount,
+    preparingMissionId,
     preloadMission,
     clearError,
     cancelPreload,

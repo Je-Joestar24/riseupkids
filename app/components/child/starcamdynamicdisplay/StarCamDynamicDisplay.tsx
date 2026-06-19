@@ -1,14 +1,14 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { StarCamMissionPreloadOverlay } from '@/components/child/starcam/StarCamMissionPreloadOverlay';
 import { colors } from '@/config/theme/colors';
 import { useStarCamCategoryMissions } from '@/hooks/starCamHook';
 import { useStarCamMissionPreload } from '@/hooks/useStarCamMissionPreload';
 
 import { getStarCamCategoryPreset } from './categoryDisplay';
 import { StarCamCategoryMissionMap } from './StarCamCategoryMissionMap';
-import { StarCamMapLoadErrorBanner } from './StarCamMapLoadErrorBanner';
 import type { StarCamDynamicDisplayProps, StarCamMapMissionItem } from './types';
 
 export function StarCamDynamicDisplay({
@@ -23,8 +23,17 @@ export function StarCamDynamicDisplay({
     categoryKey,
     preset.missionEmojiCycle
   );
-  const { preparingMissionId, error, preloadMission, clearError, cancelPreload } =
-    useStarCamMissionPreload(childId);
+  const {
+    isPreloading,
+    progress,
+    error,
+    failedCount,
+    preparingMissionId,
+    preloadMission,
+    clearError,
+    cancelPreload,
+  } = useStarCamMissionPreload(childId);
+  const [pendingMission, setPendingMission] = useState<StarCamMapMissionItem | null>(null);
 
   const handleBack = useCallback(() => {
     cancelPreload();
@@ -32,12 +41,14 @@ export function StarCamDynamicDisplay({
   }, [cancelPreload, onBack]);
 
   const handleDismissError = useCallback(() => {
+    cancelPreload();
     clearError();
-  }, [clearError]);
+    setPendingMission(null);
+  }, [cancelPreload, clearError]);
 
   const handleMission = useCallback(
     async (item: StarCamMapMissionItem) => {
-      if (preparingMissionId) return;
+      if (isPreloading) return;
 
       const isSample = item.missionId.startsWith('sample-');
       if (isSample) {
@@ -47,14 +58,16 @@ export function StarCamDynamicDisplay({
       if (!childId) return;
 
       clearError();
+      setPendingMission(item);
 
       const result = await preloadMission(item.missionId);
 
       if (result?.flow) {
+        setPendingMission(null);
         onMissionPress?.(item);
       }
     },
-    [onMissionPress, childId, preloadMission, clearError, preparingMissionId]
+    [onMissionPress, childId, preloadMission, clearError, isPreloading]
   );
 
   return (
@@ -69,7 +82,16 @@ export function StarCamDynamicDisplay({
           onMissionPress={handleMission}
         />
       </View>
-      {error ? <StarCamMapLoadErrorBanner message={error} onDismiss={handleDismissError} /> : null}
+      <StarCamMissionPreloadOverlay
+        visible={isPreloading || Boolean(error)}
+        progress={progress}
+        missionTitle={pendingMission?.title}
+        gradientColors={preset.gradient}
+        borderColor={preset.borderColor}
+        failedCount={failedCount}
+        errorMessage={error}
+        onDismiss={handleDismissError}
+      />
     </SafeAreaView>
   );
 }
