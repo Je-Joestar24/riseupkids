@@ -98,6 +98,7 @@ const BooksBuilderPageSection = ({
                 interactionMode: nextMode,
                 answerTwoCorrectOptionId: '',
                 guideImageTwo: '',
+                answerAudioTwo: '',
                 sceneImageTwo: '',
                 interactiveLayouts: createEmptyInteractiveLayouts(false),
               });

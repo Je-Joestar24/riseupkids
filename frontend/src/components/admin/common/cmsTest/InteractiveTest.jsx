@@ -14,6 +14,7 @@ import {
 import {
   imageActionButtonSx,
   pageFrameSx,
+  resolveDropZoneAudioUrl,
   resolveImageUrl,
 } from './shared';
 
@@ -62,10 +63,12 @@ const InteractiveTest = ({
   onCorrectDrop,
 }) => {
   const optionAudioRef = useRef(null);
+  const answerAudioRef = useRef(null);
   const stageRef = useRef(null);
   const dropZoneRefs = useRef({});
   const optionRefs = useRef({});
   const [playingOptionId, setPlayingOptionId] = useState('');
+  const [playingAnswerId, setPlayingAnswerId] = useState('');
   const [optionPositions, setOptionPositions] = useState({});
   const [dragState, setDragState] = useState(null);
   const [dragLayer, setDragLayer] = useState(null);
@@ -104,14 +107,42 @@ const InteractiveTest = ({
     const single = page?.media?.guideImageMedia?.url || page?.media?.guideImage?.url || '';
     return fromList.length ? fromList : (single ? [single] : []);
   }, [page]);
-  const dropZoneItems = useMemo(() => (
-    dropZones.map((zone, index) => ({
+  const dropZoneItems = useMemo(() => {
+    const mapZone = (zone, index) => ({
       id: zone?.zoneId || `zone_${index + 1}`,
       label: zone?.label || `Answer ${index + 1}`,
       correctOptionId: zone?.correctOptionId || '',
       guideImageUrl: guideImageUrls[index] || guideImageUrls[0] || '',
-    }))
-  ), [dropZones, guideImageUrls]);
+      audio: resolveDropZoneAudioUrl(zone, index, page),
+    });
+
+    if (dropZones.length) {
+      return dropZones.map(mapZone);
+    }
+
+    const fallbackGuides = guideImageUrls.length
+      ? guideImageUrls
+      : [page?.guideImageOne, page?.guideImageTwo].filter(Boolean);
+    if (!fallbackGuides.length && !page?.answerAudioOne && !page?.answerAudioTwo) {
+      return [];
+    }
+
+    const zoneCount = Math.max(
+      fallbackGuides.length,
+      page?.answerAudioTwo ? 2 : (page?.answerAudioOne ? 1 : 0),
+      page?.interactionMode === 'two_options_two_answers' ? 2 : 1
+    );
+
+    return Array.from({ length: zoneCount }, (_, index) => ({
+      id: `zone_${index + 1}`,
+      label: `Answer ${index + 1}`,
+      correctOptionId: index === 0
+        ? (page?.answerOneCorrectOptionId || '')
+        : (page?.answerTwoCorrectOptionId || ''),
+      guideImageUrl: fallbackGuides[index] || fallbackGuides[0] || '',
+      audio: resolveDropZoneAudioUrl({}, index, page),
+    }));
+  }, [dropZones, guideImageUrls, page]);
   const interactionType = page?.type || page?.interaction?.kind || '';
   const isParallelInteraction = dropZoneItems.length > 1
     || interactionType === 'activity_drag_2x2'
@@ -216,6 +247,13 @@ const InteractiveTest = ({
 
     if (!option?.audio) return;
 
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current.currentTime = 0;
+      answerAudioRef.current = null;
+      setPlayingAnswerId('');
+    }
+
     if (optionAudioRef.current) {
       optionAudioRef.current.pause();
       optionAudioRef.current.currentTime = 0;
@@ -228,6 +266,30 @@ const InteractiveTest = ({
       setPlayingOptionId('');
     });
     setPlayingOptionId(option.id);
+  };
+
+  const playAnswerAudio = (zone) => {
+    if (isPreloading || !zone?.audio) return;
+
+    if (optionAudioRef.current) {
+      optionAudioRef.current.pause();
+      optionAudioRef.current.currentTime = 0;
+      optionAudioRef.current = null;
+      setPlayingOptionId('');
+    }
+
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current.currentTime = 0;
+    }
+
+    answerAudioRef.current = new Audio(zone.audio);
+    answerAudioRef.current.onended = () => setPlayingAnswerId('');
+    answerAudioRef.current.onerror = () => setPlayingAnswerId('');
+    answerAudioRef.current.play().catch(() => {
+      setPlayingAnswerId('');
+    });
+    setPlayingAnswerId(zone.id);
   };
 
   const handlePointerDown = (event, option) => {
@@ -374,7 +436,13 @@ const InteractiveTest = ({
       optionAudioRef.current.currentTime = 0;
       optionAudioRef.current = null;
     }
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current.currentTime = 0;
+      answerAudioRef.current = null;
+    }
     setPlayingOptionId('');
+    setPlayingAnswerId('');
     setDragState(null);
     setDragLayer(null);
     setPlacedByZone({});
@@ -437,7 +505,7 @@ const InteractiveTest = ({
           background: 'transparent',
         }}
       >
-        <Box sx={{ mt: 1, textAlign: 'center', color: 'common.white' }}>
+        <Box sx={{ mt: 1, textAlign: 'center', color: 'common.white', pointerEvents: 'none' }}>
           {page?.subtitle ? (
             <Typography sx={{ fontFamily: 'Quicksand, sans-serif', opacity: 0.95 }}>
               {page.subtitle}
@@ -453,6 +521,8 @@ const InteractiveTest = ({
             inset: 0,
             zIndex: 5,
             top: useCustomLayout ? 0 : (isSingleLayout ? stageMetrics.optionTopOffset : 0),
+            // Let clicks pass through to answer zones below; options opt back in individually.
+            pointerEvents: 'none',
           }}
         >
           {options.map((option) => (
@@ -532,12 +602,32 @@ const InteractiveTest = ({
               if (!stageRect || !zoneLayout) return null;
               const box = layoutRectToPx(zoneLayout, stageRect.width, stageRect.height);
               if (!box) return null;
+              const hasAnswerAudio = Boolean(zone.audio);
               return (
                 <Box
                   key={zone.id}
                   ref={(element) => { dropZoneRefs.current[zone.id] = element; }}
-                  role="img"
-                  aria-label={`${zone.label} drop zone`}
+                  role={hasAnswerAudio ? 'button' : 'img'}
+                  tabIndex={hasAnswerAudio ? 0 : undefined}
+                  aria-label={hasAnswerAudio ? `Play ${zone.label} sound` : `${zone.label} drop zone`}
+                  onPointerDown={
+                    hasAnswerAudio
+                      ? (event) => {
+                          event.stopPropagation();
+                          playAnswerAudio(zone);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    hasAnswerAudio
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            playAnswerAudio(zone);
+                          }
+                        }
+                      : undefined
+                  }
                   sx={{
                     position: 'absolute',
                     left: box.left,
@@ -545,11 +635,14 @@ const InteractiveTest = ({
                     width: box.width,
                     height: box.height,
                     zIndex: 4,
-                    pointerEvents: 'none',
+                    pointerEvents: hasAnswerAudio ? 'auto' : 'none',
+                    cursor: hasAnswerAudio ? 'pointer' : 'default',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     overflow: 'hidden',
+                    opacity: playingAnswerId && playingAnswerId !== zone.id ? 0.82 : 1,
+                    transition: 'opacity 0.12s ease',
                   }}
                 >
                   {zone.guideImageUrl ? (
@@ -557,7 +650,7 @@ const InteractiveTest = ({
                       component="img"
                       src={zone.guideImageUrl}
                       alt={`${zone.label} guide`}
-                      sx={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      sx={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
                     />
                   ) : null}
                 </Box>
@@ -579,12 +672,33 @@ const InteractiveTest = ({
                 userSelect: 'none',
               }}
             >
-              {dropZoneItems.map((zone) => (
+              {dropZoneItems.map((zone) => {
+                const hasAnswerAudio = Boolean(zone.audio);
+                return (
                 <Box
                   key={zone.id}
                   ref={(element) => { dropZoneRefs.current[zone.id] = element; }}
-                  role="img"
-                  aria-label={`${zone.label} drop zone`}
+                  role={hasAnswerAudio ? 'button' : 'img'}
+                  tabIndex={hasAnswerAudio ? 0 : undefined}
+                  aria-label={hasAnswerAudio ? `Play ${zone.label} sound` : `${zone.label} drop zone`}
+                  onPointerDown={
+                    hasAnswerAudio
+                      ? (event) => {
+                          event.stopPropagation();
+                          playAnswerAudio(zone);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    hasAnswerAudio
+                      ? (event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            playAnswerAudio(zone);
+                          }
+                        }
+                      : undefined
+                  }
                   sx={{
                     width: stageMetrics.cardWidth,
                     height: stageMetrics.cardHeight,
@@ -593,6 +707,10 @@ const InteractiveTest = ({
                     justifyContent: 'center',
                     borderRadius: 1.5,
                     overflow: 'hidden',
+                    pointerEvents: hasAnswerAudio ? 'auto' : 'none',
+                    cursor: hasAnswerAudio ? 'pointer' : 'default',
+                    opacity: playingAnswerId && playingAnswerId !== zone.id ? 0.82 : 1,
+                    transition: 'opacity 0.12s ease',
                   }}
                 >
                   {zone.guideImageUrl ? (
@@ -604,6 +722,7 @@ const InteractiveTest = ({
                         width: '100%',
                         height: '100%',
                         objectFit: 'contain',
+                        pointerEvents: 'none',
                       }}
                     />
                   ) : (
@@ -617,7 +736,8 @@ const InteractiveTest = ({
                     />
                   )}
                 </Box>
-              ))}
+                );
+              })}
             </Box>
           )
         ) : null}
@@ -683,9 +803,9 @@ const InteractiveTest = ({
             </Typography>
           </Box>
         ) : (
-          <Box sx={{ color: 'common.white', textAlign: 'center', mt: 1.2 }}>
+          <Box sx={{ color: 'common.white', textAlign: 'center', mt: 1.2, pointerEvents: 'none' }}>
             <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
-              Drag to the answer zone or tap to play audio.
+              Drag options to answers, or tap options and answers to play audio.
             </Typography>
           </Box>
         )}

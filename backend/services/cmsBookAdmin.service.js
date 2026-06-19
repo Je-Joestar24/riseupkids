@@ -167,6 +167,11 @@ function collectBookMediaIds(book) {
       addId(option?.imageMediaId);
       addId(option?.audioMediaId);
     });
+
+    const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
+    dropZones.forEach((zone) => {
+      addId(zone?.audioMediaId);
+    });
   });
 
   return [...ids];
@@ -216,6 +221,10 @@ function enrichPageMediaForAdmin(page, mediaById) {
           ...option,
           imageMedia: resolveMedia(option.imageMediaId),
           audioMedia: resolveMedia(option.audioMediaId),
+        })),
+        dropZones: (page.interaction.dropZones || []).map((zone) => ({
+          ...zone,
+          audioMedia: resolveMedia(zone.audioMediaId),
         })),
       }
     : null;

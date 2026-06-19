@@ -67,6 +67,25 @@ export const resolveAudioUrl = (page = {}) =>
   || page?.media?.instructionAudioMedia?.url
   || '';
 
+const toSafeMediaUrl = (value) => {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object') {
+    return String(value.url || value.cloudUrl || '').trim();
+  }
+  return '';
+};
+
+export const resolveDropZoneAudioUrl = (zone = {}, index = 0, page = {}) => {
+  const pageLevelAudios = [page?.answerAudioOne, page?.answerAudioTwo];
+  return (
+    toSafeMediaUrl(zone?.audioUrl)
+    || toSafeMediaUrl(zone?.audio)
+    || toSafeMediaUrl(zone?.audioMedia)
+    || toSafeMediaUrl(pageLevelAudios[index])
+    || ''
+  );
+};
+
 /** Optional intro/cover background music (looped on intro screen). */
 export const resolveIntroBackgroundMusicUrl = (page = {}) =>
   page.introBackgroundMusicUrl

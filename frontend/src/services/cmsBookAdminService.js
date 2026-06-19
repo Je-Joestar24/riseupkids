@@ -85,6 +85,17 @@ const sanitizePagePayload = (page = {}) => {
       }),
     };
   }
+  if (Array.isArray(safe.interaction?.dropZones)) {
+    safe.interaction = {
+      ...safe.interaction,
+      dropZones: safe.interaction.dropZones.map((zone) => {
+        const nextZone = { ...zone };
+        delete nextZone.audioMedia;
+        delete nextZone.audioUrl;
+        return nextZone;
+      }),
+    };
+  }
   return safe;
 };
 

@@ -38,6 +38,8 @@ const interactionDropZoneSchema = new mongoose.Schema(
     zoneId: { type: String, required: true, trim: true },
     label: { type: String, required: true, trim: true },
     correctOptionId: { type: String, required: true, trim: true },
+    /** Optional tap-to-play sound on the answer zone during interactive playback. */
+    audioMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     layout: { type: layoutRectSchema, default: null },
   },
   { _id: false }

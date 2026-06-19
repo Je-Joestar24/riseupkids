@@ -266,6 +266,65 @@ describe('cmsBookAdmin.service', () => {
     });
   });
 
+  it('gets cms book with resolved interactive answer audio on drop zones', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-4',
+        title: 'Interactive Book',
+        pages: [
+          {
+            pageId: 'cover-1',
+            order: 1,
+            type: 'cover',
+            title: 'Cover',
+            media: { imageMediaId: 'media-cover-img' },
+          },
+          {
+            pageId: 'interactive-1',
+            order: 2,
+            type: 'activity_drag_2x1',
+            media: { guideImageMediaId: 'guide-1' },
+            interaction: {
+              kind: 'drag_2x1',
+              options: [
+                { optionId: 'option_one', imageMediaId: 'opt-img-1', audioMediaId: 'opt-audio-1' },
+                { optionId: 'option_two', imageMediaId: 'opt-img-2', audioMediaId: 'opt-audio-2' },
+              ],
+              dropZones: [
+                {
+                  zoneId: 'zone_one',
+                  label: 'Answer 1',
+                  correctOptionId: 'option_one',
+                  audioMediaId: 'answer-audio-1',
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'media-cover-img', type: 'image', url: '/cover.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'guide-1', type: 'image', url: '/guide.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'opt-img-1', type: 'image', url: '/opt1.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'opt-img-2', type: 'image', url: '/opt2.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'opt-audio-1', type: 'audio', url: '/opt1.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+        { _id: 'opt-audio-2', type: 'audio', url: '/opt2.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+        { _id: 'answer-audio-1', type: 'audio', url: '/answer1.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+      ]),
+    });
+
+    const result = await service.getCmsBookById({ bookId: 'book-4' });
+    const interactivePage = result.pages.find((page) => page.type === 'activity_drag_2x1');
+    expect(interactivePage.interaction.dropZones[0].audioMedia).toMatchObject({
+      id: 'answer-audio-1',
+      type: 'audio',
+      url: '/answer1.mp3',
+    });
+  });
+
   it('updates draft cms book', async () => {
     const doc = makeDoc({ title: 'Old' });
     CmsBook.findById.mockResolvedValue(doc);
@@ -545,6 +604,9 @@ describe('cmsBookAdmin.service', () => {
             options: [
               { imageMediaId: 'm-3', audioMediaId: 'm-4' },
             ],
+            dropZones: [
+              { audioMediaId: 'm-5' },
+            ],
           },
         },
       ],
@@ -556,17 +618,18 @@ describe('cmsBookAdmin.service', () => {
         { _id: 'm-2', filePath: 'media/images/2.png' },
         { _id: 'm-3', filePath: 'media/images/3.png' },
         { _id: 'm-4', filePath: 'media/audio/4.mp3' },
+        { _id: 'm-5', filePath: 'media/audio/5.mp3' },
       ]),
     });
-    Media.deleteMany.mockResolvedValue({ deletedCount: 4 });
+    Media.deleteMany.mockResolvedValue({ deletedCount: 5 });
     CmsBook.findByIdAndDelete.mockResolvedValue({ _id: 'book-1' });
     s3Service.deleteByKey.mockResolvedValue(true);
 
     const result = await service.deleteCmsBook({ bookId: 'book-1', userId: 'admin-1' });
 
-    expect(result).toMatchObject({ id: 'book-1', deletedMediaCount: 4 });
-    expect(s3Service.deleteByKey).toHaveBeenCalledTimes(4);
-    expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['m-1', 'm-2', 'm-3', 'm-4'] } });
+    expect(result).toMatchObject({ id: 'book-1', deletedMediaCount: 5 });
+    expect(s3Service.deleteByKey).toHaveBeenCalledTimes(5);
+    expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['m-1', 'm-2', 'm-3', 'm-4', 'm-5'] } });
     expect(CmsBook.findByIdAndDelete).toHaveBeenCalledWith('book-1');
   });
 

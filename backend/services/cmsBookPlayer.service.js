@@ -141,6 +141,11 @@ function collectMediaIdsFromPages(pages = []) {
       if (option?.imageMediaId) ids.add(String(option.imageMediaId));
       if (option?.audioMediaId) ids.add(String(option.audioMediaId));
     });
+
+    const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
+    dropZones.forEach((zone) => {
+      if (zone?.audioMediaId) ids.add(String(zone.audioMediaId));
+    });
   });
   return Array.from(ids);
 }
@@ -157,6 +162,10 @@ function enrichPageMedia(page, mediaMap) {
           ...option,
           imageMedia: resolveMedia(option.imageMediaId),
           audioMedia: resolveMedia(option.audioMediaId),
+        })),
+        dropZones: (base.interaction.dropZones || []).map((zone) => ({
+          ...zone,
+          audioMedia: resolveMedia(zone.audioMediaId),
         })),
       }
     : null;

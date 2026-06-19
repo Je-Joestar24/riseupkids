@@ -167,6 +167,88 @@ describe('cmsBookPlayer.service', () => {
     });
   });
 
+  it('enriches interactive drop zone answer audio for parent play', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Animals 1',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [
+          {
+            pageId: 'p1',
+            order: 1,
+            type: 'cover',
+            title: 'Cover',
+            media: { imageMediaId: 'm1' },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+          {
+            pageId: 'p2',
+            order: 2,
+            type: 'content',
+            title: 'Content',
+            media: { imageMediaId: 'm2', audioMediaId: 'a-content' },
+            reading: { text: 'Hello', durationSec: 2 },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+          {
+            pageId: 'p3',
+            order: 3,
+            type: 'activity_drag_2x1',
+            title: 'Interactive',
+            media: { guideImageMediaId: 'g1' },
+            interaction: {
+              kind: 'drag_2x1',
+              options: [
+                { optionId: 'option_one', label: 'Option 1', imageMediaId: 'oi1', audioMediaId: 'oa1' },
+                { optionId: 'option_two', label: 'Option 2', imageMediaId: 'oi2', audioMediaId: 'oa2' },
+              ],
+              dropZones: [
+                {
+                  zoneId: 'zone_one',
+                  label: 'Answer 1',
+                  correctOptionId: 'option_one',
+                  audioMediaId: 'aa1',
+                },
+              ],
+            },
+            navigation: {},
+            scoring: {},
+          },
+        ],
+      }),
+    });
+
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'm1', type: 'image', url: 'https://cdn/images/cover.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'm2', type: 'image', url: 'https://cdn/images/content.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'a-content', type: 'audio', url: 'https://cdn/audio/content.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+        { _id: 'g1', type: 'image', url: 'https://cdn/images/guide1.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'oi1', type: 'image', url: 'https://cdn/images/opt1.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'oi2', type: 'image', url: 'https://cdn/images/opt2.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'oa1', type: 'audio', url: 'https://cdn/audio/opt1.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+        { _id: 'oa2', type: 'audio', url: 'https://cdn/audio/opt2.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+        { _id: 'aa1', type: 'audio', url: 'https://cdn/audio/answer1.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+      ]),
+    });
+
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
+    const interactivePage = result.pages.find((page) => page.type === 'activity_drag_2x1');
+    expect(interactivePage.interaction.dropZones[0].audioMedia).toMatchObject({
+      id: 'aa1',
+      type: 'audio',
+      url: 'https://cdn/audio/answer1.mp3',
+    });
+  });
+
   it('returns reading metadata and auto-generates words when missing', async () => {
     CmsBook.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({

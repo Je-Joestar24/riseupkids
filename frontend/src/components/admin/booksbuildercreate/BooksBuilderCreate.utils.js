@@ -85,6 +85,8 @@ export const createEmptyPage = (index) => {
     optionImageTwo: '',
     guideImageOne: '',
     guideImageTwo: '',
+    answerAudioOne: '',
+    answerAudioTwo: '',
     sceneImageOne: '',
     sceneImageTwo: '',
     answerOneCorrectOptionId: '',
@@ -92,6 +94,8 @@ export const createEmptyPage = (index) => {
     interactiveLayouts: null,
     sceneImageOneMediaId: null,
     sceneImageTwoMediaId: null,
+    answerOneAudioMediaId: null,
+    answerTwoAudioMediaId: null,
   };
 };
 
@@ -114,6 +118,8 @@ export const resetPageByType = {
   optionImageTwo: '',
   guideImageOne: '',
   guideImageTwo: '',
+  answerAudioOne: '',
+  answerAudioTwo: '',
   sceneImageOne: '',
   sceneImageTwo: '',
   answerOneCorrectOptionId: '',
@@ -121,6 +127,8 @@ export const resetPageByType = {
   interactiveLayouts: null,
   sceneImageOneMediaId: null,
   sceneImageTwoMediaId: null,
+  answerOneAudioMediaId: null,
+  answerTwoAudioMediaId: null,
 };
 
 export const getOppositeInteractiveOption = (optionId) => {
@@ -355,6 +363,8 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
         optionImageTwo: page.optionImageTwo || '',
         guideImageOne: page.guideImageOne || '',
         guideImageTwo: page.guideImageTwo || '',
+        answerAudioOne: page.answerAudioOne || '',
+        answerAudioTwo: page.answerAudioTwo || '',
         sceneImageOne: page.sceneImageOne || '',
         sceneImageTwo: page.sceneImageTwo || '',
         answerOneCorrectOptionId: page.answerOneCorrectOptionId || '',
@@ -403,12 +413,14 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
                           zoneId: 'zone_one',
                           label: 'Answer 1',
                           correctOptionId: page.answerOneCorrectOptionId,
+                          audioMedia: page.answerAudioOne ? { url: page.answerAudioOne } : null,
                           layout: layoutPayload.answerOneLayout,
                         },
                         {
                           zoneId: 'zone_two',
                           label: 'Answer 2',
                           correctOptionId: page.answerTwoCorrectOptionId,
+                          audioMedia: page.answerAudioTwo ? { url: page.answerAudioTwo } : null,
                           layout: layoutPayload.answerTwoLayout,
                         },
                       ]
@@ -417,6 +429,7 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
                           zoneId: 'zone_one',
                           label: 'Answer 1',
                           correctOptionId: page.answerOneCorrectOptionId,
+                          audioMedia: page.answerAudioOne ? { url: page.answerAudioOne } : null,
                           layout: layoutPayload.answerOneLayout,
                         },
                       ],
@@ -465,6 +478,8 @@ export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) 
       || (Array.isArray(media.guideImageMedias) ? toMediaUrl(media.guideImageMedias[0]) : '')
       || '',
     guideImageTwo: Array.isArray(media.guideImageMedias) ? toMediaUrl(media.guideImageMedias[1]) || '' : '',
+    answerAudioOne: toMediaUrl(dropZones[0]?.audioMedia) || '',
+    answerAudioTwo: toMediaUrl(dropZones[1]?.audioMedia) || '',
     answerOneCorrectOptionId: dropZones[0]?.correctOptionId || '',
     answerTwoCorrectOptionId: dropZones[1]?.correctOptionId || '',
     sceneImageOne:
@@ -499,6 +514,8 @@ export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) 
     optionOneAudioMediaId: optionOne.audioMediaId || null,
     optionTwoImageMediaId: optionTwo.imageMediaId || null,
     optionTwoAudioMediaId: optionTwo.audioMediaId || null,
+    answerOneAudioMediaId: dropZones[0]?.audioMediaId || null,
+    answerTwoAudioMediaId: dropZones[1]?.audioMediaId || null,
   };
 };
 
@@ -580,6 +597,18 @@ export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
       prevPage.optionAudioTwo,
       nextPage.optionTwoAudioMediaId,
       prevPage.optionTwoAudioMediaId
+    ),
+    answerAudioOne: preserveMediaUrl(
+      nextPage.answerAudioOne,
+      prevPage.answerAudioOne,
+      nextPage.answerOneAudioMediaId,
+      prevPage.answerOneAudioMediaId
+    ),
+    answerAudioTwo: preserveMediaUrl(
+      nextPage.answerAudioTwo,
+      prevPage.answerAudioTwo,
+      nextPage.answerTwoAudioMediaId,
+      prevPage.answerTwoAudioMediaId
     ),
     interactiveLayouts: nextPage.interactiveLayouts || prevPage.interactiveLayouts || null,
   };

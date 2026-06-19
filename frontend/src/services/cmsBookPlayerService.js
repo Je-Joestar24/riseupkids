@@ -69,6 +69,7 @@ export const normalizePlayableBookFromApi = (book) => {
 const collectPageMediaUrls = (page = {}) => {
   const optionOne = page?.interaction?.options?.[0] || {};
   const optionTwo = page?.interaction?.options?.[1] || {};
+  const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
 
   return [
     page.imageUrl,
@@ -95,9 +96,16 @@ const collectPageMediaUrls = (page = {}) => {
     optionOne.imageUrl,
     optionOne?.image?.url,
     optionOne?.imageMedia?.url,
+    optionOne.audioUrl,
+    optionOne?.audio?.url,
+    optionOne?.audioMedia?.url,
     optionTwo.imageUrl,
     optionTwo?.image?.url,
     optionTwo?.imageMedia?.url,
+    optionTwo.audioUrl,
+    optionTwo?.audio?.url,
+    optionTwo?.audioMedia?.url,
+    ...dropZones.map((zone) => zone?.audioUrl || zone?.audioMedia?.url || ''),
   ]
     .map(toSafeUrl)
     .filter(Boolean);

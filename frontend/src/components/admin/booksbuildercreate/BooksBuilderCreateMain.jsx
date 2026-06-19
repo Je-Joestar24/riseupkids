@@ -578,6 +578,26 @@ const BooksBuilderCreateMain = () => {
             existingMediaId: page.optionTwoAudioMediaId,
           })).mediaId;
 
+          const answerOneAudioSource = String(page.answerAudioOne || '').trim();
+          const answerOneAudioId = answerOneAudioSource
+            ? (await ensureUploadedMediaId({
+                source: answerOneAudioSource,
+                mediaType: 'audio',
+                title: `${page.title || 'Interactive'} answer one audio`,
+                existingMediaId: page.answerOneAudioMediaId,
+              })).mediaId
+            : null;
+
+          const answerTwoAudioSource = String(page.answerAudioTwo || '').trim();
+          const answerTwoAudioId = answerTwoAudioSource
+            ? (await ensureUploadedMediaId({
+                source: answerTwoAudioSource,
+                mediaType: 'audio',
+                title: `${page.title || 'Interactive'} answer two audio`,
+                existingMediaId: page.answerTwoAudioMediaId,
+              })).mediaId
+            : null;
+
           pagePayload.interaction = {
             kind: isTwoAnswer ? 'drag_2x2' : 'drag_2x1',
             allowRetry: true,
@@ -604,12 +624,14 @@ const BooksBuilderCreateMain = () => {
                     zoneId: 'zone_one',
                     label: 'Answer 1',
                     correctOptionId: page.answerOneCorrectOptionId,
+                    audioMediaId: answerOneAudioId,
                     layout: layoutPayload.answerOneLayout,
                   },
                   {
                     zoneId: 'zone_two',
                     label: 'Answer 2',
                     correctOptionId: page.answerTwoCorrectOptionId,
+                    audioMediaId: answerTwoAudioId,
                     layout: layoutPayload.answerTwoLayout,
                   },
                 ]
@@ -618,6 +640,7 @@ const BooksBuilderCreateMain = () => {
                     zoneId: 'zone_one',
                     label: 'Answer 1',
                     correctOptionId: page.answerOneCorrectOptionId,
+                    audioMediaId: answerOneAudioId,
                     layout: layoutPayload.answerOneLayout,
                   },
                 ],

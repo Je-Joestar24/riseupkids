@@ -263,6 +263,8 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
   const sceneTwoInputRef = useRef(null);
   const answerOneInputRef = useRef(null);
   const answerTwoInputRef = useRef(null);
+  const answerAudioOneInputRef = useRef(null);
+  const answerAudioTwoInputRef = useRef(null);
   const optionImageOneInputRef = useRef(null);
   const optionImageTwoInputRef = useRef(null);
   const optionAudioOneInputRef = useRef(null);
@@ -337,6 +339,8 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
       <input ref={sceneTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'sceneImageTwo')} />
       <input ref={answerOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageOne')} />
       <input ref={answerTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageTwo')} />
+      <input ref={answerAudioOneInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'answerAudioOne')} />
+      <input ref={answerAudioTwoInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'answerAudioTwo')} />
       <input ref={optionImageOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageOne')} />
       <input ref={optionImageTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageTwo')} />
       <input ref={optionAudioOneInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'optionAudioOne')} />
@@ -485,6 +489,27 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                   onClear={page.guideImageOne ? () => onPatch({ guideImageOne: '', guideImageMediaId: null }) : null}
                 />
                 <AssetRow
+                  icon={AudiotrackOutlined}
+                  label="Answer 1 audio"
+                  statusLabel={page.answerAudioOne ? 'Set' : 'Optional'}
+                  statusColor={page.answerAudioOne ? 'success' : 'default'}
+                  isActive={selectedKey === 'answerOne'}
+                  onSelect={() => setSelectedKey('answerOne')}
+                  audioUrl={page.answerAudioOne}
+                  audioPlayId="answer-one-audio"
+                  playingAudioId={playingAudioId}
+                  onPlayingAudioChange={setPlayingAudioId}
+                  onUpload={() => answerAudioOneInputRef.current?.click()}
+                  onClear={
+                    page.answerAudioOne
+                      ? () => {
+                          if (playingAudioId === 'answer-one-audio') setPlayingAudioId(null);
+                          onPatch({ answerAudioOne: '', answerOneAudioMediaId: null });
+                        }
+                      : null
+                  }
+                />
+                <AssetRow
                   label="Answer 1 → option"
                   statusLabel={page.answerOneCorrectOptionId ? 'Set' : 'Pick'}
                   statusColor={page.answerOneCorrectOptionId ? 'success' : 'warning'}
@@ -528,6 +553,27 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       onSelect={() => setSelectedKey('answerTwo')}
                       onUpload={() => answerTwoInputRef.current?.click()}
                       onClear={page.guideImageTwo ? () => onPatch({ guideImageTwo: '' }) : null}
+                    />
+                    <AssetRow
+                      icon={AudiotrackOutlined}
+                      label="Answer 2 audio"
+                      statusLabel={page.answerAudioTwo ? 'Set' : 'Optional'}
+                      statusColor={page.answerAudioTwo ? 'success' : 'default'}
+                      isActive={selectedKey === 'answerTwo'}
+                      onSelect={() => setSelectedKey('answerTwo')}
+                      audioUrl={page.answerAudioTwo}
+                      audioPlayId="answer-two-audio"
+                      playingAudioId={playingAudioId}
+                      onPlayingAudioChange={setPlayingAudioId}
+                      onUpload={() => answerAudioTwoInputRef.current?.click()}
+                      onClear={
+                        page.answerAudioTwo
+                          ? () => {
+                              if (playingAudioId === 'answer-two-audio') setPlayingAudioId(null);
+                              onPatch({ answerAudioTwo: '', answerTwoAudioMediaId: null });
+                            }
+                          : null
+                      }
                     />
                     <AssetRow
                       label="Answer 2 → option"
