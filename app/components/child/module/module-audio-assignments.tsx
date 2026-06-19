@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: colors.textInverse,
+    color: colors.text,
     marginBottom: spacing[6],
   },
   grid: {

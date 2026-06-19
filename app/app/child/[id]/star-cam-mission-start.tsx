@@ -5,6 +5,7 @@ import { StarCamMissionStartScreen } from '@/components/child/starcammissionstar
 import { getStarCamCategoryDisplayLabel, getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { useStarCam } from '@/hooks/starCamHook';
 import { resolveStarCamPlayableUrl } from '@/services/starCamMissionMedia';
+import { getStarCamMissionIntroAudioAssetKey } from '@/services/starCamMissionIntroAudio';
 import { useStarCamStore } from '@/store/starCamStore';
 
 export default function StarCamMissionStartRoute() {
@@ -64,6 +65,11 @@ export default function StarCamMissionStartRoute() {
     [startFlow?.introAudioUrl, cachedMediaUris]
   );
 
+  const introAudioAssetKey = useMemo(
+    () => getStarCamMissionIntroAudioAssetKey(startFlow?.introAudioUrl),
+    [startFlow?.introAudioUrl]
+  );
+
   const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
   const onBack = () => {
@@ -89,6 +95,7 @@ export default function StarCamMissionStartRoute() {
       introImageUrl={introImageUrl}
       introVideoUrl={introVideoUrl}
       introAudioUrl={introAudioUrl}
+      introAudioAssetKey={introAudioAssetKey}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}

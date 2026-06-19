@@ -3,6 +3,10 @@
  */
 
 import { API_BASE_URL } from '@/config';
+import { colors } from '@/config/theme/colors';
+
+/** Warm page background — matches Kid's Wall / explore family (#F4EDD8). */
+export const MODULE_PAGE_BACKGROUND = colors.bgLogin;
 
 /** Minimal book shape for built-in CMS detection (avoids importing moduleService here). */
 export type ModuleBookContentLike = {

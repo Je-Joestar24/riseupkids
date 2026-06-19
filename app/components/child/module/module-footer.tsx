@@ -54,14 +54,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.orange,
     marginBottom: spacing[2],
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
     fontWeight: '400',
-    color: colors.secondary,
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 26,
   },

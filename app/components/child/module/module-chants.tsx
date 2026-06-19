@@ -56,7 +56,7 @@ function ChantCard({
         )}
         {completed && (
           <View style={styles.checkBadge}>
-            <MaterialCommunityIcons name="check-circle" size={20} color={colors.secondary} />
+            <MaterialCommunityIcons name="check-circle" size={20} color={colors.orange} />
           </View>
         )}
         {starPoints > 0 && (
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: colors.textInverse,
+    color: colors.text,
     marginBottom: spacing[6],
   },
   grid: {
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -16,7 +16,6 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
-const COVER_HEIGHT = Math.round(256 * 1.1);
 const BACK_ICON_SIZE = 24;
 
 export interface ModuleHeaderProps {
@@ -51,7 +50,7 @@ export function ModuleHeader({
         <MaterialCommunityIcons
           name="arrow-left"
           size={BACK_ICON_SIZE}
-          color={colors.secondary}
+          color={colors.orange}
         />
       </Pressable>
       <View style={styles.stepBadge}>
@@ -89,7 +88,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     maxWidth: 848,
-    height: COVER_HEIGHT,
+    aspectRatio: 1,
     marginTop: spacing[5],
     borderRadius: 0,
     overflow: 'hidden',

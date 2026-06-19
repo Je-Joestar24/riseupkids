@@ -1,4 +1,4 @@
-import { Video, ResizeMode, Audio } from 'expo-av';
+import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import React, { memo, useEffect, useRef, useState } from 'react';
@@ -8,6 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { BACKEND_ORIGIN } from '@/config';
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
+import {
+  ensureStarCamMissionIntroAudio,
+  stopStarCamMissionIntroAudio,
+} from '@/services/starCamMissionIntroAudio';
 
 export interface StarCamMissionStartScreenProps {
   categoryHuntTitle: string;
@@ -16,6 +20,7 @@ export interface StarCamMissionStartScreenProps {
   introImageUrl: string | null;
   introVideoUrl?: string | null;
   introAudioUrl?: string | null;
+  introAudioAssetKey?: string | null;
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
@@ -87,6 +92,7 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   introImageUrl,
   introVideoUrl = null,
   introAudioUrl = null,
+  introAudioAssetKey = null,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
@@ -96,8 +102,6 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
 }: StarCamMissionStartScreenProps) {
   const isFocused = useIsFocused();
   const videoRef = useRef<Video | null>(null);
-  const introAudioRef = useRef<Audio.Sound | null>(null);
-  const playedIntroAudioKeyRef = useRef<string | null>(null);
   const resolvedImageUrl = resolveMediaUri(introImageUrl);
   const resolvedVideoUrl = resolveMediaUri(introVideoUrl || null);
   const resolvedIntroAudioUrl = resolveMediaUri(introAudioUrl || null);
@@ -119,70 +123,16 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
       } catch {
         // no-op
       }
-      try {
-        await introAudioRef.current?.stopAsync?.();
-      } catch {
-        // no-op
-      }
-      try {
-        await introAudioRef.current?.unloadAsync?.();
-      } catch {
-        // no-op
-      }
-      introAudioRef.current = null;
-      playedIntroAudioKeyRef.current = null;
+      await stopStarCamMissionIntroAudio();
     };
     void stopAndUnload();
   }, [isFocused]);
 
   useEffect(() => {
-    if (!isFocused || !resolvedIntroAudioUrl) return;
-    if (playedIntroAudioKeyRef.current === resolvedIntroAudioUrl) return;
+    if (!isFocused || !resolvedIntroAudioUrl || !introAudioAssetKey) return;
 
-    let cancelled = false;
-
-    const playBackgroundIntroAudio = async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        });
-        try {
-          await introAudioRef.current?.stopAsync?.();
-        } catch {
-          // no-op
-        }
-        try {
-          await introAudioRef.current?.unloadAsync?.();
-        } catch {
-          // no-op
-        }
-        introAudioRef.current = null;
-
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: resolvedIntroAudioUrl },
-          { shouldPlay: true, volume: 0.85, isLooping: false }
-        );
-        if (cancelled) {
-          await sound.unloadAsync();
-          return;
-        }
-        introAudioRef.current = sound;
-        playedIntroAudioKeyRef.current = resolvedIntroAudioUrl;
-      } catch {
-        // Optional intro — ignore playback failures and continue.
-      }
-    };
-
-    void playBackgroundIntroAudio();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isFocused, resolvedIntroAudioUrl]);
+    void ensureStarCamMissionIntroAudio(resolvedIntroAudioUrl, introAudioAssetKey);
+  }, [isFocused, resolvedIntroAudioUrl, introAudioAssetKey]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>

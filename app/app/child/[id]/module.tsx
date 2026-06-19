@@ -47,6 +47,7 @@ import {
   isBuiltinCmsVideoFollowUp,
   isHtml5VideoFollowUp,
   isBuiltinCmsBook,
+  MODULE_PAGE_BACKGROUND,
 } from '@/components/child/module/module-utils';
 import { ModuleVideos } from '@/components/child/module/module-videos';
 import { ThemedText } from '@/components/themed-text';
@@ -508,7 +509,7 @@ export default function ChildModuleScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: MODULE_PAGE_BACKGROUND,
   },
   scrollContent: {
     padding: spacing[5],
@@ -523,7 +524,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    color: colors.textInverse,
+    color: colors.text,
     textAlign: 'center',
     padding: spacing[5],
   },

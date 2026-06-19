@@ -1,8 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useEffect, useRef } from 'react';
-import { Animated, Image, Pressable } from 'react-native';
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
 import { BACKEND_ORIGIN } from '@/config';
 
 import { mapStyles } from './mapStyles';
@@ -15,6 +14,7 @@ export interface StarCamMissionBubbleProps {
   delayMs: number;
   gradientColors: readonly [string, string, string];
   shadowColor: string;
+  isPreparing?: boolean;
   onPress: () => void;
 }
 
@@ -24,16 +24,27 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
   delayMs,
   gradientColors,
   shadowColor,
+  isPreparing = false,
   onPress,
 }: StarCamMissionBubbleProps) {
   const floatY = useFloater(delayMs);
   const pulse = useRef(new Animated.Value(1)).current;
-  const firstLetter = String(item.title || '?').trim().charAt(0).toUpperCase() || '?';
+  const imageOpacity = useRef(new Animated.Value(0)).current;
+  const [imageFailed, setImageFailed] = useState(false);
+  const innerSize = size - 16;
+
   const resolvedImageUrl = item.imageUrl
     ? /^(https?:|file:|content:)/i.test(item.imageUrl)
       ? item.imageUrl
       : `${BACKEND_ORIGIN}${item.imageUrl.startsWith('/') ? item.imageUrl : `/${item.imageUrl}`}`
     : null;
+
+  const showImage = Boolean(resolvedImageUrl) && !imageFailed;
+
+  useEffect(() => {
+    setImageFailed(false);
+    imageOpacity.setValue(0);
+  }, [resolvedImageUrl, imageOpacity]);
 
   useEffect(() => {
     const loop = Animated.loop(
@@ -46,6 +57,14 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
     return () => loop.stop();
   }, [pulse]);
 
+  const handleImageLoad = () => {
+    Animated.timing(imageOpacity, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <Animated.View
       style={[
@@ -56,13 +75,16 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
           marginLeft: -size / 2,
           marginTop: -size / 2,
           transform: [{ translateY: floatY }],
+          opacity: isPreparing ? 0.88 : 1,
         },
       ]}>
       <Pressable
         onPress={onPress}
+        disabled={isPreparing}
         accessibilityRole="button"
         accessibilityLabel={`Start mission ${item.title}`}
-        style={({ pressed }) => [pressed && mapStyles.missionPressed]}>
+        accessibilityState={{ busy: isPreparing }}
+        style={({ pressed }) => [pressed && !isPreparing && mapStyles.missionPressed]}>
         <Animated.View
           style={[
             mapStyles.missionBubbleOuter,
@@ -79,31 +101,46 @@ export const StarCamMissionBubble = memo(function StarCamMissionBubble({
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{
-              width: size - 16,
-              height: size - 16,
-              borderRadius: (size - 16) / 2,
+              width: innerSize,
+              height: innerSize,
+              borderRadius: innerSize / 2,
               alignItems: 'center',
               justifyContent: 'center',
               overflow: 'hidden',
             }}>
-            {resolvedImageUrl ? (
-              <Image
-                source={{ uri: resolvedImageUrl }}
+            {showImage ? (
+              <Animated.Image
+                source={{ uri: resolvedImageUrl || '' }}
                 accessibilityIgnoresInvertColors
                 style={{
                   width: '100%',
                   height: '100%',
+                  opacity: imageOpacity,
                 }}
                 resizeMode="cover"
+                onLoad={handleImageLoad}
+                onError={() => setImageFailed(true)}
               />
-            ) : (
-              <ThemedText style={[mapStyles.missionFallbackLetter, { fontSize: size * 0.45 }]}>
-                {firstLetter}
-              </ThemedText>
-            )}
+            ) : null}
+
+            {isPreparing ? (
+              <View style={styles.preparingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              </View>
+            ) : null}
           </LinearGradient>
         </Animated.View>
       </Pressable>
     </Animated.View>
   );
+});
+
+const styles = StyleSheet.create({
+  preparingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    borderRadius: 999,
+  },
 });

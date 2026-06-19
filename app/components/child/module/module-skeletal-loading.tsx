@@ -18,7 +18,6 @@ import {
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 
-const COVER_HEIGHT = Math.round(256 * 1.1);
 const MAX_CONTENT_WIDTH = 848;
 
 function SkeletonBone({
@@ -70,7 +69,7 @@ export function ModuleHeaderSkeleton({ childId }: { childId: string }) {
         style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
         accessibilityRole="button"
         accessibilityLabel="Go back to journey">
-        <MaterialCommunityIcons name="arrow-left" size={24} color={colors.secondary} />
+        <MaterialCommunityIcons name="arrow-left" size={24} color={colors.orange} />
       </Pressable>
       <View style={styles.headerStepBadge}>
         <SkeletonBone variant="onPrimary" style={styles.headerStepBoxBone} />
@@ -83,9 +82,9 @@ export function ModuleHeaderSkeleton({ childId }: { childId: string }) {
 export function ModuleBreadcrumbsSkeleton() {
   return (
     <View style={styles.breadcrumbs} accessibilityLabel="Loading breadcrumbs">
-      <SkeletonBone variant="onTeal" style={styles.journeyButtonBone} />
-      <SkeletonBone variant="onTeal" style={styles.chevronBone} />
-      <SkeletonBone variant="onTeal" style={styles.breadcrumbStepBone} />
+      <SkeletonBone style={styles.journeyButtonBone} />
+      <SkeletonBone style={styles.chevronBone} />
+      <SkeletonBone style={styles.breadcrumbStepBone} />
     </View>
   );
 }
@@ -156,7 +155,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
-    height: COVER_HEIGHT,
+    aspectRatio: 1,
     marginTop: spacing[5],
     overflow: 'hidden',
     backgroundColor: colors.bgTertiary,

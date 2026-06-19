@@ -78,14 +78,14 @@ const styles = StyleSheet.create({
   journeyLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: colors.secondary,
+    color: colors.text,
   },
   chevron: {
     marginHorizontal: 4,
   },
   chevronText: {
     fontSize: 20,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: colors.textMuted,
   },
   stepBadge: {
     flexDirection: 'row',
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     paddingVertical: spacing[2],
     paddingHorizontal: spacing[4],
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.accent,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

@@ -63,7 +63,7 @@ function VideoCard({
         )}
         {completed && (
           <View style={styles.checkBadge}>
-            <MaterialCommunityIcons name="check-circle" size={20} color={colors.secondary} />
+            <MaterialCommunityIcons name="check-circle" size={20} color={colors.orange} />
           </View>
         )}
         {starPoints > 0 && (
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: colors.textInverse,
+    color: colors.text,
     marginBottom: spacing[6],
   },
   grid: {
@@ -233,12 +233,12 @@ const styles = StyleSheet.create({
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
     borderWidth: 2,
-    borderColor: colors.secondary,
+    borderColor: colors.orange,
     alignItems: 'center',
     justifyContent: 'center',
   },
   circleFilled: {
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.orange,
   },
   emptyText: {
     fontSize: 18,

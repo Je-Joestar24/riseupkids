@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { memo, useCallback, useMemo, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { spacing } from '@/config/theme/spacing';
@@ -14,29 +14,57 @@ import { StarCamDecorEmoji } from './StarCamDecorEmoji';
 import { StarCamMapBackButton } from './StarCamMapBackButton';
 import { StarCamMapFooterHint } from './StarCamMapFooterHint';
 import { StarCamMissionBubble } from './StarCamMissionBubble';
+import { StarCamMapEmptyMissions } from './StarCamMapEmptyMissions';
 import type { StarCamCategoryPreset, StarCamMapMissionItem } from './types';
 import { useStarCamMissionPath } from './useStarCamMissionPath';
 
 const StarCamMissionSlot = memo(function StarCamMissionSlot({
   item,
   slot,
+  isPreparing,
+  entranceDelayMs,
   onMissionPress,
 }: {
   item: StarCamMapMissionItem;
   slot: MissionSlotTemplate;
+  isPreparing: boolean;
+  entranceDelayMs: number;
   onMissionPress: (item: StarCamMapMissionItem) => void;
 }) {
+  const popScale = useRef(new Animated.Value(0)).current;
+  const popOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(popScale, {
+        toValue: 1,
+        delay: entranceDelayMs,
+        friction: 5,
+        tension: 68,
+        useNativeDriver: true,
+      }),
+      Animated.timing(popOpacity, {
+        toValue: 1,
+        duration: 280,
+        delay: entranceDelayMs,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [entranceDelayMs, popOpacity, popScale]);
+
   const onPress = useCallback(() => {
     onMissionPress(item);
   }, [item, onMissionPress]);
 
   return (
-    <View
+    <Animated.View
       style={[
         mapStyles.missionAnchor,
         {
           left: `${slot.leftPct}%`,
           top: `${slot.topPct}%`,
+          opacity: popOpacity,
+          transform: [{ scale: popScale }],
         },
       ]}>
       <StarCamMissionBubble
@@ -45,9 +73,10 @@ const StarCamMissionSlot = memo(function StarCamMissionSlot({
         delayMs={slot.delayMs}
         gradientColors={slot.gradientColors}
         shadowColor={slot.shadowColor}
+        isPreparing={isPreparing}
         onPress={onPress}
       />
-    </View>
+    </Animated.View>
   );
 });
 
@@ -55,6 +84,8 @@ export interface StarCamCategoryMissionMapProps {
   preset: StarCamCategoryPreset;
   onBack: () => void;
   missions: StarCamMapMissionItem[];
+  isLoadingMissions?: boolean;
+  preparingMissionId?: string | null;
   onMissionPress: (item: StarCamMapMissionItem) => void;
 }
 
@@ -62,6 +93,8 @@ export const StarCamCategoryMissionMap = memo(function StarCamCategoryMissionMap
   preset,
   onBack,
   missions,
+  isLoadingMissions = false,
+  preparingMissionId = null,
   onMissionPress,
 }: StarCamCategoryMissionMapProps) {
   const [mapSize, setMapSize] = useState({ w: 0, h: 0 });
@@ -83,6 +116,8 @@ export const StarCamCategoryMissionMap = memo(function StarCamCategoryMissionMap
   }, []);
 
   const visibleMissions = useMemo(() => missions.slice(0, slots.length), [missions, slots.length]);
+  const missionsReady = !isLoadingMissions;
+  const showEmptyState = missionsReady && visibleMissions.length === 0;
 
   const pathD = useStarCamMissionPath(mapSize.w, mapSize.h);
 
@@ -130,18 +165,24 @@ export const StarCamCategoryMissionMap = memo(function StarCamCategoryMissionMap
             </Svg>
           ) : null}
 
-          {visibleMissions.map((item, index) => {
-            const slot = slots[index];
-            if (!slot) return null;
-            return (
-              <StarCamMissionSlot
-                key={item.id}
-                item={item}
-                slot={slot}
-                onMissionPress={handleMissionPress}
-              />
-            );
-          })}
+          {showEmptyState ? <StarCamMapEmptyMissions borderColor={preset.borderColor} /> : null}
+
+          {missionsReady
+            ? visibleMissions.map((item, index) => {
+                const slot = slots[index];
+                if (!slot) return null;
+                return (
+                  <StarCamMissionSlot
+                    key={item.id}
+                    item={item}
+                    slot={slot}
+                    isPreparing={preparingMissionId === item.missionId}
+                    entranceDelayMs={index * 120}
+                    onMissionPress={handleMissionPress}
+                  />
+                );
+              })
+            : null}
         </View>
 
         <StarCamMapFooterHint text={preset.footerHint} fontSize={footerFontSize} lineHeight={footerLineHeight} />

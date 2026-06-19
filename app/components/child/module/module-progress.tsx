@@ -54,7 +54,7 @@ export function ModuleProgress({
 
       <View style={styles.cardsRow}>
         <View style={styles.card}>
-          <View style={[styles.cardIcon, { backgroundColor: colors.secondary }]}>
+          <View style={[styles.cardIcon, { backgroundColor: colors.orange }]}>
             <ThemedText style={styles.cardIconText}>✓</ThemedText>
           </View>
           <ThemedText style={styles.cardCount}>{completedCount}</ThemedText>
@@ -128,11 +128,11 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 9999,
     overflow: 'hidden',
-    backgroundColor: 'rgb(212, 230, 227)',
+    backgroundColor: 'rgba(233, 138, 104, 0.22)',
   },
   barFill: {
     height: '100%',
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.accent,
     borderRadius: 9999,
   },
   cardsRow: {
