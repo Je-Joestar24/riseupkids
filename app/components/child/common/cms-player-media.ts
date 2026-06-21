@@ -1,10 +1,10 @@
 /**
  * Preload + disk cache for CMS built-in player media (images, audio, video).
- * Images use expo-image prefetch; other assets download into FileSystem.cacheDirectory.
+ * All remote assets download into FileSystem.cacheDirectory; images are decode-warmed for RN Image.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
-import { Image } from 'expo-image';
+import { Image as RNImage } from 'react-native';
 
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
@@ -130,10 +130,25 @@ function pushUrl(set: Set<string>, url: string | null | undefined) {
   if (url && typeof url === 'string' && url.trim()) set.add(url.trim());
 }
 
+function pushMediaObjectUrl(set: Set<string>, value: unknown) {
+  if (typeof value === 'string') {
+    pushUrl(set, value);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    const media = value as { url?: unknown; cloudUrl?: unknown };
+    pushUrl(set, typeof media.url === 'string' ? media.url : null);
+    pushUrl(set, typeof media.cloudUrl === 'string' ? media.cloudUrl : null);
+  }
+}
+
 /** Collect every remote URL referenced by playable pages (for preload). */
 export function collectCmsPlayerMediaUrls(pages: CmsPlayablePage[]): string[] {
   const set = new Set<string>();
   pages.forEach((page) => {
+    const flat = page as unknown as Record<string, unknown>;
+    const media = page.media as Record<string, unknown> | undefined;
+
     pushUrl(set, resolveImageUrl(page));
     pushUrl(set, resolveVideoUrl(page));
     if (resolvePageType(page.type) === 'intro') {
@@ -142,35 +157,104 @@ export function collectCmsPlayerMediaUrls(pages: CmsPlayablePage[]): string[] {
       pushUrl(set, resolveAudioUrl(page));
     }
 
-    const medias = page.media?.guideImageMedias ?? [];
-    medias.forEach((m) => pushUrl(set, m?.url ?? null));
+    const guideMedias = media?.guideImageMedias as { url?: string }[] | undefined;
+    (guideMedias ?? []).forEach((m) => pushUrl(set, m?.url ?? null));
+    pushUrl(set, (media?.guideImageMedia as { url?: string } | undefined)?.url);
+
+    const sceneMedias = media?.sceneImageMedias as { url?: string }[] | undefined;
+    (sceneMedias ?? []).forEach((m) => pushUrl(set, m?.url ?? null));
+    pushUrl(set, (media?.sceneImageMedia as { url?: string } | undefined)?.url);
+
+    pushUrl(set, flat.optionImageOne as string | undefined);
+    pushUrl(set, flat.optionImageTwo as string | undefined);
+    pushUrl(set, flat.answerAudioOne as string | undefined);
+    pushUrl(set, flat.answerAudioTwo as string | undefined);
+
     const opts = page.interaction?.options ?? [];
     opts.forEach((o) => {
-      pushUrl(set, o.imageMedia?.url ?? null);
-      pushUrl(set, o.audioMedia?.url ?? null);
+      const opt = o as Record<string, unknown>;
+      pushUrl(set, (opt.imageMedia as { url?: string } | undefined)?.url ?? null);
+      pushUrl(set, (opt.audioMedia as { url?: string } | undefined)?.url ?? null);
+      pushMediaObjectUrl(set, opt.image);
+      pushMediaObjectUrl(set, opt.audio);
+      pushUrl(set, opt.imageUrl as string | undefined);
+      pushUrl(set, opt.audioUrl as string | undefined);
+    });
+
+    const dropZones = page.interaction?.dropZones ?? [];
+    dropZones.forEach((zone) => {
+      const z = zone as Record<string, unknown>;
+      pushUrl(set, z.audioUrl as string | undefined);
+      pushMediaObjectUrl(set, z.audioMedia);
+      pushMediaObjectUrl(set, z.audio);
     });
   });
   return Array.from(set);
 }
 
-const IMAGE_EXT = /\.(png|jpe?g|webp|gif)(\?|$)/i;
+export type CmsMediaUriMap = Record<string, string>;
 
-async function prefetchOne(url: string): Promise<boolean> {
-  if (!isHttp(url)) return true;
+/** Resolve remote URL to cached local file when available. */
+export function resolvePlayableMediaUri(
+  remoteUrl: string | null | undefined,
+  uriMap?: CmsMediaUriMap | null
+): string {
+  const url = typeof remoteUrl === 'string' ? remoteUrl.trim() : '';
+  if (!url) return '';
+  if (!isHttp(url)) return url;
+
+  const fromMap = uriMap?.[url];
+  if (fromMap && isLocalMediaUri(fromMap)) return fromMap;
+
+  const memo = resolvedUriCache.get(url);
+  if (memo) return memo;
+
+  return url;
+}
+
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
+
+function isImageUrl(url: string): boolean {
+  return IMAGE_EXT.test(url);
+}
+
+async function warmImageDecode(uri: string): Promise<void> {
+  if (!uri) return;
   try {
-    if (IMAGE_EXT.test(url)) {
-      await Image.prefetch(url);
-      return true;
-    }
-    await resolveCachedMediaUri(url);
-    return true;
+    await RNImage.prefetch(uri);
   } catch {
+    // Decode warm is best-effort; file on disk is still usable.
+  }
+}
+
+async function preloadOneAsset(
+  remoteUrl: string,
+  uriMap: CmsMediaUriMap
+): Promise<boolean> {
+  if (!remoteUrl) return true;
+  if (!isHttp(remoteUrl)) {
+    uriMap[remoteUrl] = remoteUrl;
+    return true;
+  }
+
+  try {
+    const localUri = await resolveCachedMediaUri(remoteUrl);
+    uriMap[remoteUrl] = localUri;
+
+    if (isImageUrl(remoteUrl)) {
+      await warmImageDecode(isLocalMediaUri(localUri) ? localUri : remoteUrl);
+    }
+
+    return isLocalMediaUri(localUri);
+  } catch {
+    uriMap[remoteUrl] = remoteUrl;
     return false;
   }
 }
 
 export interface PreloadSummary {
   failed: string[];
+  uriMap: CmsMediaUriMap;
 }
 
 /**
@@ -194,9 +278,10 @@ export async function preloadMediaAssetsToCache(
 ): Promise<PreloadSummary> {
   const unique = Array.from(new Set(urls.filter(Boolean)));
   const failed: string[] = [];
+  const uriMap: CmsMediaUriMap = {};
   if (!unique.length) {
     onProgress?.(100);
-    return { failed };
+    return { failed, uriMap };
   }
 
   let completed = 0;
@@ -209,11 +294,8 @@ export async function preloadMediaAssetsToCache(
     while (queue.length) {
       const next = queue.shift();
       if (!next) break;
-      try {
-        await resolveCachedMediaUri(next);
-      } catch {
-        failed.push(next);
-      }
+      const ok = await preloadOneAsset(next, uriMap);
+      if (!ok && isHttp(next)) failed.push(next);
       completed += 1;
       report();
     }
@@ -221,7 +303,7 @@ export async function preloadMediaAssetsToCache(
 
   await Promise.all(workers);
   onProgress?.(100);
-  return { failed };
+  return { failed, uriMap };
 }
 
 export async function preloadCmsPlayerAssets(
@@ -229,33 +311,7 @@ export async function preloadCmsPlayerAssets(
   onProgress?: (percent: number) => void,
   concurrency = 4
 ): Promise<PreloadSummary> {
-  const unique = Array.from(new Set(urls.filter(Boolean)));
-  const failed: string[] = [];
-  if (!unique.length) {
-    onProgress?.(100);
-    return { failed };
-  }
-
-  let completed = 0;
-  const report = () => {
-    onProgress?.(Math.round((completed / unique.length) * 100));
-  };
-
-  const queue = [...unique];
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    while (queue.length) {
-      const next = queue.shift();
-      if (!next) break;
-      const ok = await prefetchOne(next);
-      if (!ok) failed.push(next);
-      completed += 1;
-      report();
-    }
-  });
-
-  await Promise.all(workers);
-  onProgress?.(100);
-  return { failed };
+  return preloadMediaAssetsToCache(urls, onProgress, concurrency);
 }
 
 export function clearCmsPlayerResolvedUriCache(): void {

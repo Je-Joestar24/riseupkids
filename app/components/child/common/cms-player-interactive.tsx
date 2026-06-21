@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 
 import { Quicksand } from '@/constants/theme';
-import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
 import {
@@ -22,7 +21,10 @@ import {
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '@/utils/cmsInteractiveLayout';
-import { cmsLocalUiAssets, getScaledInteractiveMetrics, resolveImageUrl } from './cms-player-shared';
+import { getScaledInteractiveMetrics, resolveImageUrl } from './cms-player-shared';
+import { resolvePlayableMediaUri } from './cms-player-media';
+import { useCmsMediaUriMap } from './cms-player-media-context';
+import { CmsInteractiveResultToast } from './cms-interactive-result-toast';
 
 type OptionModel = {
   id: string;
@@ -36,7 +38,26 @@ type ZoneModel = {
   label: string;
   correctOptionId: string;
   guideImageUrl: string;
+  audio: string;
 };
+
+function toSafeMediaUrl(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object') {
+    const media = value as { url?: unknown; cloudUrl?: unknown };
+    if (typeof media.url === 'string') return media.url.trim();
+    if (typeof media.cloudUrl === 'string') return media.cloudUrl.trim();
+  }
+  return '';
+}
+
+function sanitizeInteractiveImageUrl(value: unknown): string {
+  const safe = toSafeMediaUrl(value);
+  if (!safe) return '';
+  const lowered = safe.toLowerCase();
+  if (lowered === 'null' || lowered === 'undefined') return '';
+  return safe;
+}
 
 function rectsOverlap(
   a: { x: number; y: number; w: number; h: number },
@@ -58,7 +79,8 @@ export function CmsInteractivePage({
   onRetry?: () => void;
   onCorrectDrop?: () => void;
 }) {
-  const bgImage = resolveImageUrl(page);
+  const mediaUriMap = useCmsMediaUriMap();
+  const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
   const useCustomLayout = hasCustomInteractiveLayout(page as Record<string, unknown>);
   const resolvedLayouts = useMemo(
     () => extractInteractiveLayoutsFromCms(page as Record<string, unknown>),
@@ -67,11 +89,17 @@ export function CmsInteractivePage({
   const sceneImageUrls = useMemo(() => {
     const media = page?.media;
     const fromList = Array.isArray(media?.sceneImageMedias)
-      ? media.sceneImageMedias.map((item) => item?.url).filter(Boolean) as string[]
+      ? media.sceneImageMedias
+        .map((item) => sanitizeInteractiveImageUrl(item?.url))
+        .filter(Boolean) as string[]
       : [];
-    const single = media?.sceneImageMedia?.url || '';
+    const single = sanitizeInteractiveImageUrl(media?.sceneImageMedia?.url);
     return fromList.length ? fromList : single ? [single] : [];
   }, [page]);
+  const resolvedSceneImageUrls = useMemo(
+    () => sceneImageUrls.map((url) => resolvePlayableMediaUri(url, mediaUriMap)),
+    [sceneImageUrls, mediaUriMap]
+  );
 
   const dropZones = useMemo(
     () => (Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : []),
@@ -88,13 +116,22 @@ export function CmsInteractivePage({
 
   const dropZoneItems: ZoneModel[] = useMemo(
     () =>
-      dropZones.map((zone, index) => ({
-        id: zone?.zoneId || `zone_${index + 1}`,
-        label: zone?.label || `Answer ${index + 1}`,
-        correctOptionId: zone?.correctOptionId || '',
-        guideImageUrl: guideImageUrls[index] || guideImageUrls[0] || '',
-      })),
-    [dropZones, guideImageUrls]
+      dropZones.map((zone, index) => {
+        const rawAudio =
+          toSafeMediaUrl(zone?.audioUrl)
+          || toSafeMediaUrl(zone?.audio)
+          || toSafeMediaUrl(zone?.audioMedia)
+          || toSafeMediaUrl(index === 0 ? page?.answerAudioOne : page?.answerAudioTwo);
+        const rawGuide = guideImageUrls[index] || guideImageUrls[0] || '';
+        return {
+          id: zone?.zoneId || `zone_${index + 1}`,
+          label: zone?.label || `Answer ${index + 1}`,
+          correctOptionId: zone?.correctOptionId || '',
+          guideImageUrl: resolvePlayableMediaUri(rawGuide, mediaUriMap),
+          audio: resolvePlayableMediaUri(rawAudio, mediaUriMap),
+        };
+      }),
+    [dropZones, guideImageUrls, page, mediaUriMap]
   );
 
   const interactionType = page?.type || page?.interaction?.kind || '';
@@ -111,27 +148,31 @@ export function CmsInteractivePage({
       {
         id: firstOptionSource?.optionId || 'option_one',
         label: firstOptionSource?.label || 'Option 1',
-        image:
+        image: resolvePlayableMediaUri(
           (page as { optionImageOne?: string }).optionImageOne
           || firstOptionSource?.imageMedia?.url
           || '',
-        audio: firstOptionSource?.audioMedia?.url || '',
+          mediaUriMap
+        ),
+        audio: resolvePlayableMediaUri(firstOptionSource?.audioMedia?.url || '', mediaUriMap),
       },
       {
         id: secondOptionSource?.optionId || 'option_two',
         label: secondOptionSource?.label || 'Option 2',
-        image:
+        image: resolvePlayableMediaUri(
           (page as { optionImageTwo?: string }).optionImageTwo
           || secondOptionSource?.imageMedia?.url
           || '',
-        audio: secondOptionSource?.audioMedia?.url || '',
+          mediaUriMap
+        ),
+        audio: resolvePlayableMediaUri(secondOptionSource?.audioMedia?.url || '', mediaUriMap),
       },
     ];
     return list.filter((option, index) => {
       if (index === 0) return Boolean(option.image || option.audio || firstOptionSource?.label);
       return Boolean(option.image || option.audio || secondOptionSource?.label);
     });
-  }, [page]);
+  }, [page, mediaUriMap]);
 
   const requiredPlacements = Math.min(dropZoneItems.length, options.length);
 
@@ -147,6 +188,7 @@ export function CmsInteractivePage({
   const placedByOptionRef = useRef(placedByOption);
   const [dropResult, setDropResult] = useState<'correct' | 'wrong' | ''>('');
   const [playingOptionId, setPlayingOptionId] = useState('');
+  const [playingAnswerId, setPlayingAnswerId] = useState('');
   const [dragLayer, setDragLayer] = useState<{
     id: string;
     x: number;
@@ -158,6 +200,8 @@ export function CmsInteractivePage({
   const [resetSeed, setResetSeed] = useState(0);
 
   const optionAudioRef = useRef<Audio.Sound | null>(null);
+  const answerAudioRef = useRef<Audio.Sound | null>(null);
+  const audioRequestIdRef = useRef(0);
   const positionRef = useRef<Record<string, { x: number; y: number }>>({});
   const dragStateRef = useRef<{
     id: string;
@@ -274,43 +318,125 @@ export function CmsInteractivePage({
     setOptionPositions(next);
   }, [layout, isSingleLayout, options, resetSeed, useCustomLayout, resolvedLayouts]);
 
+  const stopAllInteractiveAudio = useCallback(async () => {
+    const optionSound = optionAudioRef.current;
+    const answerSound = answerAudioRef.current;
+    optionAudioRef.current = null;
+    answerAudioRef.current = null;
+    setPlayingOptionId('');
+    setPlayingAnswerId('');
+
+    await Promise.all([
+      (async () => {
+        if (!optionSound) return;
+        try {
+          await optionSound.stopAsync();
+        } catch {
+          // ignore stop errors for unloaded sounds
+        }
+        try {
+          await optionSound.unloadAsync();
+        } catch {
+          // ignore unload errors
+        }
+      })(),
+      (async () => {
+        if (!answerSound) return;
+        try {
+          await answerSound.stopAsync();
+        } catch {
+          // ignore stop errors for unloaded sounds
+        }
+        try {
+          await answerSound.unloadAsync();
+        } catch {
+          // ignore unload errors
+        }
+      })(),
+    ]);
+  }, []);
+
   const playOptionAudio = useCallback(
     async (option: OptionModel) => {
       if (isPreloading || isInteractionLocked || placedByOptionRef.current[option.id]) return;
       onPickOption?.(option.id);
       if (!option.audio) return;
+
+      const requestId = audioRequestIdRef.current + 1;
+      audioRequestIdRef.current = requestId;
+      await stopAllInteractiveAudio();
+      if (requestId !== audioRequestIdRef.current) return;
+
       try {
-        if (optionAudioRef.current) {
-          await optionAudioRef.current.stopAsync();
-          await optionAudioRef.current.unloadAsync();
-          optionAudioRef.current = null;
-        }
         const { sound } = await Audio.Sound.createAsync({ uri: option.audio }, { shouldPlay: true });
+        if (requestId !== audioRequestIdRef.current) {
+          await sound.unloadAsync().catch(() => {});
+          return;
+        }
         optionAudioRef.current = sound;
         setPlayingOptionId(option.id);
         sound.setOnPlaybackStatusUpdate((st) => {
           if (st.isLoaded && st.didJustFinish) {
-            setPlayingOptionId('');
+            if (optionAudioRef.current === sound) {
+              optionAudioRef.current = null;
+            }
+            setPlayingOptionId((current) => (current === option.id ? '' : current));
           }
         });
       } catch {
-        setPlayingOptionId('');
+        if (requestId === audioRequestIdRef.current) {
+          setPlayingOptionId('');
+        }
       }
     },
-    [isPreloading, isInteractionLocked, onPickOption]
+    [isPreloading, isInteractionLocked, onPickOption, stopAllInteractiveAudio]
+  );
+
+  const playZoneAudio = useCallback(
+    async (zone: ZoneModel) => {
+      if (isPreloading || !zone.audio) return;
+
+      const requestId = audioRequestIdRef.current + 1;
+      audioRequestIdRef.current = requestId;
+      await stopAllInteractiveAudio();
+      if (requestId !== audioRequestIdRef.current) return;
+
+      try {
+        const { sound } = await Audio.Sound.createAsync({ uri: zone.audio }, { shouldPlay: true });
+        if (requestId !== audioRequestIdRef.current) {
+          await sound.unloadAsync().catch(() => {});
+          return;
+        }
+        answerAudioRef.current = sound;
+        setPlayingAnswerId(zone.id);
+        sound.setOnPlaybackStatusUpdate((st) => {
+          if (st.isLoaded && st.didJustFinish) {
+            if (answerAudioRef.current === sound) {
+              answerAudioRef.current = null;
+            }
+            setPlayingAnswerId((current) => (current === zone.id ? '' : current));
+          }
+        });
+      } catch {
+        if (requestId === audioRequestIdRef.current) {
+          setPlayingAnswerId('');
+        }
+      }
+    },
+    [isPreloading, stopAllInteractiveAudio]
   );
 
   useEffect(
     () => () => {
-      optionAudioRef.current?.unloadAsync().catch(() => {});
+      audioRequestIdRef.current += 1;
+      void stopAllInteractiveAudio();
     },
-    []
+    [stopAllInteractiveAudio]
   );
 
   const handleRetry = useCallback(() => {
-    optionAudioRef.current?.unloadAsync().catch(() => {});
-    optionAudioRef.current = null;
-    setPlayingOptionId('');
+    audioRequestIdRef.current += 1;
+    void stopAllInteractiveAudio();
     setDragLayer(null);
     dragStateRef.current = null;
     setPlacedByZone({});
@@ -320,7 +446,7 @@ export function CmsInteractivePage({
     setDropResult('');
     setResetSeed((s) => s + 1);
     onRetry?.();
-  }, [onRetry]);
+  }, [onRetry, stopAllInteractiveAudio]);
 
   const buildPanResponder = useCallback(
     (option: OptionModel) =>
@@ -491,7 +617,7 @@ export function CmsInteractivePage({
       )}
 
       {useCustomLayout
-        ? sceneImageUrls.map((url, index) => {
+        ? resolvedSceneImageUrls.map((url, index) => {
             const sceneLayout = index === 0 ? resolvedLayouts.sceneOne : resolvedLayouts.sceneTwo;
             const box = layoutRectToPx(sceneLayout, layout.w, layout.h);
             if (!box) return null;
@@ -545,7 +671,12 @@ export function CmsInteractivePage({
                     top: pos.y,
                     width: size?.w || stageMetrics.cardWidth,
                     height: size?.h || stageMetrics.cardHeight,
-                    opacity: hidden ? 0 : playingOptionId && playingOptionId !== option.id ? 0.72 : 1,
+                    opacity:
+                      hidden
+                        ? 0
+                        : (playingOptionId || playingAnswerId) && playingOptionId !== option.id
+                          ? 0.72
+                          : 1,
                     zIndex: lockedHere ? 12 : 6,
                   },
                 ]}
@@ -569,8 +700,14 @@ export function CmsInteractivePage({
         </View>
 
         {zoneLayouts.zones.map((z) => (
-          <View
+          <Pressable
             key={z.id}
+            onPress={() => {
+              const zoneMeta = dropZoneItems.find((d) => d.id === z.id);
+              if (zoneMeta?.audio) {
+                void playZoneAudio(zoneMeta);
+              }
+            }}
             style={[
               styles.dropZone,
               {
@@ -578,11 +715,15 @@ export function CmsInteractivePage({
                 top: z.y,
                 width: z.w,
                 height: z.h,
+                opacity:
+                  playingAnswerId && playingAnswerId !== z.id
+                    ? 0.82
+                    : 1,
               },
             ]}
-            pointerEvents="none"
-            accessibilityRole="image"
-            accessibilityLabel={`${dropZoneItems.find((d) => d.id === z.id)?.label || 'Answer'} drop zone`}
+            pointerEvents={dropZoneItems.find((d) => d.id === z.id)?.audio ? 'auto' : 'none'}
+            accessibilityRole="button"
+            accessibilityLabel={`Play ${dropZoneItems.find((d) => d.id === z.id)?.label || 'Answer'} sound`}
           >
             {dropZoneItems.find((d) => d.id === z.id)?.guideImageUrl ? (
               <Image
@@ -594,7 +735,7 @@ export function CmsInteractivePage({
             ) : (
               <View style={styles.dropPlaceholder} />
             )}
-          </View>
+          </Pressable>
         ))}
 
         {dragLayer ? (
@@ -622,40 +763,18 @@ export function CmsInteractivePage({
           </View>
         ) : null}
 
-        {dropResult ? (
-          <View style={styles.resultWrap} pointerEvents="none">
-            <Text
-              style={[
-                styles.resultText,
-                { color: dropResult === 'correct' ? colors.secondary : colors.error },
-              ]}
-              accessibilityLiveRegion="polite"
-            >
-              {dropResult === 'correct' ? 'Good Job!' : 'Try again'}
-            </Text>
-          </View>
-        ) : (
+        {!dropResult ? (
           <Text style={styles.hint} pointerEvents="none">
             Drag to the answer zone or tap to play audio.
           </Text>
-        )}
+        ) : null}
       </View>
 
-      <Pressable
-        onPress={handleRetry}
-        disabled={isPreloading}
-        style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
-        accessibilityRole="button"
-        accessibilityLabel="Retry current page"
-        accessibilityState={{ disabled: isPreloading }}
-      >
-        <Image
-          source={cmsLocalUiAssets.retryButton}
-          style={styles.btnImg}
-          resizeMode="contain"
-          accessibilityLabel="Retry"
-        />
-      </Pressable>
+      <CmsInteractiveResultToast
+        visible={Boolean(dropResult)}
+        tone={dropResult === 'correct' ? 'success' : 'retry'}
+        onDismiss={dropResult === 'wrong' ? handleRetry : undefined}
+      />
     </View>
   );
 }
@@ -669,8 +788,8 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
   },
   pageSubtitle: {
     marginTop: 6,
@@ -717,39 +836,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 7,
   },
-  resultWrap: {
-    position: 'absolute',
-    left: '50%',
-    top: '72%',
-    width: '90%',
-    marginLeft: '-45%',
-    alignItems: 'center',
-    zIndex: 8,
-  },
-  resultText: {
-    fontFamily: Quicksand.bold,
-    fontSize: 22,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.18)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
   hint: {
     marginTop: 10,
     textAlign: 'center',
     color: '#fff',
     fontFamily: Quicksand.bold,
   },
-  retryBtn: {
-    position: 'absolute',
-    right: '0.9375%',
-    bottom: '5.1852%',
-    width: '7.5%',
-    aspectRatio: 1,
-    zIndex: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  btnImg: { width: '100%', height: '100%' },
-  pressed: { opacity: 0.88 },
 });

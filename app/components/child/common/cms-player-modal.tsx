@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Image,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,11 +27,15 @@ import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import {
   collectCmsPlayerMediaUrls,
   preloadCmsPlayerAssets,
+  type CmsMediaUriMap,
 } from './cms-player-media';
+import { CmsMediaUriProvider } from './cms-player-media-context';
 import { CmsInteractivePage } from './cms-player-interactive';
+import { CmsPlayerLoadingSpinner } from './cms-player-loading-spinner';
 import { CmsContentPage, CmsDemoPage, CmsIntroPage } from './cms-player-pages';
 import {
   computeStageSize,
+  cmsLocalUiAssets,
   getPlayablePages,
   resolvePageType,
 } from './cms-player-shared';
@@ -102,13 +107,18 @@ export function CmsPlayerModal({
   const [score, setScore] = useState(0);
   const [attemptCount, setAttemptCount] = useState(0);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizingTrigger, setFinalizingTrigger] = useState<'close' | 'home' | null>(null);
 
-  const [internalPreloading, setInternalPreloading] = useState(false);
   const [internalProgress, setInternalProgress] = useState(0);
   const [internalSummary, setInternalSummary] = useState<{ failed: string[] } | null>(null);
+  const [mediaUriMap, setMediaUriMap] = useState<CmsMediaUriMap>({});
+  const [mediaReady, setMediaReady] = useState(false);
 
   const isControlledPreload = controlledPreloading !== undefined;
-  const isPreloading = isControlledPreload ? Boolean(controlledPreloading) : internalPreloading;
+  const usesInternalPreload = open && autoPreload && !isControlledPreload;
+  const isPreloading = isControlledPreload
+    ? Boolean(controlledPreloading)
+    : usesInternalPreload && !mediaReady;
   const preloadProgress = isControlledPreload ? controlledProgress : internalProgress;
   const preloadSummary = isControlledPreload ? controlledSummary : internalSummary;
 
@@ -123,31 +133,43 @@ export function CmsPlayerModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open || !autoPreload || isControlledPreload) return;
-    preloadCancelled.current = false;
-    const urls = collectCmsPlayerMediaUrls(playablePages);
-    if (!urls.length) {
-      setInternalPreloading(false);
-      setInternalProgress(100);
-      setInternalSummary(null);
+    if (!usesInternalPreload) {
+      if (!open) {
+        setMediaReady(false);
+        setMediaUriMap({});
+      }
       return;
     }
-    setInternalPreloading(true);
+
+    preloadCancelled.current = false;
+    setMediaReady(false);
+    setMediaUriMap({});
     setInternalProgress(0);
     setInternalSummary(null);
+
+    const urls = collectCmsPlayerMediaUrls(playablePages);
+    if (!urls.length) {
+      setInternalProgress(100);
+      setInternalSummary(null);
+      setMediaReady(true);
+      return;
+    }
+
     preloadCmsPlayerAssets(urls, (pct) => {
       if (!preloadCancelled.current) setInternalProgress(pct);
     }).then((summary) => {
       if (!preloadCancelled.current) {
-        setInternalSummary(summary);
-        setInternalPreloading(false);
+        setInternalSummary({ failed: summary.failed });
+        setMediaUriMap(summary.uriMap);
         setInternalProgress(100);
+        setMediaReady(true);
       }
     });
+
     return () => {
       preloadCancelled.current = true;
     };
-  }, [open, autoPreload, isControlledPreload, signature, playablePages]);
+  }, [open, usesInternalPreload, signature, playablePages]);
 
   useEffect(() => {
     if (!open) {
@@ -156,6 +178,9 @@ export function CmsPlayerModal({
       setScore(0);
       setAttemptCount(0);
       setIsFinalizing(false);
+      setFinalizingTrigger(null);
+      setMediaReady(false);
+      setMediaUriMap({});
     }
   }, [open, signature]);
 
@@ -211,16 +236,21 @@ export function CmsPlayerModal({
   const finalizeAndClose = useCallback(
     async (trigger: 'close' | 'home') => {
       if (isFinalizing) return;
+      setFinalizingTrigger(trigger);
       setIsFinalizing(true);
       const payload = { ...buildSessionPayload(), trigger };
-      await Promise.resolve(onSessionComplete?.(payload));
-      setCurrentIndex(0);
-      setResolvedPageIds({});
-      setScore(0);
-      setAttemptCount(0);
-      setIsFinalizing(false);
-      ScreenOrientation.lockAsync(PORTRAIT_LOCK).catch(() => {});
-      onClose?.();
+      try {
+        await Promise.resolve(onSessionComplete?.(payload));
+      } finally {
+        setCurrentIndex(0);
+        setResolvedPageIds({});
+        setScore(0);
+        setAttemptCount(0);
+        setIsFinalizing(false);
+        setFinalizingTrigger(null);
+        ScreenOrientation.lockAsync(PORTRAIT_LOCK).catch(() => {});
+        onClose?.();
+      }
     },
     [isFinalizing, buildSessionPayload, onSessionComplete, onClose]
   );
@@ -334,30 +364,34 @@ export function CmsPlayerModal({
       );
     }
     if (pageType === 'reward') {
-      return (
-        <CmsRewardStage
-          page={currentPage}
-          onHome={() => finalizeAndClose('home')}
-          disabled={isPreloading || isFinalizing}
-        />
-      );
+      return <CmsRewardStage page={currentPage} />;
     }
     return renderEmpty();
   };
 
+  const isRewardPage =
+    !isPreloading && Boolean(currentPage) && resolvePageType(currentPage?.type) === 'reward';
+
+  const finalizingMessage =
+    finalizingTrigger === 'home'
+      ? 'Saving your book and going home...'
+      : 'Saving your progress...';
+
   const stageView = (
-    <View
-      style={[
-        styles.stageFrame,
-        {
-          width: stageW,
-          height: stageH,
-        },
-      ]}
-      accessibilityRole="none"
-    >
-      {renderPageBody()}
-    </View>
+    <CmsMediaUriProvider uriMap={mediaUriMap}>
+      <View
+        style={[
+          styles.stageFrame,
+          {
+            width: stageW,
+            height: stageH,
+          },
+        ]}
+        accessibilityRole="none"
+      >
+        {renderPageBody()}
+      </View>
+    </CmsMediaUriProvider>
   );
 
   return (
@@ -387,7 +421,7 @@ export function CmsPlayerModal({
           />
           <View style={styles.stageCenter}>{stageView}</View>
 
-          <View style={[styles.sideRail, styles.sideRailFlushTop]}>
+          <View style={[styles.sideRail, styles.sideRailFlushTop, isRewardPage && styles.sideRailReward]}>
             <Pressable
               onPress={handleClose}
               disabled={isFinalizing}
@@ -399,8 +433,50 @@ export function CmsPlayerModal({
             >
               <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
             </Pressable>
+
+            {isRewardPage ? (
+              <View style={styles.railHomeBtn} accessibilityRole="none">
+                {isFinalizing ? (
+                  <CmsPlayerLoadingSpinner
+                    size={36}
+                    accessibilityLabel={finalizingMessage}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => finalizeAndClose('home')}
+                    hitSlop={14}
+                    style={({ pressed }) => [styles.railHomePressable, pressed && styles.pressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go home and finish book"
+                  >
+                    <Image
+                      source={cmsLocalUiAssets.homeButton}
+                      style={styles.railHomeImg}
+                      resizeMode="contain"
+                      accessibilityIgnoresInvertColors
+                      accessibilityLabel="Home button"
+                    />
+                  </Pressable>
+                )}
+              </View>
+            ) : null}
           </View>
         </View>
+
+        {isFinalizing ? (
+          <View
+            style={styles.finalizeOverlay}
+            accessibilityRole="progressbar"
+            accessibilityLabel={finalizingMessage}
+            accessibilityLiveRegion="polite"
+          >
+            <View style={styles.finalizeCard}>
+              <CmsPlayerLoadingSpinner size={56} accessibilityLabel={finalizingMessage} />
+              <Text style={styles.finalizeTitle}>{finalizingMessage}</Text>
+              <Text style={styles.finalizeSubtitle}>Please wait a moment.</Text>
+            </View>
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
@@ -410,6 +486,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#f8f8f8',
+    position: 'relative',
   },
   /** Horizontal: balance spacer | stage (flex) | close rail */
   playerRow: {
@@ -427,9 +504,14 @@ const styles = StyleSheet.create({
   sideRail: {
     width: CLOSE_RAIL,
     flexShrink: 0,
+    alignSelf: 'stretch',
     paddingTop: spacing[1],
     alignItems: 'center',
     justifyContent: 'flex-start',
+  },
+  sideRailReward: {
+    justifyContent: 'space-between',
+    paddingBottom: spacing[2],
   },
   sideRailFlushTop: {
     paddingTop: 0,
@@ -441,6 +523,55 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(15, 23, 42, 0.06)',
+  },
+  railHomeBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  railHomePressable: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  railHomeImg: {
+    width: 40,
+    height: 40,
+  },
+  finalizeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing[6],
+    zIndex: 200,
+    elevation: 200,
+  },
+  finalizeCard: {
+    width: '86%',
+    maxWidth: 420,
+    paddingVertical: spacing[6],
+    paddingHorizontal: spacing[5],
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  finalizeTitle: {
+    fontFamily: Quicksand.bold,
+    fontSize: 18,
+    color: '#141414',
+    textAlign: 'center',
+  },
+  finalizeSubtitle: {
+    fontFamily: Quicksand.semiBold,
+    fontSize: 14,
+    color: '#414141',
+    textAlign: 'center',
   },
   pressed: { opacity: 0.72 },
   stageCenter: {

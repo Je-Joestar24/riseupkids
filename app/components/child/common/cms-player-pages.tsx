@@ -18,7 +18,7 @@ import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
-import { resolveCachedMediaUri } from './cms-player-media';
+import { useCmsPlayableMediaUri } from './cms-player-media-context';
 import {
   cmsLocalUiAssets,
   extractReadingWordsFromPage,
@@ -45,8 +45,8 @@ export function CmsIntroPage({
   isPreloading: boolean;
   onNext: () => void;
 }) {
-  const bg = resolveImageUrl(page);
-  const backgroundMusicUrl = resolveIntroBackgroundMusicUrl(page);
+  const bg = useCmsPlayableMediaUri(resolveImageUrl(page));
+  const backgroundMusicUrl = useCmsPlayableMediaUri(resolveIntroBackgroundMusicUrl(page));
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const stopBackgroundMusic = useCallback(async () => {
@@ -97,8 +97,8 @@ export function CmsIntroPage({
           cmsIntroAudioModeReady = true;
         }
 
-        const uri = await resolveCachedMediaUri(backgroundMusicUrl);
-        if (cancelled) return;
+        const uri = backgroundMusicUrl;
+        if (!uri || cancelled) return;
 
         const { sound } = await Audio.Sound.createAsync(
           { uri },
@@ -166,8 +166,8 @@ export function CmsDemoPage({
   isPreloading: boolean;
   onNext: () => void;
 }) {
-  const bg = resolveImageUrl(page);
-  const video = resolveVideoUrl(page);
+  const bg = useCmsPlayableMediaUri(resolveImageUrl(page));
+  const video = useCmsPlayableMediaUri(resolveVideoUrl(page));
 
   return (
     <View style={styles.fill}>
@@ -239,8 +239,8 @@ export function CmsContentPage({
   onPrev: () => void;
   onNext: () => void;
 }) {
-  const bgImage = resolveImageUrl(page);
-  const audioUrl = resolveAudioUrl(page);
+  const bgImage = useCmsPlayableMediaUri(resolveImageUrl(page));
+  const audioUrl = useCmsPlayableMediaUri(resolveAudioUrl(page));
   const soundRef = useRef<Audio.Sound | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   /** Karaoke highlight only after audio is loaded and playback has started (sync with word coloring). */
