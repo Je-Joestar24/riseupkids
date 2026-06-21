@@ -29,6 +29,22 @@ import BooksBuilderInteractiveLayoutCanvas from './BooksBuilderInteractiveLayout
 
 const FONT = 'Quicksand, sans-serif';
 
+const INTERACTIVE_IMAGE_MEDIA_ID_FIELDS = {
+  backgroundImageUrl: 'backgroundImageMediaId',
+  sceneImageOne: 'sceneImageOneMediaId',
+  sceneImageTwo: 'sceneImageTwoMediaId',
+  guideImageOne: 'guideImageMediaId',
+  optionImageOne: 'optionOneImageMediaId',
+  optionImageTwo: 'optionTwoImageMediaId',
+};
+
+const INTERACTIVE_AUDIO_MEDIA_ID_FIELDS = {
+  answerAudioOne: 'answerOneAudioMediaId',
+  answerAudioTwo: 'answerTwoAudioMediaId',
+  optionAudioOne: 'optionOneAudioMediaId',
+  optionAudioTwo: 'optionTwoAudioMediaId',
+};
+
 const interactiveSelectProps = {
   MenuProps: { disableScrollLock: true, keepMounted: false },
 };
@@ -291,7 +307,11 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
   const handleImageUpload = (event, fieldKey) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    readImageFile(file, (dataUrl) => onPatch({ [fieldKey]: dataUrl }));
+    const mediaIdField = INTERACTIVE_IMAGE_MEDIA_ID_FIELDS[fieldKey];
+    readImageFile(file, (dataUrl) => onPatch({
+      [fieldKey]: dataUrl,
+      ...(mediaIdField ? { [mediaIdField]: null } : {}),
+    }));
     event.target.value = '';
   };
 
@@ -301,7 +321,11 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
     event.target.value = '';
     const trimmed = await processAudioFile(file);
     if (!trimmed?.audioUrl) return;
-    onPatch({ [fieldKey]: trimmed.audioUrl });
+    const mediaIdField = INTERACTIVE_AUDIO_MEDIA_ID_FIELDS[fieldKey];
+    onPatch({
+      [fieldKey]: trimmed.audioUrl,
+      ...(mediaIdField ? { [mediaIdField]: null } : {}),
+    });
   };
 
   const canvasElements = useMemo(() => {

@@ -284,6 +284,102 @@ const toCmsPageType = (builderType, interactionMode) => {
   return builderType;
 };
 
+const toMediaIdString = (value) => {
+  if (value == null || value === '') return null;
+  if (typeof value === 'object') {
+    const id = value._id || value.id;
+    return id != null ? String(id) : null;
+  }
+  return String(value);
+};
+
+export const collectSceneImageMediaIds = (media = {}) => {
+  if (!media || typeof media !== 'object') return [];
+  if (Array.isArray(media.sceneImageMediaIds) && media.sceneImageMediaIds.length) {
+    return media.sceneImageMediaIds.map(toMediaIdString).filter(Boolean);
+  }
+  const single = toMediaIdString(media.sceneImageMediaId);
+  return single ? [single] : [];
+};
+
+/**
+ * Resolves a persisted media id for save payloads.
+ * Remote URLs reuse existing ids; empty sources keep prior ids.
+ */
+export const resolveUploadedMediaId = async ({
+  source,
+  mediaType,
+  title,
+  existingMediaId = null,
+  ensureUploadedMediaId,
+}) => {
+  const trimmed = String(source || '').trim();
+  const preservedId = toMediaIdString(existingMediaId);
+
+  if (!trimmed) {
+    return preservedId;
+  }
+
+  const upload = await ensureUploadedMediaId({
+    source: trimmed,
+    mediaType,
+    title,
+    existingMediaId: preservedId,
+  });
+
+  return toMediaIdString(upload?.mediaId) || preservedId || null;
+};
+
+export const assignSceneImageMediaToPayload = async ({
+  page,
+  pagePayload,
+  isTwoAnswer,
+  ensureUploadedMediaId,
+  titlePrefix = 'Interactive',
+}) => {
+  const sceneOneId = await resolveUploadedMediaId({
+    source: page.sceneImageOne,
+    mediaType: 'image',
+    title: `${titlePrefix} scene one`,
+    existingMediaId: page.sceneImageOneMediaId,
+    ensureUploadedMediaId,
+  });
+  const sceneTwoId = isTwoAnswer
+    ? await resolveUploadedMediaId({
+        source: page.sceneImageTwo,
+        mediaType: 'image',
+        title: `${titlePrefix} scene two`,
+        existingMediaId: page.sceneImageTwoMediaId,
+        ensureUploadedMediaId,
+      })
+    : null;
+
+  const sceneIds = [sceneOneId, isTwoAnswer ? sceneTwoId : null].filter(Boolean);
+  const hasSceneSource = Boolean(
+    String(page.sceneImageOne || '').trim()
+    || (isTwoAnswer && String(page.sceneImageTwo || '').trim())
+    || page.sceneImageOneMediaId
+    || (isTwoAnswer && page.sceneImageTwoMediaId)
+  );
+
+  if (!hasSceneSource) {
+    pagePayload.media.sceneImageMediaId = null;
+    pagePayload.media.sceneImageMediaIds = [];
+    return;
+  }
+
+  if (sceneIds.length === 1) {
+    pagePayload.media.sceneImageMediaId = sceneIds[0];
+    pagePayload.media.sceneImageMediaIds = [];
+    return;
+  }
+
+  if (sceneIds.length > 1) {
+    pagePayload.media.sceneImageMediaId = null;
+    pagePayload.media.sceneImageMediaIds = sceneIds;
+  }
+};
+
 export const buildCmsPageSkeleton = ({ page, index }) => ({
   pageId: page?.id || `page-${index + 1}`,
   order: index + 1,
@@ -498,10 +594,8 @@ export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) 
       interactionMode:
         adminPage.type === 'activity_drag_2x2' ? 'two_options_two_answers' : 'two_options_one_answer',
     }),
-    sceneImageOneMediaId:
-      Array.isArray(adminMedia.sceneImageMediaIds) ? adminMedia.sceneImageMediaIds[0] || null : adminMedia.sceneImageMediaId || null,
-    sceneImageTwoMediaId:
-      Array.isArray(adminMedia.sceneImageMediaIds) ? adminMedia.sceneImageMediaIds[1] || null : null,
+    sceneImageOneMediaId: collectSceneImageMediaIds(media)[0] || collectSceneImageMediaIds(adminMedia)[0] || null,
+    sceneImageTwoMediaId: collectSceneImageMediaIds(media)[1] || collectSceneImageMediaIds(adminMedia)[1] || null,
     imageMediaId: media.imageMediaId || null,
     backgroundImageMediaId: media.backgroundImageMediaId || null,
     audioMediaId: builderType === 'content' ? media.audioMediaId || null : null,
@@ -524,7 +618,9 @@ const preserveMediaUrl = (nextUrl, prevUrl, nextMediaId, prevMediaId) => {
   const prev = String(prevUrl || '').trim();
   if (next) return nextUrl || '';
   if (!prev) return '';
-  if (!nextMediaId || !prevMediaId || String(nextMediaId) === String(prevMediaId)) {
+  const nextId = toMediaIdString(nextMediaId);
+  const prevId = toMediaIdString(prevMediaId);
+  if (!nextId || !prevId || nextId === prevId) {
     return prevUrl || '';
   }
   return '';
@@ -562,6 +658,14 @@ export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
       nextPage.sceneImageTwoMediaId,
       prevPage.sceneImageTwoMediaId
     ),
+    sceneImageOneMediaId:
+      toMediaIdString(nextPage.sceneImageOneMediaId)
+      || toMediaIdString(prevPage.sceneImageOneMediaId)
+      || null,
+    sceneImageTwoMediaId:
+      toMediaIdString(nextPage.sceneImageTwoMediaId)
+      || toMediaIdString(prevPage.sceneImageTwoMediaId)
+      || null,
     guideImageOne: preserveMediaUrl(
       nextPage.guideImageOne,
       prevPage.guideImageOne,
@@ -610,6 +714,14 @@ export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
       nextPage.answerTwoAudioMediaId,
       prevPage.answerTwoAudioMediaId
     ),
+    answerOneAudioMediaId:
+      toMediaIdString(nextPage.answerOneAudioMediaId)
+      || toMediaIdString(prevPage.answerOneAudioMediaId)
+      || null,
+    answerTwoAudioMediaId:
+      toMediaIdString(nextPage.answerTwoAudioMediaId)
+      || toMediaIdString(prevPage.answerTwoAudioMediaId)
+      || null,
     interactiveLayouts: nextPage.interactiveLayouts || prevPage.interactiveLayouts || null,
   };
 };

@@ -230,14 +230,40 @@ export const mergeInteractionForBuilder = (adminInteraction = null, playableInte
   };
 };
 
+const preferAdminMediaList = (adminItems, playableItems) => {
+  if (Array.isArray(adminItems) && adminItems.length) return adminItems;
+  if (Array.isArray(playableItems) && playableItems.length) return playableItems;
+  return [];
+};
+
+const mergePageMediaForBuilder = (adminMedia = {}, playableMedia = {}) => {
+  const admin = adminMedia || {};
+  const playable = playableMedia || {};
+  return {
+    ...playable,
+    ...admin,
+    imageMedia: admin.imageMedia || playable.imageMedia || null,
+    audioMedia: admin.audioMedia || playable.audioMedia || null,
+    videoMedia: admin.videoMedia || playable.videoMedia || null,
+    instructionAudioMedia: admin.instructionAudioMedia || playable.instructionAudioMedia || null,
+    backgroundImageMedia: admin.backgroundImageMedia || playable.backgroundImageMedia || null,
+    sceneImageMedia: admin.sceneImageMedia || playable.sceneImageMedia || null,
+    sceneImageMedias: preferAdminMediaList(admin.sceneImageMedias, playable.sceneImageMedias),
+    guideImageMedia: admin.guideImageMedia || playable.guideImageMedia || null,
+    guideImageMedias: preferAdminMediaList(admin.guideImageMedias, playable.guideImageMedias),
+    sceneImageMediaId: admin.sceneImageMediaId ?? playable.sceneImageMediaId ?? null,
+    sceneImageMediaIds: preferAdminMediaList(admin.sceneImageMediaIds, playable.sceneImageMediaIds),
+    guideImageMediaId: admin.guideImageMediaId ?? playable.guideImageMediaId ?? null,
+    guideImageMediaIds: preferAdminMediaList(admin.guideImageMediaIds, playable.guideImageMediaIds),
+  };
+};
+
 export const mergeCmsPagesForBuilder = (adminPage = {}, playablePage = null) => {
   if (!playablePage) return adminPage;
   return {
+    ...playablePage,
     ...adminPage,
-    media: {
-      ...(adminPage.media || {}),
-      ...(playablePage.media || {}),
-    },
+    media: mergePageMediaForBuilder(adminPage.media, playablePage.media),
     interaction: mergeInteractionForBuilder(adminPage.interaction, playablePage.interaction),
   };
 };

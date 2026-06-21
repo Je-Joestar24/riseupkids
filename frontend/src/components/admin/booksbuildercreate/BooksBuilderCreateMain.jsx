@@ -24,6 +24,8 @@ import {
   isPageComplete,
   isValidPageSequence,
   resetPageByType,
+  assignSceneImageMediaToPayload,
+  resolveUploadedMediaId,
 } from './BooksBuilderCreate.utils';
 import {
   buildCmsLayoutPayload,
@@ -494,108 +496,95 @@ const BooksBuilderCreateMain = () => {
             isParallel: isTwoAnswer,
           });
 
-          if (page.backgroundImageUrl?.trim()) {
-            pagePayload.media.backgroundImageMediaId = (await ensureUploadedMediaId({
+          if (page.backgroundImageUrl?.trim() || page.backgroundImageMediaId) {
+            pagePayload.media.backgroundImageMediaId = await resolveUploadedMediaId({
               source: page.backgroundImageUrl,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} background`,
               existingMediaId: page.backgroundImageMediaId,
-            })).mediaId;
+              ensureUploadedMediaId,
+            });
           }
 
-          const sceneIds = [];
-          if (page.sceneImageOne?.trim()) {
-            sceneIds.push(
-              (await ensureUploadedMediaId({
-                source: page.sceneImageOne,
-                mediaType: 'image',
-                title: `${page.title || 'Interactive'} scene one`,
-                existingMediaId: page.sceneImageOneMediaId,
-              })).mediaId
-            );
-          }
-          if (isTwoAnswer && page.sceneImageTwo?.trim()) {
-            sceneIds.push(
-              (await ensureUploadedMediaId({
-                source: page.sceneImageTwo,
-                mediaType: 'image',
-                title: `${page.title || 'Interactive'} scene two`,
-                existingMediaId: page.sceneImageTwoMediaId,
-              })).mediaId
-            );
-          }
-          if (sceneIds.length === 1) {
-            pagePayload.media.sceneImageMediaId = sceneIds[0];
-          } else if (sceneIds.length > 1) {
-            pagePayload.media.sceneImageMediaIds = sceneIds.filter(Boolean);
-          }
+          await assignSceneImageMediaToPayload({
+            page,
+            pagePayload,
+            isTwoAnswer,
+            ensureUploadedMediaId,
+            titlePrefix: page.title || 'Interactive',
+          });
 
           if (isTwoAnswer) {
-            const guideOne = (await ensureUploadedMediaId({
+            const guideOne = await resolveUploadedMediaId({
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide one`,
               existingMediaId: page.guideImageMediaIds?.[0] || page.guideImageMediaId,
-            })).mediaId;
-            const guideTwo = (await ensureUploadedMediaId({
+              ensureUploadedMediaId,
+            });
+            const guideTwo = await resolveUploadedMediaId({
               source: page.guideImageTwo,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide two`,
               existingMediaId: page.guideImageMediaIds?.[1] || null,
-            })).mediaId;
+              ensureUploadedMediaId,
+            });
             pagePayload.media.guideImageMediaIds = [guideOne, guideTwo].filter(Boolean);
           } else {
-            pagePayload.media.guideImageMediaId = (await ensureUploadedMediaId({
+            pagePayload.media.guideImageMediaId = await resolveUploadedMediaId({
               source: page.guideImageOne,
               mediaType: 'image',
               title: `${page.title || 'Interactive'} guide`,
               existingMediaId: page.guideImageMediaId || page.guideImageMediaIds?.[0] || null,
-            })).mediaId;
+              ensureUploadedMediaId,
+            });
           }
 
-          const optionOneImageId = (await ensureUploadedMediaId({
+          const optionOneImageId = await resolveUploadedMediaId({
             source: page.optionImageOne,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option one image`,
             existingMediaId: page.optionOneImageMediaId,
-          })).mediaId;
-          const optionOneAudioId = (await ensureUploadedMediaId({
+            ensureUploadedMediaId,
+          });
+          const optionOneAudioId = await resolveUploadedMediaId({
             source: page.optionAudioOne,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option one audio`,
             existingMediaId: page.optionOneAudioMediaId,
-          })).mediaId;
-          const optionTwoImageId = (await ensureUploadedMediaId({
+            ensureUploadedMediaId,
+          });
+          const optionTwoImageId = await resolveUploadedMediaId({
             source: page.optionImageTwo,
             mediaType: 'image',
             title: `${page.title || 'Interactive'} option two image`,
             existingMediaId: page.optionTwoImageMediaId,
-          })).mediaId;
-          const optionTwoAudioId = (await ensureUploadedMediaId({
+            ensureUploadedMediaId,
+          });
+          const optionTwoAudioId = await resolveUploadedMediaId({
             source: page.optionAudioTwo,
             mediaType: 'audio',
             title: `${page.title || 'Interactive'} option two audio`,
             existingMediaId: page.optionTwoAudioMediaId,
-          })).mediaId;
+            ensureUploadedMediaId,
+          });
 
-          const answerOneAudioSource = String(page.answerAudioOne || '').trim();
-          const answerOneAudioId = answerOneAudioSource
-            ? (await ensureUploadedMediaId({
-                source: answerOneAudioSource,
-                mediaType: 'audio',
-                title: `${page.title || 'Interactive'} answer one audio`,
-                existingMediaId: page.answerOneAudioMediaId,
-              })).mediaId
-            : null;
+          const answerOneAudioId = await resolveUploadedMediaId({
+            source: page.answerAudioOne,
+            mediaType: 'audio',
+            title: `${page.title || 'Interactive'} answer one audio`,
+            existingMediaId: page.answerOneAudioMediaId,
+            ensureUploadedMediaId,
+          });
 
-          const answerTwoAudioSource = String(page.answerAudioTwo || '').trim();
-          const answerTwoAudioId = answerTwoAudioSource
-            ? (await ensureUploadedMediaId({
-                source: answerTwoAudioSource,
+          const answerTwoAudioId = isTwoAnswer
+            ? await resolveUploadedMediaId({
+                source: page.answerAudioTwo,
                 mediaType: 'audio',
                 title: `${page.title || 'Interactive'} answer two audio`,
                 existingMediaId: page.answerTwoAudioMediaId,
-              })).mediaId
+                ensureUploadedMediaId,
+              })
             : null;
 
           pagePayload.interaction = {

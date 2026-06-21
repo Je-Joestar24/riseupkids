@@ -48,6 +48,8 @@ const HYDRATED_PAGE_MEDIA_FIELDS = [
   'videoMedia',
   'instructionAudioMedia',
   'backgroundImageMedia',
+  'sceneImageMedia',
+  'sceneImageMedias',
   'guideImageMedia',
   'guideImageMedias',
   'imageUrl',
