@@ -5,6 +5,7 @@ const {
   isStarCamCategoryExplicitlyInactive,
 } = require('../utils/starCamCategoryQuery');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
+const { buildKeywordBucketFields } = require('../utils/starCamKeywordBucket.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
 
@@ -88,6 +89,42 @@ async function assertMediaExists(mediaId, { type, fieldName }) {
   }
 }
 
+function applyVocabLabelFields(entry, { target, labelId, labelSource, keywordBucket } = {}) {
+  const safeTarget = asTrimmedString(target)?.toLowerCase();
+  if (safeTarget) entry.target = safeTarget;
+
+  const bucket = buildKeywordBucketFields({ target: safeTarget || entry.target, keywordBucket });
+  if (bucket) {
+    entry.keywordBucket = bucket;
+    if (!safeTarget) entry.target = bucket.primary;
+  }
+
+  const safeLabelId = labelId !== undefined ? asTrimmedString(labelId) : undefined;
+  if (labelId !== undefined) entry.labelId = safeLabelId || null;
+
+  if (labelSource !== undefined) {
+    const safeLabelSource = asTrimmedString(labelSource);
+    if (safeLabelSource === 'oidv7' || safeLabelSource === 'custom') {
+      entry.labelSource = safeLabelSource;
+    } else {
+      entry.labelSource = null;
+    }
+  }
+}
+
+function copyVocabKeywordFieldsToItem(item, vocabEntry) {
+  if (!item || !vocabEntry) return;
+  item.target = asTrimmedString(vocabEntry.target);
+  item.labelId = asTrimmedString(vocabEntry.labelId) || null;
+  item.labelSource = vocabEntry.labelSource || null;
+  if (vocabEntry.keywordBucket?.terms?.length) {
+    item.keywordBucket = {
+      primary: vocabEntry.keywordBucket.primary || vocabEntry.target,
+      terms: [...vocabEntry.keywordBucket.terms],
+    };
+  }
+}
+
 function buildMissionItemPayload(item, sortOrderFallback) {
   const questionText = asTrimmedString(item.questionText) || asTrimmedString(item.prompt);
   const tryAgainText = asTrimmedString(item.tryAgainText) || asTrimmedString(item.fail);
@@ -95,6 +132,9 @@ function buildMissionItemPayload(item, sortOrderFallback) {
 
   return {
     target: asTrimmedString(item.target),
+    labelId: asTrimmedString(item.labelId) || null,
+    labelSource: item.labelSource || null,
+    keywordBucket: item.keywordBucket || undefined,
     prompt: asTrimmedString(item.prompt) || questionText,
     success: asTrimmedString(item.success) || successText,
     fail: asTrimmedString(item.fail) || tryAgainText,
@@ -175,6 +215,9 @@ function buildDefaultMissionItemsFromVocab(vocabList = []) {
     return buildMissionItemPayload(
       {
         target,
+        labelId: vocab?.labelId || null,
+        labelSource: vocab?.labelSource || null,
+        keywordBucket: vocab?.keywordBucket || undefined,
         questionText: `Is this a ${label}?`,
         questionAudio: vocab?.introAudio || vocab?.audio || null,
         tryAgainText: `Ow that's not a ${label}, let's try again.`,
@@ -766,6 +809,9 @@ async function addMissionVocabularyEntry({
   userId,
   displayText,
   target,
+  labelId,
+  labelSource,
+  keywordBucket,
   imageFile,
   audioFile,
   introAudioFile,
@@ -922,7 +968,7 @@ async function addMissionVocabularyEntry({
   }
 
   const nextSort = doc.vocab.length;
-  doc.vocab.push({
+  const vocabEntry = {
     word: safeDisplay,
     displayText: safeDisplay,
     target: safeTarget,
@@ -933,7 +979,9 @@ async function addMissionVocabularyEntry({
     successAudio: successAudioMedia._id,
     pronunciationVideo: pronunciationVideoMedia?._id || null,
     sortOrder: nextSort,
-  });
+  };
+  applyVocabLabelFields(vocabEntry, { target: safeTarget, labelId, labelSource, keywordBucket });
+  doc.vocab.push(vocabEntry);
   doc.updatedBy = userId;
   await doc.save();
 
@@ -1000,6 +1048,9 @@ async function updateMissionVocabularyEntry({
   sortOrder,
   displayText,
   target,
+  labelId,
+  labelSource,
+  keywordBucket,
   imageFile,
   audioFile,
   introAudioFile,
@@ -1030,7 +1081,12 @@ async function updateMissionVocabularyEntry({
     throw err;
   }
 
-  const hasTextPatch = displayText !== undefined || target !== undefined;
+  const hasTextPatch =
+    displayText !== undefined ||
+    target !== undefined ||
+    labelId !== undefined ||
+    labelSource !== undefined ||
+    keywordBucket !== undefined;
   const hasFilePatch = Boolean(imageFile || audioFile || introAudioFile || tryAgainAudioFile || successAudioFile || pronunciationVideoFile);
   if (!hasTextPatch && !hasFilePatch) {
     const err = new Error('No vocabulary updates provided');
@@ -1057,6 +1113,12 @@ async function updateMissionVocabularyEntry({
     }
     entry.target = safeTarget;
   }
+  applyVocabLabelFields(entry, {
+    target: entry.target,
+    labelId: labelId !== undefined ? labelId : entry.labelId,
+    labelSource: labelSource !== undefined ? labelSource : entry.labelSource,
+    keywordBucket: keywordBucket !== undefined ? keywordBucket : entry.keywordBucket,
+  });
 
   const mediaTasks = [];
   if (imageFile) mediaTasks.push(uploadMediaAndCreateDoc(imageFile, { folder: 'media/images', type: 'image', userId }).then((m) => ({ key: 'image', id: m._id })));

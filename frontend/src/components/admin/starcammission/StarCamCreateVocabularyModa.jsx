@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import StarCamCategoryChip from './StarCamCategoryChip';
+import StarCamLabelAutocomplete from './StarCamLabelAutocomplete';
 
 const StarCamCreateVocabularyModa = ({
   open,
@@ -42,6 +43,25 @@ const StarCamCreateVocabularyModa = ({
   const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
   const { processAudioFileForUpload } = useAudioFileWithSilenceTrim();
 
+  const handleLabelPayload = (payload) => {
+    if (!payload) {
+      onVocabChange('target', '');
+      onVocabChange('labelId', null);
+      onVocabChange('labelSource', null);
+      onVocabChange('targetLabels', []);
+      onVocabChange('keywordBucket', null);
+      return;
+    }
+    onVocabChange('target', payload.target || '');
+    onVocabChange('labelId', payload.labelId || null);
+    onVocabChange('labelSource', payload.labelSource || null);
+    onVocabChange('targetLabels', payload.targetLabels || []);
+    onVocabChange('keywordBucket', payload.keywordBucket || null);
+    if (!String(newVocab?.displayText || '').trim() && payload.targetLabels?.[0]?.displayName) {
+      onVocabChange('displayText', payload.targetLabels[0].displayName);
+    }
+  };
+
   const handleAudioFieldChange = async (fieldKey, event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -65,6 +85,7 @@ const StarCamCreateVocabularyModa = ({
     return Boolean(
       String(newVocab?.displayText || '').trim() &&
         String(newVocab?.target || '').trim() &&
+        (Array.isArray(newVocab?.targetLabels) ? newVocab.targetLabels.length > 0 : true) &&
         (newVocab?.imageFile || !isCreateMode || hasRequiredFilesFromExisting) &&
         (newVocab?.audioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
         (newVocab?.introAudioFile || !isCreateMode || hasRequiredFilesFromExisting) &&
@@ -190,13 +211,18 @@ const StarCamCreateVocabularyModa = ({
                     />
                   </Grid>
                   <Grid item xs={12} md={6}>
-                    <TextField
-                      size="small"
-                      label="Detect Target"
-                      placeholder="leaf"
-                      value={newVocab?.target || ''}
-                      onChange={(e) => onVocabChange('target', e.target.value)}
-                      fullWidth
+                    <StarCamLabelAutocomplete
+                      label="Detect Targets"
+                      required
+                      disabled={mutating}
+                      selectedLabels={newVocab?.targetLabels || []}
+                      onChange={handleLabelPayload}
+                      onDisplayNameSuggest={(displayName) => {
+                        if (!String(newVocab?.displayText || '').trim()) {
+                          onVocabChange('displayText', displayName);
+                        }
+                      }}
+                      helperText="Select multiple words Vision may return (first chip = primary target)."
                     />
                   </Grid>
                 </Grid>

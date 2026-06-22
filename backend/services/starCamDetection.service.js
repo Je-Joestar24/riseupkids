@@ -85,8 +85,20 @@ function scoreLabelAgainstCandidates(description, candidates) {
   return { match: false, score: 0, matchedTerm: null };
 }
 
-function evaluateLabelsForTarget(target, visionLabels, threshold) {
-  const candidates = getSynonymSetForTarget(target);
+function resolveCandidateTerms({ target, keywordBucket } = {}) {
+  const terms = Array.isArray(keywordBucket?.terms) ? keywordBucket.terms : [];
+  const normalized = new Set();
+  for (const term of terms) {
+    const value = normalizeLabelToken(term);
+    if (value) normalized.add(value);
+  }
+  if (normalized.size > 0) return normalized;
+
+  return getSynonymSetForTarget(target);
+}
+
+function evaluateLabelsForTarget(target, visionLabels, threshold, keywordBucket = null) {
+  const candidates = resolveCandidateTerms({ target, keywordBucket });
   let best = { isMatch: false, confidence: 0, matchedLabel: null, matchedTerm: null };
 
   for (const vl of visionLabels) {
@@ -213,9 +225,15 @@ async function detectMissionObjectForChild({
   const target = asTrimmed(huntItem.target).toLowerCase();
   const matchingVocab = findVocabByTarget(mission.vocab || [], target);
   const threshold = getConfidenceThreshold();
+  const keywordBucket =
+    huntItem.keywordBucket?.terms?.length > 0
+      ? huntItem.keywordBucket
+      : matchingVocab?.keywordBucket?.terms?.length > 0
+        ? matchingVocab.keywordBucket
+        : null;
 
   const { labels } = await googleVisionService.detectLabelsFromImageBuffer(imageBuffer);
-  const { passes, best } = evaluateLabelsForTarget(target, labels, threshold);
+  const { passes, best } = evaluateLabelsForTarget(target, labels, threshold, keywordBucket);
 
   const attemptId = randomUUID();
   const processedAt = new Date().toISOString();
@@ -277,5 +295,6 @@ module.exports = {
   detectMissionObjectForChild,
   normalizeLabelToken,
   evaluateLabelsForTarget,
+  resolveCandidateTerms,
   resolveHuntItem,
 };

@@ -82,6 +82,10 @@ const AdminStarCamMissions = () => {
   const [newVocab, setNewVocab] = React.useState({
     displayText: '',
     target: '',
+    labelId: null,
+    labelSource: null,
+    targetLabels: [],
+    keywordBucket: null,
     imageFile: null,
     audioFile: null,
     introAudioFile: null,
@@ -135,6 +139,9 @@ const AdminStarCamMissions = () => {
     await addMissionVocabulary(currentMission._id, {
       displayText,
       target,
+      labelId: newVocab.labelId || undefined,
+      labelSource: newVocab.labelSource || undefined,
+      keywordBucket: newVocab.keywordBucket || undefined,
       imageFile: newVocab.imageFile,
       audioFile: newVocab.audioFile,
       introAudioFile: newVocab.introAudioFile,
@@ -146,6 +153,10 @@ const AdminStarCamMissions = () => {
     setNewVocab({
       displayText: '',
       target: '',
+      labelId: null,
+      labelSource: null,
+      targetLabels: [],
+      keywordBucket: null,
       imageFile: null,
       audioFile: null,
       introAudioFile: null,
@@ -160,6 +171,9 @@ const AdminStarCamMissions = () => {
     const safePayload = {
       displayText: String(payload?.displayText || '').trim(),
       target: String(payload?.target || '').trim().toLowerCase(),
+      labelId: payload?.labelId || undefined,
+      labelSource: payload?.labelSource || undefined,
+      keywordBucket: payload?.keywordBucket || undefined,
       imageFile: payload?.imageFile || undefined,
       audioFile: payload?.audioFile || undefined,
       introAudioFile: payload?.introAudioFile || undefined,

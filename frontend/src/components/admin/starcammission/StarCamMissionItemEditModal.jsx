@@ -10,6 +10,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import StarCamVocabTargetSelect from './StarCamVocabTargetSelect';
 
 const INITIAL_FORM = {
   target: '',
@@ -22,6 +23,7 @@ const StarCamMissionItemEditModal = ({
   open,
   item,
   missionTitle = '',
+  vocabOptions = [],
   mutating = false,
   onClose,
   onSave,
@@ -84,15 +86,12 @@ const StarCamMissionItemEditModal = ({
               Item #{Number(item?.sortOrder ?? 0) + 1}
             </Typography>
           </Box>
-          <TextField
-            label="Target"
+          <StarCamVocabTargetSelect
             value={form.target}
-            onChange={handleChange('target')}
-            fullWidth
-            required
+            vocabOptions={vocabOptions}
+            onChange={(target) => setForm((prev) => ({ ...prev, target }))}
             disabled={mutating}
-            inputProps={{ maxLength: 60 }}
-            helperText="Must match one vocabulary detect target so audio can be resolved."
+            required
           />
           <TextField
             label="Question Text"

@@ -117,6 +117,9 @@ const addMissionVocabulary = async (req, res) => {
     const { id } = req.params;
     const displayText = req.body?.displayText;
     const target = req.body?.target;
+    const labelId = req.body?.labelId;
+    const labelSource = req.body?.labelSource;
+    const keywordBucket = req.body?.keywordBucket;
     const imageFile = req.files?.image?.[0] || null;
     const audioFile = req.files?.audio?.[0] || null;
     const introAudioFile = req.files?.introAudio?.[0] || null;
@@ -129,6 +132,9 @@ const addMissionVocabulary = async (req, res) => {
       userId: req.user?._id,
       displayText,
       target,
+      labelId,
+      labelSource,
+      keywordBucket,
       imageFile,
       audioFile,
       introAudioFile,
@@ -147,6 +153,9 @@ const updateMissionVocabulary = async (req, res) => {
     const { id, sortOrder } = req.params;
     const displayText = req.body?.displayText;
     const target = req.body?.target;
+    const labelId = req.body?.labelId;
+    const labelSource = req.body?.labelSource;
+    const keywordBucket = req.body?.keywordBucket;
     const imageFile = req.files?.image?.[0] || null;
     const audioFile = req.files?.audio?.[0] || null;
     const introAudioFile = req.files?.introAudio?.[0] || null;
@@ -160,6 +169,9 @@ const updateMissionVocabulary = async (req, res) => {
       sortOrder,
       displayText,
       target,
+      labelId,
+      labelSource,
+      keywordBucket,
       imageFile,
       audioFile,
       introAudioFile,

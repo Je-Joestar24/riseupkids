@@ -14,6 +14,12 @@ const missionVocabSchema = new mongoose.Schema(
     displayText: { type: String, trim: true, required: [isPublishingRequired, 'Vocab displayText is required'] },
     // Object label used for AI detection target mapping
     target: { type: String, trim: true, lowercase: true, required: [isPublishingRequired, 'Vocab target is required'] },
+    labelId: { type: String, trim: true, default: null },
+    labelSource: { type: String, trim: true, default: null },
+    keywordBucket: {
+      primary: { type: String, trim: true, lowercase: true, default: null },
+      terms: [{ type: String, trim: true, lowercase: true }],
+    },
     image: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab image is required'] },
     audio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab audio is required'] },
     introAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
@@ -29,6 +35,12 @@ const missionVocabSchema = new mongoose.Schema(
 const missionItemSchema = new mongoose.Schema(
   {
     target: { type: String, trim: true, required: [isPublishingRequired, 'Item target is required'] },
+    labelId: { type: String, trim: true, default: null },
+    labelSource: { type: String, trim: true, default: null },
+    keywordBucket: {
+      primary: { type: String, trim: true, lowercase: true, default: null },
+      terms: [{ type: String, trim: true, lowercase: true }],
+    },
     // Legacy text fields kept while the app/admin migrate to explicit scan prompts.
     prompt: { type: String, trim: true, default: null },
     success: { type: String, trim: true, default: null },

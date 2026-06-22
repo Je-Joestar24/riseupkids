@@ -180,10 +180,28 @@ const starCamMissionAdminServices = {
     }
   },
 
-  addVocabulary: async (id, { displayText, target, imageFile, audioFile, introAudioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
+  addVocabulary: async (
+    id,
+    {
+      displayText,
+      target,
+      labelId,
+      labelSource,
+      keywordBucket,
+      imageFile,
+      audioFile,
+      introAudioFile,
+      tryAgainAudioFile,
+      successAudioFile,
+      pronunciationVideoFile,
+    }
+  ) => {
     const formData = new FormData();
     formData.append('displayText', displayText || '');
     formData.append('target', target || '');
+    if (labelId) formData.append('labelId', labelId);
+    if (labelSource) formData.append('labelSource', labelSource);
+    if (keywordBucket) formData.append('keywordBucket', JSON.stringify(keywordBucket));
     if (imageFile) formData.append('image', imageFile);
     if (audioFile) formData.append('audio', audioFile);
     if (introAudioFile) formData.append('introAudio', introAudioFile);
@@ -206,10 +224,29 @@ const starCamMissionAdminServices = {
     }
   },
 
-  updateVocabulary: async (id, sortOrder, { displayText, target, imageFile, audioFile, introAudioFile, tryAgainAudioFile, successAudioFile, pronunciationVideoFile }) => {
+  updateVocabulary: async (
+    id,
+    sortOrder,
+    {
+      displayText,
+      target,
+      labelId,
+      labelSource,
+      keywordBucket,
+      imageFile,
+      audioFile,
+      introAudioFile,
+      tryAgainAudioFile,
+      successAudioFile,
+      pronunciationVideoFile,
+    }
+  ) => {
     const formData = new FormData();
     if (displayText !== undefined) formData.append('displayText', displayText || '');
     if (target !== undefined) formData.append('target', target || '');
+    if (labelId !== undefined) formData.append('labelId', labelId || '');
+    if (labelSource !== undefined) formData.append('labelSource', labelSource || '');
+    if (keywordBucket !== undefined) formData.append('keywordBucket', JSON.stringify(keywordBucket || null));
     if (imageFile) formData.append('image', imageFile);
     if (audioFile) formData.append('audio', audioFile);
     if (introAudioFile) formData.append('introAudio', introAudioFile);

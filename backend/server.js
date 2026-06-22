@@ -59,6 +59,7 @@ const programLessonPlansAdminRoutes = require('./routes/programLessonPlansAdmin.
 const starCamRoutes = require('./routes/starCam.routes');
 const starCamChildRoutes = require('./routes/starCamChild.routes');
 const starCamMissionsAdminRoutes = require('./routes/starCamMissionsAdmin.routes');
+const starCamLabelCatalogRoutes = require('./routes/starCamLabelCatalog.routes');
 const cmsBookAdminRoutes = require('./routes/cmsBookAdmin.routes');
 const cmsBookPlayerRoutes = require('./routes/cmsBookPlayer.routes');
 
@@ -194,6 +195,7 @@ app.use('/api/admin/program-lesson-plans', programLessonPlansAdminRoutes);
 app.use('/api/star-cam', starCamRoutes);
 app.use('/api/child/star-cam', starCamChildRoutes);
 app.use('/api/admin/star-cam/missions', starCamMissionsAdminRoutes);
+app.use('/api/admin/star-cam/label-catalog', starCamLabelCatalogRoutes);
 app.use('/api/admin/cms-books', cmsBookAdminRoutes);
 app.use('/api/parent/cms-books', cmsBookPlayerRoutes);
 app.use('/api/stripe', stripeRoutes);

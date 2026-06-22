@@ -32,6 +32,7 @@ const Lead = require('./Leads');
 const StarCamEvent = require('./StarCamEvent');
 const StarCamMission = require('./StarCamMission');
 const StarCamCategory = require('./StarCamCategory');
+const StarCamVisionLabel = require('./StarCamVisionLabel');
 const ProgramPrintable = require('./ProgramPrintable');
 const ProgramLessonPlan = require('./ProgramLessonPlan');
 const CmsBook = require('./CmsBook');
@@ -70,6 +71,7 @@ module.exports = {
   StarCamEvent,
   StarCamMission,
   StarCamCategory,
+  StarCamVisionLabel,
   ProgramPrintable,
   ProgramLessonPlan,
   CmsBook,

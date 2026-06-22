@@ -19,6 +19,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import StarCamCreateVocabularyModa from './StarCamCreateVocabularyModa';
 import StarCamCategoryChip from './StarCamCategoryChip';
+import { selectionsFromKeywordBucket } from '../../../utils/starCamVisionLabel.util';
 
 const StarCamRightPanelPreviewEdit = ({
   mission,
@@ -37,6 +38,10 @@ const StarCamRightPanelPreviewEdit = ({
   const [editVocabForm, setEditVocabForm] = useState({
     displayText: '',
     target: '',
+    labelId: null,
+    labelSource: null,
+    targetLabels: [],
+    keywordBucket: null,
     imageFile: null,
     audioFile: null,
     introAudioFile: null,
@@ -204,6 +209,20 @@ const StarCamRightPanelPreviewEdit = ({
                           }}
                         >
                           Target: {vocab.target || '-'}
+                          {Array.isArray(vocab?.keywordBucket?.terms) && vocab.keywordBucket.terms.length > 1
+                            ? ` (+${vocab.keywordBucket.terms.length - 1} match words)`
+                            : ''}
+                          {vocab.labelSource === 'custom' ? (
+                            <Chip
+                              component="span"
+                              size="small"
+                              label="Custom"
+                              color="primary"
+                              variant="outlined"
+                              sx={{ ml: 0.75, height: 20, verticalAlign: 'middle' }}
+                              aria-label="Custom vision label"
+                            />
+                          ) : null}
                         </Typography>
                       </Box>
 
@@ -272,6 +291,10 @@ const StarCamRightPanelPreviewEdit = ({
                                 setEditVocabForm({
                                   displayText: String(vocab?.displayText || vocab?.word || ''),
                                   target: String(vocab?.target || ''),
+                                  labelId: vocab?.labelId || null,
+                                  labelSource: vocab?.labelSource || null,
+                                  targetLabels: selectionsFromKeywordBucket(vocab),
+                                  keywordBucket: vocab?.keywordBucket || null,
                                   imageFile: null,
                                   audioFile: null,
                                   introAudioFile: null,

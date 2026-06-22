@@ -50,6 +50,18 @@ describe('starCamDetection.service', () => {
     expect(best.matchedLabel).toBe('Book');
   });
 
+  it('evaluateLabelsForTarget uses keyword bucket terms before default synonyms', () => {
+    const labels = [{ description: 'Produce', score: 0.88 }];
+    const { passes, best } = evaluateLabelsForTarget(
+      'apple',
+      labels,
+      0.75,
+      { primary: 'apple', terms: ['apple', 'produce'] }
+    );
+    expect(passes).toBe(true);
+    expect(best.matchedTerm).toBe('produce');
+  });
+
   it('detectMissionObjectForChild returns matched when vision agrees', async () => {
     StarCamMission.findOne.mockReturnValue({
       select: jest.fn().mockReturnThis(),
