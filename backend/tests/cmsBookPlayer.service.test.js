@@ -167,6 +167,61 @@ describe('cmsBookPlayer.service', () => {
     });
   });
 
+  it('resolves optional reward celebration audio on reward page for parent play', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Animals 1',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [
+          {
+            pageId: 'p1',
+            order: 1,
+            type: 'cover',
+            title: 'Cover',
+            media: { imageMediaId: 'm1' },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+          {
+            pageId: 'p2',
+            order: 2,
+            type: 'reward',
+            title: 'Reward',
+            media: { videoMediaId: 'reward-video', audioMediaId: 'reward-audio' },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+        ],
+      }),
+    });
+
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'm1', type: 'image', url: 'https://cdn/images/cover.png', cloudUrl: null, mimeType: 'image/png' },
+        { _id: 'reward-video', type: 'video', url: 'https://cdn/video/reward.mp4', cloudUrl: null, mimeType: 'video/mp4' },
+        { _id: 'reward-audio', type: 'audio', url: 'https://cdn/audio/reward.mp3', cloudUrl: null, mimeType: 'audio/mpeg' },
+      ]),
+    });
+
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
+    expect(result.pages[1].media.videoMedia).toMatchObject({
+      id: 'reward-video',
+      type: 'video',
+      url: 'https://cdn/video/reward.mp4',
+    });
+    expect(result.pages[1].media.audioMedia).toMatchObject({
+      id: 'reward-audio',
+      type: 'audio',
+      url: 'https://cdn/audio/reward.mp3',
+    });
+  });
+
   it('enriches interactive drop zone answer audio for parent play', async () => {
     CmsBook.findOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({

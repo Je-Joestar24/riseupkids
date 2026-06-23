@@ -95,6 +95,8 @@ export interface CmsPlayablePage {
   };
   /** Set on cover pages after API normalization (optional intro BGM). */
   introBackgroundMusicUrl?: string | null;
+  /** Set on reward pages after API normalization (optional celebration audio). */
+  rewardAudioUrl?: string | null;
 }
 
 export interface CmsPlayableBookSummary {
@@ -165,9 +167,26 @@ export function resolveIntroBackgroundMusicUrl(
   }
 
   const page = source as CmsPlayablePage;
+  if (page.type !== 'cover') return '';
   const media = page.media || {};
   return (
     toSafeUrl((page as CmsPlayablePage & { introBackgroundMusicUrl?: string }).introBackgroundMusicUrl) ||
+    toSafeUrl(media.audioMedia?.url) ||
+    toSafeUrl((media as PlayerPageMedia & { audioUrl?: string }).audioUrl) ||
+    ''
+  );
+}
+
+/** Resolved URL for optional reward celebration audio (reward `media.audioMedia`). */
+export function resolveRewardAudioUrl(
+  source: CmsPlayablePage | null | undefined
+): string {
+  if (!source) return '';
+  if (source.type !== 'reward' && source.type !== 'end') return '';
+
+  const media = source.media || {};
+  return (
+    toSafeUrl((source as CmsPlayablePage & { rewardAudioUrl?: string }).rewardAudioUrl) ||
     toSafeUrl(media.audioMedia?.url) ||
     toSafeUrl((media as PlayerPageMedia & { audioUrl?: string }).audioUrl) ||
     ''
@@ -188,13 +207,23 @@ export function normalizePlayableBookDetail(
     null;
 
   const pages = (book.pages || []).map((page) => {
-    if (page.type !== 'cover') return page;
-    const url = resolveIntroBackgroundMusicUrl(page);
-    if (!url) return page;
-    return {
-      ...page,
-      introBackgroundMusicUrl: url,
-    } as CmsPlayablePage & { introBackgroundMusicUrl?: string };
+    if (page.type === 'cover') {
+      const url = resolveIntroBackgroundMusicUrl(page);
+      if (!url) return page;
+      return {
+        ...page,
+        introBackgroundMusicUrl: url,
+      } as CmsPlayablePage & { introBackgroundMusicUrl?: string };
+    }
+    if (page.type === 'reward' || page.type === 'end') {
+      const url = resolveRewardAudioUrl(page);
+      if (!url) return page;
+      return {
+        ...page,
+        rewardAudioUrl: url,
+      } as CmsPlayablePage & { rewardAudioUrl?: string };
+    }
+    return page;
   });
 
   return {
@@ -243,6 +272,11 @@ export function collectPlayableBookMediaUrls(
 
   const introBgm = resolveIntroBackgroundMusicUrl(book);
   if (introBgm) urls.add(introBgm);
+
+  book.pages.forEach((page) => {
+    const rewardAudio = resolveRewardAudioUrl(page);
+    if (rewardAudio) urls.add(rewardAudio);
+  });
 
   return [...urls];
 }

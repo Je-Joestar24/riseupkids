@@ -202,7 +202,6 @@ const CmsBooksModalTest = ({
         <RewardTest
           page={currentPage}
           isPreloading={isPreloading}
-          onRetry={handleRetry}
         />
       );
     }

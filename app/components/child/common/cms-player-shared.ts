@@ -62,11 +62,11 @@ export function resolveVideoUrl(page: CmsPlayablePage | Record<string, unknown>)
 
 export function resolveAudioUrl(page: CmsPlayablePage | Record<string, unknown>): string {
   const p = page as Record<string, unknown>;
-  const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
   const pageType = resolvePageType(p.type as string | undefined);
-  if (pageType === 'intro') {
+  if (pageType === 'intro' || pageType === 'reward') {
     return '';
   }
+  const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
   return (
     (p.audioUrl as string) ||
     (media.audioUrl as string) ||
@@ -82,10 +82,29 @@ export function resolveIntroBackgroundMusicUrl(
   page: CmsPlayablePage | Record<string, unknown>
 ): string {
   const p = page as Record<string, unknown>;
+  const pageType = resolvePageType(p.type as string | undefined);
+  if (pageType !== 'intro') return '';
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
   return (
     (p.introBackgroundMusicUrl as string) ||
     (media.introBackgroundMusicUrl as string) ||
+    media.audioMedia?.url ||
+    (media.audio as { url?: string } | undefined)?.url ||
+    ''
+  );
+}
+
+/** Optional reward celebration audio (reward `media.audioMedia`). */
+export function resolveRewardAudioUrl(
+  page: CmsPlayablePage | Record<string, unknown>
+): string {
+  const p = page as Record<string, unknown>;
+  const pageType = resolvePageType(p.type as string | undefined);
+  if (pageType !== 'reward') return '';
+  const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
+  return (
+    (p.rewardAudioUrl as string) ||
+    (media.rewardAudioUrl as string) ||
     media.audioMedia?.url ||
     (media.audio as { url?: string } | undefined)?.url ||
     ''

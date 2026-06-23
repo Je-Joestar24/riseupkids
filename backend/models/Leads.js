@@ -54,6 +54,10 @@ const leadSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    flodeskSegmentId: {
+      type: String,
+      default: null,
+    },
     flodeskError: {
       type: String,
       default: null,

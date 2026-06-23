@@ -8,28 +8,58 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
   if (!page?.type) return null;
   const contentAudioInputRef = useRef(null);
   const introBgmInputRef = useRef(null);
+  const rewardAudioInputRef = useRef(null);
   const { isTrimming, processAudioFile } = useAudioFileWithSilenceTrim();
 
-  const handleIntroBackgroundMusicUpload = (event) => {
+  const revokePreviewUrl = (url) => {
+    if (String(url || '').startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleIntroBackgroundMusicUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
     event.target.value = '';
 
-    const objectUrl = URL.createObjectURL(file);
+    const trimmed = await processAudioFile(file);
+    if (!trimmed?.audioUrl) return;
+
+    revokePreviewUrl(page.introBackgroundMusicUrl);
     onPatch({
-      introBackgroundMusicUrl: objectUrl,
+      introBackgroundMusicUrl: trimmed.audioUrl,
       introBackgroundMusicMediaId: null,
     });
   };
 
   const handleRemoveIntroBackgroundMusic = () => {
-    const currentUrl = page.introBackgroundMusicUrl || '';
-    if (currentUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(currentUrl);
-    }
+    revokePreviewUrl(page.introBackgroundMusicUrl);
     onPatch({
       introBackgroundMusicUrl: '',
       introBackgroundMusicMediaId: null,
+    });
+  };
+
+  const handleRewardAudioUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+
+    const trimmed = await processAudioFile(file);
+    if (!trimmed?.audioUrl) return;
+
+    revokePreviewUrl(page.rewardAudioUrl);
+    onPatch({
+      rewardAudioUrl: trimmed.audioUrl,
+      rewardAudioMediaId: null,
+    });
+  };
+
+  const handleRemoveRewardAudio = () => {
+    revokePreviewUrl(page.rewardAudioUrl);
+    onPatch({
+      rewardAudioUrl: '',
+      rewardAudioMediaId: null,
     });
   };
 
@@ -120,6 +150,7 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
                 <Button
                   variant="outlined"
                   size="small"
+                  disabled={isTrimming}
                   onClick={() => introBgmInputRef.current?.click()}
                   aria-label="Replace intro background music"
                   sx={{
@@ -157,13 +188,16 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
             ) : (
               <Box
                 role="button"
-                tabIndex={0}
+                tabIndex={isTrimming ? -1 : 0}
                 aria-label="Upload intro background music"
-                onClick={() => introBgmInputRef.current?.click()}
+                aria-busy={isTrimming}
+                onClick={() => {
+                  if (!isTrimming) introBgmInputRef.current?.click();
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    introBgmInputRef.current?.click();
+                    if (!isTrimming) introBgmInputRef.current?.click();
                   }
                 }}
                 sx={{
@@ -188,7 +222,7 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
                     lineHeight: 1.25,
                   }}
                 >
-                  Click to upload audio (loops on intro)
+                  {isTrimming ? 'Trimming silence...' : 'Click to upload audio (loops on intro)'}
                 </Typography>
               </Box>
             )}
@@ -199,9 +233,138 @@ const BooksBuilderPageFields = ({ page, onPatch }) => {
               type="file"
               style={{ display: 'none' }}
               aria-hidden
+              disabled={isTrimming}
               onChange={handleIntroBackgroundMusicUpload}
             />
           </Box>
+        </Box>
+      ) : null}
+
+      {page.type === 'reward' ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, minWidth: 0 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: 'text.secondary',
+              fontWeight: 700,
+              fontSize: '0.72rem',
+              lineHeight: 1.2,
+            }}
+          >
+            Reward celebration audio (optional)
+          </Typography>
+
+          {page.rewardAudioUrl ? (
+            <Box
+              sx={{
+                border: (theme) => `1px solid ${theme.palette.border.main}`,
+                borderRadius: '10px',
+                backgroundColor: (theme) => theme.palette.common.white,
+                px: 1.25,
+                py: 0.75,
+                minHeight: 52,
+                height: 52,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+              }}
+            >
+              <audio
+                controls
+                src={page.rewardAudioUrl}
+                aria-label="Reward celebration audio preview"
+                style={{ flex: 1, minWidth: 0, height: 36, display: 'block' }}
+              />
+              <Button
+                variant="outlined"
+                size="small"
+                disabled={isTrimming}
+                onClick={() => rewardAudioInputRef.current?.click()}
+                aria-label="Replace reward celebration audio"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  minHeight: 28,
+                  py: 0.25,
+                  px: 1,
+                  borderRadius: '999px',
+                  flexShrink: 0,
+                }}
+              >
+                Replace
+              </Button>
+              <Button
+                variant="text"
+                size="small"
+                color="error"
+                onClick={handleRemoveRewardAudio}
+                aria-label="Remove reward celebration audio"
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  minHeight: 28,
+                  py: 0.25,
+                  px: 0.75,
+                  flexShrink: 0,
+                }}
+              >
+                Remove
+              </Button>
+            </Box>
+          ) : (
+            <Box
+              role="button"
+              tabIndex={isTrimming ? -1 : 0}
+              aria-label="Upload reward celebration audio"
+              aria-busy={isTrimming}
+              onClick={() => {
+                if (!isTrimming) rewardAudioInputRef.current?.click();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  if (!isTrimming) rewardAudioInputRef.current?.click();
+                }
+              }}
+              sx={{
+                border: (theme) => `2px dashed ${theme.palette.orange.main}`,
+                borderRadius: '10px',
+                minHeight: 52,
+                height: 52,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 1.5,
+                backgroundColor: (theme) => `${theme.palette.orange.main}10`,
+                cursor: 'pointer',
+                textAlign: 'center',
+              }}
+            >
+              <Typography
+                sx={{
+                  fontFamily: 'Quicksand, sans-serif',
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  lineHeight: 1.25,
+                }}
+              >
+                {isTrimming ? 'Trimming silence...' : 'Click to upload celebration audio (plays once on reward)'}
+              </Typography>
+            </Box>
+          )}
+
+          <input
+            ref={rewardAudioInputRef}
+            accept="audio/*"
+            type="file"
+            style={{ display: 'none' }}
+            aria-hidden
+            disabled={isTrimming}
+            onChange={handleRewardAudioUpload}
+          />
         </Box>
       ) : null}
 

@@ -3,8 +3,8 @@
  * Media only — home button is rendered by CmsPlayerModal above the native video layer.
  */
 
-import { ResizeMode, Video } from 'expo-av';
-import React from 'react';
+import { Audio, ResizeMode, Video } from 'expo-av';
+import React, { useEffect, useRef } from 'react';
 import {
   Image,
   StyleSheet,
@@ -17,7 +17,7 @@ import {
 import { Quicksand } from '@/constants/theme';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
-import { resolveImageUrl, resolveVideoUrl } from './cms-player-shared';
+import { resolveImageUrl, resolveRewardAudioUrl, resolveVideoUrl } from './cms-player-shared';
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap } from './cms-player-media-context';
 
@@ -30,6 +30,53 @@ export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
   const mediaUriMap = useCmsMediaUriMap();
   const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
   const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
+  const rewardAudioUrl = resolvePlayableMediaUri(resolveRewardAudioUrl(page), mediaUriMap);
+  const rewardSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const stopRewardAudio = async () => {
+      const sound = rewardSoundRef.current;
+      rewardSoundRef.current = null;
+      if (!sound) return;
+      try {
+        await sound.stopAsync();
+      } catch {
+        // ignore unload races
+      }
+      try {
+        await sound.unloadAsync();
+      } catch {
+        // ignore unload races
+      }
+    };
+
+    const playRewardAudio = async () => {
+      if (!rewardAudioUrl || !active) return;
+      await stopRewardAudio();
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: rewardAudioUrl },
+          { shouldPlay: true, isLooping: false }
+        );
+        if (!active) {
+          await sound.unloadAsync();
+          return;
+        }
+        rewardSoundRef.current = sound;
+      } catch {
+        // optional audio — ignore playback failures
+      }
+    };
+
+    void playRewardAudio();
+
+    return () => {
+      active = false;
+      void stopRewardAudio();
+    };
+  }, [rewardAudioUrl]);
 
   return (
     <View style={[styles.stage, style]} accessibilityRole="none">

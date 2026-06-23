@@ -17,7 +17,11 @@ const axios = require('axios');
 const getBaseUrl = () => process.env.FLODESK_BASE_URL || 'https://api.flodesk.com/v1';
 const getSegmentId = () =>
   process.env.FLODESK_SEGMENT_ID || process.env.SUBSCRIBED_FORM_ID;
-const getInvitationSegmentId = () => process.env.INVITATION_FORM_ID;
+const PARENT_SEGMENT_ENV_KEYS = {
+  en: 'FLODESK_PARENT_SEGMENT_EN',
+  es: 'FLODESK_PARENT_SEGMENT_ES',
+  pt: 'FLODESK_PARENT_SEGMENT_PT',
+};
 
 const SCHOOL_SEGMENT_ENV_KEYS = {
   en: 'FLODESK_SCHOOL_SEGMENT_EN',
@@ -26,15 +30,28 @@ const SCHOOL_SEGMENT_ENV_KEYS = {
 };
 
 /**
+ * Extract segment ID from a Flodesk app URL.
+ * e.g. https://app.flodesk.com/segment/6a3a6701c951745ff9f28cd8?backTo=...
+ *
+ * @param {string} url
+ * @returns {string|null}
+ */
+function parseFlodeskSegmentIdFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.trim().match(/\/segment\/([a-f0-9]+)/i);
+  return match ? match[1] : null;
+}
+
+/**
  * Resolve Flodesk segment ID for school applications by language.
  *
  * @param {string} language - pt | en | es
  * @returns {string} Segment ID from env
  * @throws {Error} If language is invalid or env var is missing
  */
-function getSchoolSegmentId(language) {
+function getSegmentIdByLanguage(language, envKeyMap) {
   const lang = (language || '').toString().trim().toLowerCase();
-  const envKey = SCHOOL_SEGMENT_ENV_KEYS[lang];
+  const envKey = envKeyMap[lang];
   if (!envKey) {
     throw new Error('language must be one of pt, en, es');
   }
@@ -45,6 +62,26 @@ function getSchoolSegmentId(language) {
   }
 
   return segmentId.trim();
+}
+
+/**
+ * Resolve Flodesk segment ID for parent invitation leads by language.
+ *
+ * @param {string} language - pt | en | es
+ * @returns {string} Segment ID from env
+ */
+function getParentSegmentId(language) {
+  return getSegmentIdByLanguage(language, PARENT_SEGMENT_ENV_KEYS);
+}
+
+/**
+ * Resolve Flodesk segment ID for school applications by language.
+ *
+ * @param {string} language - pt | en | es
+ * @returns {string} Segment ID from env
+ */
+function getSchoolSegmentId(language) {
+  return getSegmentIdByLanguage(language, SCHOOL_SEGMENT_ENV_KEYS);
 }
 
 /**
@@ -149,6 +186,7 @@ async function subscribeToFlodesk(email) {
  * @param {string} data.email - Email
  * @param {string} data.whatsapp - WhatsApp number
  * @param {string} data.age - Child's age
+ * @param {string} data.language - pt | en | es — drives Flodesk segment / workflow
  * @returns {Promise<Object>} Flodesk API response (subscriber object)
  * @throws {Error} If required env or fields are missing or API request fails
  */
@@ -158,25 +196,19 @@ async function submitInvitationToFlodesk(data) {
     throw new Error('FLODESK_API_KEY environment variable is not set');
   }
 
-  const segmentId = getInvitationSegmentId();
-  if (!segmentId || !segmentId.trim()) {
-    throw new Error(
-      'INVITATION_FORM_ID environment variable is not set (use the segment ID for the invitation form)'
-    );
-  }
-
-  const { parentName, email, whatsapp, age } = data || {};
+  const { parentName, email, whatsapp, age, language } = data || {};
   if (!email || typeof email !== 'string' || !email.trim()) {
     throw new Error('email is required and must be a non-empty string');
   }
 
+  const segmentId = getParentSegmentId(language);
   const { first_name, last_name } = splitParentName(parentName);
 
   const payload = {
     email: email.trim(),
     first_name,
     last_name,
-    segment_ids: [segmentId.trim()],
+    segment_ids: [segmentId],
     double_optin: true,
     custom_fields: {},
   };
@@ -185,6 +217,9 @@ async function submitInvitationToFlodesk(data) {
   }
   if (age != null && String(age).trim() !== '') {
     payload.custom_fields.age = String(age).trim();
+  }
+  if (language != null && String(language).trim() !== '') {
+    payload.custom_fields.language = String(language).trim().toLowerCase();
   }
 
   const auth = Buffer.from(`${apiKey}:`).toString('base64');
@@ -210,6 +245,8 @@ async function submitInvitationToFlodesk(data) {
         status,
         message,
         email: email.trim(),
+        language,
+        segmentId,
         responseData: resData,
       });
       throw new Error(
@@ -348,6 +385,8 @@ module.exports = {
   subscribeSignupToFlodesk,
   submitInvitationToFlodesk,
   submitSchoolApplicationToFlodesk,
+  getParentSegmentId,
   getSchoolSegmentId,
+  parseFlodeskSegmentIdFromUrl,
   splitParentName,
 };

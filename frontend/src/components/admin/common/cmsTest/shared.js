@@ -59,13 +59,18 @@ export const resolveVideoUrl = (page = {}) =>
   || page?.media?.videoMedia?.url
   || '';
 
-export const resolveAudioUrl = (page = {}) =>
-  page.audioUrl
-  || page?.media?.audioUrl
-  || page?.media?.audio?.url
-  || page?.media?.audioMedia?.url
-  || page?.media?.instructionAudioMedia?.url
-  || '';
+export const resolveAudioUrl = (page = {}) => {
+  const pageType = resolvePageType(page?.type);
+  if (pageType === 'intro' || pageType === 'reward') return '';
+  return (
+    page.audioUrl
+    || page?.media?.audioUrl
+    || page?.media?.audio?.url
+    || page?.media?.audioMedia?.url
+    || page?.media?.instructionAudioMedia?.url
+    || ''
+  );
+};
 
 const toSafeMediaUrl = (value) => {
   if (typeof value === 'string') return value.trim();
@@ -94,6 +99,20 @@ export const resolveIntroBackgroundMusicUrl = (page = {}) =>
   || page?.media?.audioMedia?.cloudUrl
   || page?.media?.audio?.url
   || '';
+
+/** Optional reward celebration audio (played once on reward screen). */
+export const resolveRewardAudioUrl = (page = {}) => {
+  const pageType = resolvePageType(page?.type);
+  if (pageType !== 'reward') return '';
+  return (
+    page.rewardAudioUrl
+    || page?.media?.rewardAudioUrl
+    || page?.media?.audioMedia?.url
+    || page?.media?.audioMedia?.cloudUrl
+    || page?.media?.audio?.url
+    || ''
+  );
+};
 
 export {
   CONTENT_READING_FONT_SIZE_PRESETS,

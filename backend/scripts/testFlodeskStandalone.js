@@ -5,8 +5,8 @@
  *   node scripts/testFlodeskStandalone.js [email]
  *
  * Invitation (sales page):
- *   node scripts/testFlodeskStandalone.js invitation "Parent Name" email whatsapp age
- *   e.g. node scripts/testFlodeskStandalone.js invitation "Jejomar Parrilla" test@example.com +1234567890 5
+ *   node scripts/testFlodeskStandalone.js invitation "Parent Name" email whatsapp age [language]
+ *   e.g. node scripts/testFlodeskStandalone.js invitation "Jejomar Parrilla" test@example.com +1234567890 5 en
  */
 
 require('dotenv').config();
@@ -25,8 +25,9 @@ async function run() {
     const email = process.argv[4];
     const whatsapp = process.argv[5];
     const age = process.argv[6];
+    const language = process.argv[7] || 'en';
     if (!parentName || !email || whatsapp === undefined || age === undefined) {
-      console.error('Usage: node scripts/testFlodeskStandalone.js invitation "Parent Name" email whatsapp age');
+      console.error('Usage: node scripts/testFlodeskStandalone.js invitation "Parent Name" email whatsapp age [language]');
       process.exit(1);
     }
     try {
@@ -35,6 +36,7 @@ async function run() {
         email,
         whatsapp: String(whatsapp),
         age: String(age),
+        language,
       });
       console.log('Flodesk submitInvitationToFlodesk result:', JSON.stringify(result, null, 2));
     } catch (err) {

@@ -175,6 +175,7 @@ const AssetRow = ({
   audioPlayId,
   playingAudioId,
   onPlayingAudioChange,
+  uploadDisabled = false,
   children,
 }) => {
   const theme = useTheme();
@@ -238,18 +239,21 @@ const AssetRow = ({
         />
       ) : null}
       {onUpload ? (
-        <Tooltip title="Upload or replace">
-          <IconButton
-            size="small"
-            aria-label={`Upload ${label}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onUpload();
-            }}
-            sx={{ color: 'orange.dark' }}
-          >
-            <UploadFileOutlined fontSize="small" />
-          </IconButton>
+        <Tooltip title={uploadDisabled ? 'Trimming silence…' : 'Upload or replace'}>
+          <span>
+            <IconButton
+              size="small"
+              disabled={uploadDisabled}
+              aria-label={`Upload ${label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!uploadDisabled) onUpload();
+              }}
+              sx={{ color: 'orange.dark' }}
+            >
+              <UploadFileOutlined fontSize="small" />
+            </IconButton>
+          </span>
         </Tooltip>
       ) : null}
       {onClear ? (
@@ -319,9 +323,16 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
     const file = event.target.files?.[0];
     if (!file) return;
     event.target.value = '';
+
     const trimmed = await processAudioFile(file);
     if (!trimmed?.audioUrl) return;
+
     const mediaIdField = INTERACTIVE_AUDIO_MEDIA_ID_FIELDS[fieldKey];
+    const previousUrl = page[fieldKey];
+    if (String(previousUrl || '').startsWith('blob:')) {
+      URL.revokeObjectURL(previousUrl);
+    }
+
     onPatch({
       [fieldKey]: trimmed.audioUrl,
       ...(mediaIdField ? { [mediaIdField]: null } : {}),
@@ -363,12 +374,12 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
       <input ref={sceneTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'sceneImageTwo')} />
       <input ref={answerOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageOne')} />
       <input ref={answerTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageTwo')} />
-      <input ref={answerAudioOneInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'answerAudioOne')} />
-      <input ref={answerAudioTwoInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'answerAudioTwo')} />
+      <input ref={answerAudioOneInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'answerAudioOne')} />
+      <input ref={answerAudioTwoInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'answerAudioTwo')} />
       <input ref={optionImageOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageOne')} />
       <input ref={optionImageTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageTwo')} />
-      <input ref={optionAudioOneInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'optionAudioOne')} />
-      <input ref={optionAudioTwoInputRef} type="file" accept="audio/*" hidden onChange={(e) => handleAudioUpload(e, 'optionAudioTwo')} />
+      <input ref={optionAudioOneInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'optionAudioOne')} />
+      <input ref={optionAudioTwoInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'optionAudioTwo')} />
     </>
   );
 
@@ -515,7 +526,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                 <AssetRow
                   icon={AudiotrackOutlined}
                   label="Answer 1 audio"
-                  statusLabel={page.answerAudioOne ? 'Set' : 'Optional'}
+                  statusLabel={isTrimming ? 'Trimming…' : (page.answerAudioOne ? 'Set' : 'Optional')}
                   statusColor={page.answerAudioOne ? 'success' : 'default'}
                   isActive={selectedKey === 'answerOne'}
                   onSelect={() => setSelectedKey('answerOne')}
@@ -523,6 +534,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                   audioPlayId="answer-one-audio"
                   playingAudioId={playingAudioId}
                   onPlayingAudioChange={setPlayingAudioId}
+                  uploadDisabled={isTrimming}
                   onUpload={() => answerAudioOneInputRef.current?.click()}
                   onClear={
                     page.answerAudioOne
@@ -581,7 +593,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                     <AssetRow
                       icon={AudiotrackOutlined}
                       label="Answer 2 audio"
-                      statusLabel={page.answerAudioTwo ? 'Set' : 'Optional'}
+                      statusLabel={isTrimming ? 'Trimming…' : (page.answerAudioTwo ? 'Set' : 'Optional')}
                       statusColor={page.answerAudioTwo ? 'success' : 'default'}
                       isActive={selectedKey === 'answerTwo'}
                       onSelect={() => setSelectedKey('answerTwo')}
@@ -589,6 +601,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       audioPlayId="answer-two-audio"
                       playingAudioId={playingAudioId}
                       onPlayingAudioChange={setPlayingAudioId}
+                      uploadDisabled={isTrimming}
                       onUpload={() => answerAudioTwoInputRef.current?.click()}
                       onClear={
                         page.answerAudioTwo
@@ -675,7 +688,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       key={`${opt.key}-audio`}
                       icon={AudiotrackOutlined}
                       label={`${opt.label} audio`}
-                      statusLabel={opt.audio ? 'Set' : 'Empty'}
+                      statusLabel={isTrimming ? 'Trimming…' : (opt.audio ? 'Set' : 'Empty')}
                       statusColor={opt.audio ? 'success' : 'warning'}
                       isActive={selectedKey === opt.key}
                       isLast={isLastOption}
@@ -684,12 +697,17 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       audioPlayId={`${opt.key}-audio`}
                       playingAudioId={playingAudioId}
                       onPlayingAudioChange={setPlayingAudioId}
+                      uploadDisabled={isTrimming}
                       onUpload={() => opt.audioRef.current?.click()}
                       onClear={
                         opt.audio
                           ? () => {
                               if (playingAudioId === `${opt.key}-audio`) setPlayingAudioId(null);
-                              onPatch({ [opt.audioField]: '' });
+                              const mediaIdField = INTERACTIVE_AUDIO_MEDIA_ID_FIELDS[opt.audioField];
+                              onPatch({
+                                [opt.audioField]: '',
+                                ...(mediaIdField ? { [mediaIdField]: null } : {}),
+                              });
                             }
                           : null
                       }

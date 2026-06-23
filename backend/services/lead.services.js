@@ -1,5 +1,8 @@
 const Lead = require('../models/Leads');
-const { submitInvitationToFlodesk } = require('./flodeskService');
+const {
+  submitInvitationToFlodesk,
+  getParentSegmentId,
+} = require('./flodeskService');
 const { buildWhatsAppLink } = require('./whatsappLinkService');
 
 function normalizeLanguage(language) {
@@ -66,6 +69,8 @@ async function submitInvitationLead(data) {
     throw new Error('consent is required');
   }
 
+  const segmentId = getParentSegmentId(normalizedLanguage);
+
   const leadToCreate = {
     parentName: parentName.trim(),
     email: email.trim().toLowerCase(),
@@ -73,19 +78,40 @@ async function submitInvitationLead(data) {
     age: String(age).trim(),
     language: normalizedLanguage,
     consent: normalizedConsent,
+    flodeskStatus: 'pending',
+    flodeskSegmentId: segmentId,
   };
 
   const lead = await Lead.create(leadToCreate);
 
-  // Keep Flodesk integration behavior the same: send only allowed fields.
-  const flodesk = await submitInvitationToFlodesk({
-    parentName: parentName.trim(),
-    email: email.trim(),
-    whatsapp: String(whatsapp).trim(),
-    age: String(age).trim(),
-  });
+  try {
+    const flodesk = await submitInvitationToFlodesk({
+      parentName: parentName.trim(),
+      email: email.trim(),
+      whatsapp: String(whatsapp).trim(),
+      age: String(age).trim(),
+      language: normalizedLanguage,
+    });
 
-  return { lead, flodesk };
+    const updatedLead = await Lead.findByIdAndUpdate(
+      lead._id,
+      {
+        flodeskStatus: 'success',
+        flodeskSubscriberId: flodesk?.id || null,
+        flodeskSegmentId: segmentId,
+        flodeskError: null,
+      },
+      { new: true }
+    );
+
+    return { lead: updatedLead, flodesk };
+  } catch (error) {
+    await Lead.findByIdAndUpdate(lead._id, {
+      flodeskStatus: 'failed',
+      flodeskError: error.message || 'Flodesk submission failed',
+    });
+    throw error;
+  }
 }
 
 module.exports = {

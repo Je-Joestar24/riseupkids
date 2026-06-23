@@ -1,11 +1,20 @@
 jest.mock('../models/Leads', () => ({
   create: jest.fn(),
   find: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
   countDocuments: jest.fn(),
 }));
 
 jest.mock('../services/flodeskService', () => ({
   submitInvitationToFlodesk: jest.fn(),
+  getParentSegmentId: jest.fn((language) => {
+    const map = {
+      en: '6a3a6701c951745ff9f28cd8',
+      es: '6a3a66f6f31a7c2cdd8b2c6f',
+      pt: '6a3a66e7f5968997758b4712',
+    };
+    return map[language] || map.en;
+  }),
 }));
 
 const Lead = require('../models/Leads');
@@ -80,10 +89,12 @@ describe('lead.services – submitInvitationLead (Phase 1)', () => {
     ).rejects.toThrow('consent is required');
   });
 
-  it('creates a Lead and calls Flodesk with trimmed values', async () => {
+  it('creates a Lead and calls Flodesk with trimmed values and language', async () => {
     const mockLead = { _id: 'lead123' };
+    const updatedLead = { _id: 'lead123', flodeskStatus: 'success' };
     const flodeskResponse = { id: 'flodesk-abc' };
     Lead.create.mockResolvedValueOnce(mockLead);
+    Lead.findByIdAndUpdate.mockResolvedValueOnce(updatedLead);
     submitInvitationToFlodesk.mockResolvedValueOnce(flodeskResponse);
 
     const result = await submitInvitationLead({
@@ -103,6 +114,8 @@ describe('lead.services – submitInvitationLead (Phase 1)', () => {
       age: '7',
       language: 'pt',
       consent: true,
+      flodeskStatus: 'pending',
+      flodeskSegmentId: '6a3a66e7f5968997758b4712',
     });
 
     expect(submitInvitationToFlodesk).toHaveBeenCalledTimes(1);
@@ -111,10 +124,22 @@ describe('lead.services – submitInvitationLead (Phase 1)', () => {
       email: 'MARIA@example.com',
       whatsapp: '+5511999999999',
       age: '7',
+      language: 'pt',
     });
 
+    expect(Lead.findByIdAndUpdate).toHaveBeenCalledWith(
+      'lead123',
+      {
+        flodeskStatus: 'success',
+        flodeskSubscriberId: 'flodesk-abc',
+        flodeskSegmentId: '6a3a66e7f5968997758b4712',
+        flodeskError: null,
+      },
+      { new: true }
+    );
+
     expect(result).toEqual({
-      lead: mockLead,
+      lead: updatedLead,
       flodesk: flodeskResponse,
     });
   });

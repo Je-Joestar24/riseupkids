@@ -76,8 +76,10 @@ export const createEmptyPage = (index) => {
     backgroundImageUrl: '',
     audioUrl: '',
     introBackgroundMusicUrl: '',
+    rewardAudioUrl: '',
     videoUrl: '',
     introBackgroundMusicMediaId: null,
+    rewardAudioMediaId: null,
     interactionMode: '',
     optionAudioOne: '',
     optionAudioTwo: '',
@@ -110,6 +112,8 @@ export const resetPageByType = {
   audioUrl: '',
   introBackgroundMusicUrl: '',
   introBackgroundMusicMediaId: null,
+  rewardAudioUrl: '',
+  rewardAudioMediaId: null,
   videoUrl: '',
   interactionMode: '',
   optionAudioOne: '',
@@ -304,7 +308,9 @@ export const collectSceneImageMediaIds = (media = {}) => {
 
 /**
  * Resolves a persisted media id for save payloads.
- * Remote URLs reuse existing ids; empty sources keep prior ids.
+ * - New blob/data URLs upload and return the new id.
+ * - Remote URLs reuse existing ids.
+ * - Empty source keeps the prior id (never wipes media on draft/save unless explicitly removed in UI).
  */
 export const resolveUploadedMediaId = async ({
   source,
@@ -427,6 +433,8 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
       const cmsType = toCmsPageTypeForTester(page.type, page.interactionMode);
       const introBgmUrl =
         page.type === 'intro' ? String(page.introBackgroundMusicUrl || '').trim() : '';
+      const rewardAudioUrl =
+        page.type === 'reward' ? String(page.rewardAudioUrl || '').trim() : '';
 
       return {
         pageId: page.id || `page-${index + 1}`,
@@ -438,6 +446,7 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
         backgroundImageUrl: page.backgroundImageUrl || '',
         audioUrl: page.type === 'content' ? page.audioUrl || '' : '',
         introBackgroundMusicUrl: introBgmUrl,
+        rewardAudioUrl,
         videoUrl: page.videoUrl || '',
         readingText: page.readingText || '',
         readingFontSizePx: page.readingFontSizePx ?? null,
@@ -467,7 +476,10 @@ export const buildTesterPagesFromBuilder = (pages = []) =>
         answerTwoCorrectOptionId: page.answerTwoCorrectOptionId || '',
         media: {
           imageMedia: page.imageUrl ? { url: page.imageUrl } : null,
-          audioMedia: introBgmUrl ? { url: introBgmUrl } : null,
+          audioMedia:
+            introBgmUrl || rewardAudioUrl
+              ? { url: introBgmUrl || rewardAudioUrl }
+              : null,
           videoMedia: page.videoUrl ? { url: page.videoUrl } : null,
           backgroundImageMedia: page.backgroundImageUrl ? { url: page.backgroundImageUrl } : null,
           guideImageMedia: page.guideImageOne ? { url: page.guideImageOne } : null,
@@ -563,6 +575,10 @@ export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) 
       builderType === 'intro'
         ? String(page.introBackgroundMusicUrl || toMediaUrl(media.audioMedia) || '').trim()
         : '',
+    rewardAudioUrl:
+      builderType === 'reward'
+        ? String(page.rewardAudioUrl || toMediaUrl(media.audioMedia) || '').trim()
+        : '',
     videoUrl: toMediaUrl(media.videoMedia) || '',
     interactionMode,
     optionAudioOne: toMediaUrl(optionOne.audioMedia) || '',
@@ -601,6 +617,8 @@ export const buildBuilderPageFromCms = (page = {}, index = 0, adminPage = page) 
     audioMediaId: builderType === 'content' ? media.audioMediaId || null : null,
     introBackgroundMusicMediaId:
       builderType === 'intro' ? media.audioMediaId || page.introBackgroundMusicMediaId || null : null,
+    rewardAudioMediaId:
+      builderType === 'reward' ? media.audioMediaId || page.rewardAudioMediaId || null : null,
     videoMediaId: media.videoMediaId || null,
     guideImageMediaId: media.guideImageMediaId || null,
     guideImageMediaIds: Array.isArray(media.guideImageMediaIds) ? media.guideImageMediaIds : [],
@@ -644,6 +662,12 @@ export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
       prevPage.introBackgroundMusicUrl,
       nextPage.introBackgroundMusicMediaId,
       prevPage.introBackgroundMusicMediaId
+    ),
+    rewardAudioUrl: preserveMediaUrl(
+      nextPage.rewardAudioUrl,
+      prevPage.rewardAudioUrl,
+      nextPage.rewardAudioMediaId,
+      prevPage.rewardAudioMediaId
     ),
     videoUrl: preserveMediaUrl(nextPage.videoUrl, prevPage.videoUrl, nextPage.videoMediaId, prevPage.videoMediaId),
     sceneImageOne: preserveMediaUrl(
@@ -722,6 +746,42 @@ export const preserveBuilderPageMedia = (nextPage = {}, prevPage = null) => {
       toMediaIdString(nextPage.answerTwoAudioMediaId)
       || toMediaIdString(prevPage.answerTwoAudioMediaId)
       || null,
+    imageMediaId:
+      toMediaIdString(nextPage.imageMediaId) || toMediaIdString(prevPage.imageMediaId) || null,
+    videoMediaId:
+      toMediaIdString(nextPage.videoMediaId) || toMediaIdString(prevPage.videoMediaId) || null,
+    audioMediaId:
+      toMediaIdString(nextPage.audioMediaId) || toMediaIdString(prevPage.audioMediaId) || null,
+    introBackgroundMusicMediaId:
+      toMediaIdString(nextPage.introBackgroundMusicMediaId)
+      || toMediaIdString(prevPage.introBackgroundMusicMediaId)
+      || null,
+    rewardAudioMediaId:
+      toMediaIdString(nextPage.rewardAudioMediaId)
+      || toMediaIdString(prevPage.rewardAudioMediaId)
+      || null,
+    backgroundImageMediaId:
+      toMediaIdString(nextPage.backgroundImageMediaId)
+      || toMediaIdString(prevPage.backgroundImageMediaId)
+      || null,
+    optionOneImageMediaId:
+      toMediaIdString(nextPage.optionOneImageMediaId)
+      || toMediaIdString(prevPage.optionOneImageMediaId)
+      || null,
+    optionOneAudioMediaId:
+      toMediaIdString(nextPage.optionOneAudioMediaId)
+      || toMediaIdString(prevPage.optionOneAudioMediaId)
+      || null,
+    optionTwoImageMediaId:
+      toMediaIdString(nextPage.optionTwoImageMediaId)
+      || toMediaIdString(prevPage.optionTwoImageMediaId)
+      || null,
+    optionTwoAudioMediaId:
+      toMediaIdString(nextPage.optionTwoAudioMediaId)
+      || toMediaIdString(prevPage.optionTwoAudioMediaId)
+      || null,
+    guideImageMediaId:
+      toMediaIdString(nextPage.guideImageMediaId) || toMediaIdString(prevPage.guideImageMediaId) || null,
     interactiveLayouts: nextPage.interactiveLayouts || prevPage.interactiveLayouts || null,
   };
 };

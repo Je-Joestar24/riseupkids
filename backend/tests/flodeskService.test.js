@@ -11,7 +11,9 @@ const {
   subscribeToFlodesk,
   submitInvitationToFlodesk,
   submitSchoolApplicationToFlodesk,
+  getParentSegmentId,
   getSchoolSegmentId,
+  parseFlodeskSegmentIdFromUrl,
   splitParentName,
 } = require('../services/flodeskService');
 
@@ -23,7 +25,9 @@ describe('flodeskService', () => {
     process.env = { ...originalEnv };
     process.env.FLODESK_API_KEY = 'test-api-key';
     process.env.SUBSCRIBED_FORM_ID = '688a6cfd8ba84ca33972c2e9';
-    process.env.INVITATION_FORM_ID = '688a7f36506c930c8ea45928';
+    process.env.FLODESK_PARENT_SEGMENT_EN = '6a3a6701c951745ff9f28cd8';
+    process.env.FLODESK_PARENT_SEGMENT_ES = '6a3a66f6f31a7c2cdd8b2c6f';
+    process.env.FLODESK_PARENT_SEGMENT_PT = '6a3a66e7f5968997758b4712';
     process.env.FLODESK_SCHOOL_SEGMENT_EN = '6a26b4a83e683dae80d0eae9';
     process.env.FLODESK_SCHOOL_SEGMENT_ES = '6a26b505c6a4160d3a136820';
     process.env.FLODESK_SCHOOL_SEGMENT_PT = '6a26b4bb6b0d638a5d97ac60';
@@ -161,8 +165,51 @@ describe('flodeskService', () => {
     });
   });
 
+  describe('parseFlodeskSegmentIdFromUrl', () => {
+    it('extracts segment id from Flodesk app URL', () => {
+      expect(
+        parseFlodeskSegmentIdFromUrl(
+          'https://app.flodesk.com/segment/6a3a6701c951745ff9f28cd8?backTo=L3NlZ21lbnRz'
+        )
+      ).toBe('6a3a6701c951745ff9f28cd8');
+      expect(
+        parseFlodeskSegmentIdFromUrl(
+          'https://app.flodesk.com/segment/6a3a66f6f31a7c2cdd8b2c6f?backTo=L3NlZ21lbnRz'
+        )
+      ).toBe('6a3a66f6f31a7c2cdd8b2c6f');
+      expect(
+        parseFlodeskSegmentIdFromUrl(
+          'https://app.flodesk.com/segment/6a3a66e7f5968997758b4712?backTo=L3NlZ21lbnRzI3NlZ21lbnQ9NmEzYTY2ZTdmNTk2ODk5Nzc1OGI0NzEy'
+        )
+      ).toBe('6a3a66e7f5968997758b4712');
+    });
+
+    it('returns null for invalid input', () => {
+      expect(parseFlodeskSegmentIdFromUrl('')).toBeNull();
+      expect(parseFlodeskSegmentIdFromUrl(null)).toBeNull();
+      expect(parseFlodeskSegmentIdFromUrl('https://example.com')).toBeNull();
+    });
+  });
+
+  describe('getParentSegmentId', () => {
+    it('returns segment ID for each supported language', () => {
+      expect(getParentSegmentId('en')).toBe('6a3a6701c951745ff9f28cd8');
+      expect(getParentSegmentId('es')).toBe('6a3a66f6f31a7c2cdd8b2c6f');
+      expect(getParentSegmentId('pt')).toBe('6a3a66e7f5968997758b4712');
+    });
+
+    it('throws for invalid language', () => {
+      expect(() => getParentSegmentId('fr')).toThrow('language must be one of pt, en, es');
+    });
+
+    it('throws when segment env is missing', () => {
+      delete process.env.FLODESK_PARENT_SEGMENT_EN;
+      expect(() => getParentSegmentId('en')).toThrow('FLODESK_PARENT_SEGMENT_EN');
+    });
+  });
+
   describe('submitInvitationToFlodesk', () => {
-    it('sends POST with first_name, last_name, email, whatsapp, age, segment_ids', async () => {
+    it('sends POST with first_name, last_name, email, whatsapp, age, language segment', async () => {
       const subscriber = {
         id: 'inv_123',
         email: 'parent@example.com',
@@ -177,6 +224,7 @@ describe('flodeskService', () => {
         email: 'parent@example.com',
         whatsapp: '+1234567890',
         age: '5',
+        language: 'en',
       });
 
       expect(result).toEqual(subscriber);
@@ -187,9 +235,9 @@ describe('flodeskService', () => {
           email: 'parent@example.com',
           first_name: 'Jejomar',
           last_name: 'Parrilla',
-          segment_ids: ['688a7f36506c930c8ea45928'],
+          segment_ids: ['6a3a6701c951745ff9f28cd8'],
           double_optin: true,
-          custom_fields: { whatsapp: '+1234567890', age: '5' },
+          custom_fields: { whatsapp: '+1234567890', age: '5', language: 'en' },
         },
         expect.objectContaining({
           headers: expect.objectContaining({
@@ -200,6 +248,22 @@ describe('flodeskService', () => {
       );
     });
 
+    it('uses Spanish segment when language is es', async () => {
+      axios.post.mockResolvedValueOnce({ data: { id: '1' } });
+
+      await submitInvitationToFlodesk({
+        parentName: 'Ana Lopez',
+        email: 'ana@example.com',
+        whatsapp: '123',
+        age: '4',
+        language: 'es',
+      });
+
+      const payload = axios.post.mock.calls[0][1];
+      expect(payload.segment_ids).toEqual(['6a3a66f6f31a7c2cdd8b2c6f']);
+      expect(payload.custom_fields.language).toBe('es');
+    });
+
     it('single-word parentName: last_name empty', async () => {
       axios.post.mockResolvedValueOnce({ data: { id: '1' } });
 
@@ -208,6 +272,7 @@ describe('flodeskService', () => {
         email: 'm@example.com',
         whatsapp: '123',
         age: '3',
+        language: 'pt',
       });
 
       expect(axios.post).toHaveBeenCalledWith(
@@ -216,7 +281,8 @@ describe('flodeskService', () => {
           first_name: 'Madonna',
           last_name: '',
           email: 'm@example.com',
-          custom_fields: { whatsapp: '123', age: '3' },
+          segment_ids: ['6a3a66e7f5968997758b4712'],
+          custom_fields: { whatsapp: '123', age: '3', language: 'pt' },
         }),
         expect.any(Object)
       );
@@ -229,13 +295,14 @@ describe('flodeskService', () => {
           email: '',
           whatsapp: '123',
           age: '4',
+          language: 'en',
         })
       ).rejects.toThrow('email is required');
       expect(axios.post).not.toHaveBeenCalled();
     });
 
-    it('throws when INVITATION_FORM_ID is not set', async () => {
-      delete process.env.INVITATION_FORM_ID;
+    it('throws when parent segment env is not set', async () => {
+      delete process.env.FLODESK_PARENT_SEGMENT_EN;
 
       await expect(
         submitInvitationToFlodesk({
@@ -243,8 +310,9 @@ describe('flodeskService', () => {
           email: 'j@example.com',
           whatsapp: '1',
           age: '5',
+          language: 'en',
         })
-      ).rejects.toThrow('INVITATION_FORM_ID');
+      ).rejects.toThrow('FLODESK_PARENT_SEGMENT_EN');
       expect(axios.post).not.toHaveBeenCalled();
     });
 
@@ -256,10 +324,11 @@ describe('flodeskService', () => {
         email: 'jane@example.com',
         whatsapp: '',
         age: '',
+        language: 'en',
       });
 
       const payload = axios.post.mock.calls[0][1];
-      expect(payload.custom_fields).toEqual({});
+      expect(payload.custom_fields).toEqual({ language: 'en' });
     });
   });
 

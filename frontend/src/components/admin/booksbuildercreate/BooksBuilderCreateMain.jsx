@@ -350,11 +350,15 @@ const BooksBuilderCreateMain = () => {
       return new File([blob], filename, { type: blob.type || fallbackMime || 'application/octet-stream' });
     };
 
-    const emptyUploadResult = { mediaId: null, durationSec: null, trimMeta: null };
-
     const ensureUploadedMediaId = async ({ source, mediaType, title, existingMediaId = null }) => {
-      if (!source) return emptyUploadResult;
-      if (typeof source !== 'string') return emptyUploadResult;
+      const preservedId = existingMediaId || null;
+      if (!source || typeof source !== 'string') {
+        return {
+          mediaId: preservedId,
+          durationSec: null,
+          trimMeta: null,
+        };
+      }
       if (mediaCache.has(source)) return mediaCache.get(source);
 
       let fileToUpload = null;
@@ -409,46 +413,54 @@ const BooksBuilderCreateMain = () => {
         const pagePayload = buildCmsPageSkeleton({ page, index });
 
         if (page.type === 'intro') {
-          pagePayload.media.imageMediaId = (await ensureUploadedMediaId({
+          pagePayload.media.imageMediaId = await resolveUploadedMediaId({
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Cover'} image`,
             existingMediaId: page.imageMediaId,
-          })).mediaId;
-
-          const introBgmSource = String(page.introBackgroundMusicUrl || '').trim();
-          if (introBgmSource) {
-            const bgmUpload = await ensureUploadedMediaId({
-              source: introBgmSource,
-              mediaType: 'audio',
-              title: `${page.title || 'Cover'} intro background music`,
-              existingMediaId: page.introBackgroundMusicMediaId || null,
-            });
-            pagePayload.media.audioMediaId = bgmUpload.mediaId;
-          } else {
-            pagePayload.media.audioMediaId = null;
-          }
+            ensureUploadedMediaId,
+          });
+          pagePayload.media.audioMediaId = await resolveUploadedMediaId({
+            source: page.introBackgroundMusicUrl,
+            mediaType: 'audio',
+            title: `${page.title || 'Cover'} intro background music`,
+            existingMediaId: page.introBackgroundMusicMediaId,
+            ensureUploadedMediaId,
+          });
         } else if (page.type === 'demo' || page.type === 'reward') {
-          pagePayload.media.videoMediaId = (await ensureUploadedMediaId({
+          pagePayload.media.videoMediaId = await resolveUploadedMediaId({
             source: page.videoUrl,
             mediaType: 'video',
             title: `${page.title || 'Video'} video`,
             existingMediaId: page.videoMediaId,
-          })).mediaId;
+            ensureUploadedMediaId,
+          });
+
+          if (page.type === 'reward') {
+            pagePayload.media.audioMediaId = await resolveUploadedMediaId({
+              source: page.rewardAudioUrl,
+              mediaType: 'audio',
+              title: `${page.title || 'Reward'} celebration audio`,
+              existingMediaId: page.rewardAudioMediaId,
+              ensureUploadedMediaId,
+            });
+          }
         } else if (page.type === 'content') {
-          pagePayload.media.imageMediaId = (await ensureUploadedMediaId({
+          pagePayload.media.imageMediaId = await resolveUploadedMediaId({
             source: page.imageUrl,
             mediaType: 'image',
             title: `${page.title || 'Content'} image`,
             existingMediaId: page.imageMediaId,
-          })).mediaId;
+            ensureUploadedMediaId,
+          });
           const audioUpload = await ensureUploadedMediaId({
             source: page.audioUrl,
             mediaType: 'audio',
             title: `${page.title || 'Content'} audio`,
             existingMediaId: page.audioMediaId,
           });
-          pagePayload.media.audioMediaId = audioUpload.mediaId;
+          pagePayload.media.audioMediaId =
+            audioUpload.mediaId || page.audioMediaId || null;
           const readingText = String(page.readingText || page.subtitle || '').trim();
           const trimmedDurationSec = Number(audioUpload.durationSec);
           const fallbackDurationSec = Number(page.audioDurationSec);

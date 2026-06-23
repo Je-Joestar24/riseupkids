@@ -28,9 +28,27 @@ export const resolveIntroBackgroundMusicUrl = (bookOrPage) => {
   }
 
   const page = bookOrPage;
+  if (page?.type && page.type !== 'cover') return '';
+
   const media = page?.media || {};
   return (
     toSafeUrl(page.introBackgroundMusicUrl) ||
+    toSafeUrl(media.audioMedia?.url) ||
+    toSafeUrl(media.audio?.url) ||
+    toSafeUrl(media.audioUrl) ||
+    ''
+  );
+};
+
+export const resolveRewardAudioUrl = (bookOrPage) => {
+  if (!bookOrPage) return '';
+
+  const page = bookOrPage;
+  if (page?.type !== 'reward' && page?.type !== 'end') return '';
+
+  const media = page?.media || {};
+  return (
+    toSafeUrl(page.rewardAudioUrl) ||
     toSafeUrl(media.audioMedia?.url) ||
     toSafeUrl(media.audio?.url) ||
     toSafeUrl(media.audioUrl) ||
@@ -51,10 +69,17 @@ export const normalizePlayableBookFromApi = (book) => {
 
   const pages = Array.isArray(book.pages)
     ? book.pages.map((page) => {
-      if (page?.type !== 'cover') return page;
-      const url = resolveIntroBackgroundMusicUrl(page);
-      if (!url) return page;
-      return { ...page, introBackgroundMusicUrl: url };
+      if (page?.type === 'cover') {
+        const url = resolveIntroBackgroundMusicUrl(page);
+        if (!url) return page;
+        return { ...page, introBackgroundMusicUrl: url };
+      }
+      if (page?.type === 'reward' || page?.type === 'end') {
+        const url = resolveRewardAudioUrl(page);
+        if (!url) return page;
+        return { ...page, rewardAudioUrl: url };
+      }
+      return page;
     })
     : book.pages;
 
@@ -77,6 +102,7 @@ const collectPageMediaUrls = (page = {}) => {
     page.videoUrl,
     page.audioUrl,
     page.introBackgroundMusicUrl,
+    page.rewardAudioUrl,
     page?.media?.imageUrl,
     page?.media?.backgroundImageUrl,
     page?.media?.videoUrl,

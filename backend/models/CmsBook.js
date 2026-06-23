@@ -222,8 +222,11 @@ function validatePageByType(page) {
     throw new Error('activity_demo_video page requires media.videoMediaId');
   }
 
-  if (page.type === 'reward' && !media.videoMediaId) {
-    throw new Error('Reward page requires media.videoMediaId');
+  if (page.type === 'reward') {
+    if (!media.videoMediaId) {
+      throw new Error('Reward page requires media.videoMediaId');
+    }
+    // media.audioMediaId is optional celebration audio for the reward screen.
   }
 
   if (page.type === 'content' && reading) {
