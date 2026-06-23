@@ -17,6 +17,7 @@ import {
   resolveDropZoneAudioUrl,
   resolveImageUrl,
 } from './shared';
+import { resolveCmsInteractiveFeedbackAudioUrl } from './cmsInteractiveFeedbackAudio';
 
 const DESIGN_STAGE_WIDTH = 1920;
 const DESIGN_STAGE_HEIGHT = 1080;
@@ -64,6 +65,7 @@ const InteractiveTest = ({
 }) => {
   const optionAudioRef = useRef(null);
   const answerAudioRef = useRef(null);
+  const feedbackAudioRef = useRef(null);
   const stageRef = useRef(null);
   const dropZoneRefs = useRef({});
   const optionRefs = useRef({});
@@ -182,6 +184,61 @@ const InteractiveTest = ({
     }, 1000);
     return () => clearTimeout(timer);
   }, [allDropZonesCorrect, onCorrectDrop]);
+
+  const stopFeedbackAudio = () => {
+    const audio = feedbackAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+    feedbackAudioRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!dropResult || isPreloading) {
+      stopFeedbackAudio();
+      return undefined;
+    }
+
+    if (optionAudioRef.current) {
+      optionAudioRef.current.pause();
+      optionAudioRef.current.currentTime = 0;
+      optionAudioRef.current = null;
+      setPlayingOptionId('');
+    }
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current.currentTime = 0;
+      answerAudioRef.current = null;
+      setPlayingAnswerId('');
+    }
+
+    const feedbackUrl = resolveCmsInteractiveFeedbackAudioUrl(dropResult);
+    if (!feedbackUrl) return undefined;
+
+    const audio = new Audio(feedbackUrl);
+    audio.preload = 'auto';
+    audio.setAttribute('aria-hidden', 'true');
+    feedbackAudioRef.current = audio;
+
+    const tryPlay = () => {
+      const playPromise = audio.play();
+      if (playPromise?.catch) {
+        playPromise.catch(() => {});
+      }
+    };
+
+    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      tryPlay();
+    } else {
+      audio.addEventListener('canplaythrough', tryPlay, { once: true });
+    }
+
+    return () => {
+      audio.removeEventListener('canplaythrough', tryPlay);
+      stopFeedbackAudio();
+    };
+  }, [dropResult, isPreloading]);
 
   useEffect(() => {
     const computeInitialPositions = () => {
@@ -441,6 +498,7 @@ const InteractiveTest = ({
       answerAudioRef.current.currentTime = 0;
       answerAudioRef.current = null;
     }
+    stopFeedbackAudio();
     setPlayingOptionId('');
     setPlayingAnswerId('');
     setDragState(null);

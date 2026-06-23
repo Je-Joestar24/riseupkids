@@ -21,7 +21,13 @@ import {
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '@/utils/cmsInteractiveLayout';
-import { getScaledInteractiveMetrics, resolveImageUrl } from './cms-player-shared';
+import {
+  CMS_GOOD_JOB_ADVANCE_DELAY_MS,
+  CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
+  cmsInteractiveFeedbackAudio,
+  getScaledInteractiveMetrics,
+  resolveImageUrl,
+} from './cms-player-shared';
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap } from './cms-player-media-context';
 import { CmsInteractiveResultToast } from './cms-interactive-result-toast';
@@ -201,6 +207,8 @@ export function CmsInteractivePage({
 
   const optionAudioRef = useRef<Audio.Sound | null>(null);
   const answerAudioRef = useRef<Audio.Sound | null>(null);
+  const feedbackAudioRef = useRef<Audio.Sound | null>(null);
+  const advanceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioRequestIdRef = useRef(0);
   const positionRef = useRef<Record<string, { x: number; y: number }>>({});
   const dragStateRef = useRef<{
@@ -227,18 +235,37 @@ export function CmsInteractivePage({
 
   const isInteractionLocked = dropZoneItems.length === 1 && Object.keys(placedByZone).length > 0;
 
-  const allDropZonesCorrect = useMemo(
-    () =>
-      dropZoneItems.length > 0
-      && dropZoneItems.every((zone) => placedByZone[zone.id] === zone.correctOptionId),
-    [dropZoneItems, placedByZone]
-  );
+  const clearAdvanceTimeout = useCallback(() => {
+    if (!advanceTimeoutRef.current) return;
+    clearTimeout(advanceTimeoutRef.current);
+    advanceTimeoutRef.current = null;
+  }, []);
 
-  useEffect(() => {
-    if (!allDropZonesCorrect) return undefined;
-    const t = setTimeout(() => onCorrectDrop?.(), 1000);
-    return () => clearTimeout(t);
-  }, [allDropZonesCorrect, onCorrectDrop]);
+  const scheduleAdvanceAfterGoodJob = useCallback(
+    async (sound: Audio.Sound | null) => {
+      clearAdvanceTimeout();
+
+      let delayMs = CMS_GOOD_JOB_ADVANCE_FALLBACK_MS;
+      if (sound) {
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && typeof status.durationMillis === 'number' && status.durationMillis > 0) {
+            delayMs = status.durationMillis + CMS_GOOD_JOB_ADVANCE_DELAY_MS;
+          } else {
+            delayMs = CMS_GOOD_JOB_ADVANCE_FALLBACK_MS;
+          }
+        } catch {
+          delayMs = CMS_GOOD_JOB_ADVANCE_FALLBACK_MS;
+        }
+      }
+
+      advanceTimeoutRef.current = setTimeout(() => {
+        advanceTimeoutRef.current = null;
+        onCorrectDrop?.();
+      }, delayMs);
+    },
+    [clearAdvanceTimeout, onCorrectDrop]
+  );
 
   const zoneLayouts = useMemo(() => {
     const { w: stageW, h: stageH } = layout;
@@ -321,8 +348,10 @@ export function CmsInteractivePage({
   const stopAllInteractiveAudio = useCallback(async () => {
     const optionSound = optionAudioRef.current;
     const answerSound = answerAudioRef.current;
+    const feedbackSound = feedbackAudioRef.current;
     optionAudioRef.current = null;
     answerAudioRef.current = null;
+    feedbackAudioRef.current = null;
     setPlayingOptionId('');
     setPlayingAnswerId('');
 
@@ -353,8 +382,89 @@ export function CmsInteractivePage({
           // ignore unload errors
         }
       })(),
+      (async () => {
+        if (!feedbackSound) return;
+        try {
+          await feedbackSound.stopAsync();
+        } catch {
+          // ignore stop errors for unloaded sounds
+        }
+        try {
+          await feedbackSound.unloadAsync();
+        } catch {
+          // ignore unload errors
+        }
+      })(),
     ]);
   }, []);
+
+  useEffect(() => {
+    if (!dropResult || isPreloading) return undefined;
+
+    let active = true;
+    const playFeedback = async () => {
+      const optionSound = optionAudioRef.current;
+      const answerSound = answerAudioRef.current;
+      optionAudioRef.current = null;
+      answerAudioRef.current = null;
+      setPlayingOptionId('');
+      setPlayingAnswerId('');
+
+      await Promise.all([
+        optionSound
+          ? optionSound.stopAsync().catch(() => {}).then(() => optionSound.unloadAsync().catch(() => {}))
+          : Promise.resolve(),
+        answerSound
+          ? answerSound.stopAsync().catch(() => {}).then(() => answerSound.unloadAsync().catch(() => {}))
+          : Promise.resolve(),
+      ]);
+
+      if (!active) return;
+
+      const source =
+        dropResult === 'correct'
+          ? cmsInteractiveFeedbackAudio.goodJob
+          : cmsInteractiveFeedbackAudio.tryAgain;
+
+      try {
+        const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true });
+        if (!active) {
+          await sound.unloadAsync().catch(() => {});
+          return;
+        }
+        feedbackAudioRef.current = sound;
+        if (dropResult === 'correct') {
+          void scheduleAdvanceAfterGoodJob(sound);
+        }
+      } catch {
+        if (dropResult === 'correct') {
+          void scheduleAdvanceAfterGoodJob(null);
+        }
+      }
+    };
+
+    void playFeedback();
+
+    return () => {
+      active = false;
+      clearAdvanceTimeout();
+      const sound = feedbackAudioRef.current;
+      feedbackAudioRef.current = null;
+      if (!sound) return;
+      void (async () => {
+        try {
+          await sound.stopAsync();
+        } catch {
+          // ignore
+        }
+        try {
+          await sound.unloadAsync();
+        } catch {
+          // ignore
+        }
+      })();
+    };
+  }, [clearAdvanceTimeout, dropResult, isPreloading, scheduleAdvanceAfterGoodJob]);
 
   const playOptionAudio = useCallback(
     async (option: OptionModel) => {
@@ -436,6 +546,7 @@ export function CmsInteractivePage({
 
   const handleRetry = useCallback(() => {
     audioRequestIdRef.current += 1;
+    clearAdvanceTimeout();
     void stopAllInteractiveAudio();
     setDragLayer(null);
     dragStateRef.current = null;
@@ -446,7 +557,7 @@ export function CmsInteractivePage({
     setDropResult('');
     setResetSeed((s) => s + 1);
     onRetry?.();
-  }, [onRetry, stopAllInteractiveAudio]);
+  }, [clearAdvanceTimeout, onRetry, stopAllInteractiveAudio]);
 
   const buildPanResponder = useCallback(
     (option: OptionModel) =>

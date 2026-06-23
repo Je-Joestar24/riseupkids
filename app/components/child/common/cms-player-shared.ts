@@ -286,3 +286,15 @@ export const cmsLocalUiAssets = {
   retryButton: require('@/assets/cms/retry_button.png'),
   homeButton: require('@/assets/cms/home.png'),
 } as const;
+
+/** Bundled SFX for CMS drag-and-drop feedback (correct vs retry). */
+export const cmsInteractiveFeedbackAudio = {
+  goodJob: require('@/assets/audio/Good_Job_REAL.mp3'),
+  tryAgain: require('@/assets/audio/Try_Again_REAL.mp3'),
+} as const;
+
+/** Minimum pause after Good Job SFX starts before advancing the interactive page (app). */
+export const CMS_GOOD_JOB_ADVANCE_DELAY_MS = 300;
+
+/** Fallback advance delay when Good Job SFX fails to load (app). */
+export const CMS_GOOD_JOB_ADVANCE_FALLBACK_MS = 1000;
