@@ -4,7 +4,8 @@ const scormService = require('./scorm.service');
 const html5handlerService = require('./html5handler.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
-const { getStarCamMissionVideoMediaIds } = require('../utils/starCamMissionMedia.util');
+const { COURSE_VIDEO_MEDIA_TAG } = require('../constants/courseVideoMedia');
+const { isCourseVideoMedia } = require('../utils/courseVideoMedia.util');
 
 const applyVideoOwnershipFilter = (user, baseQuery = {}) => {
   const ownerFilter = applyCreatorOwnershipFilter(user, baseQuery);
@@ -17,6 +18,12 @@ const applyVideoOwnershipFilter = (user, baseQuery = {}) => {
 
 const assertVideoOwnership = (user, video, message) => {
   assertCreatorOwnsDocument(user, { ...video, createdBy: video?.uploadedBy ?? video?.createdBy }, message);
+};
+
+const assertCourseVideo = (video) => {
+  if (!isCourseVideoMedia(video)) {
+    throw new Error('Video not found');
+  }
 };
 
 /**
@@ -132,6 +139,7 @@ const createVideo = async (userId, videoData, files = {}) => {
       cmsBookId: completionContentType === 'builtin' ? cmsBookId : null,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
+      tags: [COURSE_VIDEO_MEDIA_TAG],
     });
   } else {
     const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
@@ -151,6 +159,7 @@ const createVideo = async (userId, videoData, files = {}) => {
       cmsBookId: completionContentType === 'builtin' ? cmsBookId : null,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
+      tags: [COURSE_VIDEO_MEDIA_TAG],
     });
   }
 
@@ -220,7 +229,10 @@ const createVideo = async (userId, videoData, files = {}) => {
     }
   }
 
-  videoMedia.tags = parsedTags.filter(t => t && t.trim()).map(t => t.trim());
+  videoMedia.tags = [
+    COURSE_VIDEO_MEDIA_TAG,
+    ...parsedTags.filter((t) => t && t.trim()).map((t) => t.trim()),
+  ].filter((tag, index, arr) => arr.indexOf(tag) === index);
   await videoMedia.save();
 
   // Get created video with populated data
@@ -256,9 +268,10 @@ const getAllVideos = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query - videos are Media with type='video' (SCORM is optional)
+  // Only list Media explicitly created for the course Videos content type.
   const query = applyVideoOwnershipFilter(user, {
     type: 'video',
+    tags: COURSE_VIDEO_MEDIA_TAG,
   });
 
   // Support both isActive and isPublished filters
@@ -278,11 +291,6 @@ const getAllVideos = async (queryParams = {}) => {
       { title: { $regex: search, $options: 'i' } },
       { description: { $regex: search, $options: 'i' } },
     ];
-  }
-
-  const missionVideoIds = await getStarCamMissionVideoMediaIds();
-  if (missionVideoIds.length > 0) {
-    query._id = { $nin: missionVideoIds };
   }
 
   // Pagination
@@ -339,6 +347,7 @@ const getVideoById = async (videoId, user = null) => {
     throw new Error('Video not found');
   }
 
+  assertCourseVideo(video);
   assertVideoOwnership(user, video);
 
   return video;
@@ -381,6 +390,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
     throw new Error('Video not found');
   }
 
+  assertCourseVideo(video);
   assertVideoOwnership(user, video);
 
   // Update title
@@ -544,6 +554,7 @@ const deleteVideo = async (videoId, user = null) => {
     throw new Error('Video not found');
   }
 
+  assertCourseVideo(video);
   assertVideoOwnership(user, video);
 
   try {

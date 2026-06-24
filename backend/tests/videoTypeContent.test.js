@@ -124,6 +124,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
         videoSource: 'embed',
         embedUrl: validEmbed,
         cloudUrl: validEmbed,
+        tags: ['course-video'],
       })
     );
     expect(out).toEqual(leanResult);
@@ -263,7 +264,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     expect(videoDoc.scormBaseUrl).toBe('https://cdn.example/scorm/video/video-media');
     expect(videoDoc.scormEntryPoint).toBe('story.html');
     expect(videoDoc.thumbnail).toBe('https://cdn.example/images/cover.png');
-    expect(videoDoc.tags).toEqual(['movement', 'lesson']);
+    expect(videoDoc.tags).toEqual(['course-video', 'movement', 'lesson']);
     expect(videoDoc.save).toHaveBeenCalledTimes(4);
     expect(out).toEqual(createdLean);
   });
@@ -348,6 +349,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'embed',
       embedUrl: validEmbed,
       save: jest.fn().mockResolvedValue(true),
@@ -371,6 +373,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'upload',
       completionContentType: 'none',
       save: jest.fn().mockResolvedValue(true),
@@ -403,6 +406,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'upload',
       completionContentType: 'html5',
       html5PackageId: 'old-package',
@@ -443,6 +447,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'upload',
       save: jest.fn(),
     };
@@ -458,6 +463,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'embed',
       scormFile: null,
       thumbnail: null,
@@ -476,6 +482,7 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     const videoDoc = {
       _id: 'media1',
       type: 'video',
+      tags: ['course-video'],
       videoSource: 'upload',
       filePath: 'media/videos/x.mp4',
       scormFile: null,
@@ -490,15 +497,13 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
     expect(s3Service.deleteByKey).toHaveBeenCalledWith('media/videos/x.mp4');
   });
 
-  it('getAllVideos excludes Star Cam mission video media from the content list', async () => {
-    getStarCamMissionVideoMediaIds.mockResolvedValue(['mission-video-1', 'mission-video-2']);
-
+  it('getAllVideos only returns Media tagged as course Videos content', async () => {
     const findChain = {
       populate: jest.fn().mockReturnThis(),
       sort: jest.fn().mockReturnThis(),
       skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockResolvedValue([{ _id: 'course-video-1', title: 'Course Video' }]),
+      lean: jest.fn().mockResolvedValue([{ _id: 'course-video-1', title: 'Course Video', tags: ['course-video'] }]),
     };
     Media.find.mockReturnValue(findChain);
     Media.countDocuments.mockResolvedValue(1);
@@ -510,12 +515,12 @@ describe('video.services — content type video (upload vs Bunny embed)', () => 
       expect.objectContaining({
         type: 'video',
         isActive: true,
-        _id: { $nin: ['mission-video-1', 'mission-video-2'] },
+        tags: 'course-video',
       })
     );
     expect(Media.countDocuments).toHaveBeenCalledWith(
       expect.objectContaining({
-        _id: { $nin: ['mission-video-1', 'mission-video-2'] },
+        tags: 'course-video',
       })
     );
     expect(result.videos).toHaveLength(1);

@@ -216,6 +216,7 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
         }}
       >
         <Typography
+          component="span"
           variant="h5"
           sx={{
             fontFamily: 'Quicksand, sans-serif',

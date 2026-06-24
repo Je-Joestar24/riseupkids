@@ -13,23 +13,21 @@ import {
   MenuItem,
   Box,
   Typography,
-  Chip,
   IconButton,
+  Grid,
+  Paper,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { Close as CloseIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
+import BentoCoverImageField from './BentoCoverImageField';
+import BentoInstructionVideoField from './BentoInstructionVideoField';
 
-/**
- * AudioEditModal Component
- * 
- * Modal for editing audio assignments
- * Can only edit: title, description, instructions, coverImage, estimatedDuration,
- * starsAwarded, isStarAssignment, isPublished
- * Reference audio cannot be changed
- */
 const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
   const theme = useTheme();
   const {
@@ -48,6 +46,8 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
     starsAwarded: 10,
     isStarAssignment: false,
     isPublished: false,
+    instructionVideoSource: 'upload',
+    instructionVideoEmbedUrl: '',
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
@@ -60,12 +60,29 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
   const isFetchingRef = useRef(false);
   const lastFetchedIdRef = useRef(null);
 
-  // Fetch audio assignment data when modal opens
+  const bentoCardSx = {
+    height: '100%',
+    borderRadius: '20px',
+    borderColor: theme.palette.divider,
+    p: { xs: 2, md: 2.5 },
+    background:
+      theme.palette.mode === 'dark'
+        ? 'linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))'
+        : 'linear-gradient(145deg, #ffffff, #fbfaf7)',
+    boxShadow: '0 14px 30px rgba(15, 23, 42, 0.05)',
+  };
+
+  const bentoTitleSx = {
+    fontFamily: 'Quicksand, sans-serif',
+    fontWeight: 700,
+    mb: 0.5,
+  };
+
   useEffect(() => {
     if (open && audioId) {
       const hasCorrectAudio = currentContent && currentContent._id === audioId;
       const isDifferentAudio = lastFetchedIdRef.current !== audioId;
-      
+
       if (!hasCorrectAudio && !isFetchingRef.current && isDifferentAudio) {
         isFetchingRef.current = true;
         lastFetchedIdRef.current = audioId;
@@ -83,12 +100,13 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
       lastFetchedIdRef.current = null;
       clearContent();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, audioId]);
+  }, [open, audioId, currentContent, clearContent, fetchContent]);
 
-  // Update form data when currentContent changes
   useEffect(() => {
     if (open && audioId && currentContent && currentContent._id === audioId && !isInitialized) {
+      const instructionMedia = currentContent.instructionVideo;
+      const isEmbed = typeof instructionMedia === 'object' && instructionMedia?.videoSource === 'embed';
+
       setFormData({
         title: currentContent.title || '',
         description: currentContent.description || '',
@@ -97,15 +115,16 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
         starsAwarded: currentContent.starsAwarded || 10,
         isStarAssignment: currentContent.isStarAssignment || false,
         isPublished: currentContent.isPublished || false,
+        instructionVideoSource: isEmbed ? 'embed' : 'upload',
+        instructionVideoEmbedUrl: isEmbed ? (instructionMedia.embedUrl || instructionMedia.url || '') : '',
       });
       setCurrentCoverImage(currentContent.coverImage);
       setSelectedCoverImage(null);
-      setCurrentInstructionVideo(currentContent.instructionVideo || null);
+      setCurrentInstructionVideo(instructionMedia || null);
       setSelectedInstructionVideo(null);
       setIsInitialized(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, audioId, currentContent?._id]);
+  }, [open, audioId, currentContent, isInitialized]);
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -120,15 +139,10 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
     }
   };
 
-  // Cleanup object URL
   useEffect(() => {
     return () => {
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-      }
-      if (instructionVideoPreviewUrl) {
-        URL.revokeObjectURL(instructionVideoPreviewUrl);
-      }
+      if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+      if (instructionVideoPreviewUrl) URL.revokeObjectURL(instructionVideoPreviewUrl);
     };
   }, [imagePreviewUrl, instructionVideoPreviewUrl]);
 
@@ -148,15 +162,25 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
       if (selectedCoverImage) {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
-      if (selectedInstructionVideo) {
+
+      if (formData.instructionVideoSource === 'embed') {
+        const embed = formData.instructionVideoEmbedUrl?.trim();
+        if (embed) {
+          if (!looksLikeBunnyExploreEmbedUrl(embed)) {
+            alert('Please enter a valid Bunny iframe embed URL for the instruction video.');
+            return;
+          }
+          formDataToSend.append('instructionVideoSource', 'embed');
+          formDataToSend.append('instructionVideoEmbedUrl', embed);
+        }
+      } else if (selectedInstructionVideo) {
+        formDataToSend.append('instructionVideoSource', 'upload');
         formDataToSend.append('instructionVideo', selectedInstructionVideo);
       }
 
       await updateContentData(CONTENT_TYPES.AUDIO_ASSIGNMENT, audioId, formDataToSend);
-      
-      if (onSuccess) {
-        onSuccess();
-      }
+
+      if (onSuccess) onSuccess();
       handleClose();
     } catch (error) {
       console.error('Error updating audio assignment:', error);
@@ -172,6 +196,8 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
       starsAwarded: 10,
       isStarAssignment: false,
       isPublished: false,
+      instructionVideoSource: 'upload',
+      instructionVideoEmbedUrl: '',
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
@@ -190,40 +216,52 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
     onClose();
   };
 
-  const getMediaUrl = (media) => {
-    if (!media) return null;
-    const url = typeof media === 'string' ? media : media.url;
-    if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return `${BACKEND_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
-  };
-
   const resolveMediaUrl = (maybeUrl) => {
     if (!maybeUrl || typeof maybeUrl !== 'string') return null;
     if (/^https?:\/\//i.test(maybeUrl)) return maybeUrl;
     return `${BACKEND_BASE_URL}${maybeUrl}`;
   };
 
+  const getMediaUrl = (media) => {
+    if (!media) return null;
+    if (typeof media === 'object' && media.videoSource === 'embed') {
+      return media.embedUrl || media.url || null;
+    }
+    const url = typeof media === 'string' ? media : media.url;
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${BACKEND_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+  };
+
   const displayCoverImage = selectedCoverImage && imagePreviewUrl
     ? imagePreviewUrl
     : currentCoverImage
-    ? resolveMediaUrl(currentCoverImage)
-    : null;
+      ? resolveMediaUrl(currentCoverImage)
+      : null;
 
-  const displayInstructionVideo = selectedInstructionVideo && instructionVideoPreviewUrl
-    ? instructionVideoPreviewUrl
-    : getMediaUrl(currentInstructionVideo);
+  const currentInstructionUploadUrl = currentInstructionVideo
+    && typeof currentInstructionVideo === 'object'
+    && currentInstructionVideo.videoSource !== 'embed'
+    ? getMediaUrl(currentInstructionVideo)
+    : '';
+
+  const currentInstructionEmbedUrl = currentInstructionVideo
+    && typeof currentInstructionVideo === 'object'
+    && currentInstructionVideo.videoSource === 'embed'
+    ? (currentInstructionVideo.embedUrl || currentInstructionVideo.url || '')
+    : '';
 
   return (
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="md"
+      maxWidth="lg"
       fullWidth
       PaperProps={{
         sx: {
           borderRadius: '16px',
           fontFamily: 'Quicksand, sans-serif',
+          width: 'min(1280px, calc(100vw - 32px))',
         },
       }}
     >
@@ -236,38 +274,24 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
           borderBottom: `1px solid ${theme.palette.border.main}`,
         }}
       >
-        <Typography
-          variant="h5"
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 700,
-          }}
-        >
+        <Typography component="span" variant="h5" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
           Edit Audio Assignment
         </Typography>
-        <IconButton onClick={handleClose} size="small">
+        <IconButton onClick={handleClose} size="small" aria-label="Close edit audio assignment dialog">
           <CloseIcon />
         </IconButton>
       </DialogTitle>
 
       <DialogContent sx={{ padding: 3 }}>
         <Stack spacing={3} sx={{ marginTop: '20px' }}>
-          {/* Title */}
           <TextField
             label="Audio Assignment Title"
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
             required
             fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
           />
-
-          {/* Description */}
           <TextField
             label="Description"
             value={formData.description}
@@ -275,15 +299,8 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
             multiline
             rows={3}
             fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
           />
-
-          {/* Instructions */}
           <TextField
             label="Instructions"
             value={formData.instructions}
@@ -292,202 +309,43 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
             rows={3}
             required
             fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
           />
 
-          {/* Estimated Duration */}
-          <TextField
-            label="Estimated Duration (minutes)"
-            type="number"
-            value={formData.estimatedDuration || ''}
-            onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || null)}
-            inputProps={{ min: 0 }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
-
-          {/* Stars Awarded */}
-          <TextField
-            label="Stars Awarded"
-            type="number"
-            value={formData.starsAwarded}
-            onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
-            inputProps={{ min: 0 }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              },
-            }}
-          />
-
-          {/* Is Star Assignment */}
-          <FormControl fullWidth>
-            <InputLabel>Is Star Assignment?</InputLabel>
-            <Select
-              value={formData.isStarAssignment ? 'true' : 'false'}
-              onChange={(e) => handleInputChange('isStarAssignment', e.target.value === 'true')}
-              label="Is Star Assignment?"
-              sx={{
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              <MenuItem value="false">No</MenuItem>
-              <MenuItem value="true">Yes</MenuItem>
-            </Select>
-          </FormControl>
-
-          {/* Cover Image Upload */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 600,
-                marginBottom: 1,
-              }}
-            >
-              Cover Image (Optional)
-            </Typography>
-            
-            {displayCoverImage && (
-              <Box
-                sx={{
-                  position: 'relative',
-                  width: '100%',
-                  paddingTop: '100%',
-                  overflow: 'hidden',
-                  borderRadius: '8px',
-                  marginBottom: 2,
-                  backgroundColor: theme.palette.custom?.bgSecondary || theme.palette.grey[100],
-                }}
-              >
-                <Box
-                  component="img"
-                  src={displayCoverImage}
-                  alt="Cover preview"
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
+          <Grid container spacing={2}>
+            <Grid item xs={12} lg={8}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <BentoInstructionVideoField
+                  theme={theme}
+                  idPrefix="audio-edit"
+                  videoSource={formData.instructionVideoSource}
+                  embedUrl={formData.instructionVideoEmbedUrl}
+                  onSourceChange={(value) => {
+                    handleInputChange('instructionVideoSource', value);
+                    if (value === 'embed') {
+                      setSelectedInstructionVideo(null);
+                      if (instructionVideoPreviewUrl) {
+                        URL.revokeObjectURL(instructionVideoPreviewUrl);
+                        setInstructionVideoPreviewUrl(null);
+                      }
+                    } else {
+                      handleInputChange('instructionVideoEmbedUrl', '');
+                    }
                   }}
-                />
-              </Box>
-            )}
-
-            <input
-              accept="image/*"
-              style={{ display: 'none' }}
-              id="audio-cover-image-upload-edit"
-              type="file"
-              onChange={handleCoverImageChange}
-            />
-            <label htmlFor="audio-cover-image-upload-edit">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<CloudUploadIcon />}
-                fullWidth
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
-              >
-                {selectedCoverImage ? 'Change Cover Image' : 'Upload New Cover Image'}
-              </Button>
-            </label>
-            {selectedCoverImage && (
-              <Box sx={{ marginTop: 1 }}>
-                <Chip
-                  label={selectedCoverImage.name}
-                  size="small"
-                  sx={{ margin: 0.5 }}
-                  onDelete={() => setSelectedCoverImage(null)}
-                />
-              </Box>
-            )}
-          </Box>
-
-          {/* Instruction Video Upload */}
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 600,
-                marginBottom: 1,
-              }}
-            >
-              Instruction Video (Optional)
-            </Typography>
-
-            {displayInstructionVideo && (
-              <Box
-                component="video"
-                src={displayInstructionVideo}
-                controls
-                preload="metadata"
-                aria-label="Instruction video preview"
-                sx={{
-                  width: '100%',
-                  maxHeight: 260,
-                  objectFit: 'cover',
-                  borderRadius: '8px',
-                  marginBottom: 2,
-                  backgroundColor: '#000',
-                }}
-              />
-            )}
-
-            <input
-              accept="video/*"
-              style={{ display: 'none' }}
-              id="audio-instruction-video-upload-edit"
-              type="file"
-              onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  const file = e.target.files[0];
-                  setSelectedInstructionVideo(file);
-                  const url = URL.createObjectURL(file);
-                  setInstructionVideoPreviewUrl(url);
-                }
-              }}
-            />
-            <label htmlFor="audio-instruction-video-upload-edit">
-              <Button
-                variant="outlined"
-                component="span"
-                startIcon={<CloudUploadIcon />}
-                fullWidth
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
-              >
-                {selectedInstructionVideo ? 'Change Instruction Video' : 'Upload Instruction Video'}
-              </Button>
-            </label>
-            {selectedInstructionVideo && (
-              <Box sx={{ marginTop: 1 }}>
-                <Chip
-                  label={selectedInstructionVideo.name}
-                  size="small"
-                  sx={{ margin: 0.5 }}
-                  onDelete={() => {
+                  onEmbedUrlChange={(value) => handleInputChange('instructionVideoEmbedUrl', value)}
+                  selectedFile={selectedInstructionVideo}
+                  filePreviewUrl={instructionVideoPreviewUrl}
+                  currentUploadUrl={currentInstructionUploadUrl}
+                  currentEmbedUrl={currentInstructionEmbedUrl}
+                  onFileSelect={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      const file = e.target.files[0];
+                      setSelectedInstructionVideo(file);
+                      const url = URL.createObjectURL(file);
+                      setInstructionVideoPreviewUrl(url);
+                    }
+                  }}
+                  onClearFile={() => {
                     setSelectedInstructionVideo(null);
                     if (instructionVideoPreviewUrl) {
                       URL.revokeObjectURL(instructionVideoPreviewUrl);
@@ -495,43 +353,84 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
                     }
                   }}
                 />
-              </Box>
-            )}
-          </Box>
-
-          {/* Published Toggle */}
-          <FormControl fullWidth>
-            <InputLabel>Status</InputLabel>
-            <Select
-              value={formData.isPublished ? 'true' : 'false'}
-              onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
-              label="Status"
-              sx={{
-                borderRadius: '10px',
-                fontFamily: 'Quicksand, sans-serif',
-              }}
-            >
-              <MenuItem value="false">Draft</MenuItem>
-              <MenuItem value="true">Published</MenuItem>
-            </Select>
-          </FormControl>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} lg={4}>
+              <Stack spacing={2}>
+                <Paper variant="outlined" sx={bentoCardSx}>
+                  <Stack spacing={1.5}>
+                    <Typography sx={bentoTitleSx}>Rewards & timing</Typography>
+                    <TextField
+                      label="Estimated Duration (minutes)"
+                      type="number"
+                      value={formData.estimatedDuration || ''}
+                      onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value, 10) || null)}
+                      inputProps={{ min: 0 }}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                    />
+                    <TextField
+                      label="Stars Awarded"
+                      type="number"
+                      value={formData.starsAwarded}
+                      onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value, 10) || 0)}
+                      inputProps={{ min: 0 }}
+                      fullWidth
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                    />
+                    <FormControlLabel
+                      control={(
+                        <Checkbox
+                          checked={formData.isStarAssignment}
+                          onChange={(e) => handleInputChange('isStarAssignment', e.target.checked)}
+                          color="primary"
+                        />
+                      )}
+                      label="Star assignment (high-value task)"
+                      sx={{ '& .MuiTypography-root': { fontFamily: 'Quicksand, sans-serif' } }}
+                    />
+                  </Stack>
+                </Paper>
+                <Paper variant="outlined" sx={bentoCardSx}>
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={formData.isPublished ? 'true' : 'false'}
+                      onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                      label="Status"
+                      sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                    >
+                      <MenuItem value="false">Draft</MenuItem>
+                      <MenuItem value="true">Published</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Paper>
+              </Stack>
+            </Grid>
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <BentoCoverImageField
+                  theme={theme}
+                  id="audio-cover-image-upload-edit"
+                  previewUrl={displayCoverImage}
+                  fileName={selectedCoverImage?.name}
+                  onFileChange={handleCoverImageChange}
+                  onClearFile={() => {
+                    setSelectedCoverImage(null);
+                    if (imagePreviewUrl) {
+                      URL.revokeObjectURL(imagePreviewUrl);
+                      setImagePreviewUrl(null);
+                    }
+                  }}
+                />
+              </Paper>
+            </Grid>
+          </Grid>
         </Stack>
       </DialogContent>
 
-      <DialogActions
-        sx={{
-          padding: 3,
-          borderTop: `1px solid ${theme.palette.border.main}`,
-        }}
-      >
-        <Button
-          onClick={handleClose}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontWeight: 600,
-            borderRadius: '10px',
-          }}
-        >
+      <DialogActions sx={{ padding: 3, borderTop: `1px solid ${theme.palette.border.main}` }}>
+        <Button onClick={handleClose} sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, borderRadius: '10px' }}>
           Cancel
         </Button>
         <Button
@@ -544,9 +443,7 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,
             borderRadius: '10px',
-            '&:hover': {
-              backgroundColor: theme.palette.orange.dark,
-            },
+            '&:hover': { backgroundColor: theme.palette.orange.dark },
           }}
         >
           {loading ? 'Updating...' : 'Update Audio Assignment'}
@@ -557,4 +454,3 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
 };
 
 export default AudioEditModal;
-

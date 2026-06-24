@@ -144,6 +144,7 @@ const ActivityAddModal = ({ open, onClose, onSuccess }) => {
         }}
       >
         <Typography
+          component="span"
           variant="h5"
           sx={{
             fontFamily: 'Quicksand, sans-serif',

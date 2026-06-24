@@ -256,6 +256,7 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
         }}
       >
         <Typography
+          component="span"
           variant="h5"
           sx={{
             fontFamily: 'Quicksand, sans-serif',
@@ -328,26 +329,32 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
                     aria-label={displayCoverImage ? 'Change video cover image' : 'Upload video cover image'}
                     sx={{
                       width: '100%',
-                      aspectRatio: '1.618 / 1',
-                      minHeight: { xs: 220, md: 360 },
+                      ...(displayCoverImage
+                        ? {
+                            borderRadius: 0,
+                            border: `1px solid ${theme.palette.divider}`,
+                            backgroundColor: theme.palette.custom?.bgSecondary || theme.palette.grey[100],
+                          }
+                        : {
+                            aspectRatio: '1.618 / 1',
+                            minHeight: { xs: 220, md: 360 },
+                            borderRadius: '18px',
+                            border: `2px dashed ${theme.palette.divider}`,
+                            background:
+                              theme.palette.mode === 'dark'
+                                ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                                : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }),
                       overflow: 'hidden',
-                      borderRadius: '18px',
-                      border: displayCoverImage
-                        ? `1px solid ${theme.palette.divider}`
-                        : `2px dashed ${theme.palette.divider}`,
-                      background:
-                        theme.palette.mode === 'dark'
-                          ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
-                          : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
                       cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
                       position: 'relative',
                       transition: '160ms ease',
                       '&:hover': {
                         borderColor: theme.palette.orange?.main || theme.palette.primary.main,
-                        transform: 'translateY(-1px)',
+                        ...(!displayCoverImage && { transform: 'translateY(-1px)' }),
                       },
                     }}
                   >
@@ -359,8 +366,9 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
                           alt="Cover preview"
                           sx={{
                             width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
+                            height: 'auto',
+                            display: 'block',
+                            objectFit: 'contain',
                           }}
                         />
                         <Chip

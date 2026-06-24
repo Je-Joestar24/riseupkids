@@ -29,6 +29,8 @@ import useContent from '../../../../hooks/contentHook';
 import { BOOK_PACKAGE_TYPES, CONTENT_TYPES, VIDEO_COMPLETION_TYPES } from '../../../../services/contentService';
 import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
+import BentoCoverImageField from './BentoCoverImageField';
+import BentoInstructionVideoField from './BentoInstructionVideoField';
 
 /**
  * ContentAddModal Component
@@ -84,6 +86,9 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     videoSource: 'upload',
     embedUrl: '',
     videoCompletionType: VIDEO_COMPLETION_TYPES.NONE,
+    // audio assignment / chant instruction video
+    instructionVideoSource: 'upload',
+    instructionVideoEmbedUrl: '',
     // audio assignment-specific
     instructions: '',
     estimatedDuration: '',
@@ -101,6 +106,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
   });
   const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [coverPreviewUrl, setCoverPreviewUrl] = useState('');
+  const [instructionVideoPreviewUrl, setInstructionVideoPreviewUrl] = useState('');
   const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
 
   const handleInputChange = (field, value) => {
@@ -120,14 +126,20 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
       setCoverPreviewUrl(file ? URL.createObjectURL(file) : '');
     }
+
+    if (field === 'instructionVideo') {
+      if (instructionVideoPreviewUrl) URL.revokeObjectURL(instructionVideoPreviewUrl);
+      setInstructionVideoPreviewUrl(file ? URL.createObjectURL(file) : '');
+    }
   };
 
   useEffect(() => {
     return () => {
       if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
       if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+      if (instructionVideoPreviewUrl) URL.revokeObjectURL(instructionVideoPreviewUrl);
     };
-  }, [videoPreviewUrl, coverPreviewUrl]);
+  }, [videoPreviewUrl, coverPreviewUrl, instructionVideoPreviewUrl]);
 
   const resetState = () => {
     // Reset to current content type (not always ACTIVITY)
@@ -151,6 +163,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
       videoSource: 'upload',
       embedUrl: '',
       videoCompletionType: VIDEO_COMPLETION_TYPES.NONE,
+      instructionVideoSource: 'upload',
+      instructionVideoEmbedUrl: '',
       instructions: '',
       estimatedDuration: '',
       isStarAssignment: false,
@@ -166,8 +180,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     });
     if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
     if (coverPreviewUrl) URL.revokeObjectURL(coverPreviewUrl);
+    if (instructionVideoPreviewUrl) URL.revokeObjectURL(instructionVideoPreviewUrl);
     setVideoPreviewUrl('');
     setCoverPreviewUrl('');
+    setInstructionVideoPreviewUrl('');
   };
 
   const handleSubmit = async () => {
@@ -289,9 +305,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         if (selectedFiles.referenceAudio) {
           fd.append('referenceAudio', selectedFiles.referenceAudio);
         }
-        if (selectedFiles.instructionVideo) {
-          fd.append('instructionVideo', selectedFiles.instructionVideo);
-        }
+        if (!appendInstructionVideoToFormData(fd)) return;
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -310,11 +324,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         if (selectedFiles.audio) {
           fd.append('audio', selectedFiles.audio);
         }
-        // Optional instruction video
-        if (selectedFiles.instructionVideo) {
-          fd.append('instructionVideo', selectedFiles.instructionVideo);
-        }
-        // Optional cover image
+        if (!appendInstructionVideoToFormData(fd)) return;
         if (selectedFiles.coverImage) {
           fd.append('coverImage', selectedFiles.coverImage);
         }
@@ -687,20 +697,28 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               aria-label={selectedFiles.coverImage ? 'Change selected cover image' : 'Upload video cover image'}
               sx={{
                 width: '100%',
-                aspectRatio: '1.618 / 1',
-                minHeight: { xs: 170, md: 260 },
-                borderRadius: '18px',
-                border: coverPreviewUrl ? `1px solid ${theme.palette.divider}` : `2px dashed ${theme.palette.divider}`,
+                ...(coverPreviewUrl
+                  ? {
+                      borderRadius: 0,
+                      border: `1px solid ${theme.palette.divider}`,
+                      backgroundColor: theme.palette.custom?.bgSecondary || theme.palette.grey[100],
+                    }
+                  : {
+                      aspectRatio: '1.618 / 1',
+                      minHeight: { xs: 170, md: 260 },
+                      borderRadius: '18px',
+                      border: `2px dashed ${theme.palette.divider}`,
+                      background:
+                        theme.palette.mode === 'dark'
+                          ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                          : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }),
                 overflow: 'hidden',
                 cursor: 'pointer',
                 position: 'relative',
-                background:
-                  theme.palette.mode === 'dark'
-                    ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
-                    : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 '&:hover': {
                   borderColor: theme.palette.orange?.main || theme.palette.primary.main,
                 },
@@ -712,7 +730,12 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     component="img"
                     src={coverPreviewUrl}
                     alt="Selected video cover preview"
-                    sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    sx={{
+                      width: '100%',
+                      height: 'auto',
+                      display: 'block',
+                      objectFit: 'contain',
+                    }}
                   />
                   <Chip
                     label="Change cover"
@@ -741,6 +764,264 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
               />
             )}
           </Stack>
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+
+  const appendInstructionVideoToFormData = (fd) => {
+    if (formData.instructionVideoSource === 'embed') {
+      const embed = formData.instructionVideoEmbedUrl?.trim();
+      if (!embed) return true;
+      if (!looksLikeBunnyExploreEmbedUrl(embed)) {
+        alert('Please enter a valid Bunny iframe embed URL for the instruction video.');
+        return false;
+      }
+      fd.append('instructionVideoSource', 'embed');
+      fd.append('instructionVideoEmbedUrl', embed);
+      return true;
+    }
+    if (selectedFiles.instructionVideo) {
+      fd.append('instructionVideoSource', 'upload');
+      fd.append('instructionVideo', selectedFiles.instructionVideo);
+    }
+    return true;
+  };
+
+  const renderAudioBentoFields = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} lg={8}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <BentoInstructionVideoField
+            theme={theme}
+            idPrefix="audio"
+            videoSource={formData.instructionVideoSource}
+            embedUrl={formData.instructionVideoEmbedUrl}
+            onSourceChange={(value) => {
+              handleInputChange('instructionVideoSource', value);
+              if (value === 'embed') {
+                handleFileChange('instructionVideo', null);
+              } else {
+                handleInputChange('instructionVideoEmbedUrl', '');
+              }
+            }}
+            onEmbedUrlChange={(value) => handleInputChange('instructionVideoEmbedUrl', value)}
+            selectedFile={selectedFiles.instructionVideo}
+            filePreviewUrl={instructionVideoPreviewUrl}
+            onFileSelect={(e) => handleFileChange('instructionVideo', e.target.files)}
+            onClearFile={() => handleFileChange('instructionVideo', null)}
+          />
+        </Paper>
+      </Grid>
+      <Grid item xs={12} lg={4}>
+        <Stack spacing={2}>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Typography sx={bentoTitleSx}>Rewards & timing</Typography>
+              <TextField
+                label="Estimated Duration (minutes)"
+                type="number"
+                value={formData.estimatedDuration}
+                onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <TextField
+                label="Stars Awarded"
+                type="number"
+                value={formData.starsAwarded}
+                onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    checked={formData.isStarAssignment}
+                    onChange={(e) => handleInputChange('isStarAssignment', e.target.checked)}
+                    color="primary"
+                  />
+                )}
+                label="Star assignment (high-value task)"
+                sx={{ '& .MuiTypography-root': { fontFamily: 'Quicksand, sans-serif' } }}
+              />
+            </Stack>
+          </Paper>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={formData.isPublished ? 'true' : 'false'}
+                onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                label="Status"
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+              >
+                <MenuItem value="false">Draft</MenuItem>
+                <MenuItem value="true">Published</MenuItem>
+              </Select>
+            </FormControl>
+          </Paper>
+        </Stack>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <Stack spacing={1.5}>
+            <Typography sx={bentoTitleSx}>Reference audio</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+              Optional sample audio for learners.
+            </Typography>
+            <input
+              accept="audio/*"
+              style={{ display: 'none' }}
+              id="audio-ref-upload-bento"
+              type="file"
+              onChange={(e) => handleFileChange('referenceAudio', e.target.files)}
+            />
+            <label htmlFor="audio-ref-upload-bento">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<CloudUploadIcon />}
+                fullWidth
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+              >
+                Upload reference audio
+              </Button>
+            </label>
+            {selectedFiles.referenceAudio && (
+              <Chip
+                label={selectedFiles.referenceAudio.name}
+                size="small"
+                onDelete={() => handleFileChange('referenceAudio', null)}
+              />
+            )}
+          </Stack>
+        </Paper>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <BentoCoverImageField
+            theme={theme}
+            id="audio-cover-upload-bento"
+            previewUrl={coverPreviewUrl}
+            fileName={selectedFiles.coverImage?.name}
+            onFileChange={(e) => handleFileChange('coverImage', e.target.files)}
+            onClearFile={() => handleFileChange('coverImage', null)}
+          />
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+
+  const renderChantBentoFields = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} lg={8}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <BentoInstructionVideoField
+            theme={theme}
+            idPrefix="chant"
+            videoSource={formData.instructionVideoSource}
+            embedUrl={formData.instructionVideoEmbedUrl}
+            onSourceChange={(value) => {
+              handleInputChange('instructionVideoSource', value);
+              if (value === 'embed') {
+                handleFileChange('instructionVideo', null);
+              } else {
+                handleInputChange('instructionVideoEmbedUrl', '');
+              }
+            }}
+            onEmbedUrlChange={(value) => handleInputChange('instructionVideoEmbedUrl', value)}
+            selectedFile={selectedFiles.instructionVideo}
+            filePreviewUrl={instructionVideoPreviewUrl}
+            onFileSelect={(e) => handleFileChange('instructionVideo', e.target.files)}
+            onClearFile={() => handleFileChange('instructionVideo', null)}
+          />
+        </Paper>
+      </Grid>
+      <Grid item xs={12} lg={4}>
+        <Stack spacing={2}>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Typography sx={bentoTitleSx}>Rewards & timing</Typography>
+              <TextField
+                label="Estimated Duration (minutes)"
+                type="number"
+                value={formData.estimatedDuration}
+                onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <TextField
+                label="Stars Awarded"
+                type="number"
+                value={formData.starsAwarded}
+                onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value, 10) || 0)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+            </Stack>
+          </Paper>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={formData.isPublished ? 'true' : 'false'}
+                onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                label="Status"
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+              >
+                <MenuItem value="false">Draft</MenuItem>
+                <MenuItem value="true">Published</MenuItem>
+              </Select>
+            </FormControl>
+          </Paper>
+        </Stack>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <Stack spacing={1.5}>
+            <Typography sx={bentoTitleSx}>Chant audio</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+              Optional audio file for the chant.
+            </Typography>
+            <input
+              accept="audio/*"
+              style={{ display: 'none' }}
+              id="chant-audio-upload-bento"
+              type="file"
+              onChange={(e) => handleFileChange('audio', e.target.files)}
+            />
+            <label htmlFor="chant-audio-upload-bento">
+              <Button
+                variant="outlined"
+                component="span"
+                startIcon={<CloudUploadIcon />}
+                fullWidth
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+              >
+                Upload audio file
+              </Button>
+            </label>
+            {selectedFiles.audio && (
+              <Chip label={selectedFiles.audio.name} size="small" onDelete={() => handleFileChange('audio', null)} />
+            )}
+          </Stack>
+        </Paper>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <BentoCoverImageField
+            theme={theme}
+            id="chant-cover-upload-bento"
+            previewUrl={coverPreviewUrl}
+            fileName={selectedFiles.coverImage?.name}
+            onFileChange={(e) => handleFileChange('coverImage', e.target.files)}
+            onClearFile={() => handleFileChange('coverImage', null)}
+          />
         </Paper>
       </Grid>
     </Grid>
@@ -1025,112 +1306,38 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         );
       case CONTENT_TYPES.AUDIO_ASSIGNMENT:
         return (
-          <>
-            <TextField
-              label="Instructions"
-              value={formData.instructions}
-              onChange={(e) => handleInputChange('instructions', e.target.value)}
-              multiline
-              rows={3}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Estimated Duration (minutes)"
-              type="number"
-              value={formData.estimatedDuration}
-              onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Stars Awarded"
-              type="number"
-              value={formData.starsAwarded}
-              onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isStarAssignment}
-                  onChange={(e) => handleInputChange('isStarAssignment', e.target.checked)}
-                  color="primary"
-                />
-              }
-              label="Star Assignment (high-value task)"
-              sx={{
-                '& .MuiTypography-root': {
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-          </>
+          <TextField
+            label="Instructions"
+            value={formData.instructions}
+            onChange={(e) => handleInputChange('instructions', e.target.value)}
+            multiline
+            rows={3}
+            required
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
         );
       case CONTENT_TYPES.CHANT:
         return (
-          <>
-            <TextField
-              label="Instructions (Optional)"
-              value={formData.instructions}
-              onChange={(e) => handleInputChange('instructions', e.target.value)}
-              multiline
-              rows={3}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Estimated Duration (minutes)"
-              type="number"
-              value={formData.estimatedDuration}
-              onChange={(e) => handleInputChange('estimatedDuration', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Stars Awarded"
-              type="number"
-              value={formData.starsAwarded}
-              onChange={(e) => handleInputChange('starsAwarded', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-          </>
+          <TextField
+            label="Instructions (Optional)"
+            value={formData.instructions}
+            onChange={(e) => handleInputChange('instructions', e.target.value)}
+            multiline
+            rows={3}
+            fullWidth
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '10px',
+                fontFamily: 'Quicksand, sans-serif',
+              },
+            }}
+          />
         );
       case CONTENT_TYPES.ACTIVITY:
       default:
@@ -1441,195 +1648,10 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           </>
         )}
 
-        {contentType === CONTENT_TYPES.AUDIO_ASSIGNMENT && (
-          <>
-            {/* Reference audio (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Reference Audio (Optional)
-              </Typography>
-              <input
-                accept="audio/*"
-                style={{ display: 'none' }}
-                id="audio-ref-upload"
-                type="file"
-                onChange={(e) => handleFileChange('referenceAudio', e.target.files)}
-              />
-              <label htmlFor="audio-ref-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Reference Audio
-                </Button>
-              </label>
-              {selectedFiles.referenceAudio && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.referenceAudio.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, referenceAudio: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
-
-            {/* Instruction video (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Instruction Video (Optional)
-              </Typography>
-              <input
-                accept="video/*"
-                style={{ display: 'none' }}
-                id="audio-instruction-video-upload"
-                type="file"
-                onChange={(e) => handleFileChange('instructionVideo', e.target.files)}
-              />
-              <label htmlFor="audio-instruction-video-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Instruction Video
-                </Button>
-              </label>
-              {selectedFiles.instructionVideo && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.instructionVideo.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, instructionVideo: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
-          </>
-        )}
-
-        {contentType === CONTENT_TYPES.CHANT && (
-          <>
-            {/* Audio file (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Audio File (Optional)
-              </Typography>
-              <input
-                accept="audio/*"
-                style={{ display: 'none' }}
-                id="chant-audio-upload"
-                type="file"
-                onChange={(e) => handleFileChange('audio', e.target.files)}
-              />
-              <label htmlFor="chant-audio-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Audio File
-                </Button>
-              </label>
-              {selectedFiles.audio && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.audio.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, audio: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
-
-            {/* Instruction video (optional) */}
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Instruction Video (Optional)
-              </Typography>
-              <input
-                accept="video/*"
-                style={{ display: 'none' }}
-                id="chant-instruction-video-upload"
-                type="file"
-                onChange={(e) => handleFileChange('instructionVideo', e.target.files)}
-              />
-              <label htmlFor="chant-instruction-video-upload">
-                <Button
-                  variant="outlined"
-                  component="span"
-                  startIcon={<CloudUploadIcon />}
-                  fullWidth
-                  sx={{
-                    borderRadius: '10px',
-                    fontFamily: 'Quicksand, sans-serif',
-                  }}
-                >
-                  Upload Instruction Video
-                </Button>
-              </label>
-              {selectedFiles.instructionVideo && (
-                <Box sx={{ marginTop: 1 }}>
-                  <Chip
-                    label={selectedFiles.instructionVideo.name}
-                    size="small"
-                    sx={{ margin: 0.5 }}
-                    onDelete={() => setSelectedFiles((prev) => ({ ...prev, instructionVideo: null }))}
-                  />
-                </Box>
-              )}
-            </Box>
-          </>
-        )}
-
-        {/* Cover image shared by all types (optional) */}
+        {/* Cover image shared by activity/book types (optional) */}
+        {contentType !== CONTENT_TYPES.VIDEO
+          && contentType !== CONTENT_TYPES.AUDIO_ASSIGNMENT
+          && contentType !== CONTENT_TYPES.CHANT && (
         <Box>
           <Typography
             variant="subtitle2"
@@ -1673,6 +1695,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             </Box>
           )}
         </Box>
+        )}
       </>
     );
   };
@@ -1768,6 +1791,16 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
         {contentType === CONTENT_TYPES.VIDEO ? (
           renderVideoBentoFields()
+        ) : contentType === CONTENT_TYPES.AUDIO_ASSIGNMENT ? (
+          <>
+            {renderTypeSpecificFields()}
+            {renderAudioBentoFields()}
+          </>
+        ) : contentType === CONTENT_TYPES.CHANT ? (
+          <>
+            {renderTypeSpecificFields()}
+            {renderChantBentoFields()}
+          </>
         ) : (
           <>
             {/* Type-specific numeric / logical fields */}
@@ -1778,7 +1811,9 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           </>
         )}
 
-        {contentType !== CONTENT_TYPES.VIDEO && (
+        {contentType !== CONTENT_TYPES.VIDEO
+          && contentType !== CONTENT_TYPES.AUDIO_ASSIGNMENT
+          && contentType !== CONTENT_TYPES.CHANT && (
           <FormControl fullWidth>
             <InputLabel>Status</InputLabel>
             <Select
@@ -1859,7 +1894,13 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth={contentType === CONTENT_TYPES.VIDEO ? 'lg' : 'md'}
+      maxWidth={
+        contentType === CONTENT_TYPES.VIDEO
+        || contentType === CONTENT_TYPES.AUDIO_ASSIGNMENT
+        || contentType === CONTENT_TYPES.CHANT
+          ? 'lg'
+          : 'md'
+      }
       fullWidth
       PaperProps={{
         elevation: 8,
@@ -1867,6 +1908,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           borderRadius: '16px',
           fontFamily: 'Quicksand, sans-serif',
           ...(contentType === CONTENT_TYPES.VIDEO
+            || contentType === CONTENT_TYPES.AUDIO_ASSIGNMENT
+            || contentType === CONTENT_TYPES.CHANT
             ? { width: 'min(1280px, calc(100vw - 32px))' }
             : {}),
         },

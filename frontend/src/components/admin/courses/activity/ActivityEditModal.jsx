@@ -207,6 +207,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
         }}
       >
         <Typography
+          component="span"
           variant="h5"
           sx={{
             fontFamily: 'Quicksand, sans-serif',

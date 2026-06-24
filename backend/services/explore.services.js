@@ -3,6 +3,7 @@ const fs = require('fs');
 const s3Service = require('./s3.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { EXPLORE_VIDEO_MEDIA_TAG } = require('../constants/exploreVideoTypes');
 
 /** Fields returned on populated explore `videoFile` (upload + Bunny embed). */
 const VIDEO_FILE_POPULATE_SELECT =
@@ -104,6 +105,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
       starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
+      tags: [EXPLORE_VIDEO_MEDIA_TAG],
     });
   } else if (hasVideoFile) {
     const videoFile = files.videoFile[0];
@@ -132,6 +134,7 @@ const createExploreContent = async (userId, contentData, files = {}) => {
       starsAwarded: starsAwarded ? parseInt(starsAwarded, 10) : 10,
       isPublished: isPublished === 'true' || isPublished === true,
       uploadedBy: userId,
+      tags: [EXPLORE_VIDEO_MEDIA_TAG],
     });
   }
 

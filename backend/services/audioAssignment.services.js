@@ -2,6 +2,11 @@ const { AudioAssignment, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const {
+  INSTRUCTION_VIDEO_POPULATE_SELECT,
+  resolveInstructionVideoMedia,
+  deleteInstructionVideoMedia,
+} = require('../utils/instructionVideoMedia.util');
 
 /**
  * Create Audio Assignment Service
@@ -62,19 +67,14 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
   }
 
   let instructionVideoId = null;
-  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
-    const instructionVideo = files.instructionVideo[0];
-    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
-    const videoMedia = await Media.create({
-      type: 'video',
-      title: instructionVideo.originalname,
-      filePath: videoS3Key,
-      url: videoFileUrl,
-      mimeType: instructionVideo.mimetype,
-      size: instructionVideo.size,
-      uploadedBy: userId,
-    });
-    instructionVideoId = videoMedia._id;
+  const instructionVideoMedia = await resolveInstructionVideoMedia({
+    userId,
+    files,
+    payload: assignmentData,
+    titleFallback: `${title?.trim() || 'Audio assignment'} instruction video`,
+  });
+  if (instructionVideoMedia) {
+    instructionVideoId = instructionVideoMedia._id;
   }
 
   let coverImagePath = null;
@@ -117,7 +117,7 @@ const createAudioAssignment = async (userId, assignmentData, files = {}) => {
   // Get created audio assignment with populated data
   const createdAssignment = await AudioAssignment.findById(audioAssignment._id)
     .populate('referenceAudio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -175,7 +175,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
   // Get audio assignments
   const audioAssignments = await AudioAssignment.find(query)
     .populate('referenceAudio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
     .sort({ createdAt: -1 })
@@ -209,7 +209,7 @@ const getAllAudioAssignments = async (queryParams = {}) => {
 const getAudioAssignmentById = async (assignmentId, user = null) => {
   const audioAssignment = await AudioAssignment.findById(assignmentId)
     .populate('referenceAudio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -308,19 +308,15 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
     audioAssignment.coverImage = coverUrl;
   }
 
-  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
-    const instructionVideo = files.instructionVideo[0];
-    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
-    const videoMedia = await Media.create({
-      type: 'video',
-      title: instructionVideo.originalname,
-      filePath: videoS3Key,
-      url: videoFileUrl,
-      mimeType: instructionVideo.mimetype,
-      size: instructionVideo.size,
-      uploadedBy: userId,
-    });
-    audioAssignment.instructionVideo = videoMedia._id;
+  const instructionVideoMedia = await resolveInstructionVideoMedia({
+    userId,
+    files,
+    payload: updateData,
+    titleFallback: `${audioAssignment.title || 'Audio assignment'} instruction video`,
+    existingMediaId: audioAssignment.instructionVideo,
+  });
+  if (instructionVideoMedia) {
+    audioAssignment.instructionVideo = instructionVideoMedia._id;
   }
 
   await audioAssignment.save();
@@ -328,7 +324,7 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
   // Get updated audio assignment with populated data
   const updatedAssignment = await AudioAssignment.findById(assignmentId)
     .populate('referenceAudio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
     .lean();
@@ -365,13 +361,7 @@ const deleteAudioAssignment = async (assignmentId, user = null) => {
   }
 
   if (audioAssignment.instructionVideo) {
-    try {
-      const videoMedia = await Media.findById(audioAssignment.instructionVideo);
-      if (videoMedia && videoMedia.filePath) await s3Service.deleteByKey(videoMedia.filePath);
-      await Media.findByIdAndDelete(audioAssignment.instructionVideo);
-    } catch (error) {
-      console.error('Error deleting instruction video:', error);
-    }
+    await deleteInstructionVideoMedia(audioAssignment.instructionVideo);
   }
 
   if (audioAssignment.coverImage) {

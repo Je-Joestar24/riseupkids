@@ -3,6 +3,11 @@ const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const {
+  INSTRUCTION_VIDEO_POPULATE_SELECT,
+  resolveInstructionVideoMedia,
+  deleteInstructionVideoMedia,
+} = require('../utils/instructionVideoMedia.util');
 
 /**
  * Create Chant Service
@@ -57,19 +62,14 @@ const createChant = async (userId, chantData, files = {}) => {
   }
 
   let instructionVideoId = null;
-  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
-    const instructionVideo = files.instructionVideo[0];
-    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
-    const videoMedia = await Media.create({
-      type: 'video',
-      title: instructionVideo.originalname,
-      filePath: videoS3Key,
-      url: videoFileUrl,
-      mimeType: instructionVideo.mimetype,
-      size: instructionVideo.size,
-      uploadedBy: userId,
-    });
-    instructionVideoId = videoMedia._id;
+  const instructionVideoMedia = await resolveInstructionVideoMedia({
+    userId,
+    files,
+    payload: chantData,
+    titleFallback: `${title?.trim() || 'Chant'} instruction video`,
+  });
+  if (instructionVideoMedia) {
+    instructionVideoId = instructionVideoMedia._id;
   }
 
   let scormFileId = null;
@@ -150,7 +150,7 @@ const createChant = async (userId, chantData, files = {}) => {
 
   const createdChant = await Chant.findById(chant._id)
     .populate('audio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -203,7 +203,7 @@ const getAllChants = async (queryParams = {}) => {
   // Get chants
   const chants = await Chant.find(query)
     .populate('audio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image')
     .populate('createdBy', 'name email')
@@ -238,7 +238,7 @@ const getAllChants = async (queryParams = {}) => {
 const getChantById = async (chantId, user = null) => {
   const chant = await Chant.findById(chantId)
     .populate('audio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -329,19 +329,15 @@ const updateChant = async (chantId, userId, updateData, files = {}, user = null)
     chant.coverImage = coverUrl;
   }
 
-  if (files.instructionVideo && Array.isArray(files.instructionVideo) && files.instructionVideo.length > 0) {
-    const instructionVideo = files.instructionVideo[0];
-    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(instructionVideo, 'media/videos');
-    const videoMedia = await Media.create({
-      type: 'video',
-      title: instructionVideo.originalname,
-      filePath: videoS3Key,
-      url: videoFileUrl,
-      mimeType: instructionVideo.mimetype,
-      size: instructionVideo.size,
-      uploadedBy: userId,
-    });
-    chant.instructionVideo = videoMedia._id;
+  const instructionVideoMedia = await resolveInstructionVideoMedia({
+    userId,
+    files,
+    payload: updateData,
+    titleFallback: `${chant.title || 'Chant'} instruction video`,
+    existingMediaId: chant.instructionVideo,
+  });
+  if (instructionVideoMedia) {
+    chant.instructionVideo = instructionVideoMedia._id;
   }
 
   await chant.save();
@@ -349,7 +345,7 @@ const updateChant = async (chantId, userId, updateData, files = {}, user = null)
   // Get updated chant with populated data
   const updatedChant = await Chant.findById(chantId)
     .populate('audio', 'type title url mimeType size duration')
-    .populate('instructionVideo', 'type title url mimeType size duration')
+    .populate('instructionVideo', INSTRUCTION_VIDEO_POPULATE_SELECT)
     .populate('scormFile', 'type title url mimeType size')
     .populate('badgeAwarded', 'name description icon image category rarity')
     .populate('createdBy', 'name email')
@@ -387,13 +383,7 @@ const deleteChant = async (chantId, user = null) => {
   }
 
   if (chant.instructionVideo) {
-    try {
-      const videoMedia = await Media.findById(chant.instructionVideo);
-      if (videoMedia && videoMedia.filePath) await s3Service.deleteByKey(videoMedia.filePath);
-      await Media.findByIdAndDelete(chant.instructionVideo);
-    } catch (error) {
-      console.error('Error deleting instruction video:', error);
-    }
+    await deleteInstructionVideoMedia(chant.instructionVideo);
   }
 
   if (chant.scormFile) {
