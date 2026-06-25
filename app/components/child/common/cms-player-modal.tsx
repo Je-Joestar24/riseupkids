@@ -356,6 +356,7 @@ export function CmsPlayerModal({
     if (pageType === 'interactive') {
       return (
         <CmsInteractivePage
+          key={currentPage.pageId || `interactive-${currentIndex}`}
           page={currentPage}
           isPreloading={isPreloading}
           onRetry={handleInteractiveRetry}

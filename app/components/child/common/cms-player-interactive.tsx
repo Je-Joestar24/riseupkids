@@ -398,6 +398,24 @@ export function CmsInteractivePage({
     ]);
   }, []);
 
+  const pageId = page?.pageId ?? '';
+
+  useEffect(() => {
+    audioRequestIdRef.current += 1;
+    clearAdvanceTimeout();
+    void stopAllInteractiveAudio();
+    setDragLayer(null);
+    dragStateRef.current = null;
+    setPlacedByZone({});
+    setPlacedByOption({});
+    placedByZoneRef.current = {};
+    placedByOptionRef.current = {};
+    setDropResult('');
+    setPlayingOptionId('');
+    setPlayingAnswerId('');
+    setResetSeed((s) => s + 1);
+  }, [pageId, clearAdvanceTimeout, stopAllInteractiveAudio]);
+
   useEffect(() => {
     if (!dropResult || isPreloading) return undefined;
 
