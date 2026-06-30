@@ -1,6 +1,6 @@
 /**
  * Bunny Stream embed player (child-facing).
- * WebView iframe playback; manual "I finished watching" when not yet completed.
+ * Loads the Bunny embed page directly in WebView; manual "I finished watching" when not yet completed.
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -23,7 +23,10 @@ import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { useUiStore } from '@/store/uiStore';
-import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
+import {
+  buildBunnyEmbedWebViewUrl,
+  looksLikeBunnyExploreEmbedUrl,
+} from '@/utils/bunnyExploreEmbed';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 
 export interface BunnyEmbedPlayerModalProps {
@@ -37,30 +40,20 @@ export interface BunnyEmbedPlayerModalProps {
   onVideoComplete?: () => void;
 }
 
-function buildBunnyEmbedHtml(embedUrl: string, title: string): string {
-  const safeUrl = embedUrl.replace(/"/g, '&quot;');
-  const safeTitle = title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>${safeTitle}</title>
-  <style>
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-    iframe { width: 100%; height: 100%; border: 0; display: block; }
-  </style>
-</head>
-<body>
-  <iframe
-    src="${safeUrl}"
-    title="${safeTitle}"
-    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-    allowfullscreen
-  ></iframe>
-</body>
-</html>`;
-}
+/** Shared WebView settings for Bunny Stream embed pages on iOS/Android preview builds. */
+const BUNNY_EMBED_WEBVIEW_PROPS = {
+  originWhitelist: ['*'],
+  allowsFullscreenVideo: true,
+  allowsInlineMediaPlayback: true,
+  mediaPlaybackRequiresUserAction: false,
+  javaScriptEnabled: true,
+  domStorageEnabled: true,
+  mixedContentMode: 'always' as const,
+  androidLayerType: 'hardware' as const,
+  setSupportMultipleWindows: false,
+  bounces: false,
+  scalesPageToFit: true,
+};
 
 export function BunnyEmbedPlayerModal({
   open,
@@ -91,10 +84,22 @@ export function BunnyEmbedPlayerModal({
     [embedUrl]
   );
 
-  const htmlSource = useMemo(
-    () => (validEmbed ? { html: buildBunnyEmbedHtml(validEmbed, title) } : null),
-    [validEmbed, title]
+  const webViewSource = useMemo(
+    () =>
+      validEmbed
+        ? { uri: buildBunnyEmbedWebViewUrl(validEmbed) }
+        : null,
+    [validEmbed]
   );
+
+  const handleWebViewError = useCallback(() => {
+    setPlaybackError('The video could not load. Check your connection and try again.');
+    setWebLoading(false);
+  }, []);
+
+  const handleWebViewLoadEnd = useCallback(() => {
+    setWebLoading(false);
+  }, []);
 
   /** Show manual finish only for first-time (not yet watched) explore videos. */
   const showFinishButton =
@@ -201,7 +206,7 @@ export function BunnyEmbedPlayerModal({
 
   if (!open) return null;
 
-  const showPlayer = Boolean(htmlSource);
+  const showPlayer = Boolean(webViewSource);
 
   return (
     <>
@@ -214,20 +219,14 @@ export function BunnyEmbedPlayerModal({
         <View style={[styles.overlay, isFullscreen && styles.overlayFullscreen]}>
           {isFullscreen ? (
             <View style={styles.fullscreenContainer}>
-              {htmlSource ? (
+              {webViewSource ? (
                 <WebView
-                  source={htmlSource}
+                  {...BUNNY_EMBED_WEBVIEW_PROPS}
+                  source={webViewSource}
                   style={StyleSheet.absoluteFill}
-                  allowsFullscreenVideo
-                  allowsInlineMediaPlayback
-                  mediaPlaybackRequiresUserAction={false}
-                  javaScriptEnabled
-                  domStorageEnabled
-                  onLoadEnd={() => setWebLoading(false)}
-                  onError={() => {
-                    setPlaybackError('The video could not load. Check your connection and try again.');
-                    setWebLoading(false);
-                  }}
+                  onLoadEnd={handleWebViewLoadEnd}
+                  onError={handleWebViewError}
+                  onHttpError={handleWebViewError}
                   accessibilityLabel={`Bunny embed playback for ${title}`}
                 />
               ) : null}
@@ -278,21 +277,15 @@ export function BunnyEmbedPlayerModal({
               ) : null}
 
               <View style={styles.videoContainer}>
-                {htmlSource ? (
+                {webViewSource ? (
                   <>
                     <WebView
-                      source={htmlSource}
+                      {...BUNNY_EMBED_WEBVIEW_PROPS}
+                      source={webViewSource}
                       style={StyleSheet.absoluteFill}
-                      allowsFullscreenVideo
-                      allowsInlineMediaPlayback
-                      mediaPlaybackRequiresUserAction={false}
-                      javaScriptEnabled
-                      domStorageEnabled
-                      onLoadEnd={() => setWebLoading(false)}
-                      onError={() => {
-                        setPlaybackError('The video could not load. Check your connection and try again.');
-                        setWebLoading(false);
-                      }}
+                      onLoadEnd={handleWebViewLoadEnd}
+                      onError={handleWebViewError}
+                      onHttpError={handleWebViewError}
                       accessibilityLabel={`Bunny embed playback for ${title}`}
                     />
                     {webLoading && (

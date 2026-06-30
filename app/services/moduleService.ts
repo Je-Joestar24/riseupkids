@@ -78,6 +78,14 @@ export interface PopulatedContentItem {
   description?: string;
   coverImage?: string;
   thumbnail?: string;
+  /** Direct media URL (upload file or Bunny embed page). */
+  url?: string;
+  filePath?: string;
+  cloudUrl?: string;
+  /** `upload` (default) or `embed` (Bunny iframe). */
+  videoSource?: 'upload' | 'embed';
+  /** Canonical Bunny iframe URL when videoSource is embed. */
+  embedUrl?: string;
   /** Book package type; when 'html5' the app opens HTML5 modal (SCORM not supported in app). */
   packageType?: 'scorm' | 'html5' | 'builtin';
   /** When packageType === 'html5', id for GET /api/html5handler/:id/launch and static /html5/:id/ */

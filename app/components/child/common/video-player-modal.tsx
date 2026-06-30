@@ -8,7 +8,7 @@
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { ResizeMode, Video } from 'expo-av';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { BunnyEmbedWebView } from '@/components/child/common/bunny-embed-webview';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import {
   getCoverImageUrl,
@@ -35,6 +36,7 @@ import { moduleService } from '@/services/moduleService';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
+import { resolveModuleVideoPlayback } from '@/utils/moduleVideoPlayback';
 
 const PORTRAIT_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
 const LANDSCAPE_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE;
@@ -109,6 +111,16 @@ export function VideoPlayerModal({
 
   const { markExploreVideoWatched, getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
+  const playback = useMemo(
+    () =>
+      video && !isExploreVideo
+        ? resolveModuleVideoPlayback(video as PopulatedContentItem, getCoverImageUrl)
+        : { mode: 'file' as const, url: null },
+    [video, isExploreVideo]
+  );
+  const isBunnyEmbed = !isExploreVideo && playback.mode === 'embed';
+  const embedUrl = isBunnyEmbed ? playback.url : null;
+
   const videoRef = useRef<Video>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoEnded, setVideoEnded] = useState(false);
@@ -150,8 +162,11 @@ export function VideoPlayerModal({
 
   useEffect(() => {
     if (open && video) {
-      const url = getVideoUrl(video);
-      setVideoUrl(url ?? null);
+      if (isBunnyEmbed) {
+        setVideoUrl(null);
+      } else {
+        setVideoUrl(getVideoUrl(video) ?? null);
+      }
       setVideoEnded(false);
       setHasRecordedWatch(false);
       setWasAlreadyWatched(false);
@@ -159,7 +174,7 @@ export function VideoPlayerModal({
       setWatchResult(null);
       setWatchStatusBefore(null);
     }
-  }, [open, video]);
+  }, [open, video, isBunnyEmbed]);
 
   useEffect(() => {
     if (!open || !isExploreVideo || !childId || !exploreContentId) {
@@ -335,7 +350,8 @@ export function VideoPlayerModal({
   }, [exitFullscreen, onClose]);
 
   const skipCloseConfirm =
-    isExploreVideo && (wasAlreadyWatched || hasRecordedWatch);
+    (isExploreVideo && (wasAlreadyWatched || hasRecordedWatch)) ||
+    (isBunnyEmbed && hasRecordedWatch);
 
   const handleCloseAttempt = useCallback(() => {
     if (skipCloseConfirm) {
@@ -361,8 +377,10 @@ export function VideoPlayerModal({
 
   if (!open) return null;
 
-  const showVideoView = !showCompletionDialog && videoUrl;
+  const hasPlayableSource = isBunnyEmbed ? Boolean(embedUrl) : Boolean(videoUrl);
+  const showVideoView = !showCompletionDialog && hasPlayableSource;
   const showCompletion = showCompletionDialog;
+  const showBunnyFinishButton = isBunnyEmbed && !hasRecordedWatch;
 
   return (
     <>
@@ -375,16 +393,24 @@ export function VideoPlayerModal({
         <View style={[styles.overlay, isFullscreen && styles.overlayFullscreen]}>
           {isFullscreen ? (
             <View style={styles.fullscreenContainer}>
-              <Video
-                ref={videoRef}
-                source={{ uri: videoUrl ?? '' }}
-                style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.CONTAIN}
-                useNativeControls={false}
-                shouldPlay
-                isLooping={false}
-                onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-              />
+              {isBunnyEmbed ? (
+                <BunnyEmbedWebView
+                  embedUrl={embedUrl}
+                  title={video?.title ?? 'Video'}
+                  style={StyleSheet.absoluteFill}
+                />
+              ) : (
+                <Video
+                  ref={videoRef}
+                  source={{ uri: videoUrl ?? '' }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode={ResizeMode.CONTAIN}
+                  useNativeControls={false}
+                  shouldPlay
+                  isLooping={false}
+                  onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                />
+              )}
               {isRecordingWatch && (
                 <View style={styles.recordingOverlay}>
                   <ActivityIndicator size="large" color={colors.secondary} />
@@ -433,7 +459,23 @@ export function VideoPlayerModal({
               </View>
 
               <View style={styles.videoContainer}>
-                {videoUrl ? (
+                {isBunnyEmbed ? (
+                  <>
+                    <BunnyEmbedWebView
+                      embedUrl={embedUrl}
+                      title={video?.title ?? 'Video'}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    {isRecordingWatch && (
+                      <View style={styles.recordingOverlay}>
+                        <ActivityIndicator size="large" color={colors.secondary} />
+                        <ThemedText style={styles.recordingText}>
+                          Recording your progress...
+                        </ThemedText>
+                      </View>
+                    )}
+                  </>
+                ) : videoUrl ? (
                   <>
                     <Video
                       ref={videoRef}
@@ -462,6 +504,17 @@ export function VideoPlayerModal({
                 )}
               </View>
 
+              {showBunnyFinishButton ? (
+                <Pressable
+                  style={[styles.finishedBtn, isRecordingWatch && styles.finishedBtnDisabled]}
+                  onPress={handleVideoEnd}
+                  disabled={isRecordingWatch}
+                  accessibilityRole="button"
+                  accessibilityLabel="I finished watching">
+                  <ThemedText style={styles.finishedBtnText}>I finished watching</ThemedText>
+                </Pressable>
+              ) : null}
+
               <View style={styles.footer}>
                 <Pressable style={styles.closeFooterBtn} onPress={handleCloseAttempt}>
                   <ThemedText style={styles.closeFooterBtnText}>Close</ThemedText>
@@ -481,7 +534,11 @@ export function VideoPlayerModal({
       <ConfirmModal
         open={showConfirmClose}
         title="Close Video?"
-        message="Do you want to close this video? Your progress will be saved!"
+        message={
+          isBunnyEmbed
+            ? 'Do you want to close this video? Tap I finished watching when you are done to save your progress.'
+            : 'Do you want to close this video? Your progress will be saved!'
+        }
         confirmLabel="Yes, Close"
         cancelLabel="Keep Watching"
         onConfirm={handleConfirmedClose}
@@ -635,6 +692,22 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: typography.sizes.xl,
     fontFamily: 'Quicksand_600SemiBold',
+    color: colors.textInverse,
+  },
+  finishedBtn: {
+    marginHorizontal: spacing[4],
+    marginTop: spacing[3],
+    backgroundColor: colors.accent,
+    paddingVertical: spacing[3],
+    alignItems: 'center',
+    borderRadius: radii.lg,
+  },
+  finishedBtnDisabled: {
+    opacity: 0.6,
+  },
+  finishedBtnText: {
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_700Bold',
     color: colors.textInverse,
   },
   footer: {
