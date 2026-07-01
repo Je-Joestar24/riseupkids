@@ -1027,22 +1027,19 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
     </Grid>
   );
 
-  const renderTypeSpecificFields = () => {
-    switch (contentType) {
-      case CONTENT_TYPES.BOOK:
-        return (
-          <>
+  const renderBookBentoFields = () => (
+    <Grid container spacing={2}>
+      <Grid item xs={12} lg={7}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography sx={bentoTitleSx}>Book package</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                Upload an HTML5 (Captivate) ZIP or link a published built-in CMS book.
+              </Typography>
+            </Box>
+
             <FormControl component="fieldset" fullWidth>
-              <FormLabel
-                component="legend"
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  fontWeight: 600,
-                  marginBottom: 1,
-                }}
-              >
-                Package type
-              </FormLabel>
               <RadioGroup
                 row
                 value={formData.packageType}
@@ -1057,112 +1054,243 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
                     setSelectedFiles((prev) => ({ ...prev, scormFile: null }));
                   }
                 }}
+                aria-label="Book package type"
               >
-                <FormControlLabel value={BOOK_PACKAGE_TYPES.HTML5} control={<Radio />} label="HTML5 (Captivate)" />
-                <FormControlLabel value={BOOK_PACKAGE_TYPES.BUILTIN} control={<Radio />} label="Built-in (CMS book)" />
+                <FormControlLabel
+                  value={BOOK_PACKAGE_TYPES.HTML5}
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <CloudUploadIcon fontSize="small" aria-hidden />
+                      <span>HTML5 (Captivate)</span>
+                    </Stack>
+                  )}
+                />
+                <FormControlLabel
+                  value={BOOK_PACKAGE_TYPES.BUILTIN}
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <InsertLinkIcon fontSize="small" aria-hidden />
+                      <span>Built-in CMS book</span>
+                    </Stack>
+                  )}
+                />
               </RadioGroup>
-              <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mt: 0.5 }}>
-                Use an HTML5 ZIP export or link a published built-in CMS book.
-              </Typography>
             </FormControl>
-            {formData.packageType === BOOK_PACKAGE_TYPES.BUILTIN && (
+
+            {formData.packageType === BOOK_PACKAGE_TYPES.BUILTIN ? (
               <Box
                 sx={{
-                  border: `1px solid ${theme.palette.border.main}`,
-                  borderRadius: '10px',
-                  p: 1.5,
+                  border: `1px solid ${theme.palette.divider}`,
+                  borderRadius: '14px',
+                  p: 2,
+                  backgroundColor: theme.palette.background.default,
                 }}
               >
                 <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, mb: 0.5 }}>
                   Built-in book source
                 </Typography>
-                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1.5 }}>
                   {formData.selectedCmsBook?.title || 'No built-in book selected'}
                 </Typography>
                 <Button
                   variant="outlined"
                   onClick={() => setCmsBooksDrawerOpen(true)}
+                  fullWidth
                   sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
                 >
                   {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
                 </Button>
               </Box>
+            ) : (
+              <>
+                <Box>
+                  <Typography sx={{ fontWeight: 700, fontFamily: 'Quicksand, sans-serif' }}>
+                    HTML5 package (ZIP) <Typography component="span" color="error.main">*</Typography>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                    Click the box to pick your Captivate HTML5 export ZIP.
+                  </Typography>
+                </Box>
+                <input
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  style={{ display: 'none' }}
+                  id="book-html5-upload-bento"
+                  type="file"
+                  aria-label="Select HTML5 package ZIP for book"
+                  onChange={(e) => handleFileChange('scormFile', e.target.files)}
+                />
+                <Box
+                  component="label"
+                  htmlFor="book-html5-upload-bento"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={selectedFiles.scormFile ? 'Change HTML5 package ZIP' : 'Upload HTML5 package ZIP'}
+                  sx={{
+                    width: '100%',
+                    aspectRatio: '16 / 9',
+                    minHeight: { xs: 200, md: 280 },
+                    borderRadius: '14px',
+                    border: selectedFiles.scormFile
+                      ? `1px solid ${theme.palette.divider}`
+                      : `2px dashed ${theme.palette.divider}`,
+                    overflow: 'hidden',
+                    backgroundColor: theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    position: 'relative',
+                    transition: '160ms ease',
+                    '&:hover': {
+                      borderColor: theme.palette.orange?.main || theme.palette.primary.main,
+                    },
+                  }}
+                >
+                  {selectedFiles.scormFile ? (
+                    <>
+                      <Stack alignItems="center" spacing={1} sx={{ px: 3, textAlign: 'center' }}>
+                        <CloudUploadIcon sx={{ fontSize: 48, color: theme.palette.text.secondary }} aria-hidden />
+                        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                          {selectedFiles.scormFile.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                          {(selectedFiles.scormFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </Typography>
+                      </Stack>
+                      <Chip
+                        label="Change package"
+                        size="small"
+                        sx={{ position: 'absolute', top: 12, right: 12, fontFamily: 'Quicksand, sans-serif' }}
+                      />
+                    </>
+                  ) : (
+                    <Stack alignItems="center" spacing={1.25} sx={{ px: 3, textAlign: 'center' }}>
+                      <CloudUploadIcon sx={{ fontSize: 48, color: theme.palette.text.secondary }} aria-hidden />
+                      <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                        Upload HTML5 package
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                        ZIP export from Captivate or compatible HTML5 authoring tool.
+                      </Typography>
+                    </Stack>
+                  )}
+                </Box>
+                {selectedFiles.scormFile && (
+                  <Chip
+                    label={selectedFiles.scormFile.name}
+                    size="small"
+                    sx={{ alignSelf: 'flex-start' }}
+                    onDelete={() => handleFileChange('scormFile', null)}
+                  />
+                )}
+              </>
             )}
+          </Stack>
+        </Paper>
+      </Grid>
+
+      <Grid item xs={12} lg={5}>
+        <Stack spacing={2} sx={{ height: '100%' }}>
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Typography sx={bentoTitleSx}>Reading settings</Typography>
+              <FormControl fullWidth>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  value={formData.language}
+                  label="Language"
+                  onChange={(e) => handleInputChange('language', e.target.value)}
+                  sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                >
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="es">Spanish</MenuItem>
+                  <MenuItem value="fr">French</MenuItem>
+                </Select>
+              </FormControl>
+              <FormControl fullWidth>
+                <InputLabel>Reading Level</InputLabel>
+                <Select
+                  value={formData.readingLevel}
+                  label="Reading Level"
+                  onChange={(e) => handleInputChange('readingLevel', e.target.value)}
+                  sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+                >
+                  <MenuItem value="beginner">Beginner</MenuItem>
+                  <MenuItem value="intermediate">Intermediate</MenuItem>
+                  <MenuItem value="advanced">Advanced</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="Estimated reading time (min)"
+                type="number"
+                value={formData.estimatedReadingTime}
+                onChange={(e) => handleInputChange('estimatedReadingTime', e.target.value)}
+                inputProps={{ min: 0 }}
+                fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+              />
+              <Stack direction="row" spacing={1.5}>
+                <TextField
+                  label="Required readings"
+                  type="number"
+                  value={formData.requiredReadingCount}
+                  onChange={(e) => handleInputChange('requiredReadingCount', parseInt(e.target.value, 10) || 1)}
+                  inputProps={{ min: 1 }}
+                  fullWidth
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                />
+                <TextField
+                  label="Total stars"
+                  type="number"
+                  value={formData.totalStarsAwarded}
+                  onChange={(e) => handleInputChange('totalStarsAwarded', parseInt(e.target.value, 10) || 0)}
+                  inputProps={{ min: 0 }}
+                  fullWidth
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                />
+              </Stack>
+            </Stack>
+          </Paper>
+          <Paper variant="outlined" sx={bentoCardSx}>
             <FormControl fullWidth>
-              <InputLabel>Language</InputLabel>
+              <InputLabel>Status</InputLabel>
               <Select
-                value={formData.language}
-                label="Language"
-                onChange={(e) => handleInputChange('language', e.target.value)}
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
+                value={formData.isPublished ? 'true' : 'false'}
+                onChange={(e) => handleInputChange('isPublished', e.target.value === 'true')}
+                label="Status"
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
               >
-                <MenuItem value="en">English</MenuItem>
-                <MenuItem value="es">Spanish</MenuItem>
-                <MenuItem value="fr">French</MenuItem>
+                <MenuItem value="false">Draft</MenuItem>
+                <MenuItem value="true">Published</MenuItem>
               </Select>
             </FormControl>
-            <FormControl fullWidth>
-              <InputLabel>Reading Level</InputLabel>
-              <Select
-                value={formData.readingLevel}
-                label="Reading Level"
-                onChange={(e) => handleInputChange('readingLevel', e.target.value)}
-                sx={{
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                }}
-              >
-                <MenuItem value="beginner">Beginner</MenuItem>
-                <MenuItem value="intermediate">Intermediate</MenuItem>
-                <MenuItem value="advanced">Advanced</MenuItem>
-              </Select>
-            </FormControl>
-            <TextField
-              label="Estimated Reading Time (minutes)"
-              type="number"
-              value={formData.estimatedReadingTime}
-              onChange={(e) => handleInputChange('estimatedReadingTime', e.target.value)}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Required Readings"
-              type="number"
-              value={formData.requiredReadingCount}
-              onChange={(e) => handleInputChange('requiredReadingCount', parseInt(e.target.value) || 1)}
-              inputProps={{ min: 1 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-            <TextField
-              label="Total Stars on Completion"
-              type="number"
-              value={formData.totalStarsAwarded}
-              onChange={(e) => handleInputChange('totalStarsAwarded', parseInt(e.target.value) || 0)}
-              inputProps={{ min: 0 }}
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  fontFamily: 'Quicksand, sans-serif',
-                },
-              }}
-            />
-          </>
-        );
+          </Paper>
+        </Stack>
+      </Grid>
+
+      <Grid item xs={12}>
+        <Paper variant="outlined" sx={bentoCardSx}>
+          <BentoCoverImageField
+            theme={theme}
+            id="book-cover-upload-bento"
+            previewUrl={coverPreviewUrl}
+            fileName={selectedFiles.coverImage?.name}
+            onFileChange={(e) => handleFileChange('coverImage', e.target.files)}
+            onClearFile={() => handleFileChange('coverImage', null)}
+            title="Cover image"
+            description="Optional thumbnail displayed on the book card."
+          />
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+
+  const renderTypeSpecificFields = () => {
+    switch (contentType) {
+      case CONTENT_TYPES.BOOK:
+        return null;
       case CONTENT_TYPES.VIDEO:
         return (
           <>
@@ -1413,70 +1541,7 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
           </>
         )}
 
-        {contentType === CONTENT_TYPES.BOOK && (
-          <>
-            {formData.packageType !== BOOK_PACKAGE_TYPES.BUILTIN ? (
-              <Box>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    fontFamily: 'Quicksand, sans-serif',
-                    fontWeight: 600,
-                    marginBottom: 1,
-                  }}
-                >
-                  Package file (ZIP) <span style={{ color: 'red' }}>*</span>
-                </Typography>
-                <Typography variant="caption" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
-                  Upload an HTML5 (Captivate) export ZIP.
-                </Typography>
-                <input
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  style={{ display: 'none' }}
-                  id="book-html5-upload"
-                  type="file"
-                  onChange={(e) => handleFileChange('scormFile', e.target.files)}
-                />
-                <label htmlFor="book-html5-upload">
-                  <Button
-                    variant="outlined"
-                    component="span"
-                    startIcon={<CloudUploadIcon />}
-                    fullWidth
-                    sx={{
-                      borderRadius: '10px',
-                      fontFamily: 'Quicksand, sans-serif',
-                    }}
-                  >
-                    Upload HTML5 package (ZIP)
-                  </Button>
-                </label>
-                {selectedFiles.scormFile && (
-                  <Box sx={{ marginTop: 1 }}>
-                    <Chip
-                      label={selectedFiles.scormFile.name}
-                      size="small"
-                      sx={{ margin: 0.5 }}
-                      onDelete={() => setSelectedFiles((prev) => ({ ...prev, scormFile: null }))}
-                    />
-                  </Box>
-                )}
-              </Box>
-            ) : (
-              <Box
-                sx={{
-                  border: `1px dashed ${theme.palette.border.main}`,
-                  borderRadius: '10px',
-                  p: 1.5,
-                }}
-              >
-                <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary }}>
-                  Built-in mode selected. No ZIP package upload is required.
-                </Typography>
-              </Box>
-            )}
-          </>
-        )}
+        {contentType === CONTENT_TYPES.BOOK && null}
 
         {contentType === CONTENT_TYPES.VIDEO && (
           <>
@@ -1651,7 +1716,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
         {/* Cover image shared by activity/book types (optional) */}
         {contentType !== CONTENT_TYPES.VIDEO
           && contentType !== CONTENT_TYPES.AUDIO_ASSIGNMENT
-          && contentType !== CONTENT_TYPES.CHANT && (
+          && contentType !== CONTENT_TYPES.CHANT
+          && contentType !== CONTENT_TYPES.BOOK && (
         <Box>
           <Typography
             variant="subtitle2"
@@ -1801,6 +1867,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
             {renderTypeSpecificFields()}
             {renderChantBentoFields()}
           </>
+        ) : contentType === CONTENT_TYPES.BOOK ? (
+          renderBookBentoFields()
         ) : (
           <>
             {/* Type-specific numeric / logical fields */}
@@ -1813,7 +1881,8 @@ const ContentAddModal = ({ open, onClose, onSuccess, initialContentType, renderA
 
         {contentType !== CONTENT_TYPES.VIDEO
           && contentType !== CONTENT_TYPES.AUDIO_ASSIGNMENT
-          && contentType !== CONTENT_TYPES.CHANT && (
+          && contentType !== CONTENT_TYPES.CHANT
+          && contentType !== CONTENT_TYPES.BOOK && (
           <FormControl fullWidth>
             <InputLabel>Status</InputLabel>
             <Select
