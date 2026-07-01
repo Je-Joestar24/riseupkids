@@ -15,9 +15,10 @@ import {
   IconButton,
   Grid,
   Paper,
+  Chip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
@@ -47,6 +48,9 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [selectedAudioFile, setSelectedAudioFile] = useState(null);
+  const [selectedScormFile, setSelectedScormFile] = useState(null);
+  const [currentAudio, setCurrentAudio] = useState(null);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [selectedInstructionVideo, setSelectedInstructionVideo] = useState(null);
@@ -114,7 +118,10 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
         instructionVideoEmbedUrl: isEmbed ? (instructionMedia.embedUrl || instructionMedia.url || '') : '',
       });
       setCurrentCoverImage(currentContent.coverImage);
+      setCurrentAudio(currentContent.audio || null);
       setSelectedCoverImage(null);
+      setSelectedAudioFile(null);
+      setSelectedScormFile(null);
       setCurrentInstructionVideo(instructionMedia || null);
       setSelectedInstructionVideo(null);
       setIsInitialized(true);
@@ -159,6 +166,14 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
+      if (selectedAudioFile) {
+        formDataToSend.append('audio', selectedAudioFile);
+      }
+
+      if (selectedScormFile) {
+        formDataToSend.append('scormFile', selectedScormFile);
+      }
+
       if (formData.instructionVideoSource === 'embed') {
         const embed = formData.instructionVideoEmbedUrl?.trim();
         if (embed) {
@@ -196,6 +211,9 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
+    setSelectedAudioFile(null);
+    setSelectedScormFile(null);
+    setCurrentAudio(null);
     setSelectedInstructionVideo(null);
     setCurrentInstructionVideo(null);
     setIsInitialized(false);
@@ -389,6 +407,59 @@ const ChantEditModal = ({ open, onClose, chantId, onSuccess }) => {
                   </FormControl>
                 </Paper>
               </Stack>
+            </Grid>
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <Stack spacing={1.5}>
+                  <Typography sx={bentoTitleSx}>Chant audio</Typography>
+                  {currentAudio && !selectedAudioFile && (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                      Current: {typeof currentAudio === 'object' ? currentAudio.title || 'Audio file' : 'Audio file'}
+                    </Typography>
+                  )}
+                  <input
+                    accept="audio/*"
+                    style={{ display: 'none' }}
+                    id="chant-audio-upload-edit"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setSelectedAudioFile(e.target.files[0]);
+                    }}
+                  />
+                  <label htmlFor="chant-audio-upload-edit">
+                    <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                      {currentAudio ? 'Replace chant audio' : 'Upload chant audio'}
+                    </Button>
+                  </label>
+                  {selectedAudioFile && (
+                    <Chip label={selectedAudioFile.name} size="small" onDelete={() => setSelectedAudioFile(null)} />
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <Stack spacing={1.5}>
+                  <Typography sx={bentoTitleSx}>SCORM package (optional)</Typography>
+                  <input
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: 'none' }}
+                    id="chant-scorm-upload-edit"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setSelectedScormFile(e.target.files[0]);
+                    }}
+                  />
+                  <label htmlFor="chant-scorm-upload-edit">
+                    <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                      {currentContent?.scormFile ? 'Replace SCORM package (ZIP)' : 'Upload SCORM package (ZIP)'}
+                    </Button>
+                  </label>
+                  {selectedScormFile && (
+                    <Chip label={selectedScormFile.name} size="small" onDelete={() => setSelectedScormFile(null)} />
+                  )}
+                </Stack>
+              </Paper>
             </Grid>
             <Grid item xs={12}>
               <Paper variant="outlined" sx={bentoCardSx}>

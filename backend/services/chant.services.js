@@ -329,6 +329,80 @@ const updateChant = async (chantId, userId, updateData, files = {}, user = null)
     chant.coverImage = coverUrl;
   }
 
+  if (files.audio && Array.isArray(files.audio) && files.audio.length > 0) {
+    const audioFile = files.audio[0];
+
+    if (chant.audio) {
+      try {
+        const oldAudioMedia = await Media.findById(chant.audio);
+        if (oldAudioMedia && oldAudioMedia.filePath) {
+          await s3Service.deleteByKey(oldAudioMedia.filePath);
+        }
+        await Media.findByIdAndDelete(chant.audio);
+      } catch (error) {
+        console.error('Error deleting previous chant audio:', error);
+      }
+    }
+
+    const { url: audioFileUrl, s3Key: audioS3Key } = await s3Service.uploadFileFromMulter(audioFile, 'media/audio');
+    const audioMedia = await Media.create({
+      type: 'audio',
+      title: audioFile.originalname,
+      filePath: audioS3Key,
+      url: audioFileUrl,
+      mimeType: audioFile.mimetype,
+      size: audioFile.size,
+      uploadedBy: userId,
+    });
+    chant.audio = audioMedia._id;
+  }
+
+  if (files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0) {
+    const scormFile = files.scormFile[0];
+
+    if (chant.scormFile) {
+      try {
+        const oldScormMedia = await Media.findById(chant.scormFile);
+        if (oldScormMedia && oldScormMedia.filePath) {
+          await s3Service.deleteByKey(oldScormMedia.filePath);
+        }
+        await Media.findByIdAndDelete(chant.scormFile);
+      } catch (error) {
+        console.error('Error deleting previous chant SCORM file:', error);
+      }
+    }
+
+    try {
+      await s3Service.deleteByPrefix(`scorm/chant/${chant._id}`);
+    } catch (error) {
+      console.error('Error deleting previous extracted chant SCORM package:', error);
+    }
+
+    const { url: scormUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
+    const scormMedia = await Media.create({
+      type: 'video',
+      title: scormFile.originalname,
+      filePath: scormS3Key,
+      url: scormUrl,
+      mimeType: scormFile.mimetype,
+      size: scormFile.size,
+      uploadedBy: userId,
+    });
+    chant.scormFile = scormMedia._id;
+    chant.scormFilePath = scormS3Key;
+    chant.scormFileUrl = scormUrl;
+    chant.scormFileSize = scormFile.size;
+    chant.scormFileMimeType = scormFile.mimetype;
+
+    if (scormFile.buffer) {
+      const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'chant', chant._id);
+      if (extracted) {
+        chant.scormBaseUrl = extracted.baseUrl;
+        chant.scormEntryPoint = extracted.entryPoint;
+      }
+    }
+  }
+
   const instructionVideoMedia = await resolveInstructionVideoMedia({
     userId,
     files,

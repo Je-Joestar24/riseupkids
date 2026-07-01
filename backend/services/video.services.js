@@ -376,9 +376,21 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
     isPublished,
     requiredWatchCount,
     embedUrl,
+    videoSource: videoSourceRaw,
     completionContentType: completionContentTypeRaw,
     cmsBookId,
   } = updateData;
+
+  const hasVideoFile =
+    files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0;
+  const hasScormFile =
+    files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0;
+  const requestedVideoSource =
+    typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'embed'
+      ? 'embed'
+      : typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'upload'
+        ? 'upload'
+        : null;
 
   // Find video (SCORM is optional)
   const video = await Media.findOne({
@@ -392,6 +404,15 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
 
   assertCourseVideo(video);
   assertVideoOwnership(user, video);
+
+  const currentVideoSource = video.videoSource || 'upload';
+
+  if (hasVideoFile && requestedVideoSource === 'embed') {
+    throw new Error('Do not attach a video file when using videoSource embed');
+  }
+  if (hasScormFile && (requestedVideoSource === 'embed' || currentVideoSource === 'embed')) {
+    throw new Error('SCORM file is not supported when using Bunny embed');
+  }
 
   // Update title
   if (title !== undefined) {
@@ -448,17 +469,102 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
     }
   }
 
-  // Update embed URL (Bunny iframe only)
-  if (embedUrl !== undefined) {
-    if ((video.videoSource || 'upload') !== 'embed') {
-      throw new Error('embedUrl can only be updated for Bunny embed videos');
+  // Update embed URL (Bunny iframe only) or switch to embed source
+  if (embedUrl !== undefined || requestedVideoSource === 'embed') {
+    const targetSource = requestedVideoSource || currentVideoSource;
+    if (targetSource !== 'embed') {
+      if (embedUrl !== undefined) {
+        throw new Error('embedUrl can only be updated for Bunny embed videos');
+      }
+    } else {
+      const canonical = assertBunnyIframeEmbedUrl(
+        typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? video.embedUrl ?? '')
+      );
+
+      if (currentVideoSource === 'upload' && video.filePath) {
+        try {
+          await s3Service.deleteByKey(video.filePath);
+        } catch (error) {
+          console.error('Error deleting previous uploaded video:', error);
+        }
+      }
+
+      video.videoSource = 'embed';
+      video.embedUrl = canonical;
+      video.cloudUrl = canonical;
+      video.url = canonical;
+      video.filePath = null;
+      video.mimeType = null;
+      video.size = null;
     }
-    const canonical = assertBunnyIframeEmbedUrl(
-      typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? '')
-    );
-    video.embedUrl = canonical;
-    video.cloudUrl = canonical;
-    video.url = canonical;
+  }
+
+  // Replace uploaded main video file
+  if (hasVideoFile) {
+    if (currentVideoSource === 'upload' && video.filePath) {
+      try {
+        await s3Service.deleteByKey(video.filePath);
+      } catch (error) {
+        console.error('Error deleting previous uploaded video:', error);
+      }
+    }
+
+    const videoFile = files.videoFile[0];
+    const { url: videoFileUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
+    video.videoSource = 'upload';
+    video.filePath = videoS3Key;
+    video.url = videoFileUrl;
+    video.cloudUrl = videoFileUrl;
+    video.mimeType = videoFile.mimetype;
+    video.size = videoFile.size;
+    video.embedUrl = null;
+  } else if (requestedVideoSource === 'upload' && currentVideoSource === 'embed') {
+    throw new Error('Please provide a video file when switching to upload source');
+  }
+
+  // Replace SCORM follow-up package
+  if (hasScormFile) {
+    if (video.scormFile) {
+      try {
+        const oldScormMedia = await Media.findById(video.scormFile);
+        if (oldScormMedia && oldScormMedia.filePath) {
+          await s3Service.deleteByKey(oldScormMedia.filePath);
+        }
+        await Media.findByIdAndDelete(video.scormFile);
+      } catch (error) {
+        console.error('Error deleting previous SCORM file:', error);
+      }
+    }
+    try {
+      await s3Service.deleteByPrefix(`scorm/video/${video._id}`);
+    } catch (error) {
+      console.error('Error deleting previous extracted SCORM package:', error);
+    }
+
+    const scormFile = files.scormFile[0];
+    const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
+    const scormMedia = await Media.create({
+      type: 'video',
+      title: scormFile.originalname,
+      filePath: scormS3Key,
+      url: scormFileUrl,
+      mimeType: scormFile.mimetype,
+      size: scormFile.size,
+      uploadedBy: userId,
+    });
+    video.scormFile = scormMedia._id;
+    video.scormFilePath = scormS3Key;
+    video.scormFileUrl = scormFileUrl;
+    video.scormFileSize = scormFile.size;
+    video.completionContentType = 'scorm';
+
+    if (scormFile.buffer) {
+      const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'video', video._id);
+      if (extracted) {
+        video.scormBaseUrl = extracted.baseUrl;
+        video.scormEntryPoint = extracted.entryPoint;
+      }
+    }
   }
 
   const hasHtml5File =

@@ -23,18 +23,18 @@ import {
   RadioGroup,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudUpload as CloudUploadIcon, InsertLink as InsertLinkIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES, VIDEO_COMPLETION_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
+import { looksLikeBunnyExploreEmbedUrl } from '../../../../utils/bunnyExploreEmbed';
 import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
 /**
  * VideoEditModal Component
- * 
- * Modal for editing videos
- * Can only edit: title, description, coverImage (thumbnail), duration, starsAwarded, isPublished
- * Video file and SCORM file cannot be changed
+ *
+ * Modal for editing videos including main video replacement (upload or Bunny embed),
+ * optional SCORM follow-up, HTML5 follow-up, cover image, and metadata.
  */
 const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
   const theme = useTheme();
@@ -55,10 +55,15 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     completionContentType: VIDEO_COMPLETION_TYPES.NONE,
     cmsBookId: '',
     selectedCmsBook: null,
+    videoSource: 'upload',
+    embedUrl: '',
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
   const [selectedHtml5File, setSelectedHtml5File] = useState(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState(null);
+  const [selectedScormFile, setSelectedScormFile] = useState(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState('');
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
@@ -104,10 +109,17 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
         completionContentType: currentContent.completionContentType || VIDEO_COMPLETION_TYPES.NONE,
         cmsBookId: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId?._id || '' : currentContent.cmsBookId || '',
         selectedCmsBook: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId : null,
+        videoSource: currentContent.videoSource === 'embed' ? 'embed' : 'upload',
+        embedUrl: currentContent.videoSource === 'embed'
+          ? (currentContent.embedUrl || currentContent.url || '')
+          : '',
       });
       // Videos use 'thumbnail' field, but we map it to 'coverImage' in the slice
       setCurrentCoverImage(currentContent.coverImage || currentContent.thumbnail);
       setSelectedCoverImage(null);
+      setSelectedVideoFile(null);
+      setSelectedScormFile(null);
+      setVideoPreviewUrl('');
       setIsInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,6 +127,19 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleVideoFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    setSelectedVideoFile(file);
+    setVideoPreviewUrl(file ? URL.createObjectURL(file) : '');
+  };
+
+  const clearSelectedVideoFile = () => {
+    if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+    setSelectedVideoFile(null);
+    setVideoPreviewUrl('');
   };
 
   const handleCoverImageChange = (event) => {
@@ -132,14 +157,17 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     }
   };
 
-  // Cleanup object URL
+  // Cleanup object URLs
   useEffect(() => {
     return () => {
       if (imagePreviewUrl) {
         URL.revokeObjectURL(imagePreviewUrl);
       }
+      if (videoPreviewUrl) {
+        URL.revokeObjectURL(videoPreviewUrl);
+      }
     };
-  }, [imagePreviewUrl]);
+  }, [imagePreviewUrl, videoPreviewUrl]);
 
   const handleSubmit = async () => {
     try {
@@ -161,6 +189,27 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
       }
       if (formData.completionContentType === VIDEO_COMPLETION_TYPES.HTML5 && selectedHtml5File) {
         formDataToSend.append('html5File', selectedHtml5File);
+      }
+
+      if (formData.videoSource === 'embed') {
+        const embed = formData.embedUrl?.trim();
+        if (embed) {
+          if (!looksLikeBunnyExploreEmbedUrl(embed)) {
+            alert('Please enter a valid Bunny iframe embed URL for the main video.');
+            return;
+          }
+          formDataToSend.append('videoSource', 'embed');
+          formDataToSend.append('embedUrl', embed);
+        }
+      } else {
+        if (selectedVideoFile) {
+          formDataToSend.append('videoSource', 'upload');
+          formDataToSend.append('videoFile', selectedVideoFile);
+        }
+      }
+
+      if (selectedScormFile) {
+        formDataToSend.append('scormFile', selectedScormFile);
       }
 
       if (selectedCoverImage) {
@@ -188,10 +237,18 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
       completionContentType: VIDEO_COMPLETION_TYPES.NONE,
       cmsBookId: '',
       selectedCmsBook: null,
+      videoSource: 'upload',
+      embedUrl: '',
     });
     setSelectedCoverImage(null);
     setSelectedHtml5File(null);
+    setSelectedVideoFile(null);
+    setSelectedScormFile(null);
     setCurrentCoverImage(null);
+    if (videoPreviewUrl) {
+      URL.revokeObjectURL(videoPreviewUrl);
+      setVideoPreviewUrl('');
+    }
     setIsInitialized(false);
     isFetchingRef.current = false;
     if (imagePreviewUrl) {
@@ -212,6 +269,17 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
     : currentCoverImage
     ? resolveMediaUrl(currentCoverImage)
     : null;
+
+  const currentMainVideoUrl = currentContent?.videoSource !== 'embed' && currentContent?.url
+    ? resolveMediaUrl(currentContent.url)
+    : null;
+
+  const displayVideoPreviewUrl = videoPreviewUrl || currentMainVideoUrl;
+
+  const embedPreviewUrl = formData.embedUrl?.trim()
+    || (currentContent?.videoSource === 'embed'
+      ? (currentContent.embedUrl || currentContent.url || '')
+      : '');
 
   const bentoCardSx = {
     height: '100%',
@@ -302,6 +370,222 @@ const VideoEditModal = ({ open, onClose, videoId, onSuccess }) => {
               },
             }}
           />
+
+          <Paper variant="outlined" sx={bentoCardSx}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography sx={bentoTitleSx}>Main video</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                  Replace the uploaded file or update the Bunny embed URL. Leave unchanged if you only edit metadata.
+                </Typography>
+              </Box>
+              <RadioGroup
+                row
+                value={formData.videoSource}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  handleInputChange('videoSource', value);
+                  if (value === 'embed') {
+                    clearSelectedVideoFile();
+                    setSelectedScormFile(null);
+                    if (currentContent?.videoSource === 'embed') {
+                      handleInputChange(
+                        'embedUrl',
+                        currentContent.embedUrl || currentContent.url || ''
+                      );
+                    }
+                  } else {
+                    handleInputChange('embedUrl', '');
+                  }
+                }}
+                aria-label="Main video source"
+              >
+                <FormControlLabel
+                  value="upload"
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <CloudUploadIcon fontSize="small" aria-hidden />
+                      <span>Upload file</span>
+                    </Stack>
+                  )}
+                />
+                <FormControlLabel
+                  value="embed"
+                  control={<Radio />}
+                  label={(
+                    <Stack direction="row" alignItems="center" spacing={0.5}>
+                      <InsertLinkIcon fontSize="small" aria-hidden />
+                      <span>Bunny embed</span>
+                    </Stack>
+                  )}
+                />
+              </RadioGroup>
+
+              {formData.videoSource === 'upload' ? (
+                <Box>
+                  <input
+                    accept="video/*"
+                    style={{ display: 'none' }}
+                    id="video-main-file-upload-edit"
+                    type="file"
+                    aria-label="Select video file to replace current video"
+                    onChange={handleVideoFileChange}
+                  />
+                  <Box
+                    component="label"
+                    htmlFor="video-main-file-upload-edit"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={displayVideoPreviewUrl ? 'Change selected video file' : 'Upload video file'}
+                    sx={{
+                      width: '100%',
+                      aspectRatio: '1.618 / 1',
+                      minHeight: { xs: 220, md: 340 },
+                      borderRadius: '18px',
+                      border: displayVideoPreviewUrl
+                        ? `1px solid ${theme.palette.divider}`
+                        : `2px dashed ${theme.palette.divider}`,
+                      overflow: 'hidden',
+                      background:
+                        theme.palette.mode === 'dark'
+                          ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
+                          : 'linear-gradient(145deg, #fffaf0, #f8fafc)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      transition: '160ms ease',
+                      '&:hover': {
+                        borderColor: theme.palette.orange?.main || theme.palette.primary.main,
+                        transform: 'translateY(-1px)',
+                      },
+                    }}
+                  >
+                    {displayVideoPreviewUrl ? (
+                      <>
+                        <Box
+                          component="video"
+                          src={displayVideoPreviewUrl}
+                          muted
+                          controls
+                          playsInline
+                          aria-label="Video preview"
+                          sx={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'contain',
+                            bgcolor: '#000',
+                            pointerEvents: 'auto',
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Chip
+                          label={selectedVideoFile ? 'Change video' : 'Replace video'}
+                          size="small"
+                          sx={{ position: 'absolute', top: 12, right: 12, fontFamily: 'Quicksand, sans-serif' }}
+                        />
+                      </>
+                    ) : (
+                      <Stack alignItems="center" spacing={1.25} sx={{ px: 3, textAlign: 'center' }}>
+                        <CloudUploadIcon sx={{ fontSize: 56, color: theme.palette.text.secondary }} aria-hidden />
+                        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+                          Upload video file
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                          Best for 16:9, 16:10, or golden-ratio rectangular videos.
+                        </Typography>
+                      </Stack>
+                    )}
+                  </Box>
+                  {selectedVideoFile && (
+                    <Chip
+                      label={selectedVideoFile.name}
+                      size="small"
+                      sx={{ mt: 1 }}
+                      onDelete={clearSelectedVideoFile}
+                    />
+                  )}
+                </Box>
+              ) : (
+                <Box>
+                  <TextField
+                    label="Bunny embed URL"
+                    value={formData.embedUrl}
+                    onChange={(e) => handleInputChange('embedUrl', e.target.value)}
+                    placeholder="https://iframe.mediadelivery.net/embed/..."
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    inputProps={{ 'aria-label': 'Bunny Stream iframe embed URL for main video' }}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' } }}
+                  />
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      width: '100%',
+                      aspectRatio: '1.618 / 1',
+                      minHeight: { xs: 220, md: 340 },
+                      borderRadius: '18px',
+                      border: `1px solid ${theme.palette.divider}`,
+                      overflow: 'hidden',
+                      bgcolor: 'action.hover',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    role="region"
+                    aria-label="Bunny embed preview"
+                  >
+                    {looksLikeBunnyExploreEmbedUrl(embedPreviewUrl) ? (
+                      <Box
+                        component="iframe"
+                        title="Bunny embed preview"
+                        src={embedPreviewUrl.trim()}
+                        allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                        allowFullScreen
+                        sx={{ width: '100%', height: '100%', border: 0, display: 'block' }}
+                      />
+                    ) : (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ px: 2, textAlign: 'center', fontFamily: 'Quicksand, sans-serif' }}
+                      >
+                        Enter a valid Bunny embed URL to preview the player.
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              )}
+
+              {formData.videoSource === 'upload' && (
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                    Optional SCORM package shown after the video.
+                  </Typography>
+                  <input
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    style={{ display: 'none' }}
+                    id="video-scorm-upload-edit"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setSelectedScormFile(e.target.files[0]);
+                    }}
+                  />
+                  <label htmlFor="video-scorm-upload-edit">
+                    <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                      {currentContent?.scormFile ? 'Replace SCORM package (ZIP)' : 'Upload SCORM package (ZIP)'}
+                    </Button>
+                  </label>
+                  {selectedScormFile && (
+                    <Chip label={selectedScormFile.name} size="small" sx={{ mt: 1 }} onDelete={() => setSelectedScormFile(null)} />
+                  )}
+                </Box>
+              )}
+            </Stack>
+          </Paper>
 
           <Grid container spacing={2}>
             <Grid item xs={12} lg={8}>

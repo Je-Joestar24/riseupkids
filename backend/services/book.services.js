@@ -481,6 +481,83 @@ const updateBook = async (bookId, userId, updateData, files = {}, user = null) =
     book.coverImage = coverUrl;
   }
 
+  // Replace package ZIP for scorm/html5 books (not builtin)
+  if (files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0) {
+    const packageType = book.packageType || 'scorm';
+    if (packageType === 'builtin') {
+      throw new Error('Package file cannot be replaced for built-in books; change cmsBookId instead');
+    }
+
+    const zipFile = files.scormFile[0];
+    if (!zipFile || !(zipFile.buffer || zipFile.path)) {
+      throw new Error('Package file was not uploaded correctly. Please try again.');
+    }
+    const zipInput = zipFile.buffer || zipFile.path;
+
+    if (packageType === 'html5') {
+      if (book.html5PackageId) {
+        try {
+          await s3Service.deleteByPrefix(`html5/${book.html5PackageId}`);
+        } catch (error) {
+          console.error('Error deleting previous HTML5 package:', error);
+        }
+      }
+      const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
+      book.html5PackageId = id;
+      book.html5EntryPoint = entryPoint || 'index.html';
+      book.html5BaseUrl = baseUrl || null;
+      book.scormFile = null;
+      book.scormFilePath = null;
+      book.scormFileUrl = null;
+      book.scormFileSize = null;
+      book.scormBaseUrl = null;
+      book.scormEntryPoint = 'index.html';
+    } else {
+      if (book.scormFile) {
+        try {
+          const oldScormMedia = await Media.findById(book.scormFile);
+          if (oldScormMedia && oldScormMedia.filePath) {
+            await s3Service.deleteByKey(oldScormMedia.filePath);
+          }
+          await Media.findByIdAndDelete(book.scormFile);
+        } catch (error) {
+          console.error('Error deleting previous SCORM file:', error);
+        }
+      }
+      try {
+        await s3Service.deleteByPrefix(`scorm/book/${book._id}`);
+      } catch (error) {
+        console.error('Error deleting previous extracted SCORM package:', error);
+      }
+
+      const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(zipFile, 'activities/scorm');
+      const scormMedia = await Media.create({
+        type: 'video',
+        title: zipFile.originalname,
+        filePath: scormS3Key,
+        url: scormFileUrl,
+        mimeType: zipFile.mimetype,
+        size: zipFile.size,
+        uploadedBy: userId,
+      });
+      book.scormFile = scormMedia._id;
+      book.scormFilePath = scormS3Key;
+      book.scormFileUrl = scormFileUrl;
+      book.scormFileSize = zipFile.size;
+      book.html5PackageId = null;
+      book.html5EntryPoint = null;
+      book.html5BaseUrl = null;
+
+      if (zipFile.buffer) {
+        const extracted = await scormService.uploadExtractedScormToS3(zipFile.buffer, 'book', book._id);
+        if (extracted) {
+          book.scormBaseUrl = extracted.baseUrl;
+          book.scormEntryPoint = extracted.entryPoint;
+        }
+      }
+    }
+  }
+
   await book.save();
 
   // Get updated book with populated data

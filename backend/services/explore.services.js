@@ -330,10 +330,14 @@ const getExploreContentById = async (contentId, user = null) => {
  * @throws {Error} If content not found or validation fails
  */
 const updateExploreContent = async (contentId, userId, updateData, files = {}, user = null) => {
+  const tempDiskPaths = collectMulterDiskPaths(files);
+
+  try {
   const {
     title,
     description,
     videoType,
+    videoSource: videoSourceRaw,
     embedUrl,
     category,
     starsAwarded,
@@ -345,6 +349,15 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
     duration,
   } = updateData;
 
+  const hasVideoFile =
+    files.videoFile && Array.isArray(files.videoFile) && files.videoFile.length > 0;
+  const requestedVideoSource =
+    typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'embed'
+      ? 'embed'
+      : typeof videoSourceRaw === 'string' && videoSourceRaw.trim().toLowerCase() === 'upload'
+        ? 'upload'
+        : null;
+
   // Find content
   const content = await ExploreContent.findById(contentId);
 
@@ -353,6 +366,10 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
   }
 
   assertCreatorOwnsDocument(user, content);
+
+  if (hasVideoFile && requestedVideoSource === 'embed') {
+    throw new Error('Do not attach a video file when using videoSource embed');
+  }
 
   // Update title
   if (title !== undefined) {
@@ -429,7 +446,7 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
     content.tags = parsedTags.filter(t => t && t.trim()).map(t => t.trim());
   }
 
-  if (embedUrl !== undefined && content.type === 'video') {
+  if (embedUrl !== undefined || requestedVideoSource === 'embed') {
     if (!content.videoFile) {
       throw new Error('Cannot update embedUrl: linked video media is missing');
     }
@@ -437,17 +454,107 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
     if (!mediaRecord) {
       throw new Error('Linked media not found');
     }
-    if ((mediaRecord.videoSource || 'upload') !== 'embed') {
+
+    const currentSource = mediaRecord.videoSource || 'upload';
+    const targetSource = requestedVideoSource || currentSource;
+
+    if (targetSource === 'embed') {
+      const canonical = assertBunnyIframeEmbedUrl(
+        typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? mediaRecord.embedUrl ?? '')
+      );
+
+      if (currentSource === 'upload' && mediaRecord.filePath) {
+        try {
+          await s3Service.deleteByKey(mediaRecord.filePath);
+        } catch (error) {
+          console.error('Error deleting previous explore video:', error);
+        }
+      }
+
+      mediaRecord.videoSource = 'embed';
+      mediaRecord.embedUrl = canonical;
+      mediaRecord.cloudUrl = canonical;
+      mediaRecord.url = canonical;
+      mediaRecord.filePath = null;
+      mediaRecord.mimeType = null;
+      mediaRecord.size = null;
+      await mediaRecord.save();
+      content.videoFileUrl = canonical;
+      content.videoFilePath = null;
+    } else if (embedUrl !== undefined) {
       throw new Error('embedUrl can only be updated for Bunny embed videos');
     }
-    const canonical = assertBunnyIframeEmbedUrl(
-      typeof embedUrl === 'string' ? embedUrl : String(embedUrl ?? '')
-    );
-    mediaRecord.embedUrl = canonical;
-    mediaRecord.cloudUrl = canonical;
-    mediaRecord.url = canonical;
-    await mediaRecord.save();
-    content.videoFileUrl = canonical;
+  }
+
+  if (hasVideoFile && content.type === 'video') {
+    let mediaRecord = content.videoFile ? await Media.findById(content.videoFile) : null;
+
+    if (mediaRecord && (mediaRecord.videoSource || 'upload') === 'upload' && mediaRecord.filePath) {
+      try {
+        await s3Service.deleteByKey(mediaRecord.filePath);
+      } catch (error) {
+        console.error('Error deleting previous explore video:', error);
+      }
+    } else if (content.videoFilePath) {
+      try {
+        await s3Service.deleteByKey(content.videoFilePath);
+      } catch (error) {
+        console.error('Error deleting previous explore video path:', error);
+      }
+    }
+
+    const videoFile = files.videoFile[0];
+    let videoByteSize = typeof videoFile.size === 'number' ? videoFile.size : 0;
+    if ((!videoByteSize || videoByteSize < 0) && videoFile.path) {
+      try {
+        const st = await fs.promises.stat(videoFile.path);
+        videoByteSize = st.size;
+      } catch (_) {
+        videoByteSize = 0;
+      }
+    }
+
+    const { url: videoUrl, s3Key: videoS3Key } = await s3Service.uploadFileFromMulter(videoFile, 'media/videos');
+
+    if (mediaRecord) {
+      mediaRecord.videoSource = 'upload';
+      mediaRecord.title = content.title?.trim() || videoFile.originalname;
+      mediaRecord.filePath = videoS3Key;
+      mediaRecord.url = videoUrl;
+      mediaRecord.cloudUrl = videoUrl;
+      mediaRecord.mimeType = videoFile.mimetype;
+      mediaRecord.size = videoByteSize;
+      mediaRecord.embedUrl = null;
+      if (duration !== undefined) {
+        mediaRecord.duration = duration ? parseInt(duration, 10) : null;
+      }
+      await mediaRecord.save();
+    } else {
+      mediaRecord = await Media.create({
+        type: 'video',
+        videoSource: 'upload',
+        title: content.title?.trim() || videoFile.originalname,
+        description: content.description?.trim() || null,
+        filePath: videoS3Key,
+        url: videoUrl,
+        mimeType: videoFile.mimetype,
+        size: videoByteSize,
+        duration: duration ? parseInt(duration, 10) : content.duration,
+        uploadedBy: userId,
+        tags: [EXPLORE_VIDEO_MEDIA_TAG],
+      });
+      content.videoFile = mediaRecord._id;
+      content.contentRef = mediaRecord._id;
+      content.contentRefModel = 'Media';
+    }
+
+    content.videoFilePath = videoS3Key;
+    content.videoFileUrl = videoUrl;
+  } else if (requestedVideoSource === 'upload' && content.type === 'video') {
+    const mediaRecord = content.videoFile ? await Media.findById(content.videoFile) : null;
+    if ((mediaRecord?.videoSource || 'upload') === 'embed') {
+      throw new Error('Please provide a video file when switching to upload source');
+    }
   }
 
   if (files.coverImage && Array.isArray(files.coverImage) && files.coverImage.length > 0) {
@@ -474,6 +581,13 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
     .lean();
 
   return updatedContent;
+  } finally {
+    await Promise.all(
+      tempDiskPaths.map((p) =>
+        fs.promises.unlink(p).catch(() => {})
+      )
+    );
+  }
 };
 
 /**

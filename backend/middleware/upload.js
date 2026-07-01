@@ -208,25 +208,34 @@ const uploadActivity = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for activity update (cover image only, no SCORM file)
+// Middleware for activity update (SCORM package + cover image)
 const uploadActivityUpdate = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
-    // Only allow cover image
-    if (file.fieldname === 'coverImage') {
+    if (file.fieldname === 'scormFile') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('SCORM file must be a ZIP file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only scormFile and coverImage are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: 500 * 1024 * 1024,
   },
 }).fields([
+  { name: 'scormFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 
@@ -261,24 +270,34 @@ const uploadBook = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for book update (cover image only, no SCORM file)
+// Middleware for book update (package ZIP + cover image)
 const uploadBookUpdate = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
-    if (file.fieldname === 'coverImage') {
+    if (file.fieldname === 'scormFile') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('Package file must be a ZIP file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only scormFile and coverImage are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: 500 * 1024 * 1024,
   },
 }).fields([
+  { name: 'scormFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 
@@ -330,11 +349,26 @@ const uploadVideo = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for video update (cover image only, no video/SCORM files)
+// Middleware for video update (main video, SCORM, HTML5 follow-up, cover image)
 const uploadVideoUpdate = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
-    if (file.fieldname === 'coverImage') {
+    if (file.fieldname === 'videoFile') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Video file must be a video file'), false);
+      }
+    } else if (file.fieldname === 'scormFile') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('SCORM file must be a ZIP file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
@@ -350,13 +384,15 @@ const uploadVideoUpdate = multer({
         cb(new Error('HTML5 package must be a ZIP file'), false);
       }
     } else {
-      cb(new Error('Only cover image and HTML5 follow-up package are allowed for updates'), false);
+      cb(new Error('Invalid file field for video update'), false);
     }
   },
   limits: {
-    fileSize: 500 * 1024 * 1024, // allow HTML5 ZIP replacement
+    fileSize: 500 * 1024 * 1024,
   },
 }).fields([
+  { name: 'videoFile', maxCount: 1 },
+  { name: 'scormFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
   { name: 'html5File', maxCount: 1 },
 ]);
@@ -396,11 +432,17 @@ const uploadAudioAssignment = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for audio assignment update (cover image + instruction video, no reference audio)
+// Middleware for audio assignment update (reference audio, cover image, instruction video)
 const uploadAudioAssignmentUpdate = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
-    if (file.fieldname === 'coverImage') {
+    if (file.fieldname === 'referenceAudio') {
+      if (file.mimetype.startsWith('audio/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Reference audio must be an audio file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
@@ -413,13 +455,14 @@ const uploadAudioAssignmentUpdate = multer({
         cb(new Error('Instruction video must be a video file'), false);
       }
     } else {
-      cb(new Error('Only coverImage and instructionVideo are allowed for updates'), false);
+      cb(new Error('Only referenceAudio, coverImage, and instructionVideo are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB max file size (supports instruction videos)
+    fileSize: 500 * 1024 * 1024,
   },
 }).fields([
+  { name: 'referenceAudio', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
   { name: 'instructionVideo', maxCount: 1 },
 ]);
@@ -490,15 +533,15 @@ const uploadChant = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for chant update (cover image + instruction video only, no audio/scormFile)
+// Middleware for chant update (audio, SCORM, cover image, instruction video)
 const uploadChantUpdate = multer({
   storage: memoryStorage,
   fileFilter: function (req, file, cb) {
-    if (file.fieldname === 'coverImage') {
-      if (file.mimetype.startsWith('image/')) {
+    if (file.fieldname === 'audio') {
+      if (file.mimetype.startsWith('audio/')) {
         cb(null, true);
       } else {
-        cb(new Error('Cover image must be an image file'), false);
+        cb(new Error('Audio must be an audio file'), false);
       }
     } else if (file.fieldname === 'instructionVideo') {
       if (file.mimetype.startsWith('video/')) {
@@ -506,16 +549,33 @@ const uploadChantUpdate = multer({
       } else {
         cb(new Error('Instruction video must be a video file'), false);
       }
+    } else if (file.fieldname === 'scormFile') {
+      const isZip = file.mimetype === 'application/zip' ||
+                    file.mimetype === 'application/x-zip-compressed' ||
+                    path.extname(file.originalname).toLowerCase() === '.zip';
+      if (isZip) {
+        cb(null, true);
+      } else {
+        cb(new Error('SCORM file must be a ZIP file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Cover image must be an image file'), false);
+      }
     } else {
-      cb(new Error('Only coverImage and instructionVideo are allowed for updates'), false);
+      cb(new Error('Invalid file field for chant update'), false);
     }
   },
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB max file size (supports instruction videos)
+    fileSize: 500 * 1024 * 1024,
   },
 }).fields([
-  { name: 'coverImage', maxCount: 1 },
+  { name: 'audio', maxCount: 1 },
   { name: 'instructionVideo', maxCount: 1 },
+  { name: 'scormFile', maxCount: 1 },
+  { name: 'coverImage', maxCount: 1 },
 ]);
 
 // Middleware for child recorded audio submissions (single audio file)
@@ -551,24 +611,31 @@ const uploadExplore = multer({
   { name: 'coverImage', maxCount: 1 },
 ]);
 
-// Middleware for explore content update (cover photo only, no video file)
+// Middleware for explore content update (video file + cover photo)
 const uploadExploreUpdate = multer({
-  storage: memoryStorage,
+  storage: exploreUploadDiskStorage,
   fileFilter: function (req, file, cb) {
-    if (file.fieldname === 'coverImage') {
+    if (file.fieldname === 'videoFile') {
+      if (file.mimetype.startsWith('video/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Video file must be a video file'), false);
+      }
+    } else if (file.fieldname === 'coverImage') {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
       } else {
         cb(new Error('Cover image must be an image file'), false);
       }
     } else {
-      cb(new Error('Only cover image is allowed for updates'), false);
+      cb(new Error('Only videoFile and coverImage are allowed for updates'), false);
     }
   },
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size for images
+    fileSize: exploreVideoMaxFileBytes,
   },
 }).fields([
+  { name: 'videoFile', maxCount: 1 },
   { name: 'coverImage', maxCount: 1 },
 ]);
 

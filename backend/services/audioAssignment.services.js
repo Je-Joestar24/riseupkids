@@ -308,6 +308,34 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
     audioAssignment.coverImage = coverUrl;
   }
 
+  if (files.referenceAudio && Array.isArray(files.referenceAudio) && files.referenceAudio.length > 0) {
+    const referenceAudio = files.referenceAudio[0];
+
+    if (audioAssignment.referenceAudio) {
+      try {
+        const oldAudioMedia = await Media.findById(audioAssignment.referenceAudio);
+        if (oldAudioMedia && oldAudioMedia.filePath) {
+          await s3Service.deleteByKey(oldAudioMedia.filePath);
+        }
+        await Media.findByIdAndDelete(audioAssignment.referenceAudio);
+      } catch (error) {
+        console.error('Error deleting previous reference audio:', error);
+      }
+    }
+
+    const { url: audioFileUrl, s3Key: audioS3Key } = await s3Service.uploadFileFromMulter(referenceAudio, 'media/audio');
+    const audioMedia = await Media.create({
+      type: 'audio',
+      title: referenceAudio.originalname,
+      filePath: audioS3Key,
+      url: audioFileUrl,
+      mimeType: referenceAudio.mimetype,
+      size: referenceAudio.size,
+      uploadedBy: userId,
+    });
+    audioAssignment.referenceAudio = audioMedia._id;
+  }
+
   const instructionVideoMedia = await resolveInstructionVideoMedia({
     userId,
     files,

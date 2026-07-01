@@ -229,7 +229,7 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
         <Button onClick={onClose} sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600 }}>
           Close
         </Button>
-        {videoSrc ? (
+{/*         {videoSrc ? (
           <Button
             startIcon={<OpenInNewIcon aria-hidden />}
             onClick={handleOpenInNewTab}
@@ -239,7 +239,7 @@ const ExploreVideoTestPlayerModal = ({ open, onClose, content }) => {
           >
             Open in new tab
           </Button>
-        ) : null}
+        ) : null} */}
       </DialogActions>
     </Dialog>
   );

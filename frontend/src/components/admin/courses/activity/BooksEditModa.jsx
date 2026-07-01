@@ -19,16 +19,14 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
-import { CONTENT_TYPES } from '../../../../services/contentService';
+import { CONTENT_TYPES, BOOK_PACKAGE_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
+import CMSBooksSelectRightDrawer from './CMSBooksSelectRightDrawer';
 
 /**
  * BookEditModal Component
- * 
- * Modal for editing books
- * Can only edit: title, description, coverImage, language, readingLevel,
- * estimatedReadingTime, requiredReadingCount, starsPerReading, totalStarsAwarded, isPublished
- * SCORM file cannot be changed
+ *
+ * Modal for editing books including package replacement (HTML5/SCORM) or CMS re-link for built-in books.
  */
 const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
   const theme = useTheme();
@@ -50,9 +48,14 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
     starsPerReading: 10,
     totalStarsAwarded: 50,
     isPublished: false,
+    cmsBookId: '',
+    selectedCmsBook: null,
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [selectedPackageFile, setSelectedPackageFile] = useState(null);
+  const [packageType, setPackageType] = useState('html5');
+  const [cmsBooksDrawerOpen, setCmsBooksDrawerOpen] = useState(false);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -98,7 +101,10 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
         starsPerReading: currentContent.starsPerReading || 10,
         totalStarsAwarded: currentContent.totalStarsAwarded || 50,
         isPublished: currentContent.isPublished || false,
+        cmsBookId: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId?._id || '' : currentContent.cmsBookId || '',
+        selectedCmsBook: typeof currentContent.cmsBookId === 'object' ? currentContent.cmsBookId : null,
       });
+      setPackageType(currentContent.packageType || 'html5');
       setCurrentCoverImage(currentContent.coverImage);
       setSelectedCoverImage(null);
       setIsInitialized(true);
@@ -147,6 +153,19 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
+      const bookMeta = {
+        isBuiltinBook: packageType === BOOK_PACKAGE_TYPES.BUILTIN,
+        isHtml5Book: packageType === BOOK_PACKAGE_TYPES.HTML5,
+        isLegacyScormBook: packageType === BOOK_PACKAGE_TYPES.SCORM,
+      };
+      if (bookMeta.isBuiltinBook) {
+        if (formData.cmsBookId) {
+          formDataToSend.append('cmsBookId', formData.cmsBookId);
+        }
+      } else if (selectedPackageFile) {
+        formDataToSend.append('scormFile', selectedPackageFile);
+      }
+
       await updateContentData(CONTENT_TYPES.BOOK, bookId, formDataToSend);
       
       if (onSuccess) {
@@ -169,8 +188,12 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
       starsPerReading: 10,
       totalStarsAwarded: 50,
       isPublished: false,
+      cmsBookId: '',
+      selectedCmsBook: null,
     });
     setSelectedCoverImage(null);
+    setSelectedPackageFile(null);
+    setPackageType('html5');
     setCurrentCoverImage(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
@@ -192,6 +215,12 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
     : currentCoverImage
     ? resolveMediaUrl(currentCoverImage)
     : null;
+
+  const bookMeta = {
+    isBuiltinBook: packageType === BOOK_PACKAGE_TYPES.BUILTIN,
+    isHtml5Book: packageType === BOOK_PACKAGE_TYPES.HTML5,
+    isLegacyScormBook: packageType === BOOK_PACKAGE_TYPES.SCORM,
+  };
 
   return (
     <Dialog
@@ -262,6 +291,59 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
               },
             }}
           />
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, mb: 1 }}>
+              Package type
+            </Typography>
+            <Chip
+              label={bookMeta.isBuiltinBook ? 'Built-in CMS book' : bookMeta.isHtml5Book ? 'HTML5 package' : 'SCORM package'}
+              size="small"
+              sx={{ fontFamily: 'Quicksand, sans-serif' }}
+            />
+          </Box>
+
+          {bookMeta.isBuiltinBook ? (
+            <Box>
+              <Typography sx={{ fontFamily: 'Quicksand, sans-serif', color: theme.palette.text.secondary, mb: 1 }}>
+                {formData.selectedCmsBook?.title || currentContent?.cmsBookId?.title || 'No built-in book linked'}
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={() => setCmsBooksDrawerOpen(true)}
+                fullWidth
+                sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}
+              >
+                {formData.cmsBookId ? 'Change built-in book' : 'Select built-in book'}
+              </Button>
+            </Box>
+          ) : (
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, mb: 1 }}>
+                {bookMeta.isHtml5Book ? 'HTML5 package (ZIP)' : 'SCORM package (ZIP)'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+                Upload a ZIP only if you want to replace the current book package.
+              </Typography>
+              <input
+                accept=".zip,application/zip,application/x-zip-compressed"
+                style={{ display: 'none' }}
+                id="book-package-upload-edit"
+                type="file"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) setSelectedPackageFile(e.target.files[0]);
+                }}
+              />
+              <label htmlFor="book-package-upload-edit">
+                <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                  Replace package (ZIP)
+                </Button>
+              </label>
+              {selectedPackageFile && (
+                <Chip label={selectedPackageFile.name} size="small" sx={{ mt: 1 }} onDelete={() => setSelectedPackageFile(null)} />
+              )}
+            </Box>
+          )}
 
           {/* Language */}
           <FormControl fullWidth>
@@ -488,6 +570,17 @@ const BookEditModal = ({ open, onClose, bookId, onSuccess }) => {
           {loading ? 'Updating...' : 'Update Book'}
         </Button>
       </DialogActions>
+
+      <CMSBooksSelectRightDrawer
+        open={cmsBooksDrawerOpen}
+        onClose={() => setCmsBooksDrawerOpen(false)}
+        selectedBookId={formData.cmsBookId}
+        onSelectBook={(book) => {
+          handleInputChange('cmsBookId', book?._id || '');
+          handleInputChange('selectedCmsBook', book || null);
+          setCmsBooksDrawerOpen(false);
+        }}
+      />
     </Dialog>
   );
 };

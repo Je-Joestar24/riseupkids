@@ -275,6 +275,53 @@ const updateActivity = async (activityId, userId, updateData, files = {}, user =
     activity.coverImage = coverUrl;
   }
 
+  // Replace SCORM package if provided
+  if (files.scormFile && Array.isArray(files.scormFile) && files.scormFile.length > 0) {
+    const scormFile = files.scormFile[0];
+
+    if (activity.scormFile) {
+      try {
+        const oldScormMedia = await Media.findById(activity.scormFile);
+        if (oldScormMedia && oldScormMedia.filePath) {
+          await s3Service.deleteByKey(oldScormMedia.filePath);
+        }
+        await Media.findByIdAndDelete(activity.scormFile);
+      } catch (error) {
+        console.error('Error deleting previous SCORM file:', error);
+      }
+    }
+
+    try {
+      await s3Service.deleteByPrefix(`scorm/activity/${activity._id}`);
+    } catch (error) {
+      console.error('Error deleting previous extracted SCORM package:', error);
+    }
+
+    const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
+    const scormMedia = await Media.create({
+      type: 'video',
+      title: scormFile.originalname,
+      filePath: scormS3Key,
+      url: scormFileUrl,
+      mimeType: scormFile.mimetype,
+      size: scormFile.size,
+      uploadedBy: userId,
+    });
+
+    activity.scormFile = scormMedia._id;
+    activity.scormFilePath = scormS3Key;
+    activity.scormFileUrl = scormFileUrl;
+    activity.scormFileSize = scormFile.size;
+
+    if (scormFile.buffer) {
+      const extracted = await scormService.uploadExtractedScormToS3(scormFile.buffer, 'activity', activity._id);
+      if (extracted) {
+        activity.scormBaseUrl = extracted.baseUrl;
+        activity.scormEntryPoint = extracted.entryPoint;
+      }
+    }
+  }
+
   await activity.save();
 
   // Get updated activity with populated data

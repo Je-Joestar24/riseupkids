@@ -18,9 +18,10 @@ import {
   Paper,
   FormControlLabel,
   Checkbox,
+  Chip,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon } from '@mui/icons-material';
+import { Close as CloseIcon, CloudUpload as CloudUploadIcon } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
 import { CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
@@ -51,6 +52,8 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [selectedReferenceAudio, setSelectedReferenceAudio] = useState(null);
+  const [currentReferenceAudio, setCurrentReferenceAudio] = useState(null);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [selectedInstructionVideo, setSelectedInstructionVideo] = useState(null);
@@ -119,7 +122,9 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
         instructionVideoEmbedUrl: isEmbed ? (instructionMedia.embedUrl || instructionMedia.url || '') : '',
       });
       setCurrentCoverImage(currentContent.coverImage);
+      setCurrentReferenceAudio(currentContent.referenceAudio || null);
       setSelectedCoverImage(null);
+      setSelectedReferenceAudio(null);
       setCurrentInstructionVideo(instructionMedia || null);
       setSelectedInstructionVideo(null);
       setIsInitialized(true);
@@ -163,6 +168,10 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
+      if (selectedReferenceAudio) {
+        formDataToSend.append('referenceAudio', selectedReferenceAudio);
+      }
+
       if (formData.instructionVideoSource === 'embed') {
         const embed = formData.instructionVideoEmbedUrl?.trim();
         if (embed) {
@@ -201,6 +210,8 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
     });
     setSelectedCoverImage(null);
     setCurrentCoverImage(null);
+    setSelectedReferenceAudio(null);
+    setCurrentReferenceAudio(null);
     setSelectedInstructionVideo(null);
     setCurrentInstructionVideo(null);
     setIsInitialized(false);
@@ -406,6 +417,35 @@ const AudioEditModal = ({ open, onClose, audioId, onSuccess }) => {
                   </FormControl>
                 </Paper>
               </Stack>
+            </Grid>
+            <Grid item xs={12}>
+              <Paper variant="outlined" sx={bentoCardSx}>
+                <Stack spacing={1.5}>
+                  <Typography sx={bentoTitleSx}>Reference audio</Typography>
+                  {currentReferenceAudio && !selectedReferenceAudio && (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                      Current: {typeof currentReferenceAudio === 'object' ? currentReferenceAudio.title || 'Reference audio' : 'Reference audio'}
+                    </Typography>
+                  )}
+                  <input
+                    accept="audio/*"
+                    style={{ display: 'none' }}
+                    id="audio-reference-upload-edit"
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) setSelectedReferenceAudio(e.target.files[0]);
+                    }}
+                  />
+                  <label htmlFor="audio-reference-upload-edit">
+                    <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                      {currentReferenceAudio ? 'Replace reference audio' : 'Upload reference audio'}
+                    </Button>
+                  </label>
+                  {selectedReferenceAudio && (
+                    <Chip label={selectedReferenceAudio.name} size="small" onDelete={() => setSelectedReferenceAudio(null)} />
+                  )}
+                </Stack>
+              </Paper>
             </Grid>
             <Grid item xs={12}>
               <Paper variant="outlined" sx={bentoCardSx}>

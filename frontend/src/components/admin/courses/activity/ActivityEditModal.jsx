@@ -24,9 +24,8 @@ import { BACKEND_BASE_URL } from '../../../../config/constants';
 
 /**
  * ActivityEditModal Component
- * 
- * Modal for editing activities
- * Can only edit: title, description, coverImage, starsAwarded, isPublished
+ *
+ * Modal for editing activities including SCORM package replacement.
  */
 const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TYPES.ACTIVITY, onSuccess }) => {
   const theme = useTheme();
@@ -46,6 +45,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
   });
 
   const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [selectedScormFile, setSelectedScormFile] = useState(null);
   const [currentCoverImage, setCurrentCoverImage] = useState(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -142,6 +142,10 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
         formDataToSend.append('coverImage', selectedCoverImage);
       }
 
+      if (selectedScormFile) {
+        formDataToSend.append('scormFile', selectedScormFile);
+      }
+
       await updateContentData(contentType, activityId, formDataToSend);
       
       if (onSuccess) {
@@ -161,6 +165,7 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
       isPublished: false,
     });
     setSelectedCoverImage(null);
+    setSelectedScormFile(null);
     setCurrentCoverImage(null);
     setIsInitialized(false);
     isFetchingRef.current = false;
@@ -269,6 +274,36 @@ const ActivityEditModal = ({ open, onClose, activityId, contentType = CONTENT_TY
               },
             }}
           />
+
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 600, marginBottom: 1 }}>
+              SCORM package (ZIP)
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'Quicksand, sans-serif', display: 'block', mb: 1 }}>
+              {currentContent?.scormFile
+                ? `Current: ${typeof currentContent.scormFile === 'object' ? currentContent.scormFile.title || 'SCORM package' : 'SCORM package'}`
+                : 'No SCORM package on record.'}
+            </Typography>
+            <input
+              accept=".zip,application/zip,application/x-zip-compressed"
+              style={{ display: 'none' }}
+              id="activity-scorm-upload-edit"
+              type="file"
+              onChange={(e) => {
+                if (e.target.files?.[0]) setSelectedScormFile(e.target.files[0]);
+              }}
+            />
+            <label htmlFor="activity-scorm-upload-edit">
+              <Button variant="outlined" component="span" startIcon={<CloudUploadIcon />} fullWidth sx={{ borderRadius: '10px', fontFamily: 'Quicksand, sans-serif' }}>
+                Replace SCORM package (ZIP)
+              </Button>
+            </label>
+            {selectedScormFile && (
+              <Box sx={{ marginTop: 1 }}>
+                <Chip label={selectedScormFile.name} size="small" onDelete={() => setSelectedScormFile(null)} />
+              </Box>
+            )}
+          </Box>
 
           {/* Cover Image Upload */}
           <Box>
