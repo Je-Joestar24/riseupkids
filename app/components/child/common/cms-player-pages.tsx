@@ -3,8 +3,8 @@
  * Parent must be a 16:9 stage; buttons use % of parent like web.
  */
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { Audio, ResizeMode, Video } from 'expo-av';
+
+import { Audio } from 'expo-av';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
@@ -18,7 +18,9 @@ import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
-import { useCmsPlayableMediaUri } from './cms-player-media-context';
+import { resolvePlayableMediaUri } from './cms-player-media';
+import { useCmsMediaUriMap, useCmsPlayableMediaUri } from './cms-player-media-context';
+import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
 import {
   cmsLocalUiAssets,
   extractReadingWordsFromPage,
@@ -166,42 +168,46 @@ export function CmsDemoPage({
   isPreloading: boolean;
   onNext: () => void;
 }) {
-  const bg = useCmsPlayableMediaUri(resolveImageUrl(page));
-  const video = useCmsPlayableMediaUri(resolveVideoUrl(page));
+  const mediaUriMap = useCmsMediaUriMap();
+  const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
+  const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
+
+  if (__DEV__ && !videoUrl) {
+    const media = page.media as { videoMediaId?: string | null; videoMedia?: { url?: string | null } | null };
+    console.warn('[CmsDemoPage] No video URL resolved', {
+      pageId: page.pageId,
+      type: page.type,
+      videoMediaId: media?.videoMediaId ?? null,
+      videoMediaUrl: media?.videoMedia?.url ?? null,
+    });
+  }
 
   return (
     <View style={styles.fill}>
-      {bg ? (
-        <Image
-          source={{ uri: bg }}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
-          accessibilityLabel={page.title || 'Demo'}
-          accessibilityRole="image"
-        />
-      ) : null}
-      {video ? (
-        <Video
-          source={{ uri: video }}
-          style={StyleSheet.absoluteFillObject}
-          resizeMode={ResizeMode.COVER}
-          shouldPlay
-          isLooping
-          isMuted
-          useNativeControls={false}
-        />
-      ) : null}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.38)']}
-        style={[StyleSheet.absoluteFillObject, styles.centerContent]}
-        pointerEvents="none"
-      >
-        {page.subtitle ? (
+      <View style={styles.demoMediaLayer} pointerEvents="none">
+        {bgImage ? (
+          <Image
+            source={{ uri: bgImage }}
+            style={StyleSheet.absoluteFillObject}
+            resizeMode="cover"
+            accessibilityLabel={page.title || 'Demo'}
+            accessibilityRole="image"
+          />
+        ) : null}
+        {videoUrl ? (
+          <CmsLoopingBackgroundVideo
+            uri={videoUrl}
+            accessibilityLabel="Demo tutorial video"
+          />
+        ) : null}
+      </View>
+      {page.subtitle ? (
+        <View style={[StyleSheet.absoluteFillObject, styles.demoSubtitleWrap]} pointerEvents="none">
           <Text style={styles.demoSubtitle} accessibilityRole="text">
             {page.subtitle}
           </Text>
-        ) : null}
-      </LinearGradient>
+        </View>
+      ) : null}
       <Pressable
         onPress={onNext}
         disabled={isPreloading || !hasNext}
@@ -426,6 +432,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+  demoMediaLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  demoSubtitleWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 1,
+  },
   pressed: { opacity: 0.88 },
   btnImg: { width: '100%', height: '100%' },
   introPlay: {
@@ -458,6 +474,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     textAlign: 'center',
     opacity: 0.95,
+    textShadowColor: 'rgba(0, 0, 0, 0.65)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
   contentGrid: {
     flex: 1,

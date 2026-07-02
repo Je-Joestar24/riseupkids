@@ -3,7 +3,35 @@
  * All layout percentages are relative to a 1920×1080 logical stage.
  */
 
+import { BACKEND_ORIGIN } from '@/config';
 import type { CmsPlayablePage, PlayerPageMedia } from '@/services/cmsBooksPlayerService';
+
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+
+/**
+ * CMS media often stores `/uploads/...` paths (works in web same-origin).
+ * React Native Image/Video require absolute http(s) or file:// URIs.
+ */
+export function resolveCmsAbsoluteMediaUrl(raw: string | null | undefined): string {
+  if (raw == null) return '';
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  if (!trimmed || OBJECT_ID.test(trimmed)) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('file://') ||
+    trimmed.startsWith('data:')
+  ) {
+    return trimmed;
+  }
+  const base = BACKEND_ORIGIN.replace(/\/+$/, '');
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${base}${path}`;
+}
+
+function cmsMediaUrl(raw: string | null | undefined): string {
+  return resolveCmsAbsoluteMediaUrl(raw);
+}
 
 export const CMS_DESIGN_WIDTH = 1920;
 export const CMS_DESIGN_HEIGHT = 1080;
@@ -34,30 +62,39 @@ export function resolvePageType(rawType: string | undefined): string {
 export function resolveImageUrl(page: CmsPlayablePage | Record<string, unknown>): string {
   const p = page as Record<string, unknown>;
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
-  return (
+  const raw =
     (p.imageUrl as string) ||
     (p.backgroundImageUrl as string) ||
     (media.imageUrl as string) ||
     (media.backgroundImageUrl as string) ||
-    (media.image as { url?: string } | undefined)?.url ||
-    (media.backgroundImage as { url?: string } | undefined)?.url ||
+    (media.image as { url?: string; cloudUrl?: string } | undefined)?.url ||
+    (media.image as { url?: string; cloudUrl?: string } | undefined)?.cloudUrl ||
+    (media.backgroundImage as { url?: string; cloudUrl?: string } | undefined)?.url ||
+    (media.backgroundImage as { url?: string; cloudUrl?: string } | undefined)?.cloudUrl ||
     media.imageMedia?.url ||
+    media.imageMedia?.cloudUrl ||
     media.backgroundImageMedia?.url ||
+    media.backgroundImageMedia?.cloudUrl ||
     media.guideImageMedia?.url ||
-    ''
-  );
+    media.guideImageMedia?.cloudUrl ||
+    '';
+  return cmsMediaUrl(raw);
 }
 
 export function resolveVideoUrl(page: CmsPlayablePage | Record<string, unknown>): string {
   const p = page as Record<string, unknown>;
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
-  return (
+  const videoMedia = media.videoMedia as { url?: string; cloudUrl?: string } | undefined;
+  const nestedVideo = media.video as { url?: string; cloudUrl?: string } | undefined;
+  const raw =
     (p.videoUrl as string) ||
     (media.videoUrl as string) ||
-    (media.video as { url?: string } | undefined)?.url ||
-    media.videoMedia?.url ||
-    ''
-  );
+    nestedVideo?.url ||
+    nestedVideo?.cloudUrl ||
+    videoMedia?.url ||
+    videoMedia?.cloudUrl ||
+    '';
+  return cmsMediaUrl(raw);
 }
 
 export function resolveAudioUrl(page: CmsPlayablePage | Record<string, unknown>): string {
@@ -67,14 +104,17 @@ export function resolveAudioUrl(page: CmsPlayablePage | Record<string, unknown>)
     return '';
   }
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
-  return (
+  const raw =
     (p.audioUrl as string) ||
     (media.audioUrl as string) ||
-    (media.audio as { url?: string } | undefined)?.url ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.url ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.cloudUrl ||
     media.audioMedia?.url ||
+    media.audioMedia?.cloudUrl ||
     media.instructionAudioMedia?.url ||
-    ''
-  );
+    media.instructionAudioMedia?.cloudUrl ||
+    '';
+  return cmsMediaUrl(raw);
 }
 
 /** Optional intro/cover background music (cover `media.audioMedia`). */
@@ -85,13 +125,15 @@ export function resolveIntroBackgroundMusicUrl(
   const pageType = resolvePageType(p.type as string | undefined);
   if (pageType !== 'intro') return '';
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
-  return (
+  const raw =
     (p.introBackgroundMusicUrl as string) ||
     (media.introBackgroundMusicUrl as string) ||
     media.audioMedia?.url ||
-    (media.audio as { url?: string } | undefined)?.url ||
-    ''
-  );
+    media.audioMedia?.cloudUrl ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.url ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.cloudUrl ||
+    '';
+  return cmsMediaUrl(raw);
 }
 
 /** Optional reward celebration audio (reward `media.audioMedia`). */
@@ -102,13 +144,15 @@ export function resolveRewardAudioUrl(
   const pageType = resolvePageType(p.type as string | undefined);
   if (pageType !== 'reward') return '';
   const media = (p.media ?? {}) as PlayerPageMedia & Record<string, unknown>;
-  return (
+  const raw =
     (p.rewardAudioUrl as string) ||
     (media.rewardAudioUrl as string) ||
     media.audioMedia?.url ||
-    (media.audio as { url?: string } | undefined)?.url ||
-    ''
-  );
+    media.audioMedia?.cloudUrl ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.url ||
+    (media.audio as { url?: string; cloudUrl?: string } | undefined)?.cloudUrl ||
+    '';
+  return cmsMediaUrl(raw);
 }
 
 export function getPlayablePages(pages: CmsPlayablePage[] | undefined): CmsPlayablePage[] {

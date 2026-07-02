@@ -7,9 +7,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Image as RNImage } from 'react-native';
 
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
+import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 import {
   resolveAudioUrl,
+  resolveCmsAbsoluteMediaUrl,
   resolveImageUrl,
   resolveIntroBackgroundMusicUrl,
   resolvePageType,
@@ -28,11 +30,33 @@ function simpleHash(input: string): string {
   return Math.abs(h).toString(36);
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
+
 function extensionFromUrl(url: string): string {
   const path = url.split('?')[0]?.toLowerCase() ?? '';
   const m = path.match(/\.([a-z0-9]{1,8})$/);
   if (!m) return '';
   return `.${m[1]}`;
+}
+
+/** Guess a file extension when CDN URLs omit one (expo-av needs a real video extension). */
+function inferCachedExtension(url: string): string {
+  const ext = extensionFromUrl(url);
+  if (ext) return ext;
+
+  const lower = url.toLowerCase();
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/.test(lower)) return extensionFromUrl(url) || '.mp4';
+  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/.test(lower)) return '.mp4';
+  if (/\.(mp3|wav|m4a|aac|ogg)(\?|$)/.test(lower) || /\/audio/.test(lower)) return '.mp3';
+  if (IMAGE_EXT.test(lower) || /\/images?\//.test(lower)) return '.jpg';
+  return '.bin';
+}
+
+function isLikelyVideoUrl(url: string): boolean {
+  if (!url) return false;
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)) return true;
+  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/i.test(url)) return true;
+  return false;
 }
 
 function isHttp(url: string): boolean {
@@ -56,78 +80,81 @@ async function ensureCacheDir(): Promise<string> {
  */
 /** Returns a known local URI from memory/disk when already cached; otherwise null. */
 export async function getCachedMediaUriIfReady(remoteUrl: string): Promise<string | null> {
-  if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
+  const normalized = resolveCmsAbsoluteMediaUrl(remoteUrl);
+  if (!normalized || !isHttp(normalized)) return normalized || null;
 
-  const memo = resolvedUriCache.get(remoteUrl);
+  const memo = resolvedUriCache.get(normalized);
   if (memo) {
     const exists = await FileSystem.getInfoAsync(memo);
     if (exists.exists) return memo;
-    resolvedUriCache.delete(remoteUrl);
+    resolvedUriCache.delete(normalized);
   }
 
   const dir = await ensureCacheDir();
   if (!dir) return null;
 
-  const ext = extensionFromUrl(remoteUrl) || '.bin';
-  const dest = `${dir}${simpleHash(remoteUrl)}${ext}`;
+  const ext = extensionFromUrl(normalized) || inferCachedExtension(normalized);
+  const dest = `${dir}${simpleHash(normalized)}${ext}`;
   const info = await FileSystem.getInfoAsync(dest);
   if (info.exists) {
-    resolvedUriCache.set(remoteUrl, dest);
+    resolvedUriCache.set(normalized, dest);
     return dest;
   }
   return null;
 }
 
 export async function resolveCachedMediaUri(remoteUrl: string): Promise<string> {
-  if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
+  const normalized = resolveCmsAbsoluteMediaUrl(remoteUrl);
+  if (!normalized || !isHttp(normalized)) return normalized;
 
-  const ready = await getCachedMediaUriIfReady(remoteUrl);
-  if (ready && ready !== remoteUrl) return ready;
+  const ready = await getCachedMediaUriIfReady(normalized);
+  if (ready && ready !== normalized) return ready;
 
-  const memo = resolvedUriCache.get(remoteUrl);
+  const memo = resolvedUriCache.get(normalized);
   if (memo) {
     const exists = await FileSystem.getInfoAsync(memo);
     if (exists.exists) return memo;
-    resolvedUriCache.delete(remoteUrl);
+    resolvedUriCache.delete(normalized);
   }
 
-  const existing = inflight.get(remoteUrl);
+  const existing = inflight.get(normalized);
   if (existing) return existing;
 
   const task = (async () => {
     const dir = await ensureCacheDir();
-    if (!dir) return remoteUrl;
+    if (!dir) return normalized;
 
-    const ext = extensionFromUrl(remoteUrl) || '.bin';
-    const dest = `${dir}${simpleHash(remoteUrl)}${ext}`;
+    const ext = inferCachedExtension(normalized);
+    const dest = `${dir}${simpleHash(normalized)}${ext}`;
     const info = await FileSystem.getInfoAsync(dest);
     if (info.exists) {
-      resolvedUriCache.set(remoteUrl, dest);
+      resolvedUriCache.set(normalized, dest);
       return dest;
     }
 
     try {
-      const result = await FileSystem.downloadAsync(remoteUrl, dest);
+      const result = await FileSystem.downloadAsync(normalized, dest);
       if (result.status === 200 && result.uri) {
-        resolvedUriCache.set(remoteUrl, result.uri);
+        resolvedUriCache.set(normalized, result.uri);
         return result.uri;
       }
     } catch {
       // fall through
     }
-    return remoteUrl;
+    return normalized;
   })();
 
-  inflight.set(remoteUrl, task);
+  inflight.set(normalized, task);
   try {
     return await task;
   } finally {
-    inflight.delete(remoteUrl);
+    inflight.delete(normalized);
   }
 }
 
 function pushUrl(set: Set<string>, url: string | null | undefined) {
-  if (url && typeof url === 'string' && url.trim()) set.add(url.trim());
+  const absolute = resolveCmsAbsoluteMediaUrl(url);
+  if (absolute) set.add(absolute);
 }
 
 function pushMediaObjectUrl(set: Set<string>, value: unknown) {
@@ -148,11 +175,18 @@ export function collectCmsPlayerMediaUrls(pages: CmsPlayablePage[]): string[] {
   pages.forEach((page) => {
     const flat = page as unknown as Record<string, unknown>;
     const media = page.media as Record<string, unknown> | undefined;
+    const pageType = resolvePageType(page.type);
 
     pushUrl(set, resolveImageUrl(page));
     pushUrl(set, resolveVideoUrl(page));
-    if (resolvePageType(page.type) === 'intro') {
+
+    if (pageType === 'intro') {
       pushUrl(set, resolveIntroBackgroundMusicUrl(page));
+    } else if (pageType === 'demo' || pageType === 'reward') {
+      pushUrl(set, resolveVideoUrl(page));
+      pushUrl(set, resolveImageUrl(page));
+      pushMediaObjectUrl(set, media?.videoMedia);
+      pushMediaObjectUrl(set, media?.backgroundImageMedia);
     } else {
       pushUrl(set, resolveAudioUrl(page));
     }
@@ -199,20 +233,26 @@ export function resolvePlayableMediaUri(
   remoteUrl: string | null | undefined,
   uriMap?: CmsMediaUriMap | null
 ): string {
-  const url = typeof remoteUrl === 'string' ? remoteUrl.trim() : '';
+  const url = resolveCmsAbsoluteMediaUrl(remoteUrl);
   if (!url) return '';
   if (!isHttp(url)) return url;
 
   const fromMap = uriMap?.[url];
-  if (fromMap && isLocalMediaUri(fromMap)) return fromMap;
+  if (fromMap && isLocalMediaUri(fromMap)) {
+    if (/\.bin$/i.test(fromMap) && isLikelyVideoUrl(url)) {
+      return url;
+    }
+    return fromMap;
+  }
 
   const memo = resolvedUriCache.get(url);
-  if (memo) return memo;
+  if (memo) {
+    if (/\.bin$/i.test(memo) && isLikelyVideoUrl(url)) return url;
+    return memo;
+  }
 
   return url;
 }
-
-const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
 
 function isImageUrl(url: string): boolean {
   return IMAGE_EXT.test(url);
@@ -231,23 +271,33 @@ async function preloadOneAsset(
   remoteUrl: string,
   uriMap: CmsMediaUriMap
 ): Promise<boolean> {
-  if (!remoteUrl) return true;
-  if (!isHttp(remoteUrl)) {
-    uriMap[remoteUrl] = remoteUrl;
+  const normalized = resolveCmsAbsoluteMediaUrl(remoteUrl);
+  if (!normalized) return true;
+  if (looksLikeBunnyExploreEmbedUrl(normalized)) {
+    uriMap[normalized] = normalized;
+    return true;
+  }
+  /** Stream video over HTTP like web `<video src>` — avoids bad cached file:// copies. */
+  if (isLikelyVideoUrl(normalized)) {
+    uriMap[normalized] = normalized;
+    return true;
+  }
+  if (!isHttp(normalized)) {
+    uriMap[normalized] = normalized;
     return true;
   }
 
   try {
-    const localUri = await resolveCachedMediaUri(remoteUrl);
-    uriMap[remoteUrl] = localUri;
+    const localUri = await resolveCachedMediaUri(normalized);
+    uriMap[normalized] = localUri;
 
-    if (isImageUrl(remoteUrl)) {
-      await warmImageDecode(isLocalMediaUri(localUri) ? localUri : remoteUrl);
+    if (isImageUrl(normalized)) {
+      await warmImageDecode(isLocalMediaUri(localUri) ? localUri : normalized);
     }
 
     return isLocalMediaUri(localUri);
   } catch {
-    uriMap[remoteUrl] = remoteUrl;
+    uriMap[normalized] = normalized;
     return false;
   }
 }

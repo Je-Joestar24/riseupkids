@@ -3,7 +3,7 @@
  * Media only — home button is rendered by CmsPlayerModal above the native video layer.
  */
 
-import { Audio, ResizeMode, Video } from 'expo-av';
+import { Audio } from 'expo-av';
 import React, { useEffect, useRef } from 'react';
 import {
   Image,
@@ -20,6 +20,7 @@ import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import { resolveImageUrl, resolveRewardAudioUrl, resolveVideoUrl } from './cms-player-shared';
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap } from './cms-player-media-context';
+import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
 
 export interface CmsRewardStageProps {
   page: CmsPlayablePage;
@@ -93,14 +94,9 @@ export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
         ) : null}
 
         {videoUrl ? (
-          <Video
-            source={{ uri: videoUrl }}
-            style={StyleSheet.absoluteFillObject}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-            useNativeControls={false}
+          <CmsLoopingBackgroundVideo
+            uri={videoUrl}
+            accessibilityLabel={page.title || 'Reward video'}
           />
         ) : null}
       </View>
