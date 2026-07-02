@@ -92,11 +92,11 @@ export function BunnyEmbedWebView({
   }
 
   return (
-    <View style={[styles.fill, style]}>
+    <View style={[styles.fill, style]} collapsable={false}>
       <WebView
         {...BUNNY_EMBED_WEBVIEW_PROPS}
         source={webViewSource}
-        style={StyleSheet.absoluteFill}
+        style={styles.webView}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
         onHttpError={handleError}
@@ -119,10 +119,15 @@ export function BunnyEmbedWebView({
 
 const styles = StyleSheet.create({
   fill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  webView: {
     flex: 1,
     width: '100%',
+    height: '100%',
     backgroundColor: '#000',
-    position: 'relative',
   },
   centered: {
     justifyContent: 'center',

@@ -1,13 +1,10 @@
 /**
  * Video Player Modal
- * Child-facing: plays video, restricted interaction (no pause/seek), custom fullscreen rotate
- * Uses useContentProgress, GlobalDialog on completion
- * Fullscreen button locks to landscape; exit restores portrait
+ * Child-facing: plays video (upload or Bunny embed WebView), records watch progress.
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { ResizeMode, Video } from 'expo-av';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -37,9 +34,6 @@ import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import { resolveModuleVideoPlayback } from '@/utils/moduleVideoPlayback';
-
-const PORTRAIT_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
-const LANDSCAPE_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE;
 
 /** Minimal video shape for explore (url pre-built by caller) */
 export interface ExploreVideoInput {
@@ -124,7 +118,6 @@ export function VideoPlayerModal({
   const videoRef = useRef<Video>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoEnded, setVideoEnded] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false);
@@ -136,29 +129,6 @@ export function VideoPlayerModal({
     requiredWatchCount: number;
     starsAwarded: boolean;
   } | null>(null);
-
-  const enterFullscreen = useCallback(async () => {
-    try {
-      await ScreenOrientation.lockAsync(LANDSCAPE_LOCK);
-      setIsFullscreen(true);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const exitFullscreen = useCallback(async () => {
-    try {
-      await ScreenOrientation.lockAsync(PORTRAIT_LOCK);
-      setIsFullscreen(false);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    exitFullscreen();
-  }, [open, exitFullscreen]);
 
   useEffect(() => {
     if (open && video) {
@@ -227,7 +197,6 @@ export function VideoPlayerModal({
           type: 'success',
           duration: 4000,
         });
-        exitFullscreen();
         setShowCompletionDialog(false);
         setWatchResult(null);
         if (video) onVideoComplete?.(video);
@@ -288,7 +257,6 @@ export function VideoPlayerModal({
         || isBuiltinCmsVideoFollowUp(completedVideo as ModuleVideoContentLike | null);
       if (hasFollowUp && completedVideo) {
         setShowCompletionDialog(false);
-        exitFullscreen();
         onClose();
         setTimeout(() => {
           onVideoComplete?.(completedVideo, {
@@ -324,7 +292,6 @@ export function VideoPlayerModal({
     courseId,
     refreshVideoWatches,
     showDialog,
-    exitFullscreen,
     onClose,
     onVideoComplete,
   ]);
@@ -342,12 +309,11 @@ export function VideoPlayerModal({
   );
 
   const handleConfirmedClose = useCallback(() => {
-    exitFullscreen();
     setShowConfirmClose(false);
     setShowCompletionDialog(false);
     setWatchResult(null);
     onClose();
-  }, [exitFullscreen, onClose]);
+  }, [onClose]);
 
   const skipCloseConfirm =
     (isExploreVideo && (wasAlreadyWatched || hasRecordedWatch)) ||
@@ -364,7 +330,6 @@ export function VideoPlayerModal({
   const handleCompletionDialogClose = useCallback(() => {
     const completedVideo = video;
     setShowCompletionDialog(false);
-    exitFullscreen();
     onClose();
     if (completedVideo) {
       setTimeout(() => {
@@ -373,7 +338,7 @@ export function VideoPlayerModal({
     }
     // Module videos: do not show global dialog; the in-modal completion card already showed the message.
     // Explore videos close before this (they show global dialog and close in handleVideoEnd).
-  }, [exitFullscreen, onVideoComplete, video, onClose]);
+  }, [onVideoComplete, video, onClose]);
 
   if (!open) return null;
 
@@ -390,138 +355,100 @@ export function VideoPlayerModal({
         animationType="slide"
         onRequestClose={handleCloseAttempt}
         statusBarTranslucent>
-        <View style={[styles.overlay, isFullscreen && styles.overlayFullscreen]}>
-          {isFullscreen ? (
-            <View style={styles.fullscreenContainer}>
-              {isBunnyEmbed ? (
-                <BunnyEmbedWebView
-                  embedUrl={embedUrl}
-                  title={video?.title ?? 'Video'}
-                  style={StyleSheet.absoluteFill}
-                />
-              ) : (
-                <Video
-                  ref={videoRef}
-                  source={{ uri: videoUrl ?? '' }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode={ResizeMode.CONTAIN}
-                  useNativeControls={false}
-                  shouldPlay
-                  isLooping={false}
-                  onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                />
-              )}
-              {isRecordingWatch && (
-                <View style={styles.recordingOverlay}>
-                  <ActivityIndicator size="large" color={colors.secondary} />
-                  <ThemedText style={styles.recordingText}>
-                    Recording your progress...
-                  </ThemedText>
-                </View>
-              )}
+        <View style={styles.overlay}>
+          <View style={styles.card}>
+            <View style={styles.header}>
+              <ThemedText style={styles.title} numberOfLines={1}>
+                {video?.title ?? 'Video'}
+              </ThemedText>
               <Pressable
-                style={styles.exitFullscreenBtn}
-                onPress={exitFullscreen}
+                onPress={handleCloseAttempt}
+                style={styles.closeBtn}
+                hitSlop={8}
                 accessibilityRole="button"
-                accessibilityLabel="Exit fullscreen">
-                <MaterialCommunityIcons
-                  name="fullscreen-exit"
-                  size={32}
-                  color={colors.textInverse}
-                />
+                accessibilityLabel="Close">
+                <MaterialIcons name="close" size={26} color={colors.textSecondary} />
               </Pressable>
             </View>
-          ) : (
-            <View style={styles.card}>
-              <View style={styles.header}>
-                <ThemedText style={styles.title} numberOfLines={1}>
-                  {video?.title ?? 'Video'}
-                </ThemedText>
-                <View style={styles.headerActions}>
-                  <Pressable
-                    style={styles.fullscreenBtn}
-                    onPress={enterFullscreen}
-                    accessibilityRole="button"
-                    accessibilityLabel="Fullscreen (rotate)">
-                    <MaterialCommunityIcons
-                      name="fullscreen"
-                      size={24}
-                      color={colors.secondary}
-                    />
-                  </Pressable>
-                  <Pressable
-                    onPress={handleCloseAttempt}
-                    hitSlop={12}
-                    accessibilityLabel="Close">
-                    <MaterialIcons name="close" size={26} color={colors.textSecondary} />
-                  </Pressable>
+
+            <View style={styles.videoContainer} collapsable={false}>
+              {isBunnyEmbed ? (
+                <>
+                  <BunnyEmbedWebView
+                    embedUrl={embedUrl}
+                    title={video?.title ?? 'Video'}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  {isRecordingWatch && (
+                    <View style={styles.recordingOverlay}>
+                      <ActivityIndicator size="large" color={colors.secondary} />
+                      <ThemedText style={styles.recordingText}>
+                        Recording your progress...
+                      </ThemedText>
+                    </View>
+                  )}
+                </>
+              ) : videoUrl ? (
+                <>
+                  <Video
+                    ref={videoRef}
+                    source={{ uri: videoUrl }}
+                    style={StyleSheet.absoluteFill}
+                    resizeMode={ResizeMode.CONTAIN}
+                    useNativeControls={false}
+                    shouldPlay
+                    isLooping={false}
+                    onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                  />
+                  {isRecordingWatch && (
+                    <View style={styles.recordingOverlay}>
+                      <ActivityIndicator size="large" color={colors.secondary} />
+                      <ThemedText style={styles.recordingText}>
+                        Recording your progress...
+                      </ThemedText>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <View style={styles.loadingWrap}>
+                  <ActivityIndicator size="large" color={colors.secondary} />
+                  <ThemedText style={styles.loadingText}>Loading video...</ThemedText>
                 </View>
-              </View>
-
-              <View style={styles.videoContainer}>
-                {isBunnyEmbed ? (
-                  <>
-                    <BunnyEmbedWebView
-                      embedUrl={embedUrl}
-                      title={video?.title ?? 'Video'}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    {isRecordingWatch && (
-                      <View style={styles.recordingOverlay}>
-                        <ActivityIndicator size="large" color={colors.secondary} />
-                        <ThemedText style={styles.recordingText}>
-                          Recording your progress...
-                        </ThemedText>
-                      </View>
-                    )}
-                  </>
-                ) : videoUrl ? (
-                  <>
-                    <Video
-                      ref={videoRef}
-                      source={{ uri: videoUrl }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode={ResizeMode.CONTAIN}
-                      useNativeControls={false}
-                      shouldPlay
-                      isLooping={false}
-                      onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                    />
-                    {isRecordingWatch && (
-                      <View style={styles.recordingOverlay}>
-                        <ActivityIndicator size="large" color={colors.secondary} />
-                        <ThemedText style={styles.recordingText}>
-                          Recording your progress...
-                        </ThemedText>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View style={styles.loadingWrap}>
-                    <ActivityIndicator size="large" color={colors.secondary} />
-                    <ThemedText style={styles.loadingText}>Loading video...</ThemedText>
-                  </View>
-                )}
-              </View>
-
-              {showBunnyFinishButton ? (
-                <Pressable
-                  style={[styles.finishedBtn, isRecordingWatch && styles.finishedBtnDisabled]}
-                  onPress={handleVideoEnd}
-                  disabled={isRecordingWatch}
-                  accessibilityRole="button"
-                  accessibilityLabel="I finished watching">
-                  <ThemedText style={styles.finishedBtnText}>I finished watching</ThemedText>
-                </Pressable>
-              ) : null}
-
-              <View style={styles.footer}>
-                <Pressable style={styles.closeFooterBtn} onPress={handleCloseAttempt}>
-                  <ThemedText style={styles.closeFooterBtnText}>Close</ThemedText>
-                </Pressable>
-              </View>
+              )}
             </View>
-          )}
+
+            {showBunnyFinishButton ? (
+              <Pressable
+                style={[styles.finishedBtn, isRecordingWatch && styles.finishedBtnDisabled]}
+                onPress={handleVideoEnd}
+                disabled={isRecordingWatch}
+                accessibilityRole="button"
+                accessibilityLabel="I finished watching">
+                <ThemedText style={styles.finishedBtnText}>I finished watching</ThemedText>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.footer}>
+              <Pressable style={styles.closeFooterBtn} onPress={handleCloseAttempt}>
+                <ThemedText style={styles.closeFooterBtnText}>Close</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+
+          <ConfirmModal
+            inline
+            open={showConfirmClose}
+            title="Close Video?"
+            message={
+              isBunnyEmbed
+                ? 'Do you want to close this video? Tap I finished watching when you are done to save your progress.'
+                : 'Do you want to close this video? Your progress will be saved!'
+            }
+            confirmLabel="Yes, Close"
+            cancelLabel="Keep Watching"
+            onConfirm={handleConfirmedClose}
+            onCancel={() => setShowConfirmClose(false)}
+          />
         </View>
       </Modal>
 
@@ -529,20 +456,6 @@ export function VideoPlayerModal({
         open={showCompletion}
         watchResult={watchResult}
         onClose={handleCompletionDialogClose}
-      />
-
-      <ConfirmModal
-        open={showConfirmClose}
-        title="Close Video?"
-        message={
-          isBunnyEmbed
-            ? 'Do you want to close this video? Tap I finished watching when you are done to save your progress.'
-            : 'Do you want to close this video? Your progress will be saved!'
-        }
-        confirmLabel="Yes, Close"
-        cancelLabel="Keep Watching"
-        onConfirm={handleConfirmedClose}
-        onCancel={() => setShowConfirmClose(false)}
       />
     </>
   );
@@ -618,22 +531,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing[4],
-  },
-  overlayFullscreen: {
-    padding: 0,
-    backgroundColor: '#000',
-  },
-  fullscreenContainer: {
-    flex: 1,
-    width: '100%',
     position: 'relative',
-  },
-  exitFullscreenBtn: {
-    position: 'absolute',
-    top: spacing[6],
-    right: spacing[4],
-    padding: spacing[2],
-    zIndex: 10,
   },
   card: {
     width: '100%',
@@ -651,26 +549,31 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     borderBottomWidth: 2,
     borderBottomColor: colors.bgTertiary,
+    zIndex: 2,
+    elevation: 2,
+    backgroundColor: colors.bgCard,
+  },
+  closeBtn: {
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
   title: {
     flex: 1,
     fontSize: typography.sizes.xl,
     fontFamily: 'Quicksand_700Bold',
     color: colors.primary,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-  },
-  fullscreenBtn: {
-    padding: spacing[2],
+    marginRight: spacing[2],
   },
   videoContainer: {
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: '#000',
     position: 'relative',
+    overflow: 'hidden',
+    zIndex: 0,
   },
   recordingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -716,6 +619,9 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     borderTopWidth: 2,
     borderTopColor: colors.bgTertiary,
+    zIndex: 2,
+    elevation: 2,
+    backgroundColor: colors.bgCard,
   },
   closeFooterBtn: {
     paddingVertical: spacing[2],

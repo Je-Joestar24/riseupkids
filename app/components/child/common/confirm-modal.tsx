@@ -20,18 +20,74 @@ export interface ConfirmModalProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Render inside parent Modal (avoids iOS nested-Modal touch/stacking bugs). */
+  inline?: boolean;
+}
+
+function ConfirmModalBody({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel,
+  onConfirm,
+  onCancel,
+  overlayStyle,
+}: Omit<ConfirmModalProps, 'open' | 'inline'> & {
+  overlayStyle: object;
+}) {
+  return (
+    <Pressable style={overlayStyle} onPress={onCancel} accessibilityRole="button">
+      <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+        <ThemedText style={styles.title}>{title}</ThemedText>
+        <ThemedText style={styles.message}>{message}</ThemedText>
+        <View style={styles.actions}>
+          <Pressable
+            style={[styles.btn, styles.cancelBtn]}
+            onPress={onCancel}
+            accessibilityRole="button"
+            accessibilityLabel={cancelLabel}>
+            <ThemedText style={styles.cancelBtnText}>{cancelLabel}</ThemedText>
+          </Pressable>
+          <Pressable
+            style={[styles.btn, styles.confirmBtn]}
+            onPress={onConfirm}
+            accessibilityRole="button"
+            accessibilityLabel={confirmLabel}>
+            <ThemedText style={styles.confirmBtnText}>{confirmLabel}</ThemedText>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Pressable>
+  );
 }
 
 export function ConfirmModal({
   open,
-  title = "Are you sure?",
+  title = 'Are you sure?',
   message,
-  confirmLabel = "Yes, Close",
-  cancelLabel = "Keep Recording",
+  confirmLabel = 'Yes, Close',
+  cancelLabel = 'Keep Recording',
   onConfirm,
   onCancel,
+  inline = false,
 }: ConfirmModalProps) {
   if (!open) return null;
+
+  if (inline) {
+    return (
+      <View style={styles.inlineShell} pointerEvents="box-none">
+        <ConfirmModalBody
+          title={title}
+          message={message}
+          confirmLabel={confirmLabel}
+          cancelLabel={cancelLabel}
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          overlayStyle={styles.inlineOverlay}
+        />
+      </View>
+    );
+  }
 
   return (
     <Modal
@@ -40,33 +96,32 @@ export function ConfirmModal({
       animationType="fade"
       onRequestClose={onCancel}
       statusBarTranslucent>
-      <Pressable style={styles.overlay} onPress={onCancel}>
-        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
-          <ThemedText style={styles.title}>{title}</ThemedText>
-          <ThemedText style={styles.message}>{message}</ThemedText>
-          <View style={styles.actions}>
-            <Pressable
-              style={[styles.btn, styles.cancelBtn]}
-              onPress={onCancel}
-              accessibilityRole="button"
-              accessibilityLabel={cancelLabel}>
-              <ThemedText style={styles.cancelBtnText}>{cancelLabel}</ThemedText>
-            </Pressable>
-            <Pressable
-              style={[styles.btn, styles.confirmBtn]}
-              onPress={onConfirm}
-              accessibilityRole="button"
-              accessibilityLabel={confirmLabel}>
-              <ThemedText style={styles.confirmBtnText}>{confirmLabel}</ThemedText>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Pressable>
+      <ConfirmModalBody
+        title={title}
+        message={message}
+        confirmLabel={confirmLabel}
+        cancelLabel={cancelLabel}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+        overlayStyle={styles.overlay}
+      />
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  inlineShell: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 100,
+    elevation: 100,
+  },
+  inlineOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing[6],
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

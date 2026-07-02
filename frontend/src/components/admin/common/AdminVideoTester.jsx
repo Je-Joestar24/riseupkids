@@ -383,7 +383,7 @@ export default function AdminVideoTester({ open, onClose, video }) {
           <Button onClick={handleClose} sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
             Close
           </Button>
-          {videoSrc ? (
+{/*           {videoSrc ? (
             <Button
               startIcon={<OpenInNewIcon />}
               onClick={handleOpenInNewTab}
@@ -392,7 +392,7 @@ export default function AdminVideoTester({ open, onClose, video }) {
             >
               Open video URL
             </Button>
-          ) : null}
+          ) : null} */}
           {!isEmbed && videoSrc ? (
             <Button
               startIcon={<ReplayIcon />}
