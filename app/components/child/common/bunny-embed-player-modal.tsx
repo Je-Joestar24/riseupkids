@@ -8,10 +8,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 
 import { BUNNY_EMBED_REFERER } from '@/config';
@@ -28,6 +30,7 @@ import {
   looksLikeBunnyExploreEmbedUrl,
 } from '@/utils/bunnyExploreEmbed';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
+import { CMS_PLAYER_MODAL_ORIENTATIONS } from '@/utils/cmsPlayerOrientation';
 
 export interface BunnyEmbedPlayerModalProps {
   open: boolean;
@@ -109,12 +112,23 @@ export function BunnyEmbedPlayerModal({
 
   useEffect(() => {
     if (!open) return;
+    if (Platform.OS === 'ios') {
+      void ScreenOrientation.unlockAsync().catch(() => {});
+    }
     setWebLoading(true);
     setPlaybackError(null);
     setHasRecordedWatch(false);
     setWasAlreadyWatched(false);
     setShowConfirmClose(false);
     setIsRecordingWatch(false);
+
+    return () => {
+      if (Platform.OS === 'ios') {
+        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(
+          () => {}
+        );
+      }
+    };
   }, [open, validEmbed]);
 
   useEffect(() => {
@@ -194,6 +208,9 @@ export function BunnyEmbedPlayerModal({
         visible={showPlayer}
         transparent
         animationType="slide"
+        supportedOrientations={
+          Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
+        }
         onRequestClose={handleCloseAttempt}
         statusBarTranslucent>
         <View style={styles.overlay}>

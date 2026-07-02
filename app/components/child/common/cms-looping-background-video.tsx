@@ -10,8 +10,8 @@ import { WebView } from 'react-native-webview';
 
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
-import { BUNNY_EMBED_WEBVIEW_PROPS } from './bunny-embed-webview';
 import { BunnyEmbedWebView } from './bunny-embed-webview';
+import { CMS_INLINE_WEBVIEW_PROPS } from './cms-inline-webview-props';
 import { resolveCmsAbsoluteMediaUrl } from './cms-player-shared';
 
 export interface CmsLoopingBackgroundVideoProps {
@@ -69,7 +69,7 @@ function CmsHtml5BackgroundVideoWebView({
 
   return (
     <WebView
-      {...BUNNY_EMBED_WEBVIEW_PROPS}
+      {...CMS_INLINE_WEBVIEW_PROPS}
       source={{ html, baseUrl }}
       style={StyleSheet.absoluteFillObject}
       scrollEnabled={false}
@@ -95,7 +95,11 @@ export function CmsLoopingBackgroundVideo({
   if (isBunnyEmbed) {
     return (
       <View style={styles.videoLayer} accessibilityLabel={accessibilityLabel}>
-        <BunnyEmbedWebView embedUrl={playbackUri} showLoadingOverlay={false} />
+        <BunnyEmbedWebView
+          embedUrl={playbackUri}
+          allowNativeFullscreen={false}
+          showLoadingOverlay={false}
+        />
       </View>
     );
   }

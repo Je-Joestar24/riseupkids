@@ -9,10 +9,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 import { ThemedText } from '@/components/themed-text';
 import { BunnyEmbedWebView } from '@/components/child/common/bunny-embed-webview';
@@ -34,6 +36,7 @@ import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import { resolveModuleVideoPlayback } from '@/utils/moduleVideoPlayback';
+import { CMS_PLAYER_MODAL_ORIENTATIONS } from '@/utils/cmsPlayerOrientation';
 
 /** Minimal video shape for explore (url pre-built by caller) */
 export interface ExploreVideoInput {
@@ -129,6 +132,16 @@ export function VideoPlayerModal({
     requiredWatchCount: number;
     starsAwarded: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (!open || Platform.OS !== 'ios') return;
+    void ScreenOrientation.unlockAsync().catch(() => {});
+    return () => {
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(
+        () => {}
+      );
+    };
+  }, [open]);
 
   useEffect(() => {
     if (open && video) {
@@ -353,6 +366,9 @@ export function VideoPlayerModal({
         visible={Boolean(showVideoView)}
         transparent
         animationType="slide"
+        supportedOrientations={
+          Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
+        }
         onRequestClose={handleCloseAttempt}
         statusBarTranslucent>
         <View style={styles.overlay}>

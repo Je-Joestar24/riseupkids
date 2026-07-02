@@ -3,7 +3,7 @@
     "name": "Rise Up Kids",
     "slug": "riseupkids",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/lms-logo.png",
     "scheme": "riseupkids",
     "userInterfaceStyle": "automatic",
@@ -60,7 +60,13 @@
         }
       ],
       "expo-font",
-      "expo-file-system"
+      "expo-file-system",
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "PORTRAIT"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

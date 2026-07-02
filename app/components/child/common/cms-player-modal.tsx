@@ -5,10 +5,10 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +23,11 @@ import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
+import {
+  CMS_PLAYER_MODAL_ORIENTATIONS,
+  prepareCmsPlayerOrientation,
+  restoreAppPortraitOrientation,
+} from '@/utils/cmsPlayerOrientation';
 
 import {
   collectCmsPlayerMediaUrls,
@@ -45,13 +50,7 @@ import { CmsRewardStage } from './cms-reward-dialog';
 const CLOSE_RAIL = 44;
 const ROW_GAP = 6;
 
-const LANDSCAPE_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE;
-const PORTRAIT_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
-
-/** Request landscape as early as possible (e.g. before opening the modal). */
-export function lockLandscapeForCmsBookPlayer(): void {
-  void ScreenOrientation.lockAsync(LANDSCAPE_LOCK).catch(() => {});
-}
+export { lockLandscapeForCmsBookPlayer } from '@/utils/cmsPlayerOrientation';
 
 export interface CmsSessionPayload {
   score: number;
@@ -124,12 +123,17 @@ export function CmsPlayerModal({
 
   const preloadCancelled = useRef(false);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!open) {
-      void ScreenOrientation.lockAsync(PORTRAIT_LOCK).catch(() => {});
+      void restoreAppPortraitOrientation();
       return;
     }
-    void ScreenOrientation.lockAsync(LANDSCAPE_LOCK).catch(() => {});
+
+    void prepareCmsPlayerOrientation();
+
+    return () => {
+      void restoreAppPortraitOrientation();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -248,7 +252,7 @@ export function CmsPlayerModal({
         setAttemptCount(0);
         setIsFinalizing(false);
         setFinalizingTrigger(null);
-        ScreenOrientation.lockAsync(PORTRAIT_LOCK).catch(() => {});
+        void restoreAppPortraitOrientation();
         onClose?.();
       }
     },
@@ -400,6 +404,9 @@ export function CmsPlayerModal({
       visible={open}
       animationType="fade"
       presentationStyle="fullScreen"
+      supportedOrientations={
+        Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
+      }
       onRequestClose={handleClose}
     >
       <View

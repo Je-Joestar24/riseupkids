@@ -2,8 +2,8 @@
  * Shared Bunny Stream WebView settings and inline player for React Native.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import { BUNNY_EMBED_REFERER } from '@/config';
@@ -15,6 +15,7 @@ import {
   buildBunnyEmbedWebViewUrl,
   looksLikeBunnyExploreEmbedUrl,
 } from '@/utils/bunnyExploreEmbed';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 /** WebView settings for Bunny Stream embed pages on iOS/Android preview builds. */
 export const BUNNY_EMBED_WEBVIEW_PROPS = {
@@ -31,6 +32,13 @@ export const BUNNY_EMBED_WEBVIEW_PROPS = {
   scalesPageToFit: true,
 };
 
+export function buildBunnyEmbedWebViewProps(allowNativeFullscreen = true) {
+  return {
+    ...BUNNY_EMBED_WEBVIEW_PROPS,
+    allowsFullscreenVideo: allowNativeFullscreen && Platform.OS !== 'web',
+  };
+}
+
 export interface BunnyEmbedWebViewProps {
   embedUrl: string | null;
   title?: string;
@@ -38,6 +46,8 @@ export interface BunnyEmbedWebViewProps {
   onLoadEnd?: () => void;
   onError?: () => void;
   showLoadingOverlay?: boolean;
+  /** When true (default), iOS can enter native AVPlayer fullscreen. Disable for inline CMS backgrounds. */
+  allowNativeFullscreen?: boolean;
 }
 
 export function BunnyEmbedWebView({
@@ -47,9 +57,25 @@ export function BunnyEmbedWebView({
   onLoadEnd,
   onError,
   showLoadingOverlay = true,
+  allowNativeFullscreen = true,
 }: BunnyEmbedWebViewProps) {
   const [webLoading, setWebLoading] = useState(true);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  const webViewProps = useMemo(
+    () => buildBunnyEmbedWebViewProps(allowNativeFullscreen),
+    [allowNativeFullscreen]
+  );
+
+  useEffect(() => {
+    if (!allowNativeFullscreen || Platform.OS !== 'ios') return;
+
+    void ScreenOrientation.unlockAsync().catch(() => {});
+
+    return () => {
+      void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+    };
+  }, [allowNativeFullscreen]);
 
   const validEmbed = useMemo(
     () => (embedUrl && looksLikeBunnyExploreEmbedUrl(embedUrl) ? embedUrl.trim() : null),
@@ -94,7 +120,7 @@ export function BunnyEmbedWebView({
   return (
     <View style={[styles.fill, style]} collapsable={false}>
       <WebView
-        {...BUNNY_EMBED_WEBVIEW_PROPS}
+        {...webViewProps}
         source={webViewSource}
         style={styles.webView}
         onLoadEnd={handleLoadEnd}
