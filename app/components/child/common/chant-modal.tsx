@@ -16,11 +16,10 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
 
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
-import { buildPublicUrl } from '@/components/child/module/module-utils';
+import { InstructionVideoPlayer } from '@/components/child/common/instruction-video-player';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -119,10 +118,12 @@ export function ChantModal({
     return cached as { status?: string; chant?: { instructionVideo?: unknown }; starsEarned?: number } | null;
   }, [chantId, getChantProgressCached]);
 
-  const instructionVideoUrl = useMemo(() => {
-    const media = (progress as { chant?: { instructionVideo?: unknown } } | null)?.chant?.instructionVideo ?? chant?.instructionVideo;
-    const url = typeof media === 'string' ? media : (media && typeof media === 'object' && 'url' in media) ? (media as { url?: string }).url : null;
-    return buildPublicUrl(url);
+  const instructionVideoMedia = useMemo(() => {
+    return (
+      (progress as { chant?: { instructionVideo?: unknown } } | null)?.chant?.instructionVideo ??
+      chant?.instructionVideo ??
+      null
+    );
   }, [progress, chant?.instructionVideo]);
 
   const status = (progress?.status ?? 'not_started') as string;
@@ -305,19 +306,13 @@ export function ChantModal({
                     </View>
                   )}
 
-                  {instructionVideoUrl && (
-                    <View style={styles.videoWrap}>
-                      <Video
-                        source={{ uri: instructionVideoUrl }}
-                        style={styles.video}
-                        useNativeControls
-                        resizeMode={ResizeMode.CONTAIN}
-                        shouldPlay
-                        isMuted
-                        isLooping
-                      />
-                    </View>
-                  )}
+                  {instructionVideoMedia ? (
+                    <InstructionVideoPlayer
+                      media={instructionVideoMedia}
+                      title={String(chant?.title ?? 'Instruction video')}
+                      style={styles.videoWrap}
+                    />
+                  ) : null}
 
                   {chant?.instructions && (
                     <View style={styles.instructionsBox}>

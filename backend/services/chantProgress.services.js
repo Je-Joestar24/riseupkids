@@ -11,6 +11,7 @@ const {
 
 const { awardBadgeForChant } = require('./badgeAward.service');
 const s3Service = require('./s3.service');
+const { INSTRUCTION_VIDEO_POPULATE_SELECT } = require('../utils/instructionVideoMedia.util');
 
 const getOrCreateProgress = async ({ childId, chantId }) => {
   const progress = await ChantProgress.findOne({ child: childId, chant: chantId });
@@ -44,7 +45,7 @@ const startChant = async ({ childId, chantId }) => {
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
       populate: {
         path: 'instructionVideo',
-        select: 'type title url mimeType size duration',
+        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
       },
     })
     .lean();
@@ -67,7 +68,7 @@ const getChantProgress = async ({ childId, chantId }) => {
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
       populate: {
         path: 'instructionVideo',
-        select: 'type title url mimeType size duration',
+        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
       },
     })
     .lean();
@@ -172,7 +173,7 @@ const completeChant = async ({
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
       populate: {
         path: 'instructionVideo',
-        select: 'type title url mimeType size duration',
+        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
       },
     })
     .lean();

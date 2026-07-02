@@ -16,10 +16,10 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import { ResizeMode, Video } from 'expo-av';
 
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
+import { InstructionVideoPlayer } from '@/components/child/common/instruction-video-player';
 import { buildPublicUrl } from '@/components/child/module/module-utils';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
@@ -86,12 +86,11 @@ export function AudioModal({
     } | null;
   }, [audioId, getAudioProgressCached]);
 
-  const instructionVideoUrl = useMemo(() => {
-    const media =
+  const instructionVideoMedia = useMemo(() => {
+    return (
       (progress as { audioAssignment?: { instructionVideo?: unknown } } | null)?.audioAssignment
-        ?.instructionVideo ?? audioAssignment?.instructionVideo;
-    const url = typeof media === 'string' ? media : (media && typeof media === 'object' && 'url' in media) ? (media as { url?: string }).url : null;
-    return buildPublicUrl(url);
+        ?.instructionVideo ?? audioAssignment?.instructionVideo ?? null
+    );
   }, [progress, audioAssignment?.instructionVideo]);
 
   const referenceAudioUrl = useMemo(() => {
@@ -298,19 +297,13 @@ export function AudioModal({
                     </View>
                   )}
 
-                  {instructionVideoUrl && (
-                    <View style={styles.videoWrap}>
-                      <Video
-                        source={{ uri: instructionVideoUrl }}
-                        style={styles.video}
-                        useNativeControls
-                        resizeMode={ResizeMode.CONTAIN}
-                        shouldPlay
-                        isMuted
-                        isLooping
-                      />
-                    </View>
-                  )}
+                  {instructionVideoMedia ? (
+                    <InstructionVideoPlayer
+                      media={instructionVideoMedia}
+                      title={String(audioAssignment?.title ?? 'Instruction video')}
+                      style={styles.videoWrap}
+                    />
+                  ) : null}
 
                   {audioAssignment?.instructions && (
                     <View style={styles.instructionsBox}>

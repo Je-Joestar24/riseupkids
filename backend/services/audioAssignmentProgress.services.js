@@ -10,6 +10,7 @@ const {
 } = require('../models');
 
 const s3Service = require('./s3.service');
+const { INSTRUCTION_VIDEO_POPULATE_SELECT } = require('../utils/instructionVideoMedia.util');
 
 const getOrCreateProgress = async ({ childId, audioAssignmentId }) => {
   const progress = await AudioAssignmentProgress.findOne({
@@ -48,7 +49,7 @@ const startAudioAssignment = async ({ childId, audioAssignmentId }) => {
       path: 'audioAssignment',
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
       populate: [
-        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'instructionVideo', select: INSTRUCTION_VIDEO_POPULATE_SELECT },
         { path: 'referenceAudio', select: 'type title url mimeType size duration' },
       ],
     })
@@ -72,7 +73,7 @@ const getAudioAssignmentProgress = async ({ childId, audioAssignmentId }) => {
       path: 'audioAssignment',
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
       populate: [
-        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'instructionVideo', select: INSTRUCTION_VIDEO_POPULATE_SELECT },
         { path: 'referenceAudio', select: 'type title url mimeType size duration' },
       ],
     })
@@ -127,7 +128,7 @@ const submitAudioAssignmentRecording = async ({
       path: 'audioAssignment',
       select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio',
       populate: [
-        { path: 'instructionVideo', select: 'type title url mimeType size duration' },
+        { path: 'instructionVideo', select: INSTRUCTION_VIDEO_POPULATE_SELECT },
         { path: 'referenceAudio', select: 'type title url mimeType size duration' },
       ],
     })
