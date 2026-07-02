@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+import { BUNNY_EMBED_REFERER } from '@/config';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
@@ -87,7 +88,13 @@ export function BunnyEmbedPlayerModal({
   const webViewSource = useMemo(
     () =>
       validEmbed
-        ? { uri: buildBunnyEmbedWebViewUrl(validEmbed) }
+        ? {
+            uri: buildBunnyEmbedWebViewUrl(validEmbed),
+            headers: {
+              Referer: BUNNY_EMBED_REFERER,
+              referer: BUNNY_EMBED_REFERER,
+            },
+          }
         : null,
     [validEmbed]
   );

@@ -6,6 +6,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
+import { BUNNY_EMBED_REFERER } from '@/config';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -56,7 +57,16 @@ export function BunnyEmbedWebView({
   );
 
   const webViewSource = useMemo(
-    () => (validEmbed ? { uri: buildBunnyEmbedWebViewUrl(validEmbed) } : null),
+    () =>
+      validEmbed
+        ? {
+            uri: buildBunnyEmbedWebViewUrl(validEmbed),
+            headers: {
+              Referer: BUNNY_EMBED_REFERER,
+              referer: BUNNY_EMBED_REFERER,
+            },
+          }
+        : null,
     [validEmbed]
   );
 

@@ -18,3 +18,11 @@ export const BACKEND_ORIGIN =
 
 export const APP_NAME = process.env.EXPO_PUBLIC_APP_NAME ?? 'Rise Up Kids';
 export const APP_VERSION = process.env.EXPO_PUBLIC_APP_VERSION ?? '1.0.0';
+
+/**
+ * Referer sent when loading Bunny Stream embed pages in WebView.
+ * Must match a domain in the video library's Bunny "Allowed domains" list
+ * (e.g. app.riseup.kids — without https:// in Bunny dashboard).
+ */
+export const BUNNY_EMBED_REFERER =
+  process.env.EXPO_PUBLIC_BUNNY_EMBED_REFERER ?? 'https://app.riseup.kids';
