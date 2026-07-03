@@ -170,18 +170,23 @@ export default function AdminVideoTester({ open, onClose, video }) {
     clearPreloadState();
     try {
       let pages = [];
+      let playableBook = null;
       try {
         const playableResponse = await loadPlayableBookById(cmsBookId);
-        pages = Array.isArray(playableResponse?.data?.pages) ? playableResponse.data.pages : [];
+        playableBook = playableResponse?.data || null;
+        pages = Array.isArray(playableBook?.pages) ? playableBook.pages : [];
       } catch (_playableError) {
         const response = await cmsBookAdminService.getBookById(cmsBookId);
         pages = Array.isArray(response?.data?.pages) ? response.data.pages : [];
       }
 
       setCmsPages(pages);
+      const preloadPromise = pages.length > 0
+        ? preloadBookMedia({ bookId: cmsBookId, pages, book: playableBook })
+        : null;
       setCmsOpen(true);
-      if (pages.length > 0) {
-        await preloadBookMedia({ bookId: cmsBookId, pages });
+      if (preloadPromise) {
+        await preloadPromise;
       }
     } catch (error) {
       console.error('Failed to load video CMS follow-up for testing:', error);

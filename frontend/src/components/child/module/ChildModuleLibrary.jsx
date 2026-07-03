@@ -91,13 +91,18 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
     try {
       clearPreloadState();
       const response = await loadPlayableBookById(cmsBookId);
-      const playablePages = Array.isArray(response?.data?.pages) ? response.data.pages : [];
+      const playableBook = response?.data || null;
+      const playablePages = Array.isArray(playableBook?.pages) ? playableBook.pages : [];
       setSelectedCmsBook(book);
       setCmsPages(playablePages);
-      setCmsOpen(true);
       setSessionStartedAt(Date.now());
-      if (playablePages.length > 0) {
-        await preloadBookMedia({ bookId: cmsBookId, pages: playablePages });
+
+      const preloadPromise = playablePages.length > 0
+        ? preloadBookMedia({ bookId: cmsBookId, pages: playablePages, book: playableBook })
+        : null;
+      setCmsOpen(true);
+      if (preloadPromise) {
+        await preloadPromise;
       }
     } catch (error) {
       console.error('Error loading CMS built-in book:', error);

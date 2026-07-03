@@ -33,41 +33,82 @@ export const imageActionButtonSx = {
   },
 };
 
+import { BACKEND_BASE_URL } from '../../../../config/constants';
+
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+
+/**
+ * CMS media often stores `/uploads/...` paths. Preload + `<img>` / `<video>` need absolute URLs
+ * when the API origin differs from the Vite dev server or marketing site.
+ */
+export const resolveCmsAbsoluteMediaUrl = (raw) => {
+  if (raw == null) return '';
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  if (!trimmed || OBJECT_ID.test(trimmed)) return '';
+  if (
+    trimmed.startsWith('http://') ||
+    trimmed.startsWith('https://') ||
+    trimmed.startsWith('data:') ||
+    trimmed.startsWith('blob:')
+  ) {
+    return trimmed;
+  }
+  const base = String(BACKEND_BASE_URL || '').replace(/\/+$/, '');
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  if (!base) return path;
+  return `${base}${path}`;
+};
+
 export const resolvePageType = (rawType = '') => {
   if (rawType === 'cover') return 'intro';
   if (rawType === 'activity_demo_video') return 'demo';
   if (rawType === 'activity_drag_2x1' || rawType === 'activity_drag_2x2') return 'interactive';
+  if (rawType === 'end') return 'reward';
   return rawType;
 };
 
 export const resolveImageUrl = (page = {}) =>
-  page.imageUrl
-  || page.backgroundImageUrl
-  || page?.media?.imageUrl
-  || page?.media?.backgroundImageUrl
-  || page?.media?.image?.url
-  || page?.media?.backgroundImage?.url
-  || page?.media?.imageMedia?.url
-  || page?.media?.backgroundImageMedia?.url
-  || page?.media?.guideImageMedia?.url
-  || '';
+  resolveCmsAbsoluteMediaUrl(
+    page.imageUrl
+    || page.backgroundImageUrl
+    || page?.media?.imageUrl
+    || page?.media?.backgroundImageUrl
+    || page?.media?.image?.url
+    || page?.media?.image?.cloudUrl
+    || page?.media?.backgroundImage?.url
+    || page?.media?.backgroundImage?.cloudUrl
+    || page?.media?.imageMedia?.url
+    || page?.media?.imageMedia?.cloudUrl
+    || page?.media?.backgroundImageMedia?.url
+    || page?.media?.backgroundImageMedia?.cloudUrl
+    || page?.media?.guideImageMedia?.url
+    || page?.media?.guideImageMedia?.cloudUrl
+    || ''
+  );
 
 export const resolveVideoUrl = (page = {}) =>
-  page.videoUrl
-  || page?.media?.videoUrl
-  || page?.media?.video?.url
-  || page?.media?.videoMedia?.url
-  || '';
+  resolveCmsAbsoluteMediaUrl(
+    page.videoUrl
+    || page?.media?.videoUrl
+    || page?.media?.video?.url
+    || page?.media?.video?.cloudUrl
+    || page?.media?.videoMedia?.url
+    || page?.media?.videoMedia?.cloudUrl
+    || ''
+  );
 
 export const resolveAudioUrl = (page = {}) => {
   const pageType = resolvePageType(page?.type);
   if (pageType === 'intro' || pageType === 'reward') return '';
-  return (
+  return resolveCmsAbsoluteMediaUrl(
     page.audioUrl
     || page?.media?.audioUrl
     || page?.media?.audio?.url
+    || page?.media?.audio?.cloudUrl
     || page?.media?.audioMedia?.url
+    || page?.media?.audioMedia?.cloudUrl
     || page?.media?.instructionAudioMedia?.url
+    || page?.media?.instructionAudioMedia?.cloudUrl
     || ''
   );
 };
@@ -82,7 +123,7 @@ const toSafeMediaUrl = (value) => {
 
 export const resolveDropZoneAudioUrl = (zone = {}, index = 0, page = {}) => {
   const pageLevelAudios = [page?.answerAudioOne, page?.answerAudioTwo];
-  return (
+  return resolveCmsAbsoluteMediaUrl(
     toSafeMediaUrl(zone?.audioUrl)
     || toSafeMediaUrl(zone?.audio)
     || toSafeMediaUrl(zone?.audioMedia)
@@ -93,25 +134,49 @@ export const resolveDropZoneAudioUrl = (zone = {}, index = 0, page = {}) => {
 
 /** Optional intro/cover background music (looped on intro screen). */
 export const resolveIntroBackgroundMusicUrl = (page = {}) =>
-  page.introBackgroundMusicUrl
-  || page?.media?.introBackgroundMusicUrl
-  || page?.media?.audioMedia?.url
-  || page?.media?.audioMedia?.cloudUrl
-  || page?.media?.audio?.url
-  || '';
+  resolveCmsAbsoluteMediaUrl(
+    page.introBackgroundMusicUrl
+    || page?.media?.introBackgroundMusicUrl
+    || page?.media?.audioMedia?.url
+    || page?.media?.audioMedia?.cloudUrl
+    || page?.media?.audio?.url
+    || page?.media?.audio?.cloudUrl
+    || ''
+  );
 
 /** Optional reward celebration audio (played once on reward screen). */
 export const resolveRewardAudioUrl = (page = {}) => {
   const pageType = resolvePageType(page?.type);
   if (pageType !== 'reward') return '';
-  return (
+  return resolveCmsAbsoluteMediaUrl(
     page.rewardAudioUrl
     || page?.media?.rewardAudioUrl
     || page?.media?.audioMedia?.url
     || page?.media?.audioMedia?.cloudUrl
     || page?.media?.audio?.url
+    || page?.media?.audio?.cloudUrl
     || ''
   );
+};
+
+export const cmsPageSubtitleWrapSx = {
+  position: 'absolute',
+  inset: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  p: { xs: 2, md: 3 },
+  pointerEvents: 'none',
+  zIndex: 2,
+};
+
+export const cmsPageSubtitleTextSx = {
+  fontFamily: 'Quicksand, sans-serif',
+  fontWeight: 600,
+  color: '#fff',
+  textAlign: 'center',
+  opacity: 0.95,
+  textShadow: '0 1px 6px rgba(0,0,0,0.65)',
 };
 
 export {

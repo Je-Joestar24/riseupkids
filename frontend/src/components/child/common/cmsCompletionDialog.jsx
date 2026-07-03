@@ -6,10 +6,22 @@ import {
   Typography,
   Button,
   Box,
+  Grow,
 } from '@mui/material';
+import { keyframes } from '@mui/system';
 import StarIcon from '@mui/icons-material/Star';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { themeColors } from '../../../config/themeColors';
+
+const popIn = keyframes`
+  from { transform: scale(0.85); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+`;
+
+const starPulse = keyframes`
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+`;
 
 /**
  * CmsCompletionDialog Component
@@ -50,6 +62,8 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
       maxWidth="sm"
       fullWidth
       disableEscapeKeyDown
+      TransitionComponent={Grow}
+      transitionDuration={280}
       PaperProps={{
         elevation: 8,
         sx: {
@@ -92,6 +106,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             fontSize: 80,
             color: themeColors.success,
             mb: 2,
+            animation: `${popIn} 420ms cubic-bezier(0.22, 1, 0.36, 1)`,
           }}
         />
 
@@ -206,6 +221,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
                 justifyContent: 'center',
                 gap: 1,
                 marginBottom: 1,
+                animation: `${starPulse} 1.2s ease-in-out infinite`,
               }}
             >
               <StarIcon

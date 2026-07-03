@@ -74,10 +74,14 @@ const BooksBuilderMain = () => {
         : book;
       const pages = activeBook?.pages || [];
 
+      const preloadPromise = pages.length > 0
+        ? preloadBookMedia({ bookId: targetId, pages, book: playableBook || book })
+        : null;
+
       setTestingBook(activeBook);
 
-      if (pages.length > 0) {
-        await preloadBookMedia({ bookId: targetId, pages });
+      if (preloadPromise) {
+        await preloadPromise;
       }
 
       if (playableBook) return;

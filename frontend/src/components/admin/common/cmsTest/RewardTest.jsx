@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import {
+  cmsPageSubtitleTextSx,
+  cmsPageSubtitleWrapSx,
   imageActionButtonSx,
   pageFrameSx,
   resolveImageUrl,
@@ -71,7 +73,7 @@ const RewardTest = ({
           component="img"
           src={bgImage}
           alt={page?.title || 'Reward preview'}
-          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0 }}
         />
       ) : null}
 
@@ -84,30 +86,15 @@ const RewardTest = ({
           loop
           playsInline
           aria-label="Reward video preview"
-          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
         />
       ) : null}
 
-      <Box
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          p: { xs: 2, md: 3 },
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.38))',
-        }}
-      >
-        <Box sx={{ mt: 1, textAlign: 'center', color: 'common.white' }}>
-          {page?.subtitle ? (
-            <Typography sx={{ fontFamily: 'Quicksand, sans-serif', opacity: 0.95 }}>
-              {page.subtitle}
-            </Typography>
-          ) : null}
+      {page?.subtitle ? (
+        <Box sx={cmsPageSubtitleWrapSx}>
+          <Typography sx={cmsPageSubtitleTextSx}>{page.subtitle}</Typography>
         </Box>
-      </Box>
+      ) : null}
 
       {homeIconUrl && onHome ? (
         <IconButton

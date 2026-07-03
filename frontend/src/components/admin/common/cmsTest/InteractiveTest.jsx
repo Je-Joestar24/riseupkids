@@ -4,20 +4,24 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, IconButton, Typography } from '@mui/material';
-import retryButtonImage from '../../../../assets/images/book/retry_button.png';
+import { Box, Typography } from '@mui/material';
 import {
   extractInteractiveLayoutsFromCms,
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '../../../../utils/cmsInteractiveLayout';
 import {
-  imageActionButtonSx,
   pageFrameSx,
+  resolveCmsAbsoluteMediaUrl,
   resolveDropZoneAudioUrl,
   resolveImageUrl,
 } from './shared';
 import { resolveCmsInteractiveFeedbackAudioUrl } from './cmsInteractiveFeedbackAudio';
+import {
+  CMS_GOOD_JOB_ADVANCE_DELAY_MS,
+  CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
+} from './cmsInteractiveFeedbackConstants';
+import CmsInteractiveResultToast from './CmsInteractiveResultToast';
 
 const DESIGN_STAGE_WIDTH = 1920;
 const DESIGN_STAGE_HEIGHT = 1080;
@@ -66,6 +70,7 @@ const InteractiveTest = ({
   const optionAudioRef = useRef(null);
   const answerAudioRef = useRef(null);
   const feedbackAudioRef = useRef(null);
+  const advanceTimeoutRef = useRef(null);
   const stageRef = useRef(null);
   const dropZoneRefs = useRef({});
   const optionRefs = useRef({});
@@ -89,24 +94,79 @@ const InteractiveTest = ({
     parallelBottomOffset: 112,
   });
   const [elementSizes, setElementSizes] = useState({});
+  const pageId = page?.pageId || page?.id || `${page?.type ?? 'interactive'}-${page?.order ?? ''}`;
+
+  const clearAdvanceTimeout = () => {
+    if (!advanceTimeoutRef.current) return;
+    clearTimeout(advanceTimeoutRef.current);
+    advanceTimeoutRef.current = null;
+  };
+
+  const stopOptionAndAnswerAudio = () => {
+    if (optionAudioRef.current) {
+      optionAudioRef.current.pause();
+      optionAudioRef.current.currentTime = 0;
+      optionAudioRef.current = null;
+    }
+    if (answerAudioRef.current) {
+      answerAudioRef.current.pause();
+      answerAudioRef.current.currentTime = 0;
+      answerAudioRef.current = null;
+    }
+    setPlayingOptionId('');
+    setPlayingAnswerId('');
+  };
+
+  /** Fresh interactive state every time the player moves to another page. */
+  useEffect(() => {
+    clearAdvanceTimeout();
+    stopOptionAndAnswerAudio();
+    if (feedbackAudioRef.current) {
+      feedbackAudioRef.current.pause();
+      feedbackAudioRef.current.currentTime = 0;
+      feedbackAudioRef.current.src = '';
+      feedbackAudioRef.current = null;
+    }
+    setDragState(null);
+    setDragLayer(null);
+    setPlacedByZone({});
+    setPlacedByOption({});
+    setDropResult('');
+    setResetSeed((seed) => seed + 1);
+  }, [pageId]);
+
   const useCustomLayout = hasCustomInteractiveLayout(page);
   const resolvedLayouts = useMemo(() => extractInteractiveLayoutsFromCms(page), [page]);
   const bgImage = resolveImageUrl(page);
   const sceneImageUrls = useMemo(() => {
     const fromList = Array.isArray(page?.media?.sceneImageMedias)
-      ? page.media.sceneImageMedias.map((item) => item?.url).filter(Boolean)
+      ? page.media.sceneImageMedias
+        .map((item) => resolveCmsAbsoluteMediaUrl(item?.url || item?.cloudUrl))
+        .filter(Boolean)
       : [];
-    const single = page?.media?.sceneImageMedia?.url || page?.sceneImageOne || '';
+    const single = resolveCmsAbsoluteMediaUrl(
+      page?.media?.sceneImageMedia?.url || page?.media?.sceneImageMedia?.cloudUrl || page?.sceneImageOne || ''
+    );
     if (fromList.length) return fromList;
-    const legacy = [page?.sceneImageOne, page?.sceneImageTwo].filter(Boolean);
+    const legacy = [page?.sceneImageOne, page?.sceneImageTwo]
+      .map((value) => resolveCmsAbsoluteMediaUrl(value))
+      .filter(Boolean);
     return legacy.length ? legacy : (single ? [single] : []);
   }, [page]);
   const dropZones = Array.isArray(page?.interaction?.dropZones) ? page.interaction.dropZones : [];
   const guideImageUrls = useMemo(() => {
     const fromList = Array.isArray(page?.media?.guideImageMedias)
-      ? page.media.guideImageMedias.map((item) => item?.url).filter(Boolean)
+      ? page.media.guideImageMedias
+        .map((item) => resolveCmsAbsoluteMediaUrl(item?.url || item?.cloudUrl))
+        .filter(Boolean)
       : [];
-    const single = page?.media?.guideImageMedia?.url || page?.media?.guideImage?.url || '';
+    const single = resolveCmsAbsoluteMediaUrl(
+      page?.media?.guideImageMedia?.url
+      || page?.media?.guideImageMedia?.cloudUrl
+      || page?.media?.guideImage?.url
+      || page?.media?.guideImage?.cloudUrl
+      || ''
+    );
     return fromList.length ? fromList : (single ? [single] : []);
   }, [page]);
   const dropZoneItems = useMemo(() => {
@@ -151,24 +211,50 @@ const InteractiveTest = ({
     || interactionType === 'drag_2x2';
   const isSingleLayout = !isParallelInteraction;
   const isInteractionLocked = dropZoneItems.length === 1 && Object.keys(placedByZone).length > 0;
-  const allDropZonesCorrect = useMemo(
-    () => dropZoneItems.length > 0 && dropZoneItems.every((zone) => placedByZone[zone.id] === zone.correctOptionId),
-    [dropZoneItems, placedByZone]
-  );
   const firstOptionSource = page?.interaction?.options?.[0] || {};
   const secondOptionSource = page?.interaction?.options?.[1] || {};
   const options = useMemo(() => ([
     {
       id: firstOptionSource?.optionId || 'option_one',
       label: firstOptionSource?.label || 'Option 1',
-      image: page?.optionImageOne || firstOptionSource?.imageUrl || firstOptionSource?.image?.url || firstOptionSource?.imageMedia?.url || '',
-      audio: firstOptionSource?.audioUrl || firstOptionSource?.audio?.url || firstOptionSource?.audioMedia?.url || '',
+      image: resolveCmsAbsoluteMediaUrl(
+        page?.optionImageOne
+        || firstOptionSource?.imageUrl
+        || firstOptionSource?.image?.url
+        || firstOptionSource?.image?.cloudUrl
+        || firstOptionSource?.imageMedia?.url
+        || firstOptionSource?.imageMedia?.cloudUrl
+        || ''
+      ),
+      audio: resolveCmsAbsoluteMediaUrl(
+        firstOptionSource?.audioUrl
+        || firstOptionSource?.audio?.url
+        || firstOptionSource?.audio?.cloudUrl
+        || firstOptionSource?.audioMedia?.url
+        || firstOptionSource?.audioMedia?.cloudUrl
+        || ''
+      ),
     },
     {
       id: secondOptionSource?.optionId || 'option_two',
       label: secondOptionSource?.label || 'Option 2',
-      image: page?.optionImageTwo || secondOptionSource?.imageUrl || secondOptionSource?.image?.url || secondOptionSource?.imageMedia?.url || '',
-      audio: secondOptionSource?.audioUrl || secondOptionSource?.audio?.url || secondOptionSource?.audioMedia?.url || '',
+      image: resolveCmsAbsoluteMediaUrl(
+        page?.optionImageTwo
+        || secondOptionSource?.imageUrl
+        || secondOptionSource?.image?.url
+        || secondOptionSource?.image?.cloudUrl
+        || secondOptionSource?.imageMedia?.url
+        || secondOptionSource?.imageMedia?.cloudUrl
+        || ''
+      ),
+      audio: resolveCmsAbsoluteMediaUrl(
+        secondOptionSource?.audioUrl
+        || secondOptionSource?.audio?.url
+        || secondOptionSource?.audio?.cloudUrl
+        || secondOptionSource?.audioMedia?.url
+        || secondOptionSource?.audioMedia?.cloudUrl
+        || ''
+      ),
     },
   ].filter((option, index) => {
     if (index === 0) return Boolean(option.image || option.audio || firstOptionSource?.label);
@@ -177,13 +263,17 @@ const InteractiveTest = ({
   const requiredPlacements = Math.min(dropZoneItems.length, options.length);
   const optionsSignature = useMemo(() => options.map((option) => option.id).join('|'), [options]);
 
-  useEffect(() => {
-    if (!allDropZonesCorrect) return undefined;
-    const timer = setTimeout(() => {
+  const scheduleAdvanceAfterGoodJob = (audio) => {
+    clearAdvanceTimeout();
+    let delayMs = CMS_GOOD_JOB_ADVANCE_FALLBACK_MS;
+    if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+      delayMs = Math.round(audio.duration * 1000) + CMS_GOOD_JOB_ADVANCE_DELAY_MS;
+    }
+    advanceTimeoutRef.current = setTimeout(() => {
+      advanceTimeoutRef.current = null;
       onCorrectDrop?.();
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [allDropZonesCorrect, onCorrectDrop]);
+    }, delayMs);
+  };
 
   const stopFeedbackAudio = () => {
     const audio = feedbackAudioRef.current;
@@ -197,6 +287,7 @@ const InteractiveTest = ({
   useEffect(() => {
     if (!dropResult || isPreloading) {
       stopFeedbackAudio();
+      clearAdvanceTimeout();
       return undefined;
     }
 
@@ -214,17 +305,34 @@ const InteractiveTest = ({
     }
 
     const feedbackUrl = resolveCmsInteractiveFeedbackAudioUrl(dropResult);
-    if (!feedbackUrl) return undefined;
+    if (!feedbackUrl) {
+      if (dropResult === 'correct') {
+        scheduleAdvanceAfterGoodJob(null);
+      }
+      return undefined;
+    }
 
     const audio = new Audio(feedbackUrl);
     audio.preload = 'auto';
     audio.setAttribute('aria-hidden', 'true');
     feedbackAudioRef.current = audio;
 
+    const handleEnded = () => {
+      if (dropResult === 'correct') {
+        scheduleAdvanceAfterGoodJob(audio);
+      }
+    };
+
+    audio.addEventListener('ended', handleEnded, { once: true });
+
     const tryPlay = () => {
       const playPromise = audio.play();
       if (playPromise?.catch) {
-        playPromise.catch(() => {});
+        playPromise.catch(() => {
+          if (dropResult === 'correct') {
+            scheduleAdvanceAfterGoodJob(null);
+          }
+        });
       }
     };
 
@@ -236,9 +344,11 @@ const InteractiveTest = ({
 
     return () => {
       audio.removeEventListener('canplaythrough', tryPlay);
+      audio.removeEventListener('ended', handleEnded);
       stopFeedbackAudio();
+      clearAdvanceTimeout();
     };
-  }, [dropResult, isPreloading]);
+  }, [dropResult, isPreloading, onCorrectDrop, pageId]);
 
   useEffect(() => {
     const computeInitialPositions = () => {
@@ -488,19 +598,9 @@ const InteractiveTest = ({
   };
 
   const handleRetryClick = () => {
-    if (optionAudioRef.current) {
-      optionAudioRef.current.pause();
-      optionAudioRef.current.currentTime = 0;
-      optionAudioRef.current = null;
-    }
-    if (answerAudioRef.current) {
-      answerAudioRef.current.pause();
-      answerAudioRef.current.currentTime = 0;
-      answerAudioRef.current = null;
-    }
+    clearAdvanceTimeout();
+    stopOptionAndAnswerAudio();
     stopFeedbackAudio();
-    setPlayingOptionId('');
-    setPlayingAnswerId('');
     setDragState(null);
     setDragLayer(null);
     setPlacedByZone({});
@@ -834,58 +934,34 @@ const InteractiveTest = ({
           </Box>
         ) : null}
 
-        {dropResult ? (
-          <Box
+        {!dropResult ? (
+          <Typography
             sx={{
               position: 'absolute',
               left: '50%',
-              top: '72%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 8,
+              bottom: '8%',
+              transform: 'translateX(-50%)',
+              color: 'common.white',
+              textAlign: 'center',
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 700,
+              fontSize: { xs: '0.95rem', md: '1.05rem' },
+              textShadow: '0 1px 6px rgba(0,0,0,0.45)',
               pointerEvents: 'none',
+              zIndex: 4,
+              px: 2,
             }}
           >
-            <Typography
-              sx={{
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 800,
-                fontSize: { xs: '1.6rem', md: '2.1rem' },
-                color: (theme) => (dropResult === 'correct'
-                  ? (theme.palette.button?.teal || theme.palette.secondary.main)
-                  : theme.palette.error.main),
-                textAlign: 'center',
-                textShadow: '0 1px 2px rgba(0,0,0,0.18)',
-              }}
-            >
-              {dropResult === 'correct' ? 'Good Job!' : 'Try again'}
-            </Typography>
-          </Box>
-        ) : (
-          <Box sx={{ color: 'common.white', textAlign: 'center', mt: 1.2, pointerEvents: 'none' }}>
-            <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
-              Drag options to answers, or tap options and answers to play audio.
-            </Typography>
-          </Box>
-        )}
+            Drag to the answer zone or tap to play audio.
+          </Typography>
+        ) : null}
       </Box>
 
-      <IconButton
-        onClick={handleRetryClick}
-        disabled={isPreloading}
-        aria-label="Retry current page"
-        sx={{
-          ...imageActionButtonSx,
-          position: 'absolute',
-          right: '0.9375%',
-          bottom: '5.1852%',
-          width: '7.5%',
-          aspectRatio: '1 / 1',
-          zIndex: 30,
-          pointerEvents: 'auto',
-        }}
-      >
-        <img src={retryButtonImage} alt="Retry button" />
-      </IconButton>
+      <CmsInteractiveResultToast
+        visible={Boolean(dropResult)}
+        tone={dropResult === 'correct' ? 'success' : 'retry'}
+        onDismiss={dropResult === 'wrong' ? handleRetryClick : undefined}
+      />
     </Box>
   );
 };
