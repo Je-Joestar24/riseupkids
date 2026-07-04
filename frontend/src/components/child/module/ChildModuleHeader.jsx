@@ -6,7 +6,7 @@ import { themeColors } from '../../../config/themeColors';
  * ChildModuleHeader Component
  * 
  * Header for course detail page with cover image, back button, and step badge
- * Displays cover image (848px × 256px) with floating overlay elements
+ * Displays cover image with floating overlay elements (perfect square)
  */
 const ChildModuleHeader = ({ stepNumber, onBack, coverImageUrl, courseTitle }) => {
   return (
@@ -18,7 +18,7 @@ const ChildModuleHeader = ({ stepNumber, onBack, coverImageUrl, courseTitle }) =
             position: 'relative',
             width: '100%',
             maxWidth: '848px',
-            height: '256px',
+            aspectRatio: '1 / 1',
             marginTop: '20px',
             borderRadius: '0px',
             overflow: 'hidden',
@@ -125,7 +125,7 @@ const ChildModuleHeader = ({ stepNumber, onBack, coverImageUrl, courseTitle }) =
             position: 'relative',
             width: '100%',
             maxWidth: '848px',
-            height: '256px',
+            aspectRatio: '1 / 1',
             marginTop: '20px',
             backgroundColor: '#000000',
             borderRadius: '0px',

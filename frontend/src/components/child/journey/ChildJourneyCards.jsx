@@ -247,8 +247,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                 sx={{
                   position: 'relative',
                   width: '100%',
-                  height: '160px',
-                  maxHeight: '160px',
+                  aspectRatio: '1 / 1',
                   backgroundColor: themeColors.bgTertiary,
                   overflow: 'hidden',
                 }}

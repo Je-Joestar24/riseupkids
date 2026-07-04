@@ -6,8 +6,8 @@ import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import ExploreReplaysCard from './ExploreReplaysCard';
 import VideoPlayerModal from '../common/VideoPlayerModal';
+import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 import themeColors from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
 
 /**
  * ExploreReplays Component
@@ -96,39 +96,7 @@ const ExploreReplays = ({ childId }) => {
     }
   };
 
-  // Get video object for VideoPlayerModal
-  const getVideoObjectForPlayer = (exploreVideo) => {
-    // Get video URL from videoFile
-    const videoFile = exploreVideo?.videoFile;
-    let videoUrl = null;
-    
-    if (videoFile?.url) {
-      // If already a full URL, use it
-      if (videoFile.url.startsWith('http://') || videoFile.url.startsWith('https://')) {
-        videoUrl = videoFile.url;
-      } else {
-        videoUrl = `${BACKEND_BASE_URL}${videoFile.url.startsWith('/') ? videoFile.url : `/${videoFile.url}`}`;
-      }
-    } else if (exploreVideo?.videoFileUrl) {
-      if (exploreVideo.videoFileUrl.startsWith('http://') || exploreVideo.videoFileUrl.startsWith('https://')) {
-        videoUrl = exploreVideo.videoFileUrl;
-      } else {
-        videoUrl = `${BACKEND_BASE_URL}${exploreVideo.videoFileUrl.startsWith('/') ? exploreVideo.videoFileUrl : `/${exploreVideo.videoFileUrl}`}`;
-      }
-    }
-
-    return {
-      _id: videoFile?._id || exploreVideo._id,
-      title: exploreVideo.title,
-      url: videoUrl,
-      description: exploreVideo.description,
-      duration: exploreVideo.duration,
-      // SCORM file if exists
-      scormFile: videoFile?.scormFile,
-      scormFileUrl: videoFile?.scormFileUrl,
-      scormFilePath: videoFile?.scormFilePath,
-    };
-  };
+  const getVideoObjectForPlayer = (exploreVideo) => buildExploreVideoForPlayer(exploreVideo);
 
   const handleWatchClick = (content) => {
     // Open video in VideoPlayerModal
@@ -291,6 +259,7 @@ const ExploreReplays = ({ childId }) => {
           open={videoModalOpen}
           onClose={handleVideoModalClose}
           video={getVideoObjectForPlayer(selectedVideo)}
+          exploreContent={selectedVideo}
           childId={childId}
           isExploreVideo={true}
           exploreContentId={selectedVideo._id}

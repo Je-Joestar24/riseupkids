@@ -4,8 +4,8 @@ import { useTheme } from '@mui/material/styles';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
 import VideoPlayerModal from '../common/VideoPlayerModal';
+import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 
 /**
  * Clock Icon SVG Component
@@ -206,47 +206,7 @@ const ExploreReplaysCards = ({ childId }) => {
     }
   };
 
-  // Get video object for VideoPlayerModal
-  const getVideoObjectForPlayer = (exploreVideo) => {
-    // Get video URL from videoFile
-    const videoFile = exploreVideo?.videoFile;
-    let videoUrl = null;
-    
-    if (videoFile?.url) {
-      // If already a full URL, use it
-      if (videoFile.url.startsWith('http://') || videoFile.url.startsWith('https://')) {
-        videoUrl = videoFile.url;
-      } else {
-        // Build full URL from relative path
-        const baseUrl = BACKEND_BASE_URL;
-        videoUrl = `${baseUrl}${videoFile.url.startsWith('/') ? videoFile.url : `/${videoFile.url}`}`;
-      }
-    } else if (exploreVideo?.videoFileUrl) {
-      // Use videoFileUrl from ExploreContent
-      if (exploreVideo.videoFileUrl.startsWith('http://') || exploreVideo.videoFileUrl.startsWith('https://')) {
-        videoUrl = exploreVideo.videoFileUrl;
-      } else {
-        const baseUrl = BACKEND_BASE_URL;
-        videoUrl = `${baseUrl}${exploreVideo.videoFileUrl.startsWith('/') ? exploreVideo.videoFileUrl : `/${exploreVideo.videoFileUrl}`}`;
-      }
-    }
-
-    return {
-      _id: videoFile?._id || exploreVideo._id,
-      title: exploreVideo.title,
-      url: videoUrl,
-      description: exploreVideo.description,
-      duration: exploreVideo.duration,
-      // SCORM file if exists
-      scormFile: videoFile?.scormFile,
-      scormFileUrl: videoFile?.scormFileUrl,
-      scormFilePath: videoFile?.scormFilePath,
-      completionContentType: videoFile?.completionContentType,
-      html5PackageId: videoFile?.html5PackageId,
-      html5EntryPoint: videoFile?.html5EntryPoint,
-      cmsBookId: videoFile?.cmsBookId,
-    };
-  };
+  const getVideoObjectForPlayer = (exploreVideo) => buildExploreVideoForPlayer(exploreVideo);
 
   // Loading state
   if (loading || loadingStatuses) {
@@ -560,6 +520,7 @@ const ExploreReplaysCards = ({ childId }) => {
           open={videoModalOpen}
           onClose={handleVideoModalClose}
           video={getVideoObjectForPlayer(selectedVideo)}
+          exploreContent={selectedVideo}
           childId={childId}
           isExploreVideo={true}
           exploreContentId={selectedVideo._id}

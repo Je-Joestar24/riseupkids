@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -24,9 +24,17 @@ import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
 import html5Service from '../../../services/html5Service';
 import CmsBooksModalPlayer from './cms/CmsBooksModalPlayer';
+import BunnyEmbedIframe from './BunnyEmbedIframe';
+import { resolveChildVideoPlayback } from '../../../utils/childVideoPlayback';
+
+const buildMediaUrl = (path) => {
+  if (!path || typeof path !== 'string') return null;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  return `${BACKEND_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+};
 
 // Confirmation Dialog Component
-const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
+const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, message }) => (
   <Dialog
     open={open}
     onClose={onCancel}
@@ -67,7 +75,7 @@ const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
           lineHeight: 1.6,
         }}
       >
-        Do you want to close this video? Your progress will be saved!
+        {message || 'Do you want to close this video? Your progress will be saved!'}
       </Typography>
     </DialogContent>
     <DialogActions
@@ -138,6 +146,7 @@ const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title }) => (
  * @param {String} courseId - Course's ID (optional, for course progress)
  * @param {Boolean} isExploreVideo - Whether this is an explore video (default: false)
  * @param {String} exploreContentId - ExploreContent ID (required if isExploreVideo is true)
+ * @param {Object} exploreContent - Full explore content row (preferred for upload vs Bunny resolution)
  * @param {String} videoType - Video type for explore videos (e.g., 'replay', 'cooking', etc.)
  */
 const VideoPlayerModal = ({
@@ -149,6 +158,7 @@ const VideoPlayerModal = ({
   courseId,
   isExploreVideo = false,
   exploreContentId = null,
+  exploreContent = null,
   videoType = null,
 }) => {
   const theme = useTheme();
@@ -163,7 +173,6 @@ const VideoPlayerModal = ({
   const [html5LaunchUrl, setHtml5LaunchUrl] = useState(null);
   const [html5Error, setHtml5Error] = useState(null);
   const [html5Loading, setHtml5Loading] = useState(false);
-  const [videoUrl, setVideoUrl] = useState(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
@@ -172,6 +181,22 @@ const VideoPlayerModal = ({
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false); // Prevent duplicate watch recording
   const [isClosingModal, setIsClosingModal] = useState(false); // Track if we're closing the modal
+  const [embedIframeLoaded, setEmbedIframeLoaded] = useState(false);
+
+  const playback = useMemo(
+    () =>
+      resolveChildVideoPlayback(video, {
+        isExploreVideo,
+        exploreContent,
+        buildMediaUrl,
+      }),
+    [video, isExploreVideo, exploreContent]
+  );
+
+  const isBunnyEmbed = playback.mode === 'embed';
+  const embedUrl = isBunnyEmbed ? playback.url : null;
+  const fileVideoUrl = !isBunnyEmbed ? playback.url : null;
+  const hasPlayableSource = Boolean(isBunnyEmbed ? embedUrl : fileVideoUrl);
 
   // Get video watch methods from hooks
   // Note: Using markVideoWatched and getVideoWatchStatus from hook
@@ -348,110 +373,97 @@ const VideoPlayerModal = ({
     checkVideoStatus();
   }, [open, childId, video, isExploreVideo, exploreContentId, getVideoWatchStatus, getExploreVideoWatchStatus]);
 
-  // Get video URL
+  // Reset session state when a new video opens
   useEffect(() => {
-    if (video && open) {
-      const getVideoUrl = () => {
-        if (!video.url && !video.filePath) return null;
+    if (!video || !open || completionDialogShownRef.current) return;
 
-        // If already a full URL, return as-is
-        if (video.url && (video.url.startsWith('http://') || video.url.startsWith('https://'))) {
-          return video.url;
-        }
+    setEmbedIframeLoaded(false);
+    setVideoEnded(false);
+    setScormOpen(false);
+    setHtml5Open(false);
+    setCmsBookOpen(false);
+    setHtml5LaunchUrl(null);
+    setHtml5Error(null);
+    setHtml5Loading(false);
+    setShowConfirmClose(false);
+    setVideoLoaded(false);
+    setVideoPlaying(false);
+    setShowCompletionDialog(false);
+    setWatchResult(null);
+    setIsRecordingWatch(false);
+    setHasRecordedWatch(false);
+    setStarsAlreadyAwarded(false);
+    setWatchStatusBefore(null);
+    setIsClosingModal(false);
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    completionDialogShownRef.current = false;
+  }, [
+    video?._id,
+    video?.url,
+    video?.embedUrl,
+    video?.videoSource,
+    video?.filePath,
+    exploreContent?._id,
+    open,
+    playback.mode,
+    playback.url,
+  ]);
 
-        const path = video.url || video.filePath;
-        return `${BACKEND_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
-      };
+  // Auto-play uploaded (non-Bunny) videos when loaded
+  useEffect(() => {
+    if (isBunnyEmbed || !open || !fileVideoUrl || videoLoaded) return;
 
-      const newVideoUrl = getVideoUrl();
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
 
-      // Only reset states if the video URL actually changed (new video)
-      // Don't reset if completion dialog has been shown (video just finished)
-      if (newVideoUrl !== videoUrl && !completionDialogShownRef.current) {
-        setVideoUrl(newVideoUrl);
-        setVideoEnded(false);
-        setScormOpen(false);
-        setHtml5Open(false);
-        setCmsBookOpen(false);
-        setHtml5LaunchUrl(null);
-        setHtml5Error(null);
-        setHtml5Loading(false);
-        setShowConfirmClose(false);
-        setVideoLoaded(false);
-        setVideoPlaying(false);
-        setShowCompletionDialog(false);
-        setWatchResult(null);
-        setIsRecordingWatch(false);
-        setHasRecordedWatch(false); // Reset watch recording flag when video changes
-        setStarsAlreadyAwarded(false);
-        setWatchStatusBefore(null);
-        setIsClosingModal(false); // Reset closing state when video changes
-        // Clear auto-close timer when video changes
-        if (autoCloseTimerRef.current) {
-          clearTimeout(autoCloseTimerRef.current);
-          autoCloseTimerRef.current = null;
-        }
-        // Reset completion dialog shown flag for new video
-        completionDialogShownRef.current = false;
-      } else if (newVideoUrl !== videoUrl) {
-        // Video URL changed but completion dialog is showing - just update URL, don't reset states
-        setVideoUrl(newVideoUrl);
+    const tryPlay = () => {
+      setVideoLoaded(true);
+      videoElement
+        .play()
+        .then(() => setVideoPlaying(true))
+        .catch((error) => {
+          console.error('Error auto-playing video:', error);
+        });
+    };
+
+    const handlePlay = () => setVideoPlaying(true);
+
+    const handlePause = () => {
+      if (videoElement.paused && !videoEnded) {
+        videoElement.play().catch(console.error);
       }
+    };
+
+    const handleSeeking = () => {
+      if (!videoEnded) {
+        const currentTime = videoElement.currentTime;
+        videoElement.currentTime = currentTime;
+      }
+    };
+
+    if (videoElement.readyState >= 3) {
+      tryPlay();
     }
-  }, [video, open, videoUrl, showCompletionDialog]);
 
-  // Auto-play video when loaded
-  useEffect(() => {
-    if (videoRef.current && videoUrl && open && !videoLoaded) {
-      const videoElement = videoRef.current;
+    videoElement.addEventListener('canplay', tryPlay);
+    videoElement.addEventListener('loadeddata', tryPlay);
+    videoElement.addEventListener('play', handlePlay);
+    videoElement.addEventListener('pause', handlePause);
+    videoElement.addEventListener('seeking', handleSeeking);
+    videoElement.addEventListener('seeked', handleSeeking);
 
-      const handleCanPlay = () => {
-        setVideoLoaded(true);
-        // Auto-play video
-        videoElement.play()
-          .then(() => {
-            setVideoPlaying(true);
-          })
-          .catch((error) => {
-            console.error('Error auto-playing video:', error);
-            // If autoplay fails, show play button (but still disable controls)
-          });
-      };
-
-      const handlePlay = () => {
-        setVideoPlaying(true);
-      };
-
-      const handlePause = () => {
-        // Prevent pausing - resume immediately
-        if (videoElement.paused && !videoEnded) {
-          videoElement.play().catch(console.error);
-        }
-      };
-
-      const handleSeeking = () => {
-        // Prevent seeking - reset to current play position
-        if (!videoEnded) {
-          const currentTime = videoElement.currentTime;
-          videoElement.currentTime = currentTime;
-        }
-      };
-
-      videoElement.addEventListener('canplay', handleCanPlay);
-      videoElement.addEventListener('play', handlePlay);
-      videoElement.addEventListener('pause', handlePause);
-      videoElement.addEventListener('seeking', handleSeeking);
-      videoElement.addEventListener('seeked', handleSeeking);
-
-      return () => {
-        videoElement.removeEventListener('canplay', handleCanPlay);
-        videoElement.removeEventListener('play', handlePlay);
-        videoElement.removeEventListener('pause', handlePause);
-        videoElement.removeEventListener('seeking', handleSeeking);
-        videoElement.removeEventListener('seeked', handleSeeking);
-      };
-    }
-  }, [videoRef, videoUrl, open, videoLoaded, videoEnded]);
+    return () => {
+      videoElement.removeEventListener('canplay', tryPlay);
+      videoElement.removeEventListener('loadeddata', tryPlay);
+      videoElement.removeEventListener('play', handlePlay);
+      videoElement.removeEventListener('pause', handlePause);
+      videoElement.removeEventListener('seeking', handleSeeking);
+      videoElement.removeEventListener('seeked', handleSeeking);
+    };
+  }, [isBunnyEmbed, open, fileVideoUrl, videoLoaded, videoEnded]);
 
   // Add beforeunload warning when modal is open
   useEffect(() => {
@@ -631,6 +643,14 @@ const VideoPlayerModal = ({
 
   // Handle close attempt - show confirmation
   const handleCloseAttempt = () => {
+    const skipCloseConfirm =
+      (isBunnyEmbed && hasRecordedWatch) ||
+      (isExploreVideo && starsAlreadyAwarded && isBunnyEmbed);
+
+    if (skipCloseConfirm) {
+      handleConfirmedClose();
+      return;
+    }
     setShowConfirmClose(true);
   };
 
@@ -821,7 +841,11 @@ const VideoPlayerModal = ({
           sx: {
             borderRadius: '20px',
             fontFamily: 'Quicksand, sans-serif',
+            height: '90vh',
             maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
             backgroundColor: themeColors.bgCard,
           },
         }}
@@ -841,6 +865,7 @@ const VideoPlayerModal = ({
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: 4,
+            flexShrink: 0,
             backgroundColor: themeColors.bgCard,
           }}
         >
@@ -877,27 +902,142 @@ const VideoPlayerModal = ({
         <DialogContent
           sx={{
             padding: 0,
+            flex: 1,
+            minHeight: 0,
+            overflow: 'hidden',
             backgroundColor: '#000',
             position: 'relative',
-            minHeight: '500px',
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: isBunnyEmbed ? 'stretch' : 'center',
+            ...(isBunnyEmbed ? {} : { minHeight: '400px' }),
           }}
         >
-          {videoUrl ? (
+          {isBunnyEmbed && embedUrl ? (
             <>
+              <Box
+                sx={{
+                  position: 'relative',
+                  flex: 1,
+                  minHeight: 0,
+                  width: '100%',
+                  backgroundColor: '#000',
+                }}
+              >
+                <BunnyEmbedIframe
+                  embedUrl={embedUrl}
+                  title={video?.title || 'Video'}
+                  onLoad={() => {
+                    setEmbedIframeLoaded(true);
+                    setVideoLoaded(true);
+                  }}
+                />
+                {(!embedIframeLoaded || isRecordingWatch) && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 20,
+                    }}
+                  >
+                    <CircularProgress
+                      sx={{
+                        color: themeColors.secondary,
+                        marginBottom: 2,
+                        width: '60px !important',
+                        height: '60px !important',
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        color: themeColors.textInverse,
+                        fontSize: '1.5rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {isRecordingWatch ? 'Recording your progress...' : 'Loading video...'}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {videoEnded && hasFollowUpContent && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    bottom: '20px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 10,
+                  }}
+                >
+                  <Button
+                    variant="contained"
+                    onClick={handleStartFollowUp}
+                    startIcon={<PlayArrowIcon sx={{ fontSize: '2rem' }} />}
+                    sx={{
+                      backgroundColor: themeColors.secondary,
+                      color: themeColors.textInverse,
+                      fontFamily: 'Quicksand, sans-serif',
+                      fontWeight: 700,
+                      textTransform: 'none',
+                      padding: '16px 48px',
+                      fontSize: '1.8rem',
+                      borderRadius: '16px',
+                      boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.3)',
+                      '&:hover': {
+                        backgroundColor: themeColors.primary,
+                        transform: 'scale(1.08)',
+                        boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.4)',
+                      },
+                    }}
+                  >
+                    {hasHtml5FollowUp
+                      ? 'Start HTML5 Book'
+                      : hasCmsBookFollowUp
+                        ? 'Start Built-in Book'
+                        : 'Start Interactive Activity'}
+                  </Button>
+                </Box>
+              )}
+            </>
+          ) : fileVideoUrl ? (
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+              }}
+            >
               <video
+                key={fileVideoUrl}
                 ref={videoRef}
-                src={videoUrl}
+                src={fileVideoUrl}
                 controls={false}
+                playsInline
+                preload="auto"
                 disablePictureInPicture
                 controlsList="nodownload nofullscreen noremoteplayback"
                 style={{
                   width: '100%',
-                  height: 'auto',
-                  maxHeight: '70vh',
-                  pointerEvents: 'none', // Disable all touch/interaction
+                  height: '100%',
+                  maxHeight: '100%',
+                  objectFit: 'contain',
+                  pointerEvents: 'none',
                   userSelect: 'none',
                 }}
                 onEnded={(e) => {
@@ -909,6 +1049,43 @@ const VideoPlayerModal = ({
                 onContextMenu={(e) => e.preventDefault()} // Disable right-click menu
                 onDragStart={(e) => e.preventDefault()} // Disable drag
               />
+
+              {!videoLoaded && !isRecordingWatch && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 20,
+                  }}
+                >
+                  <CircularProgress
+                    sx={{
+                      color: themeColors.secondary,
+                      marginBottom: 2,
+                      width: '60px !important',
+                      height: '60px !important',
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      color: themeColors.textInverse,
+                      fontSize: '1.5rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Loading video...
+                  </Typography>
+                </Box>
+              )}
 
               {/* Loading overlay while recording watch */}
               {isRecordingWatch && (
@@ -988,10 +1165,11 @@ const VideoPlayerModal = ({
                   </Button>
                 </Box>
               )}
-            </>
+            </Box>
           ) : (
             <Box
               sx={{
+                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -1000,24 +1178,40 @@ const VideoPlayerModal = ({
                 color: themeColors.textInverse,
               }}
             >
-              <CircularProgress
-                sx={{
-                  color: themeColors.secondary,
-                  marginBottom: 3,
-                  width: '60px !important',
-                  height: '60px !important',
-                }}
-              />
-              <Typography
-                sx={{
-                  fontFamily: 'Quicksand, sans-serif',
-                  color: themeColors.textInverse,
-                  fontSize: '1.8rem',
-                  fontWeight: 600,
-                }}
-              >
-                Loading video...
-              </Typography>
+              {video && open && !hasPlayableSource ? (
+                <Typography
+                  sx={{
+                    fontFamily: 'Quicksand, sans-serif',
+                    color: themeColors.textInverse,
+                    fontSize: '1.5rem',
+                    fontWeight: 600,
+                    textAlign: 'center',
+                  }}
+                >
+                  This video is not available right now. Please try again later.
+                </Typography>
+              ) : (
+                <>
+                  <CircularProgress
+                    sx={{
+                      color: themeColors.secondary,
+                      marginBottom: 3,
+                      width: '60px !important',
+                      height: '60px !important',
+                    }}
+                  />
+                  <Typography
+                    sx={{
+                      fontFamily: 'Quicksand, sans-serif',
+                      color: themeColors.textInverse,
+                      fontSize: '1.8rem',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Loading video...
+                  </Typography>
+                </>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -1025,10 +1219,38 @@ const VideoPlayerModal = ({
         <DialogActions
           sx={{
             padding: 2,
+            flexShrink: 0,
             backgroundColor: themeColors.bgCard,
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
+            gap: 2,
+            flexWrap: 'wrap',
           }}
         >
+          {isBunnyEmbed && !hasRecordedWatch && childId ? (
+            <Button
+              variant="contained"
+              onClick={handleVideoEnd}
+              disabled={isRecordingWatch}
+              sx={{
+                backgroundColor: themeColors.accent,
+                color: themeColors.textInverse,
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 700,
+                textTransform: 'none',
+                padding: '12px 32px',
+                fontSize: '1.3rem',
+                borderRadius: '12px',
+                '&:hover': {
+                  backgroundColor: themeColors.orange,
+                },
+              }}
+              aria-label="I finished watching"
+            >
+              I finished watching
+            </Button>
+          ) : (
+            <Box sx={{ flex: 1 }} />
+          )}
           <Button
             onClick={handleCloseAttempt}
             variant="contained"
@@ -1135,6 +1357,11 @@ const VideoPlayerModal = ({
         onConfirm={handleConfirmedClose}
         onCancel={handleCancelClose}
         title="Close Video?"
+        message={
+          isBunnyEmbed
+            ? 'Do you want to close this video? Tap I finished watching when you are done to save your progress.'
+            : undefined
+        }
       />
 
       {/* Video Completion Dialog */}

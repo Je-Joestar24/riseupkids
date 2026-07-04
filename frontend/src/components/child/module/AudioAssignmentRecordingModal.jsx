@@ -17,6 +17,7 @@ import { themeColors } from '../../../config/themeColors';
 import audioAssignmentProgressService from '../../../services/audioAssignmentProgressService';
 import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
+import InstructionVideoPlayer from '../common/InstructionVideoPlayer';
 
 const buildPublicUrl = (maybeUrl) => {
   if (!maybeUrl) return null;
@@ -173,12 +174,8 @@ const AudioAssignmentRecordingModal = ({
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
 
-  const instructionVideoUrl = useMemo(() => {
-    const media = progress?.audioAssignment?.instructionVideo || audioAssignment?.instructionVideo;
-    const url = typeof media === 'string' ? media : media?.url;
-    // Only use buildPublicUrl if it's a valid path or URL, not just an ID
-    if (!url || /^[a-f0-9]{24}$/i.test(url)) return null;
-    return buildPublicUrl(url);
+  const instructionVideoMedia = useMemo(() => {
+    return progress?.audioAssignment?.instructionVideo || audioAssignment?.instructionVideo || null;
   }, [progress?.audioAssignment?.instructionVideo, audioAssignment?.instructionVideo]);
 
   const referenceAudioUrl = useMemo(() => {
@@ -553,45 +550,11 @@ const AudioAssignmentRecordingModal = ({
               </Alert>
             )}
 
-            {/* Instruction Video */}
-            {instructionVideoUrl && (
-              <Box
-                sx={{
-                  width: '100%',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  backgroundColor: '#000',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
-                  transform: 'translateZ(0)',
-                }}
-              >
-                {/* Rectangular (16:9) video container */}
-                <Box
-                  sx={{
-                    width: '100%',
-                    aspectRatio: '16 / 9',
-                    backgroundColor: '#000',
-                  }}
-                >
-                  <Box
-                    component="video"
-                    src={instructionVideoUrl}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    autoPlay
-                    muted
-                    aria-label="Instruction video"
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'block',
-                      backgroundColor: '#000',
-                      objectFit: 'cover',
-                    }}
-                  />
-                </Box>
-              </Box>
+            {instructionVideoMedia && (
+              <InstructionVideoPlayer
+                media={instructionVideoMedia}
+                title="Instruction video"
+              />
             )}
 
             {/* Instructions + reference audio */}

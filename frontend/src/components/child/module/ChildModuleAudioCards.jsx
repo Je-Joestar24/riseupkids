@@ -58,12 +58,12 @@ const ChildModuleAudioCards = ({
         overflow: 'hidden',
       }}
     >
-      {/* Cover Image Container - Height 160px */}
+      {/* Cover Image Container - Perfect Square */}
       <Box
         sx={{
           position: 'relative',
           width: '100%',
-          height: '160px',
+          aspectRatio: '1 / 1',
           overflow: 'hidden',
           backgroundColor: '#f0f0f0',
         }}
@@ -74,6 +74,9 @@ const ChildModuleAudioCards = ({
           src={coverImageUrl}
           alt={audio?.title || 'Audio assignment'}
           sx={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
             width: '100%',
             height: '100%',
             objectFit: 'cover',

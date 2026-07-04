@@ -19,6 +19,7 @@ import { themeColors } from '../../../config/themeColors';
 import chantProgressService from '../../../services/chantProgressService';
 import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
+import InstructionVideoPlayer from '../common/InstructionVideoPlayer';
 
 const buildPublicUrl = (maybeUrl) => {
   if (!maybeUrl) return null;
@@ -167,12 +168,8 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
 
-  const instructionVideoUrl = useMemo(() => {
-    const media = progress?.chant?.instructionVideo || chant?.instructionVideo;
-    const url = typeof media === 'string' ? media : media?.url;
-    // Only use buildPublicUrl if it's a valid path or URL, not just an ID
-    if (!url || /^[a-f0-9]{24}$/i.test(url)) return null;
-    return buildPublicUrl(url);
+  const instructionVideoMedia = useMemo(() => {
+    return progress?.chant?.instructionVideo || chant?.instructionVideo || null;
   }, [progress?.chant?.instructionVideo, chant?.instructionVideo]);
 
   const cleanupRecording = () => {
@@ -524,43 +521,11 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
               </Alert>
             )}
 
-            {instructionVideoUrl && (
-              <Box
-                sx={{
-                  width: '100%',
-                  borderRadius: '14px',
-                  overflow: 'hidden',
-                  backgroundColor: '#000',
-                  boxShadow: '0 10px 30px rgba(0,0,0,0.12)',
-                }}
-              >
-                {/* Rectangular (16:9) video container */}
-                <Box
-                  sx={{
-                    width: '100%',
-                    aspectRatio: '16 / 9',
-                    backgroundColor: '#000',
-                  }}
-                >
-                  <Box
-                    component="video"
-                    src={instructionVideoUrl}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    autoPlay
-                    muted
-                    aria-label="Chant instruction video"
-                    sx={{
-                      width: '100%',
-                      height: '100%',
-                      display: 'block',
-                      backgroundColor: '#000',
-                      objectFit: 'cover',
-                    }}
-                  />
-                </Box>
-              </Box>
+            {instructionVideoMedia && (
+              <InstructionVideoPlayer
+                media={instructionVideoMedia}
+                title="Chant instruction video"
+              />
             )}
 
             {(chant?.instructions || '').trim() && (
