@@ -14,10 +14,10 @@ const ShareSomethingFooter = () => {
         <Box
             sx={{
                 width: '100%',
-                padding: '24px',
+                padding: { xs: '16px', sm: '24px' },
                 borderRadius: '0px',
                 backgroundColor: 'white',
-                marginBottom: '32px',
+                marginBottom: { xs: '16px', sm: '32px' },
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '16px',
@@ -53,7 +53,7 @@ const ShareSomethingFooter = () => {
             <Typography
                 sx={{
                     fontFamily: 'Quicksand, sans-serif',
-                    fontSize: '30px',
+                    fontSize: { xs: '1.375rem', sm: '30px' },
                     fontWeight: 700,
                     color: themeColors.secondary,
                     lineHeight: 1.2,
@@ -65,7 +65,7 @@ const ShareSomethingFooter = () => {
             <Typography
                 sx={{
                     fontFamily: 'Quicksand, sans-serif',
-                    fontSize: '20px',
+                    fontSize: { xs: '1rem', sm: '20px' },
                     fontWeight: 600,
                     color: 'oklch(0.446 0.03 256.802)',
                     lineHeight: 1.4,

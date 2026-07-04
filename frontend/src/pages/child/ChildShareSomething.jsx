@@ -9,6 +9,7 @@ import ShareSomethingTitle from '../../components/child/shareSomething/ShareSome
 import ShareSomethingDescription from '../../components/child/shareSomething/ShareSomethingDescription';
 import ShareSomethingCta from '../../components/child/shareSomething/ShareSomethingCta';
 import ShareSomethingFooter from '../../components/child/shareSomething/ShareSomethingFooter';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildShareSomething Page
@@ -72,11 +73,14 @@ const ChildShareSomething = ({ childId }) => {
       sx={{
         minHeight: '100vh',
         backgroundColor: 'rgb(244, 237, 216)',
-        paddingBottom: '90px', // Space for fixed bottom navigation
-        paddingTop: '20px',
+        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
+        paddingTop: { xs: '12px', sm: '20px' },
+        paddingX: { xs: 2, sm: 3 },
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'flex-start',
+        overflowX: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
       <Box
@@ -86,7 +90,7 @@ const ChildShareSomething = ({ childId }) => {
           margin: '0 auto',
           display: 'flex',
           flexDirection: 'column',
-          gap: '20px'
+          gap: { xs: '16px', sm: '20px' },
         }}
       >
         {/* Header */}

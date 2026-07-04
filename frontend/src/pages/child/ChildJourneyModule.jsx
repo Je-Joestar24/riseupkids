@@ -18,6 +18,7 @@ import VideoPlayerModal from '../../components/child/common/VideoPlayerModal';
 import AudioAssignmentRecordingModal from '../../components/child/module/AudioAssignmentRecordingModal';
 import ChantRecordingModal from '../../components/child/module/ChantRecordingModal';
 import ChildModulePrintables from '../../components/child/module/ChildModulePrintables';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildJourneyModule Page
@@ -206,7 +207,6 @@ const ChildJourneyModule = ({ childId }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingBottom: '90px',
         }}
       >
         <CircularProgress sx={{ color: themeColors.primary }} />
@@ -223,7 +223,6 @@ const ChildJourneyModule = ({ childId }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingBottom: '90px',
           padding: { xs: '16px', sm: '32px' },
         }}
       >
@@ -331,7 +330,7 @@ const ChildJourneyModule = ({ childId }) => {
       sx={{
         minHeight: '100vh',
         backgroundColor: 'rgb(212, 230, 227)',
-        paddingBottom: '90px', // Space for fixed bottom navigation
+        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
         paddingTop: '20px',
         display: 'flex',
         flexDirection: 'column',

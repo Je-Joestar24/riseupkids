@@ -7,6 +7,7 @@ import ExploreVideosShare from "../../components/child/explorevideos/ExploreVide
 import ExploreVideosCards from "../../components/child/explorevideos/ExploreVideosCards";
 import ExploreVideosFooter from "../../components/child/explorevideos/ExploreVideosFooter";
 import { useExploreVideoWatch } from "../../hooks/exploreVideoWatchHook";
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 const ChildExploreVideos = ({ childId }) => {
     const theme = useTheme();
@@ -60,7 +61,7 @@ const ChildExploreVideos = ({ childId }) => {
         <Box
             sx={{
                 minHeight: '100vh',
-                paddingBottom: '90px', // Space for fixed bottom navigation
+                paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
                 paddingTop: '20px',
                 display: 'flex',
                 justifyContent: 'center',
@@ -75,7 +76,8 @@ const ChildExploreVideos = ({ childId }) => {
                     margin: '0 auto',
                     gap: '20px',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    px: { xs: '16px', sm: '24px', md: 0 },
                 }}
             >
                 <ExploreVideosHeader

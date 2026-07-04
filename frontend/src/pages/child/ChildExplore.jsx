@@ -6,6 +6,7 @@ import ExploreReplays from "../../components/child/explore/ExploreReplays";
 import ExploreVideoCollectionsCards from "../../components/child/explore/ExploreVideoCollectionsCards";
 import ExploreFooter from "../../components/child/explore/ExploreFooter";
 import ExploreStarCam from "../../components/child/explore/ExploreStarCam";
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 const ChildExplore = ({ childId }) => {
     const theme = useTheme();
@@ -30,7 +31,7 @@ const ChildExplore = ({ childId }) => {
         <Box
             sx={{
                 minHeight: '100vh',
-                paddingBottom: '90px', // Space for fixed bottom navigation
+                paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
                 paddingTop: '20px',
                 display: 'flex',
                 justifyContent: 'center',
@@ -43,6 +44,7 @@ const ChildExplore = ({ childId }) => {
                     maxWidth: '848px',
                     width: '100%',
                     margin: '0 auto',
+                    px: { xs: '16px', sm: '24px', md: 0 },
                 }}
             >
                 <ExploreReplays childId={childId} />

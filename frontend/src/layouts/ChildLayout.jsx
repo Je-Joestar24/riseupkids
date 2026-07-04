@@ -6,6 +6,7 @@ import { CheckCircle, Error as ErrorIcon, Warning, Info, Close } from '@mui/icon
 import ChildHeader from '../components/common/ChilHeader';
 import ChildNavigation from '../components/common/ChildNavigation';
 import { themeColors } from '../config/themeColors';
+import { CHILD_LAYOUT_NAV_CLEARANCE } from '../constants/childNavigationLayout';
 import { hideNotification } from '../store/slices/uiSlice';
 
 /**
@@ -77,7 +78,7 @@ const ChildLayout = ({ children, childId }) => {
           flex: 1,
           overflowY: 'auto',
           width: '100%',
-          paddingBottom: '100px', // Space for fixed bottom navigation (68px height + 32px padding)
+          paddingBottom: CHILD_LAYOUT_NAV_CLEARANCE,
         }}
       >
         {children}

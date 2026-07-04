@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import ExploreReplaysHeader from '../../components/child/explorereplays/ExploreReplaysHeader';
 import ExploreReplaysCards from '../../components/child/explorereplays/ExploreReplaysCards';
 import ExploreReplaysFooter from "../../components/child/explorereplays/ExploreReplaysFooter";
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 const ChildExploreReplays = ({ childId }) => {
     const theme = useTheme();
@@ -28,7 +29,7 @@ const ChildExploreReplays = ({ childId }) => {
         <Box
             sx={{
                 minHeight: '100vh',
-                paddingBottom: '90px', // Space for fixed bottom navigation
+                paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
                 paddingTop: '20px',
                 display: 'flex',
                 justifyContent: 'center',
@@ -43,7 +44,8 @@ const ChildExploreReplays = ({ childId }) => {
                     margin: '0 auto',
                     gap: '20px',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    px: { xs: '16px', sm: '24px', md: 0 },
                 }}
             >
                 <ExploreReplaysHeader

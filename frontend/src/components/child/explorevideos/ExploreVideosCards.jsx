@@ -6,6 +6,7 @@ import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { themeColors } from '../../../config/themeColors';
 import ExploreVideosCardsEmpty from './ExploreVidoeCardsEmpty';
 import VideoPlayerModal from '../common/VideoPlayerModal';
+import ExploreCoverImage from '../explore/ExploreCoverImage';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 
 /**
@@ -260,29 +261,10 @@ const ExploreVideosCards = ({ childId, videoType }) => {
             onClick={() => handleVideoClick(video)}
           >
             {/* Row 1: Cover Image */}
-            <Box
-              sx={{
-                position: 'relative',
-                width: '100%',
-                height: '192px',
-                backgroundColor: '#f0f0f0',
-                overflow: 'hidden',
-              }}
+            <ExploreCoverImage
+              src={coverImageUrl}
+              alt={video?.title || 'Video thumbnail'}
             >
-              {/* Cover Image */}
-              {coverImageUrl && (
-                <Box
-                  component="img"
-                  src={coverImageUrl}
-                  alt={video?.title || 'Video thumbnail'}
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                />
-              )}
-
               {/* Completion Check Icon - Top Right */}
               {watched && (
                 <Box
@@ -340,7 +322,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
                   {duration}
                 </Typography>
               </Box>
-            </Box>
+            </ExploreCoverImage>
 
             {/* Row 2: Details */}
             <Box

@@ -54,12 +54,12 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
     <Box
       sx={{
         width: '100%',
-        padding: '24px',
+        padding: { xs: '16px', sm: '24px' },
         border: '4px solid',
         borderColor: themeColors.accent,
         borderRadius: '0px',
         backgroundColor: 'white',
-        marginBottom: '32px',
+        marginBottom: { xs: '16px', sm: '32px' },
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
@@ -96,7 +96,7 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '24px',
+              fontSize: { xs: '1.125rem', sm: '24px' },
               fontWeight: 700,
               color: themeColors.secondary,
               lineHeight: 1.2,
@@ -107,7 +107,7 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '18px',
+              fontSize: { xs: '0.9375rem', sm: '18px' },
               fontWeight: 600,
               color: 'oklch(0.551 0.027 264.364)',
               lineHeight: 1.2,
@@ -126,9 +126,10 @@ const ShareSomethingCta = ({ photo, title, description, onSubmit, loading }) => 
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontWeight: 700,
-          fontSize: '1.2rem',
+          fontSize: { xs: '1.0625rem', sm: '1.2rem' },
           textTransform: 'none',
-          padding: '16px 24px',
+          padding: { xs: '14px 16px', sm: '16px 24px' },
+          minHeight: 48,
           borderRadius: '0px',
           transition: 'all 0.3s ease',
           display: 'flex',

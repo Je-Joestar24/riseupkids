@@ -3,6 +3,8 @@ import { Box, Typography, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { useExplore } from '../../../hooks/exploreHook';
+import { EXPLORE_COVER_ASPECT_RATIO } from '../../../constants/exploreVideoTypes';
+import ExploreCoverImage from './ExploreCoverImage';
 
 /**
  * ExploreReplaysCard Component
@@ -58,98 +60,136 @@ const ExploreReplaysCard = ({ content, onWatchClick }) => {
       }}
     >
       {/* Row 1: Cover Photo with Play Icon and Time Badge */}
-      <Box
-        sx={{
-          position: 'relative',
-          width: '100%',
-          height: '160px',
-          backgroundColor: theme.palette.custom.bgSecondary,
-          overflow: 'hidden',
-        }}
-      >
-        {coverImageUrl ? (
-          <Box
-            component="img"
-            src={coverImageUrl}
-            alt={content.title}
-            sx={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        ) : (
+      {coverImageUrl ? (
+        <ExploreCoverImage
+          src={coverImageUrl}
+          alt={content.title}
+          backgroundColor={theme.palette.custom.bgSecondary}
+        >
+          {/* Play Icon Overlay - Centered */}
           <Box
             sx={{
-              width: '100%',
-              height: '100%',
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              backgroundColor: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: theme.palette.custom.bgSecondary,
             }}
           >
-            <PlayArrowIcon
+            <Box
+              component="svg"
+              xmlns="http://www.w3.org/2000/svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill={theme.palette.secondary.main}
               sx={{
-                fontSize: 48,
-                color: theme.palette.secondary.main,
+                marginLeft: '3px',
               }}
-            />
+            >
+              <path d="M8 5v14l11-7z" />
+            </Box>
           </Box>
-        )}
 
-        {/* Play Icon Overlay - Centered */}
+          {/* Time Badge - Bottom Right */}
+          {content.duration && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                color: 'white',
+                paddingX: '12px',
+                paddingY: '4px',
+                borderRadius: '12px',
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+            >
+              {formatDuration(content.duration)}
+            </Box>
+          )}
+        </ExploreCoverImage>
+      ) : (
         <Box
           sx={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 64,
-            height: 64,
-            borderRadius: '50%',
-            backgroundColor: 'white',
+            position: 'relative',
+            width: '100%',
+            aspectRatio: EXPLORE_COVER_ASPECT_RATIO,
+            backgroundColor: theme.palette.custom.bgSecondary,
+            overflow: 'hidden',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Box
-            component="svg"
-            xmlns="http://www.w3.org/2000/svg"
-            width="32"
-            height="32"
-            viewBox="0 0 24 24"
-            fill={theme.palette.secondary.main}
+          <PlayArrowIcon
             sx={{
-              marginLeft: '3px', // Slight offset for visual centering of play triangle
+              fontSize: 48,
+              color: theme.palette.secondary.main,
             }}
-          >
-            <path d="M8 5v14l11-7z" />
-          </Box>
-        </Box>
+          />
 
-        {/* Time Badge - Bottom Right */}
-        {content.duration && (
+          {/* Play Icon Overlay - Centered */}
           <Box
             sx={{
               position: 'absolute',
-              bottom: 8,
-              right: 8,
-              backgroundColor: 'rgba(0, 0, 0, 0.6)',
-              color: 'white',
-              paddingX: '12px',
-              paddingY: '4px',
-              borderRadius: '12px',
-              fontFamily: 'Quicksand, sans-serif',
-              fontSize: '14px',
-              fontWeight: 600,
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              backgroundColor: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            {formatDuration(content.duration)}
+            <Box
+              component="svg"
+              xmlns="http://www.w3.org/2000/svg"
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill={theme.palette.secondary.main}
+              sx={{
+                marginLeft: '3px',
+              }}
+            >
+              <path d="M8 5v14l11-7z" />
+            </Box>
           </Box>
-        )}
-      </Box>
+
+          {content.duration && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 8,
+                right: 8,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                color: 'white',
+                paddingX: '12px',
+                paddingY: '4px',
+                borderRadius: '12px',
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: '14px',
+                fontWeight: 600,
+              }}
+            >
+              {formatDuration(content.duration)}
+            </Box>
+          )}
+        </Box>
+      )}
 
       {/* Row 2: Content Details Container (20px padding all sides) */}
       <Box

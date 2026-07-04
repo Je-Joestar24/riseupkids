@@ -20,7 +20,7 @@ const ShareSomethingDescription = ({ description, onDescriptionChange, maxLength
     <Box
       sx={{
         width: '100%',
-        padding: '24px',
+        padding: { xs: '16px', sm: '24px' },
         border: '4px solid',
         borderColor: 'rgb(253, 232, 222)',
         borderRadius: '0px',
@@ -51,7 +51,7 @@ const ShareSomethingDescription = ({ description, onDescriptionChange, maxLength
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '24px',
+            fontSize: { xs: '1.125rem', sm: '24px' },
             fontWeight: 700,
             color: themeColors.secondary,
             lineHeight: 1.2,
@@ -67,7 +67,7 @@ const ShareSomethingDescription = ({ description, onDescriptionChange, maxLength
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          padding: '16px',
+          padding: { xs: '12px', sm: '16px' },
           border: '4px solid',
           borderColor: 'rgb(212, 230, 227)',
           borderRadius: '0px',
@@ -82,20 +82,15 @@ const ShareSomethingDescription = ({ description, onDescriptionChange, maxLength
           variant="outlined"
           inputProps={{
             maxLength: maxLength,
-            style: {
-              fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
-            },
           }}
           sx={{
-            maxWidth: '760px',
             width: '100%',
             '& .MuiOutlinedInput-root': {
               padding: '0px',
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
+              fontSize: { xs: '1.125rem', sm: '20px' },
               borderRadius: '0px',
-              height: '112px',
+              minHeight: { xs: '96px', sm: '112px' },
               fontWeight: 600,
               '& fieldset': {
                 border: 'none',
@@ -110,8 +105,8 @@ const ShareSomethingDescription = ({ description, onDescriptionChange, maxLength
             '& .MuiInputBase-input': {
               padding: '0px',
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
-              height: '112px !important',
+              fontSize: { xs: '1.125rem', sm: '20px' },
+              minHeight: { xs: '96px !important', sm: '112px !important' },
               overflow: 'auto !important',
             },
           }}

@@ -20,7 +20,7 @@ const ShareSomethingTitle = ({ title, onTitleChange, maxLength = 50 }) => {
     <Box
       sx={{
         width: '100%',
-        padding: '24px',
+        padding: { xs: '16px', sm: '24px' },
         border: '4px solid',
         borderColor: 'rgb(253, 232, 222)',
         borderRadius: '0px',
@@ -51,7 +51,7 @@ const ShareSomethingTitle = ({ title, onTitleChange, maxLength = 50 }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '24px',
+            fontSize: { xs: '1.125rem', sm: '24px' },
             fontWeight: 700,
             color: themeColors.secondary,
             lineHeight: 1.2,
@@ -70,16 +70,12 @@ const ShareSomethingTitle = ({ title, onTitleChange, maxLength = 50 }) => {
         variant="outlined"
         inputProps={{
           maxLength: maxLength,
-          style: {
-            fontFamily: 'Quicksand, sans-serif',
-            fontSize: '20px',
-          },
         }}
         sx={{
           '& .MuiOutlinedInput-root': {
-            padding: '16px',
+            padding: { xs: '12px', sm: '16px' },
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '20px',
+            fontSize: { xs: '1.125rem', sm: '20px' },
             borderRadius: '0px',
             fontWeight: '600',
             '& fieldset': {
@@ -97,7 +93,7 @@ const ShareSomethingTitle = ({ title, onTitleChange, maxLength = 50 }) => {
           '& .MuiInputBase-input': {
             padding: 0,
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '20px',
+            fontSize: { xs: '1.125rem', sm: '20px' },
           },
         }}
         aria-label="Title input"

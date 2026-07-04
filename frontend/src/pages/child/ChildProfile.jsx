@@ -7,6 +7,7 @@ import NextLevelProgress from '../../components/child/childprofile/NextLevelProg
 import AllBadges from '../../components/child/childprofile/AllBadges';
 import YourLatestBadges from '../../components/child/childprofile/YourLatestBadges';
 import { themeColors } from '../../config/themeColors';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildProfile Page
@@ -120,7 +121,7 @@ const ChildProfile = ({ childId: propChildId }) => {
         <Box
             sx={{
                 minHeight: '100vh',
-                paddingBottom: '90px', // Space for fixed bottom navigation
+                paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
                 paddingTop: '20px',
             }}
         >

@@ -89,38 +89,41 @@ const ChildHeader = ({ childId }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          minHeight:'140px',
+          minHeight: '140px',
           padding: { xs: '0 16px', sm: '0 24px' },
           maxWidth: '1080px',
           margin: 'auto',
           width: '100%',
+          gap: 2,
         }}
       >
-        {/* Logo - Centered */}
+        {/* Logo — centered in the left area (up to the star points button) */}
         <Box
           sx={{
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)',
+            flex: 1,
+            minWidth: 0,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <img
+          <Box
+            component="img"
             src={smallLogo}
             alt="Rise Up Kids Logo"
-            style={{
-              height: '110px',
+            sx={{
+              height: { xs: '75px', sm: '110px' },
+              maxWidth: '100%',
               objectFit: 'contain',
+              display: 'block',
             }}
           />
         </Box>
 
-        {/* Right Side Buttons */}
+        {/* Star points — fixed width on the right */}
         <Box
           sx={{
-            marginLeft: 'auto',
+            flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
             gap: 1,

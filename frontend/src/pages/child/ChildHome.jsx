@@ -5,6 +5,7 @@ import ChildHomeLiveClass from '../../components/child/home/ChildHomeLiveClass';
 import ChildHomeAccumlatedAwards from '../../components/child/home/ChildHomeAccumlatedAwards';
 import childrenService from '../../services/childrenService';
 import { themeColors } from '../../config/themeColors';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildHome Page
@@ -83,7 +84,7 @@ const ChildHome = ({ childId }) => {
     <Box
       sx={{
         minHeight: '100vh',
-        paddingBottom: '90px', // Space for fixed bottom navigation
+        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
         paddingTop: '20px',
         display: 'flex',
         justifyContent: 'center',

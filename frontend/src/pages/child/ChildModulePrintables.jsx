@@ -5,6 +5,7 @@ import PrintablesHeader from '../../components/child/printables/PrintablesHeader
 import PrintablesCards from '../../components/child/printables/PrintablesCards';
 import PrintablesFooter from '../../components/child/printables/PrintablesFooter';
 import programMaterilialsService from '../../services/programMaterilialsService';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * Child printable materials page.
@@ -81,6 +82,7 @@ const ChildModulePrintables = () => {
             sx={{
                 minHeight: '100vh',
                 backgroundColor: 'rgb(212, 230, 227)',
+                paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
                 px: { xs: 2, sm: 3 },
                 py: 4,
                 display: 'flex',

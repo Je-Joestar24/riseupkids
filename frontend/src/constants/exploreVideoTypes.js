@@ -54,3 +54,6 @@ export const getVideoTypeOptions = () => {
 
 /** Align with backend default `exploreVideoMaxFileBytes` / env `EXPLORE_VIDEO_MAX_BYTES` (1.5 GiB). */
 export const EXPLORE_VIDEO_MAX_BYTES = 1536 * 1024 * 1024;
+
+/** Cover thumbnail ratio in admin create/edit modals — wider than square, shorter height. */
+export const EXPLORE_COVER_ASPECT_RATIO = '4 / 3';

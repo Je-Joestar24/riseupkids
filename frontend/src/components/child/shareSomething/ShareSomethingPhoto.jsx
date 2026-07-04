@@ -1,7 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import cameraIcon from '../../../assets/images/camera.png';
+
+/** Full-width perfect square upload area (matches original desktop design). */
+const SQUARE_ASPECT = '1 / 1';
 
 /**
  * Camera Icon Component (SVG)
@@ -26,11 +29,22 @@ const CameraIcon = ({ color = 'currentColor', size = 64 }) => (
 
 /**
  * ShareSomethingPhoto Component
- * 
+ *
  * Photo upload section for Share Something page
  */
 const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
   const fileInputRef = useRef(null);
+
+  const previewUrl = useMemo(
+    () => (selectedPhoto ? URL.createObjectURL(selectedPhoto) : null),
+    [selectedPhoto]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const handleClick = () => {
     fileInputRef.current?.click();
@@ -41,43 +55,45 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
     if (file && onPhotoSelect) {
       onPhotoSelect(file);
     }
+    event.target.value = '';
   };
 
   return (
     <Box
       sx={{
         width: '100%',
-        padding: '24px',
+        padding: { xs: '16px', sm: '24px' },
         border: '4px solid',
         borderColor: themeColors.secondary,
         borderRadius: '0px',
         backgroundColor: 'white',
-        boxShadow: 'rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px',
+        boxShadow:
+          'rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px',
       }}
     >
-      {/* First Row: Title with Icon */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
+          gap: { xs: '8px', sm: '12px' },
           marginBottom: '10px',
         }}
       >
         <Box
           component="img"
           src={cameraIcon}
-          alt="Camera"
+          alt=""
           sx={{
-            width: '80px',
-            height: '80px',
+            width: { xs: '56px', sm: '80px' },
+            height: { xs: '56px', sm: '80px' },
             objectFit: 'contain',
+            flexShrink: 0,
           }}
         />
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '24px',
+            fontSize: { xs: '1.25rem', sm: '24px' },
             fontWeight: 700,
             color: themeColors.secondary,
             lineHeight: 1.2,
@@ -87,98 +103,101 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
         </Typography>
       </Box>
 
-      {/* Second Row: Clickable Upload Area */}
       <Box
         component="button"
-        onClick={handleClick}
         type="button"
+        onClick={handleClick}
         sx={{
-          width: '784px',
-          height: '784px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          padding: selectedPhoto ? '0' : '40px',
+          display: 'block',
+          width: '100%',
+          aspectRatio: SQUARE_ASPECT,
+          position: 'relative',
+          padding: 0,
           border: selectedPhoto ? '4px solid' : '4px dashed',
           borderColor: selectedPhoto ? themeColors.accent : themeColors.secondary,
           borderRadius: '0px',
           backgroundColor: 'white',
           cursor: 'pointer',
-          position: 'relative',
           overflow: 'hidden',
           transition: 'all 0.3s ease',
+          WebkitTapHighlightColor: 'transparent',
           '&:hover': {
-            backgroundColor: selectedPhoto ? 'white' : `${themeColors.primary}33`, // Primary color with 0.2 opacity (33 in hex = ~20%)
+            backgroundColor: selectedPhoto ? 'white' : `${themeColors.primary}33`,
           },
         }}
-        aria-label="Tap to add a photo"
+        aria-label={selectedPhoto ? 'Change photo' : 'Tap to add a photo'}
       >
-        {selectedPhoto ? (
+        {selectedPhoto && previewUrl ? (
           <>
-            {/* Photo Preview - Cover the whole area */}
             <Box
               component="img"
-              src={URL.createObjectURL(selectedPhoto)}
-              alt="Selected photo"
+              src={previewUrl}
+              alt="Selected photo preview"
               sx={{
-                width: '784px',
-                height: '784px',
-                objectFit: 'cover',
                 position: 'absolute',
-                top: 0,
-                left: 0,
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block',
               }}
             />
-            {/* Change Photo Button - Using div instead of button to avoid nesting */}
             <Box
+              component="span"
+              role="button"
+              tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
                 handleClick();
               }}
-              sx={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                padding: '8px 16px',
-                backgroundColor: themeColors.textInverse,
-                color: themeColors.orange,
-                border: 'none',
-                borderRadius: '0px',
-                fontFamily: 'Quicksand, sans-serif',
-                fontSize: '18px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                zIndex: 1,
-                transition: 'transform 0.3s ease',
-                '&:hover': {
-                  transform: 'scale(1.05)',
-                },
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label="Change photo"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
                   e.stopPropagation();
                   handleClick();
                 }
               }}
+              sx={{
+                position: 'absolute',
+                top: { xs: '8px', sm: '16px' },
+                right: { xs: '8px', sm: '16px' },
+                padding: { xs: '6px 10px', sm: '8px 16px' },
+                backgroundColor: themeColors.textInverse,
+                color: themeColors.orange,
+                borderRadius: '0px',
+                fontFamily: 'Quicksand, sans-serif',
+                fontSize: { xs: '0.875rem', sm: '18px' },
+                fontWeight: 600,
+                cursor: 'pointer',
+                zIndex: 1,
+                lineHeight: 1.2,
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                },
+              }}
+              aria-label="Change photo"
             >
               ✕ Change Photo
             </Box>
           </>
         ) : (
-          <>
-            {/* First Row: Camera Icon */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: { xs: '12px', sm: '16px' },
+              padding: { xs: '16px', sm: '40px' },
+            }}
+          >
             <CameraIcon color={themeColors.secondary} size={64} />
-
-            {/* Second Row: "Tap to Add a Photo!" */}
             <Typography
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
-                fontSize: '24px',
+                fontSize: { xs: '1.125rem', sm: '24px' },
                 fontWeight: 600,
                 color: themeColors.secondary,
                 lineHeight: 1.3,
@@ -187,12 +206,10 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
             >
               Tap to Add a Photo!
             </Typography>
-
-            {/* Third Row: "Ask a grown-up to help" */}
             <Typography
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
-                fontSize: '18px',
+                fontSize: { xs: '0.9375rem', sm: '18px' },
                 fontWeight: 600,
                 color: 'oklch(0.551 0.027 264.364)',
                 lineHeight: 1.4,
@@ -201,15 +218,14 @@ const ShareSomethingPhoto = ({ onPhotoSelect, selectedPhoto }) => {
             >
               Ask a grown-up to help!
             </Typography>
-          </>
+          </Box>
         )}
       </Box>
 
-      {/* Hidden File Input */}
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/*"
         onChange={handleFileChange}
         style={{ display: 'none' }}
         aria-label="Photo upload input"

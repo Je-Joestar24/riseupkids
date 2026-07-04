@@ -6,6 +6,7 @@ import KidsWallHeader from '../../components/child/kidswall/KidsWallHeader';
 import KidsWallShareSomething from '../../components/child/kidswall/KidsWallShareSomething';
 import KidsWallCards from '../../components/child/kidswall/KidsWallCards';
 import KidsWallFooter from '../../components/child/kidswall/KidsWallFooter';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildKidsWall Page
@@ -53,7 +54,7 @@ const ChildKidsWall = ({ childId }) => {
       sx={{
         minHeight: '100vh',
         backgroundColor: 'rgb(244, 237, 216)',
-        paddingBottom: '90px', // Space for fixed bottom navigation
+        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
         paddingTop: '20px',
         display: 'flex',
         justifyContent: 'center',

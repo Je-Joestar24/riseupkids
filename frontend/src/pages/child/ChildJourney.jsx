@@ -6,6 +6,7 @@ import useCourseProgress from '../../hooks/courseProgressHook';
 import ChildJourneyHeader from '../../components/child/journey/ChildJourneyHeader';
 import ChildJourneyCards from '../../components/child/journey/ChildJourneyCards';
 import ChildJourneySummary from '../../components/child/journey/ChildJourneySummary';
+import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * ChildJourney Page
@@ -87,7 +88,6 @@ const ChildJourney = ({ childId }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingBottom: '90px',
         }}
       >
         <CircularProgress sx={{ color: themeColors.textInverse }} />
@@ -104,7 +104,6 @@ const ChildJourney = ({ childId }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          paddingBottom: '90px',
           padding: { xs: '16px', sm: '32px' },
         }}
       >
@@ -126,7 +125,7 @@ const ChildJourney = ({ childId }) => {
       sx={{
         minHeight: '100vh',
         backgroundColor: themeColors.primary, // --theme-primary: #62caca
-        paddingBottom: '90px', // Space for fixed bottom navigation
+        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
         paddingTop: '40px',
         display: 'flex',
         flexDirection: 'column',

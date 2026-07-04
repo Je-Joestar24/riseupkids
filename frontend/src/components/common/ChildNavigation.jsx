@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Box, Paper, Button, Typography } from '@mui/material';
+import { Box, Paper, Button, Typography, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
   HomeIcon,
@@ -53,6 +53,8 @@ const ChildNavigation = ({ childId }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
+  const iconSize = isPhone ? 37 : 36;
 
   // Determine current route value
   // Checks location.state.from to override active nav when needed
@@ -108,20 +110,20 @@ const ChildNavigation = ({ childId }) => {
       <style>
         {`
           .child-nav-icon {
-            width: 36px !important;
-            height: 36px !important;
-            min-width: 36px !important;
-            min-height: 36px !important;
-            max-width: 36px !important;
-            max-height: 36px !important;
+            width: ${iconSize}px !important;
+            height: ${iconSize}px !important;
+            min-width: ${iconSize}px !important;
+            min-height: ${iconSize}px !important;
+            max-width: ${iconSize}px !important;
+            max-height: ${iconSize}px !important;
           }
           .child-nav-icon svg {
-            width: 36px !important;
-            height: 36px !important;
-            min-width: 36px !important;
-            min-height: 36px !important;
-            max-width: 36px !important;
-            max-height: 36px !important;
+            width: ${iconSize}px !important;
+            height: ${iconSize}px !important;
+            min-width: ${iconSize}px !important;
+            min-height: ${iconSize}px !important;
+            max-width: ${iconSize}px !important;
+            max-height: ${iconSize}px !important;
           }
         `}
       </style>
@@ -131,13 +133,15 @@ const ChildNavigation = ({ childId }) => {
           bottom: 0,
           left: 0,
           right: 0,
+          width: '100%',
           zIndex: (theme) => theme.zIndex.drawer + 1,
           borderTop: `1px solid ${themeColors.border}`,
           boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.1)',
           backgroundColor: themeColors.bgCard,
           display: 'flex',
           alignItems: 'center',
-          borderRadius: '0px'
+          justifyContent: { xs: 'stretch', sm: 'center' },
+          borderRadius: '0px',
         }}
         elevation={0}
       >
@@ -145,10 +149,12 @@ const ChildNavigation = ({ childId }) => {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: '16px',
-          padding: '16px 0px',
-          maxWidth: '1600px ', // max-w-6xl equivalent
+          width: '100%',
+          gap: { xs: 0, sm: '16px' },
+          padding: { xs: '8px 0', sm: '16px 0' },
+          maxWidth: { xs: '100%', sm: '1600px' },
           margin: '0 auto',
+          justifyContent: { xs: 'space-between', sm: 'center' },
         }}
       >
         {navItems.map((item) => {
@@ -165,22 +171,26 @@ const ChildNavigation = ({ childId }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '4px',
-                minWidth: { xs: 'auto', sm: '258px' },
-                flex: { xs: 1, sm: 'none' },
-                minHeight: '68px',
-                padding: '16px 8px',
+                flex: { xs: '1 1 0', sm: 'none' },
+                minWidth: { xs: 0, sm: '258px' },
+                maxWidth: { xs: '25%', sm: 'none' },
+                minHeight: { xs: '70px', sm: '68px' },
+                padding: { xs: '8px 2px', sm: '16px 8px' },
                 borderRadius: '0px',
                 backgroundColor: isActive ? item.color : 'transparent',
                 transition: 'all 0.3s ease',
-                transform: isActive ? 'scale(1.05)' : 'scale(1)',
+                transform: {
+                  xs: isActive ? 'scale(1.02)' : 'scale(1)',
+                  sm: isActive ? 'scale(1.05)' : 'scale(1)',
+                },
                 boxShadow: isActive ? '0 4px 6px rgba(0, 0, 0, 0.1)' : 'none',
                 '&:hover': {
-                  transform: 'scale(1.1)',
+                  transform: { xs: 'none', sm: 'scale(1.1)' },
                   backgroundColor: isActive ? item.color : 'transparent',
-                  boxShadow: 'none'
+                  boxShadow: 'none',
                 },
                 '&:active': {
-                  transform: 'scale(1.05)',
+                  transform: { xs: 'scale(0.98)', sm: 'scale(1.05)' },
                 },
               }}
               aria-label={item.label}
@@ -191,14 +201,14 @@ const ChildNavigation = ({ childId }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '36px',
-                  height: '36px',
+                  width: { xs: '37px', sm: '36px' },
+                  height: { xs: '37px', sm: '36px' },
                   color: isActive 
                     ? (item.value === 'wall' ? themeColors.secondary : 'white')
                     : inactiveColor,
                   '& > *': {
-                    width: '36px !important',
-                    height: '36px !important',
+                    width: `${iconSize}px !important`,
+                    height: `${iconSize}px !important`,
                   },
                   '& svg': {
                     color: isActive 
@@ -215,22 +225,22 @@ const ChildNavigation = ({ childId }) => {
                     src={isActive ? item.imageWhite : item.imageDark}
                     alt={item.label}
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width: '100%',
+                      height: '100%',
                       objectFit: 'contain',
                     }}
                   />
                 ) : item.value === 'wall' ? (
                   <SparklesIcon
                     color={isActive ? themeColors.secondary : inactiveColor}
-                    size={36}
+                    size={iconSize}
                   />
                 ) : (
                   <Icon
                     className="child-nav-icon"
                     style={{
-                      width: '36px',
-                      height: '36px',
+                      width: '100%',
+                      height: '100%',
                       strokeWidth: 2,
                       color: isActive ? 'white' : inactiveColor,
                     }}
@@ -240,14 +250,17 @@ const ChildNavigation = ({ childId }) => {
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: '14px',
+                  fontSize: { xs: '14px', sm: '14px' },
                   fontWeight: isActive ? 700 : 500,
                   color: isActive 
                     ? (item.value === 'wall' ? themeColors.secondary : 'white')
                     : inactiveColor,
                   textTransform: 'none',
-                  lineHeight: 1,
-                  marginBottom: '10px'
+                  lineHeight: 1.1,
+                  marginBottom: { xs: 0, sm: '10px' },
+                  textAlign: 'center',
+                  whiteSpace: { xs: 'normal', sm: 'nowrap' },
+                  width: '100%',
                 }}
               >
                 {item.label}

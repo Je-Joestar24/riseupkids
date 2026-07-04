@@ -10,6 +10,7 @@ import {
   IconButton,
   CircularProgress,
   Alert,
+  useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
@@ -162,6 +163,7 @@ const VideoPlayerModal = ({
   videoType = null,
 }) => {
   const theme = useTheme();
+  const isMobileLayout = useMediaQuery(theme.breakpoints.down('sm'));
   const dispatch = useDispatch();
   const videoRef = useRef(null);
   const autoCloseTimerRef = useRef(null); // Ref to track auto-close timer
@@ -828,30 +830,113 @@ const VideoPlayerModal = ({
   // Get video ID
   const videoId = video?._id || video?._contentId || video?.contentId || video?.id;
 
+  const showBunnyFinishButton = isBunnyEmbed && !hasRecordedWatch && childId;
+
+  const finishWatchingButton = (
+    <Button
+      variant="contained"
+      onClick={handleVideoEnd}
+      disabled={isRecordingWatch}
+      fullWidth={isMobileLayout}
+      sx={{
+        backgroundColor: themeColors.accent,
+        color: themeColors.textInverse,
+        fontFamily: 'Quicksand, sans-serif',
+        fontWeight: 700,
+        textTransform: 'none',
+        padding: isMobileLayout ? '12px 16px' : '12px 32px',
+        fontSize: isMobileLayout ? '1rem' : '1.3rem',
+        borderRadius: '12px',
+        '&:hover': {
+          backgroundColor: themeColors.orange,
+        },
+      }}
+      aria-label="I finished watching"
+    >
+      I finished watching
+    </Button>
+  );
+
+  const followUpStartButton = (
+    <Button
+      variant="contained"
+      onClick={handleStartFollowUp}
+      startIcon={<PlayArrowIcon sx={{ fontSize: isMobileLayout ? '1.25rem' : '2rem' }} />}
+      sx={{
+        backgroundColor: themeColors.secondary,
+        color: themeColors.textInverse,
+        fontFamily: 'Quicksand, sans-serif',
+        fontWeight: 700,
+        textTransform: 'none',
+        padding: isMobileLayout ? '10px 20px' : '16px 48px',
+        fontSize: isMobileLayout ? '1rem' : '1.8rem',
+        borderRadius: '16px',
+        boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.3)',
+        '&:hover': {
+          backgroundColor: themeColors.primary,
+          transform: isMobileLayout ? 'none' : 'scale(1.08)',
+          boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.4)',
+        },
+      }}
+    >
+      {hasHtml5FollowUp
+        ? 'Start HTML5 Book'
+        : hasCmsBookFollowUp
+          ? 'Start Built-in Book'
+          : 'Start Interactive Activity'}
+    </Button>
+  );
+
+  const overlayTextSx = {
+    fontFamily: 'Quicksand, sans-serif',
+    color: themeColors.textInverse,
+    fontSize: isMobileLayout ? '1.125rem' : '1.5rem',
+    fontWeight: 600,
+  };
+
+  const videoAreaSx = {
+    position: 'relative',
+    width: '100%',
+    backgroundColor: '#000',
+    ...(isMobileLayout
+      ? { aspectRatio: '16 / 9', flexShrink: 0 }
+      : { flex: 1, minHeight: 0 }),
+  };
+
   return (
     <>
       <Dialog
         open={open && !scormOpen && !html5Open && !cmsBookOpen && !showCompletionDialog && !isClosingModal}
         onClose={handleCloseAttempt}
-        maxWidth="lg"
+        maxWidth={isMobileLayout ? 'xs' : 'lg'}
         fullWidth
         disableEscapeKeyDown={true}
+        sx={{
+          '& .MuiDialog-container': {
+            alignItems: 'center',
+            padding: isMobileLayout ? 2 : 0,
+          },
+        }}
         PaperProps={{
           elevation: 8,
           sx: {
-            borderRadius: '20px',
+            borderRadius: isMobileLayout ? '16px' : '20px',
             fontFamily: 'Quicksand, sans-serif',
-            height: '90vh',
-            maxHeight: '90vh',
+            width: '100%',
+            maxWidth: isMobileLayout ? 480 : undefined,
+            height: isMobileLayout ? 'auto' : '90vh',
+            maxHeight: isMobileLayout ? 'calc(100vh - 32px)' : '90vh',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
             backgroundColor: themeColors.bgCard,
+            borderBottom: isMobileLayout ? `3px solid ${themeColors.secondary}` : undefined,
+            m: 0,
           },
         }}
         BackdropProps={{
           sx: {
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: isMobileLayout ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.7)',
           },
           onClick: (e) => {
             // Prevent closing on backdrop click
@@ -864,9 +949,10 @@ const VideoPlayerModal = ({
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: 4,
+            padding: isMobileLayout ? 2 : 4,
             flexShrink: 0,
             backgroundColor: themeColors.bgCard,
+            borderBottom: isMobileLayout ? `2px solid ${themeColors.bgTertiary}` : undefined,
           }}
         >
           <Typography
@@ -874,35 +960,49 @@ const VideoPlayerModal = ({
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 700,
-              fontSize: '2rem',
+              fontSize: isMobileLayout ? '1.25rem' : '2rem',
               color: themeColors.primary,
+              flex: 1,
+              mr: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {video?.title || 'Video'}
           </Typography>
           <IconButton
             onClick={handleCloseAttempt}
-            size="large"
+            size={isMobileLayout ? 'medium' : 'large'}
             sx={{
-              color: themeColors.orange,
-              backgroundColor: themeColors.bgTertiary,
-              borderRadius: '50%',
-              padding: '12px',
-              '&:hover': {
-                backgroundColor: themeColors.orange,
-                color: themeColors.textInverse,
-                transform: 'scale(1.1)',
-              },
+              color: themeColors.textSecondary,
+              flexShrink: 0,
+              minWidth: 44,
+              minHeight: 44,
+              ...(isMobileLayout
+                ? {}
+                : {
+                    color: themeColors.orange,
+                    backgroundColor: themeColors.bgTertiary,
+                    borderRadius: '50%',
+                    padding: '12px',
+                    '&:hover': {
+                      backgroundColor: themeColors.orange,
+                      color: themeColors.textInverse,
+                      transform: 'scale(1.1)',
+                    },
+                  }),
             }}
+            aria-label="Close video"
           >
-            <CloseIcon sx={{ fontSize: '2rem' }} />
+            <CloseIcon sx={{ fontSize: isMobileLayout ? '1.625rem' : '2rem' }} />
           </IconButton>
         </DialogTitle>
 
         <DialogContent
           sx={{
             padding: 0,
-            flex: 1,
+            flex: isMobileLayout ? '0 1 auto' : 1,
             minHeight: 0,
             overflow: 'hidden',
             backgroundColor: '#000',
@@ -910,21 +1010,13 @@ const VideoPlayerModal = ({
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: isBunnyEmbed ? 'stretch' : 'center',
-            ...(isBunnyEmbed ? {} : { minHeight: '400px' }),
+            justifyContent: isMobileLayout ? 'flex-start' : isBunnyEmbed ? 'stretch' : 'center',
+            ...(isMobileLayout || isBunnyEmbed ? {} : { minHeight: '400px' }),
           }}
         >
           {isBunnyEmbed && embedUrl ? (
             <>
-              <Box
-                sx={{
-                  position: 'relative',
-                  flex: 1,
-                  minHeight: 0,
-                  width: '100%',
-                  backgroundColor: '#000',
-                }}
-              >
+              <Box sx={videoAreaSx}>
                 <BunnyEmbedIframe
                   embedUrl={embedUrl}
                   title={video?.title || 'Video'}
@@ -957,19 +1049,25 @@ const VideoPlayerModal = ({
                         height: '60px !important',
                       }}
                     />
-                    <Typography
-                      sx={{
-                        fontFamily: 'Quicksand, sans-serif',
-                        color: themeColors.textInverse,
-                        fontSize: '1.5rem',
-                        fontWeight: 600,
-                      }}
-                    >
+                    <Typography sx={overlayTextSx}>
                       {isRecordingWatch ? 'Recording your progress...' : 'Loading video...'}
                     </Typography>
                   </Box>
                 )}
               </Box>
+
+              {isMobileLayout && showBunnyFinishButton && (
+                <Box
+                  sx={{
+                    width: '100%',
+                    px: 2,
+                    pt: 1.5,
+                    backgroundColor: themeColors.bgCard,
+                  }}
+                >
+                  {finishWatchingButton}
+                </Box>
+              )}
 
               {videoEnded && hasFollowUpContent && (
                 <Box
@@ -981,46 +1079,17 @@ const VideoPlayerModal = ({
                     zIndex: 10,
                   }}
                 >
-                  <Button
-                    variant="contained"
-                    onClick={handleStartFollowUp}
-                    startIcon={<PlayArrowIcon sx={{ fontSize: '2rem' }} />}
-                    sx={{
-                      backgroundColor: themeColors.secondary,
-                      color: themeColors.textInverse,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 700,
-                      textTransform: 'none',
-                      padding: '16px 48px',
-                      fontSize: '1.8rem',
-                      borderRadius: '16px',
-                      boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.3)',
-                      '&:hover': {
-                        backgroundColor: themeColors.primary,
-                        transform: 'scale(1.08)',
-                        boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.4)',
-                      },
-                    }}
-                  >
-                    {hasHtml5FollowUp
-                      ? 'Start HTML5 Book'
-                      : hasCmsBookFollowUp
-                        ? 'Start Built-in Book'
-                        : 'Start Interactive Activity'}
-                  </Button>
+                  {followUpStartButton}
                 </Box>
               )}
             </>
           ) : fileVideoUrl ? (
             <Box
               sx={{
-                flex: 1,
-                minHeight: 0,
-                width: '100%',
+                ...videoAreaSx,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                position: 'relative',
               }}
             >
               <video
@@ -1074,14 +1143,7 @@ const VideoPlayerModal = ({
                       height: '60px !important',
                     }}
                   />
-                  <Typography
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      color: themeColors.textInverse,
-                      fontSize: '1.5rem',
-                      fontWeight: 600,
-                    }}
-                  >
+                  <Typography sx={overlayTextSx}>
                     Loading video...
                   </Typography>
                 </Box>
@@ -1112,14 +1174,7 @@ const VideoPlayerModal = ({
                       height: '60px !important',
                     }}
                   />
-                  <Typography
-                    sx={{
-                      fontFamily: 'Quicksand, sans-serif',
-                      color: themeColors.textInverse,
-                      fontSize: '1.5rem',
-                      fontWeight: 600,
-                    }}
-                  >
+                  <Typography sx={overlayTextSx}>
                     Recording your progress...
                   </Typography>
                 </Box>
@@ -1136,33 +1191,7 @@ const VideoPlayerModal = ({
                     zIndex: 10,
                   }}
                 >
-                  <Button
-                    variant="contained"
-                    onClick={handleStartFollowUp}
-                    startIcon={<PlayArrowIcon sx={{ fontSize: '2rem' }} />}
-                    sx={{
-                      backgroundColor: themeColors.secondary,
-                      color: themeColors.textInverse,
-                      fontFamily: 'Quicksand, sans-serif',
-                      fontWeight: 700,
-                      textTransform: 'none',
-                      padding: '16px 48px',
-                      fontSize: '1.8rem',
-                      borderRadius: '16px',
-                      boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.3)',
-                      '&:hover': {
-                        backgroundColor: themeColors.primary,
-                        transform: 'scale(1.08)',
-                        boxShadow: '0 12px 24px -4px rgba(0, 0, 0, 0.4)',
-                      },
-                    }}
-                  >
-                    {hasHtml5FollowUp
-                      ? 'Start HTML5 Book'
-                      : hasCmsBookFollowUp
-                        ? 'Start Built-in Book'
-                        : 'Start Interactive Activity'}
-                  </Button>
+                  {followUpStartButton}
                 </Box>
               )}
             </Box>
@@ -1218,57 +1247,50 @@ const VideoPlayerModal = ({
 
         <DialogActions
           sx={{
-            padding: 2,
+            padding: isMobileLayout ? 2 : 2,
             flexShrink: 0,
             backgroundColor: themeColors.bgCard,
-            justifyContent: 'space-between',
+            justifyContent: isMobileLayout ? 'flex-end' : 'space-between',
             gap: 2,
             flexWrap: 'wrap',
+            borderTop: isMobileLayout ? `2px solid ${themeColors.bgTertiary}` : undefined,
           }}
         >
-          {isBunnyEmbed && !hasRecordedWatch && childId ? (
-            <Button
-              variant="contained"
-              onClick={handleVideoEnd}
-              disabled={isRecordingWatch}
-              sx={{
-                backgroundColor: themeColors.accent,
-                color: themeColors.textInverse,
-                fontFamily: 'Quicksand, sans-serif',
-                fontWeight: 700,
-                textTransform: 'none',
-                padding: '12px 32px',
-                fontSize: '1.3rem',
-                borderRadius: '12px',
-                '&:hover': {
-                  backgroundColor: themeColors.orange,
-                },
-              }}
-              aria-label="I finished watching"
-            >
-              I finished watching
-            </Button>
+          {!isMobileLayout && showBunnyFinishButton ? (
+            finishWatchingButton
           ) : (
-            <Box sx={{ flex: 1 }} />
+            !isMobileLayout && <Box sx={{ flex: 1 }} />
           )}
           <Button
             onClick={handleCloseAttempt}
-            variant="contained"
-            sx={{
-              backgroundColor: themeColors.secondary,
-              color: themeColors.textInverse,
-              fontFamily: 'Quicksand, sans-serif',
-              fontWeight: 700,
-              textTransform: 'none',
-              padding: '12px 32px',
-              fontSize: '1.3rem',
-              borderRadius: '12px',
-              border: `3px solid ${themeColors.primary}`,
-              '&:hover': {
-                backgroundColor: themeColors.primary,
-                transform: 'scale(1.05)',
-              },
-            }}
+            variant={isMobileLayout ? 'text' : 'contained'}
+            sx={
+              isMobileLayout
+                ? {
+                    color: themeColors.secondary,
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    minHeight: 44,
+                    px: 2,
+                  }
+                : {
+                    backgroundColor: themeColors.secondary,
+                    color: themeColors.textInverse,
+                    fontFamily: 'Quicksand, sans-serif',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    padding: '12px 32px',
+                    fontSize: '1.3rem',
+                    borderRadius: '12px',
+                    border: `3px solid ${themeColors.primary}`,
+                    '&:hover': {
+                      backgroundColor: themeColors.primary,
+                      transform: 'scale(1.05)',
+                    },
+                  }
+            }
           >
             Close
           </Button>
@@ -1393,10 +1415,10 @@ const VideoPlayerModal = ({
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 700,
-            fontSize: '2.5rem',
+            fontSize: isMobileLayout ? '1.75rem' : '2.5rem',
             color: themeColors.success,
             textAlign: 'center',
-            padding: '32px 24px 16px',
+            padding: isMobileLayout ? '24px 16px 12px' : '32px 24px 16px',
           }}
         >
           You Finished the Video!
@@ -1410,7 +1432,7 @@ const VideoPlayerModal = ({
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '1.5rem',
+              fontSize: isMobileLayout ? '1.125rem' : '1.5rem',
               color: themeColors.text,
               marginBottom: 2,
               lineHeight: 1.6,
