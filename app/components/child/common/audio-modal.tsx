@@ -5,7 +5,7 @@
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, AVPlaybackStatus } from 'expo-av';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -68,6 +68,7 @@ export function AudioModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isRecordingPaused, setIsRecordingPaused] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordUri, setRecordUri] = useState<string | null>(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
@@ -105,15 +106,26 @@ export function AudioModal({
   const isApproved = status === 'approved';
   const isSubmitted = status === 'submitted';
   const isRejected = status === 'rejected';
+  const isRecordingSessionActive = isRecording || isRecordingPaused;
 
-  const cleanupRecording = useCallback(() => {
+  const stopRecordTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    setIsRecording(false);
-    recordingRef.current = null;
   }, []);
+
+  const startRecordTimer = useCallback(() => {
+    stopRecordTimer();
+    timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+  }, [stopRecordTimer]);
+
+  const cleanupRecording = useCallback(() => {
+    stopRecordTimer();
+    setIsRecording(false);
+    setIsRecordingPaused(false);
+    recordingRef.current = null;
+  }, [stopRecordTimer]);
 
   const cleanupRecordedMedia = useCallback(() => {
     setRecordUri(null);
@@ -143,12 +155,12 @@ export function AudioModal({
   }, [open, isApproved, courseId, audioId, updateCourseContentProgress, onAfterApproved]);
 
   const handleCloseAttempt = useCallback(() => {
-    if ((recordUri || isRecording) && !isApproved && !isRejected) {
+    if ((recordUri || isRecordingSessionActive) && !isApproved && !isRejected) {
       setShowConfirmClose(true);
     } else {
       onClose();
     }
-  }, [recordUri, isRecording, isApproved, isRejected, onClose]);
+  }, [recordUri, isRecordingSessionActive, isApproved, isRejected, onClose]);
 
   const handleConfirmedClose = useCallback(() => {
     setShowConfirmClose(false);
@@ -158,7 +170,7 @@ export function AudioModal({
   }, [cleanupRecordedMedia, cleanupRecording, onClose]);
 
   const handleStartRecording = useCallback(async () => {
-    if (!childId || isRecording) return;
+    if (!childId || isRecordingSessionActive) return;
     try {
       await Audio.requestPermissionsAsync();
       await Audio.setAudioModeAsync({
@@ -174,8 +186,9 @@ export function AudioModal({
       );
       recordingRef.current = recording;
       setIsRecording(true);
+      setIsRecordingPaused(false);
       setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      startRecordTimer();
     } catch (e) {
       showDialog({
         message: (e as Error)?.message ?? 'Microphone access denied',
@@ -183,10 +196,42 @@ export function AudioModal({
         duration: 5000,
       });
     }
-  }, [childId, isRecording, cleanupRecordedMedia, showDialog]);
+  }, [childId, isRecordingSessionActive, cleanupRecordedMedia, showDialog, startRecordTimer]);
+
+  const handlePauseRecording = useCallback(async () => {
+    if (!isRecording || !recordingRef.current) return;
+    try {
+      await recordingRef.current.pauseAsync();
+      stopRecordTimer();
+      setIsRecording(false);
+      setIsRecordingPaused(true);
+    } catch (e) {
+      showDialog({
+        message: (e as Error)?.message ?? 'Could not pause recording',
+        type: 'error',
+        duration: 4000,
+      });
+    }
+  }, [isRecording, showDialog, stopRecordTimer]);
+
+  const handleResumeRecording = useCallback(async () => {
+    if (!isRecordingPaused || !recordingRef.current) return;
+    try {
+      await recordingRef.current.startAsync();
+      setIsRecording(true);
+      setIsRecordingPaused(false);
+      startRecordTimer();
+    } catch (e) {
+      showDialog({
+        message: (e as Error)?.message ?? 'Could not resume recording',
+        type: 'error',
+        duration: 4000,
+      });
+    }
+  }, [isRecordingPaused, showDialog, startRecordTimer]);
 
   const handleStopRecording = useCallback(async () => {
-    if (!isRecording || !recordingRef.current) return;
+    if (!isRecordingSessionActive || !recordingRef.current) return;
     try {
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
@@ -196,7 +241,7 @@ export function AudioModal({
     } finally {
       cleanupRecording();
     }
-  }, [isRecording, cleanupRecording]);
+  }, [isRecordingSessionActive, cleanupRecording]);
 
   const handleSubmit = useCallback(async () => {
     if (!recordUri || !audioId || !childId) return;
@@ -298,23 +343,33 @@ export function AudioModal({
                   )}
 
                   {instructionVideoMedia ? (
-                    <InstructionVideoPlayer
-                      media={instructionVideoMedia}
-                      title={String(audioAssignment?.title ?? 'Instruction video')}
-                      style={styles.videoWrap}
-                    />
+                    <View style={styles.videoSection}>
+                      <InstructionVideoPlayer
+                        media={instructionVideoMedia}
+                        title={String(audioAssignment?.title ?? 'Instruction video')}
+                        style={styles.videoWrap}
+                        autoPlayMutedLoop={false}
+                        showPlaybackButtons
+                      />{/* 
+                      <ThemedText style={styles.videoHint}>
+                        Watch the video first. Pause or replay anytime to hear each question.
+                      </ThemedText> */}
+                    </View>
                   ) : null}
 
                   {audioAssignment?.instructions && (
                     <View style={styles.instructionsBox}>
-                      <ThemedText style={styles.instructionsTitle}>Instructions</ThemedText>
+{/*                       <ThemedText style={styles.instructionsTitle}>Instructions</ThemedText>
                       <ThemedText style={styles.instructionsText}>
                         {String(audioAssignment?.instructions ?? '')}
-                      </ThemedText>
+                      </ThemedText> */}
                       {referenceAudioUrl && (
                         <View style={styles.referenceAudioWrap}>
                           <ThemedText style={styles.referenceTitle}>Example Audio</ThemedText>
-                          <AudioPlayer uri={referenceAudioUrl} label="Tap to play example" />
+                          <AudioPlayer
+                            uri={referenceAudioUrl}
+                            label="Use Play and Pause to listen to the example."
+                          />
                         </View>
                       )}
                     </View>
@@ -323,10 +378,18 @@ export function AudioModal({
                   <View style={styles.recordBox}>
                     <View style={styles.recordHeader}>
                       <ThemedText style={styles.recordTitle}>Record your voice</ThemedText>
-                      <View style={[styles.timerChip, isRecording && styles.timerChipRecording]}>
+                      <View
+                        style={[
+                          styles.timerChip,
+                          isRecording && styles.timerChipRecording,
+                          isRecordingPaused && styles.timerChipPaused,
+                        ]}>
                         <ThemedText
-                          style={[styles.timerText, isRecording && styles.timerTextRecording]}>
-                          {recordSeconds}s
+                          style={[
+                            styles.timerText,
+                            (isRecording || isRecordingPaused) && styles.timerTextRecording,
+                          ]}>
+                          {recordSeconds}s{isRecordingPaused ? ' · Paused' : ''}
                         </ThemedText>
                       </View>
                     </View>
@@ -334,38 +397,81 @@ export function AudioModal({
                       <Pressable
                         style={[
                           styles.btn,
+                          styles.recordActionBtn,
                           styles.recordBtn,
-                          (isRecording || submitting || isSubmitted || isApproved) &&
+                          (isRecordingSessionActive || submitting || isSubmitted || isApproved) &&
                             styles.btnDisabled,
                         ]}
                         onPress={handleStartRecording}
-                        disabled={isRecording || submitting || isSubmitted || isApproved}
+                        disabled={
+                          isRecordingSessionActive || submitting || isSubmitted || isApproved
+                        }
                         accessibilityRole="button"
                         accessibilityLabel="Start recording">
                         <MaterialCommunityIcons
                           name="microphone"
-                          size={24}
+                          size={20}
                           color={colors.textInverse}
                         />
-                        <ThemedText style={styles.recordBtnText}>Record</ThemedText>
+                        <ThemedText style={styles.recordBtnText} numberOfLines={1}>
+                          Record
+                        </ThemedText>
                       </Pressable>
+                      {isRecordingPaused ? (
+                        <Pressable
+                          style={[styles.btn, styles.recordActionBtn, styles.pauseBtn]}
+                          onPress={handleResumeRecording}
+                          accessibilityRole="button"
+                          accessibilityLabel="Resume recording">
+                          <MaterialIcons name="play-arrow" size={20} color={colors.secondary} />
+                          <ThemedText style={styles.pauseBtnText} numberOfLines={1}>
+                            Resume
+                          </ThemedText>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          style={[
+                            styles.btn,
+                            styles.recordActionBtn,
+                            styles.pauseBtn,
+                            !isRecording && styles.btnDisabled,
+                          ]}
+                          onPress={handlePauseRecording}
+                          disabled={!isRecording}
+                          accessibilityRole="button"
+                          accessibilityLabel="Pause recording">
+                          <MaterialIcons name="pause" size={20} color={colors.secondary} />
+                          <ThemedText style={styles.pauseBtnText} numberOfLines={1}>
+                            Pause
+                          </ThemedText>
+                        </Pressable>
+                      )}
                       <Pressable
-                        style={[styles.btn, styles.stopBtn, !isRecording && styles.btnDisabled]}
+                        style={[
+                          styles.btn,
+                          styles.recordActionBtn,
+                          styles.checkBtn,
+                          !isRecordingSessionActive && styles.btnDisabled,
+                        ]}
                         onPress={handleStopRecording}
-                        disabled={!isRecording}
+                        disabled={!isRecordingSessionActive}
                         accessibilityRole="button"
-                        accessibilityLabel="Stop recording">
-                        <MaterialCommunityIcons name="stop" size={24} color={colors.orange} />
-                        <ThemedText style={styles.stopBtnText}>Stop</ThemedText>
+                        accessibilityLabel="Check recording">
+                        <MaterialCommunityIcons name="check-circle" size={20} color={colors.success} />
+                        <ThemedText style={styles.checkBtnText} numberOfLines={1}>
+                          Done
+                        </ThemedText>
                       </Pressable>
                       <Pressable
                         style={[
                           styles.btn,
-                          (isRecording ||
+                          styles.recordActionBtn,
+                          styles.rerecordBtn,
+                          (isRecordingSessionActive ||
                             submitting ||
                             isSubmitted ||
                             isApproved ||
-                            (!recordUri && !isRecording)) &&
+                            (!recordUri && !isRecordingSessionActive)) &&
                             styles.btnDisabled,
                         ]}
                         onPress={() => {
@@ -373,15 +479,18 @@ export function AudioModal({
                           cleanupRecordedMedia();
                         }}
                         disabled={
-                          isRecording ||
+                          isRecordingSessionActive ||
                           submitting ||
                           isSubmitted ||
                           isApproved ||
-                          (!recordUri && !isRecording)
+                          (!recordUri && !isRecordingSessionActive)
                         }
                         accessibilityRole="button"
                         accessibilityLabel="Re-record">
-                        <ThemedText style={styles.rerecordBtnText}>Re-record</ThemedText>
+                        <MaterialCommunityIcons name="refresh" size={20} color={colors.orange} />
+                        <ThemedText style={styles.rerecordBtnText} numberOfLines={1}>
+                          Again
+                        </ThemedText>
                       </Pressable>
                     </View>
                     {recordUri && (
@@ -389,7 +498,10 @@ export function AudioModal({
                         <ThemedText style={styles.yourRecordingTitle}>
                           Your recording
                         </ThemedText>
-                        <AudioPlayer uri={recordUri} label="Tap to play your recording" />
+                        <AudioPlayer
+                          uri={recordUri}
+                          label="Listen back to your recording before you submit."
+                        />
                         <ThemedText style={styles.recordedLabel}>
                           Ready to submit? Tap Submit below to send for review.
                         </ThemedText>
@@ -449,12 +561,12 @@ export function AudioModal({
                 style={[
                   styles.btn,
                   styles.submitBtn,
-                  (!recordUri || isRecording || submitting || isSubmitted || isApproved) &&
+                  (!recordUri || isRecordingSessionActive || submitting || isSubmitted || isApproved) &&
                     styles.btnDisabled,
                 ]}
                 onPress={handleSubmit}
                 disabled={
-                  !recordUri || isRecording || submitting || isSubmitted || isApproved
+                  !recordUri || isRecordingSessionActive || submitting || isSubmitted || isApproved
                 }>
                 <MaterialCommunityIcons name="upload" size={22} color={colors.textInverse} />
                 <ThemedText style={styles.submitBtnText}>
@@ -481,38 +593,104 @@ export function AudioModal({
 
 function AudioPlayer({
   uri,
-  label = 'Tap to play',
+  label = 'Listen to the example audio below.',
 }: {
   uri: string;
   label?: string;
 }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const unloadSound = useCallback(async () => {
+    if (soundRef.current) {
+      await soundRef.current.unloadAsync().catch(() => {});
+      soundRef.current = null;
+    }
+    setIsPlaying(false);
+  }, []);
+
+  useEffect(() => {
+    void unloadSound();
+  }, [uri, unloadSound]);
 
   useEffect(() => {
     return () => {
-      sound?.unloadAsync().catch(() => {});
+      void unloadSound();
     };
-  }, [sound]);
+  }, [unloadSound]);
 
-  const play = async () => {
+  const handlePlaybackStatus = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    setIsPlaying(status.isPlaying);
+    if (status.didJustFinish) {
+      setIsPlaying(false);
+      soundRef.current?.setPositionAsync(0).catch(() => {});
+    }
+  }, []);
+
+  const ensureSoundLoaded = useCallback(async () => {
+    if (soundRef.current) return soundRef.current;
+    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false }, handlePlaybackStatus);
+    soundRef.current = sound;
+    return sound;
+  }, [handlePlaybackStatus, uri]);
+
+  const handlePlay = useCallback(async () => {
+    if (isLoading || isPlaying) return;
+    setIsLoading(true);
     try {
-      if (sound) {
-        await sound.replayAsync();
-        return;
-      }
-      const { sound: s } = await Audio.Sound.createAsync({ uri });
-      setSound(s);
-      await s.playAsync();
+      const sound = await ensureSoundLoaded();
+      await sound.playAsync();
+      setIsPlaying(true);
+    } catch {
+      setIsPlaying(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [ensureSoundLoaded, isLoading, isPlaying]);
+
+  const handlePause = useCallback(async () => {
+    if (isLoading || !isPlaying || !soundRef.current) return;
+    setIsLoading(true);
+    try {
+      await soundRef.current.pauseAsync();
+      setIsPlaying(false);
     } catch {
       // ignore
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [isLoading, isPlaying]);
 
   return (
-    <Pressable style={styles.audioPlayerWrap} onPress={play}>
-      <MaterialCommunityIcons name="play-circle" size={36} color={colors.secondary} />
-      <ThemedText style={styles.audioPlayerLabel}>{label}</ThemedText>
-    </Pressable>
+    <View style={styles.audioPlayerSection}>
+      <ThemedText style={styles.audioPlayerHint}>{label}</ThemedText>
+      <View style={styles.audioPlayerControls}>
+        <Pressable
+          style={[styles.audioControlBtn, styles.audioPlayBtn, (isPlaying || isLoading) && styles.btnDisabled]}
+          onPress={() => void handlePlay()}
+          disabled={isPlaying || isLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Play audio">
+          {isLoading && !isPlaying ? (
+            <ActivityIndicator size={20} color={colors.textInverse} />
+          ) : (
+            <MaterialIcons name="play-arrow" size={22} color={colors.textInverse} />
+          )}
+          <ThemedText style={styles.audioPlayBtnText}>Play</ThemedText>
+        </Pressable>
+        <Pressable
+          style={[styles.audioControlBtn, styles.audioPauseBtn, (!isPlaying || isLoading) && styles.btnDisabled]}
+          onPress={() => void handlePause()}
+          disabled={!isPlaying || isLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Pause audio">
+          <MaterialIcons name="pause" size={22} color={colors.secondary} />
+          <ThemedText style={styles.audioPauseBtnText}>Pause</ThemedText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -527,7 +705,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 480,
-    height: '70%',
+    height: '84%',
     maxHeight: '90%',
     backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
@@ -589,12 +767,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.error,
   },
+  videoSection: {
+    gap: spacing[2],
+  },
   videoWrap: {
     width: '100%',
     aspectRatio: 16 / 9,
     backgroundColor: '#000',
     borderRadius: radii.lg,
     overflow: 'hidden',
+  },
+  videoHint: {
+    fontSize: typography.sizes.sm,
+    fontFamily: 'Quicksand_600SemiBold',
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
   video: {
     width: '100%',
@@ -627,15 +814,45 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing[2],
   },
-  audioPlayerWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  audioPlayerSection: {
     gap: spacing[2],
   },
-  audioPlayerLabel: {
-    fontSize: typography.sizes.base,
+  audioPlayerHint: {
+    fontSize: typography.sizes.sm,
     fontFamily: 'Quicksand_500Medium',
     color: colors.textSecondary,
+  },
+  audioPlayerControls: {
+    flexDirection: 'row',
+    gap: spacing[2],
+  },
+  audioControlBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[1],
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[3],
+    borderRadius: radii.lg,
+  },
+  audioPlayBtn: {
+    backgroundColor: colors.secondary,
+  },
+  audioPlayBtnText: {
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.textInverse,
+  },
+  audioPauseBtn: {
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    backgroundColor: colors.textInverse,
+  },
+  audioPauseBtnText: {
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.secondary,
   },
   recordBox: {
     backgroundColor: colors.textInverse,
@@ -662,6 +879,9 @@ const styles = StyleSheet.create({
   timerChipRecording: {
     backgroundColor: colors.error,
   },
+  timerChipPaused: {
+    backgroundColor: colors.orange,
+  },
   timerText: {
     fontSize: typography.sizes.sm,
     fontFamily: 'Quicksand_700Bold',
@@ -672,8 +892,15 @@ const styles = StyleSheet.create({
   },
   recordActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[2],
+    flexWrap: 'nowrap',
+    gap: spacing[1],
+  },
+  recordActionBtn: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: spacing[2],
+    paddingHorizontal: spacing[1],
+    gap: spacing[1],
   },
   btn: {
     flexDirection: 'row',
@@ -691,21 +918,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
   },
   recordBtnText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     fontFamily: 'Quicksand_700Bold',
     color: colors.textInverse,
   },
-  stopBtn: {
+  checkBtn: {
+    borderWidth: 2,
+    borderColor: colors.success,
+    backgroundColor: colors.textInverse,
+  },
+  checkBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.success,
+  },
+  pauseBtn: {
+    borderWidth: 2,
+    borderColor: colors.secondary,
+    backgroundColor: colors.textInverse,
+  },
+  pauseBtnText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.secondary,
+  },
+  rerecordBtn: {
     borderWidth: 2,
     borderColor: colors.orange,
-  },
-  stopBtnText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.orange,
+    backgroundColor: colors.textInverse,
   },
   rerecordBtnText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     fontFamily: 'Quicksand_700Bold',
     color: colors.orange,
   },

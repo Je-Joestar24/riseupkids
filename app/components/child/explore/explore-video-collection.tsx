@@ -75,7 +75,9 @@ function VideoCollectionCard({
           <ThemedText style={styles.starsValue}>{data.totalStars}</ThemedText>
         </View>
       </View>
-      <ThemedText style={styles.cardTitle}>{label}</ThemedText>
+      <ThemedText style={styles.cardTitle} numberOfLines={2}>
+        {label}
+      </ThemedText>
       <View style={styles.progressWrap}>
         <View style={styles.progressHeader}>
           <ThemedText style={styles.progressLabel}>Progress</ThemedText>
@@ -213,6 +215,8 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes['2xl'],
     fontWeight: '600',
     color: colors.secondary,
+    lineHeight: 36,
+    paddingBottom: 2,
   },
   progressWrap: {
     gap: spacing[2],
