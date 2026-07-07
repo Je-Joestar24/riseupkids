@@ -80,6 +80,7 @@ describe('starCamChild.service', () => {
         _id: 'm1',
         missionId: 'reading_1',
         title: 'Reading Mission',
+        updatedAt: new Date('2026-07-07T10:00:00.000Z'),
         category: { key: 'reading', name: 'Reading' },
         introText: 'Start mission',
         missionImage: { url: '/mission.png' },
@@ -164,6 +165,13 @@ describe('starCamChild.service', () => {
     expect(result.flow.start.introAudioUrl).toBe('/intro.mp3');
     expect(result.flow.start.missionImageUrl).toBe('/mission.png');
     expect(result.flow.start.introImageUrl).toBe('/mission.png');
+    expect(result.mission.contentVersion).toBe('2026-07-07T10:00:00.000Z');
+    expect(result.mediaManifest).toMatchObject({
+      missionId: 'reading_1',
+      contentVersion: '2026-07-07T10:00:00.000Z',
+      assetCount: expect.any(Number),
+    });
+    expect(result.mediaManifest.assets.some((asset) => asset.key === 'start.introAudio')).toBe(true);
   });
 
   it('returns practice material by requested index (default app target index: 6)', async () => {

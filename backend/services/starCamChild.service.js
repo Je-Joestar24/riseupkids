@@ -3,7 +3,13 @@ const {
   isStarCamCategoryActiveDoc,
   isStarCamCategoryExplicitlyInactive,
 } = require('../utils/starCamCategoryQuery');
+const {
+  buildMissionContentVersion,
+  buildMissionMediaManifest,
+} = require('../utils/starCamMissionMediaManifest.util');
 const { isVisionConfigured } = require('./googleVision.service');
+
+const MEDIA_SELECT = 'url type duration updatedAt _id';
 
 function asTrimmed(value) {
   if (value == null) return null;
@@ -19,6 +25,49 @@ function asSafeNumber(value, fallback = 0) {
 /** Only treat as Mongo _id when it is a 24-char hex string; avoids CastError on mission slugs like `recipes_seed_3`. */
 function isMongoObjectIdString(value) {
   return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
+}
+
+function applyPublishedMissionPopulates(query) {
+  return query
+    .populate({ path: 'category', select: 'key name' })
+    .populate({ path: 'missionImage', select: MEDIA_SELECT })
+    .populate({ path: 'introImage', select: MEDIA_SELECT })
+    .populate({ path: 'introVideo', select: MEDIA_SELECT })
+    .populate({ path: 'missionShortVideo', select: MEDIA_SELECT })
+    .populate({ path: 'missionIntroAudio', select: MEDIA_SELECT })
+    .populate({ path: 'rewardImage', select: MEDIA_SELECT })
+    .populate({ path: 'rewardAudio', select: MEDIA_SELECT })
+    .populate({ path: 'rewardVideo', select: MEDIA_SELECT })
+    .populate({ path: 'items.questionAudio', select: MEDIA_SELECT })
+    .populate({ path: 'items.tryAgainAudio', select: MEDIA_SELECT })
+    .populate({ path: 'items.successAudio', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.image', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.pronunciationVideo', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.audio', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.introAudio', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.tryAgainAudio', select: MEDIA_SELECT })
+    .populate({ path: 'vocab.successAudio', select: MEDIA_SELECT });
+}
+
+async function fetchPublishedMissionForChild(missionId) {
+  const safeMissionId = asTrimmed(missionId);
+  if (!safeMissionId) {
+    const err = new Error('missionId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const mission = await applyPublishedMissionPopulates(
+    StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
+  ).lean();
+
+  if (!mission) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return mission;
 }
 
 function publishedMissionLookupQuery(safeMissionId) {
@@ -182,6 +231,7 @@ async function getLatestMissionsByCategoryForChild({
       introText: m.introText || '',
       introImageUrl: m.missionImage?.url || m.introImage?.url || null,
       missionImageUrl: m.missionImage?.url || null,
+      contentVersion: buildMissionContentVersion(m),
       vocabCount: Array.isArray(m.vocab) ? m.vocab.length : 0,
       itemCount: Array.isArray(m.items) ? m.items.length : 0,
     })),
@@ -191,39 +241,9 @@ async function getLatestMissionsByCategoryForChild({
 
 async function getMissionStartFlowForChild({ parentUserId, childId, missionId }) {
   await assertChildOwnership(parentUserId, childId);
-  const safeMissionId = asTrimmed(missionId);
-  if (!safeMissionId) {
-    const err = new Error('missionId is required');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const mission = await StarCamMission.findOne(publishedMissionLookupQuery(safeMissionId))
-    .populate({ path: 'category', select: 'key name' })
-    .populate({ path: 'missionImage', select: 'url type' })
-    .populate({ path: 'introImage', select: 'url type' })
-    .populate({ path: 'introVideo', select: 'url type duration' })
-    .populate({ path: 'missionShortVideo', select: 'url type duration' })
-    .populate({ path: 'missionIntroAudio', select: 'url type duration' })
-    .populate({ path: 'rewardImage', select: 'url type' })
-    .populate({ path: 'rewardAudio', select: 'url type duration' })
-    .populate({ path: 'rewardVideo', select: 'url type duration' })
-    .populate({ path: 'items.questionAudio', select: 'url type duration' })
-    .populate({ path: 'items.tryAgainAudio', select: 'url type duration' })
-    .populate({ path: 'items.successAudio', select: 'url type duration' })
-    .populate({ path: 'vocab.image', select: 'url type' })
-    .populate({ path: 'vocab.pronunciationVideo', select: 'url type duration' })
-    .populate({ path: 'vocab.audio', select: 'url type duration' })
-    .populate({ path: 'vocab.introAudio', select: 'url type duration' })
-    .populate({ path: 'vocab.tryAgainAudio', select: 'url type duration' })
-    .populate({ path: 'vocab.successAudio', select: 'url type duration' })
-    .lean();
-
-  if (!mission) {
-    const err = new Error('Mission not found');
-    err.statusCode = 404;
-    throw err;
-  }
+  const mission = await fetchPublishedMissionForChild(missionId);
+  const mediaManifest = buildMissionMediaManifest(mission);
+  const contentVersion = buildMissionContentVersion(mission);
 
   const practiceItems = mapMissionVocabToPracticeItems(mission.vocab || []);
   const featuredPracticeItem =
@@ -258,11 +278,13 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       id: String(mission._id),
       missionId: mission.missionId,
       title: mission.title,
+      contentVersion,
       category: {
         key: mission.category?.key || null,
         name: mission.category?.name || null,
       },
     },
+    mediaManifest,
     flow: {
       start: {
         promptTitle: 'Start Mission',
@@ -299,6 +321,12 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       },
     },
   };
+}
+
+async function getMissionMediaManifestForChild({ parentUserId, childId, missionId }) {
+  await assertChildOwnership(parentUserId, childId);
+  const mission = await fetchPublishedMissionForChild(missionId);
+  return buildMissionMediaManifest(mission);
 }
 
 async function getMissionPracticeMaterialForChild({ parentUserId, childId, missionId, index = 6 }) {
@@ -353,6 +381,7 @@ module.exports = {
   getAvailableCategoriesForChild,
   getLatestMissionsByCategoryForChild,
   getMissionStartFlowForChild,
+  getMissionMediaManifestForChild,
   getMissionPracticeMaterialForChild,
 };
 

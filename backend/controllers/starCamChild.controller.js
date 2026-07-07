@@ -148,6 +148,24 @@ async function postChildMissionDetectObject(req, res) {
   }
 }
 
+async function getChildMissionMediaManifest(req, res) {
+  try {
+    const { childId, missionId } = req.params;
+    const data = await starCamChildService.getMissionMediaManifestForChild({
+      parentUserId: req.user?._id,
+      childId,
+      missionId,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to load mission media manifest',
+    });
+  }
+}
+
 async function getChildMissionPracticeMaterial(req, res) {
   try {
     const { childId, missionId } = req.params;
@@ -172,6 +190,7 @@ module.exports = {
   getChildStarCamCategories,
   getChildStarCamMissionsByCategory,
   getChildMissionStartFlow,
+  getChildMissionMediaManifest,
   postChildMissionDetectObject,
   getChildMissionPracticeMaterial,
 };

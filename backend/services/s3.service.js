@@ -81,11 +81,12 @@ const getPublicUrl = (key) => {
  * @param {string} contentType - MIME type
  * @returns {Promise<{ url: string, s3Key: string }>}
  */
-const uploadBuffer = async (buffer, s3Folder, originalname, contentType) => {
+const uploadBuffer = async (buffer, s3Folder, originalname, contentType, options = {}) => {
   const client = getClient();
   const bucket = getConfig().bucket;
+  const customKey = options?.key ? String(options.key).replace(/^\//, '') : null;
   const filename = generateFileName(originalname);
-  const key = `${s3Folder.replace(/\/$/, '')}/${filename}`;
+  const key = customKey || `${s3Folder.replace(/\/$/, '')}/${filename}`;
 
   await client.send(
     new PutObjectCommand({
@@ -108,12 +109,13 @@ const uploadBuffer = async (buffer, s3Folder, originalname, contentType) => {
  * @param {string} contentType - MIME type
  * @returns {Promise<{ url: string, s3Key: string }>}
  */
-const uploadFileFromPathStream = async (filePath, s3Folder, originalname, contentType) => {
+const uploadFileFromPathStream = async (filePath, s3Folder, originalname, contentType, options = {}) => {
   if (!filePath) throw new Error('filePath is required');
   const client = getClient();
   const bucket = getConfig().bucket;
+  const customKey = options?.key ? String(options.key).replace(/^\//, '') : null;
   const filename = generateFileName(originalname || 'file');
-  const key = `${s3Folder.replace(/\/$/, '')}/${filename}`;
+  const key = customKey || `${s3Folder.replace(/\/$/, '')}/${filename}`;
   const stat = await fs.promises.stat(filePath);
   const stream = fs.createReadStream(filePath);
   try {
@@ -164,7 +166,7 @@ const putObjectBuffer = async (buffer, key, contentType) => {
  * @param {string} s3Folder - S3 prefix (e.g. 'media/images')
  * @returns {Promise<{ url: string, s3Key: string }>}
  */
-const uploadFileFromMulter = async (file, s3Folder) => {
+const uploadFileFromMulter = async (file, s3Folder, options = {}) => {
   if (!file) {
     throw new Error('Invalid multer file: file missing');
   }
@@ -173,11 +175,12 @@ const uploadFileFromMulter = async (file, s3Folder) => {
       file.path,
       s3Folder,
       file.originalname || 'file',
-      file.mimetype
+      file.mimetype,
+      options
     );
   }
   if (file.buffer) {
-    return uploadBuffer(file.buffer, s3Folder, file.originalname || 'file', file.mimetype);
+    return uploadBuffer(file.buffer, s3Folder, file.originalname || 'file', file.mimetype, options);
   }
   throw new Error('Invalid multer file: buffer or path required');
 };

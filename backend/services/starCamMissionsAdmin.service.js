@@ -8,6 +8,17 @@ const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util')
 const { buildKeywordBucketFields } = require('../utils/starCamKeywordBucket.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
+const { buildStarCamMissionAssetS3Key } = require('../utils/starCamMissionMediaManifest.util');
+
+function uploadStarCamMissionAsset(file, missionId, assetKey) {
+  const key = buildStarCamMissionAssetS3Key(missionId, assetKey, file?.originalname || 'file');
+  return s3Service.uploadFileFromMulter(file, 'starcam/missions', { key });
+}
+
+function vocabAssetPrefix(sortOrder) {
+  const n = String(Number(sortOrder) + 1).padStart(2, '0');
+  return `practice.vocab[${n}]`;
+}
 
 function parsePositiveInt(value, fallback) {
   const n = Number.parseInt(String(value ?? ''), 10);
@@ -879,6 +890,9 @@ async function addMissionVocabularyEntry({
     prepareAudioMulterFile(successAudioFile),
   ]);
 
+  const nextSortOrder = (doc.vocab || []).length;
+  const vocabPrefix = vocabAssetPrefix(nextSortOrder);
+
   const [
     { url: imageUrl, s3Key: imageS3Key },
     { url: audioUrl, s3Key: audioS3Key },
@@ -886,11 +900,13 @@ async function addMissionVocabularyEntry({
     { url: successAudioUrl, s3Key: successAudioS3Key },
     pronunciationVideoUpload,
   ] = await Promise.all([
-    s3Service.uploadFileFromMulter(imageFile, 'media/images'),
-    s3Service.uploadFileFromMulter(preparedAudio.file, 'media/audio'),
-    s3Service.uploadFileFromMulter(preparedTryAgainAudio.file, 'media/audio'),
-    s3Service.uploadFileFromMulter(preparedSuccessAudio.file, 'media/audio'),
-    pronunciationVideoFile ? s3Service.uploadFileFromMulter(pronunciationVideoFile, 'media/videos') : Promise.resolve(null),
+    uploadStarCamMissionAsset(imageFile, doc.missionId, `${vocabPrefix}.image`),
+    uploadStarCamMissionAsset(preparedAudio.file, doc.missionId, `${vocabPrefix}.audio`),
+    uploadStarCamMissionAsset(preparedTryAgainAudio.file, doc.missionId, `${vocabPrefix}.tryAgainAudio`),
+    uploadStarCamMissionAsset(preparedSuccessAudio.file, doc.missionId, `${vocabPrefix}.successAudio`),
+    pronunciationVideoFile
+      ? uploadStarCamMissionAsset(pronunciationVideoFile, doc.missionId, `${vocabPrefix}.pronunciationVideo`)
+      : Promise.resolve(null),
   ]);
 
   const [imageMedia, audioMedia, tryAgainAudioMedia, successAudioMedia, pronunciationVideoMedia] = await Promise.all([
@@ -953,7 +969,11 @@ async function addMissionVocabularyEntry({
 
   let introAudioMedia = null;
   if (introAudioFile && preparedIntroAudio.file) {
-    const { url: introAudioUrl, s3Key: introAudioS3Key } = await s3Service.uploadFileFromMulter(preparedIntroAudio.file, 'media/audio');
+    const { url: introAudioUrl, s3Key: introAudioS3Key } = await uploadStarCamMissionAsset(
+      preparedIntroAudio.file,
+      doc.missionId,
+      `${vocabPrefix}.introAudio`
+    );
     introAudioMedia = await Media.create({
       type: 'audio',
       title: introAudioFile.originalname,
@@ -1018,7 +1038,7 @@ async function prepareAudioMulterFile(file) {
   };
 }
 
-async function uploadMediaAndCreateDoc(file, { folder, type, userId }) {
+async function uploadMediaAndCreateDoc(file, { folder, type, userId, missionId, assetKey } = {}) {
   let uploadFile = file;
   let durationSec = null;
   if (type === 'audio') {
@@ -1027,7 +1047,10 @@ async function uploadMediaAndCreateDoc(file, { folder, type, userId }) {
     durationSec = prepared.durationSec;
   }
 
-  const { url, s3Key } = await s3Service.uploadFileFromMulter(uploadFile, folder);
+  const { url, s3Key } =
+    missionId && assetKey
+      ? await uploadStarCamMissionAsset(uploadFile, missionId, assetKey)
+      : await s3Service.uploadFileFromMulter(uploadFile, folder);
   return Media.create({
     type,
     title: file.originalname,
@@ -1120,15 +1143,72 @@ async function updateMissionVocabularyEntry({
     keywordBucket: keywordBucket !== undefined ? keywordBucket : entry.keywordBucket,
   });
 
+  const vocabPrefix = vocabAssetPrefix(sortOrder);
   const mediaTasks = [];
-  if (imageFile) mediaTasks.push(uploadMediaAndCreateDoc(imageFile, { folder: 'media/images', type: 'image', userId }).then((m) => ({ key: 'image', id: m._id })));
-  if (audioFile) mediaTasks.push(uploadMediaAndCreateDoc(audioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'audio', id: m._id })));
-  if (introAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(introAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'introAudio', id: m._id })));
-  if (tryAgainAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(tryAgainAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'tryAgainAudio', id: m._id })));
-  if (successAudioFile) mediaTasks.push(uploadMediaAndCreateDoc(successAudioFile, { folder: 'media/audio', type: 'audio', userId }).then((m) => ({ key: 'successAudio', id: m._id })));
+  if (imageFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(imageFile, {
+        folder: 'media/images',
+        type: 'image',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.image`,
+      }).then((m) => ({ key: 'image', id: m._id }))
+    );
+  }
+  if (audioFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(audioFile, {
+        folder: 'media/audio',
+        type: 'audio',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.audio`,
+      }).then((m) => ({ key: 'audio', id: m._id }))
+    );
+  }
+  if (introAudioFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(introAudioFile, {
+        folder: 'media/audio',
+        type: 'audio',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.introAudio`,
+      }).then((m) => ({ key: 'introAudio', id: m._id }))
+    );
+  }
+  if (tryAgainAudioFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(tryAgainAudioFile, {
+        folder: 'media/audio',
+        type: 'audio',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.tryAgainAudio`,
+      }).then((m) => ({ key: 'tryAgainAudio', id: m._id }))
+    );
+  }
+  if (successAudioFile) {
+    mediaTasks.push(
+      uploadMediaAndCreateDoc(successAudioFile, {
+        folder: 'media/audio',
+        type: 'audio',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.successAudio`,
+      }).then((m) => ({ key: 'successAudio', id: m._id }))
+    );
+  }
   if (pronunciationVideoFile) {
     mediaTasks.push(
-      uploadMediaAndCreateDoc(pronunciationVideoFile, { folder: 'media/videos', type: 'video', userId }).then((m) => ({
+      uploadMediaAndCreateDoc(pronunciationVideoFile, {
+        folder: 'media/videos',
+        type: 'video',
+        userId,
+        missionId: doc.missionId,
+        assetKey: `${vocabPrefix}.pronunciationVideo`,
+      }).then((m) => ({
         key: 'pronunciationVideo',
         id: m._id,
       }))
@@ -1208,7 +1288,7 @@ async function uploadMissionImage({ id, user, userId, imageFile } = {}) {
     throw err;
   }
 
-  const { url, s3Key } = await s3Service.uploadFileFromMulter(imageFile, 'media/images');
+  const { url, s3Key } = await uploadStarCamMissionAsset(imageFile, doc.missionId, 'start.missionImage');
   const imageMedia = await Media.create({
     type: 'image',
     title: imageFile.originalname,
@@ -1254,10 +1334,10 @@ async function uploadMissionMedia({ id, user, userId, shortVideoFile, missionInt
   ]);
 
   const uploads = [];
-  if (shortVideoFile) uploads.push(s3Service.uploadFileFromMulter(shortVideoFile, 'media/videos'));
-  if (missionIntroAudioFile) uploads.push(s3Service.uploadFileFromMulter(preparedMissionIntroAudio.file, 'media/audio'));
-  if (rewardAudioFile) uploads.push(s3Service.uploadFileFromMulter(preparedRewardAudio.file, 'media/audio'));
-  if (rewardVideoFile) uploads.push(s3Service.uploadFileFromMulter(rewardVideoFile, 'media/videos'));
+  if (shortVideoFile) uploads.push(uploadStarCamMissionAsset(shortVideoFile, doc.missionId, 'start.shortVideo'));
+  if (missionIntroAudioFile) uploads.push(uploadStarCamMissionAsset(preparedMissionIntroAudio.file, doc.missionId, 'start.introAudio'));
+  if (rewardAudioFile) uploads.push(uploadStarCamMissionAsset(preparedRewardAudio.file, doc.missionId, 'completion.rewardAudio'));
+  if (rewardVideoFile) uploads.push(uploadStarCamMissionAsset(rewardVideoFile, doc.missionId, 'completion.rewardVideo'));
   const uploaded = await Promise.all(uploads);
   let idx = 0;
 

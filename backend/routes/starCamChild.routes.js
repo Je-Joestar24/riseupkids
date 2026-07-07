@@ -7,6 +7,7 @@ const {
   getChildStarCamCategories,
   getChildStarCamMissionsByCategory,
   getChildMissionStartFlow,
+  getChildMissionMediaManifest,
   postChildMissionDetectObject,
   getChildMissionPracticeMaterial,
 } = require('../controllers/starCamChild.controller');
@@ -50,6 +51,7 @@ function uploadStarCamDetectImageWithDebug(req, res, next) {
  * - GET /child/:childId/categories
  * - GET /child/:childId/categories/:categoryKey/missions
  * - GET /child/:childId/missions/:missionId/start
+ * - GET /child/:childId/missions/:missionId/media-manifest
  * - POST /child/:childId/missions/:missionId/detect-object (multipart image; query itemOrder or sortOrder)
  * - GET /child/:childId/missions/:missionId/practice-material (returns vocab item with optional pronunciationVideoUrl)
  */
@@ -60,6 +62,7 @@ router.use(authorize('parent', 'admin'));
 router.get('/child/:childId/categories', getChildStarCamCategories);
 router.get('/child/:childId/categories/:categoryKey/missions', getChildStarCamMissionsByCategory);
 router.get('/child/:childId/missions/:missionId/start', getChildMissionStartFlow);
+router.get('/child/:childId/missions/:missionId/media-manifest', getChildMissionMediaManifest);
 router.post(
   '/child/:childId/missions/:missionId/detect-object',
   uploadStarCamDetectImageWithDebug,
