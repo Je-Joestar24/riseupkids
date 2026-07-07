@@ -60,6 +60,8 @@ export interface StarCamMissionListItem {
   /** Mission cover art (preferred for category map bubbles). */
   missionImageUrl: string | null;
   introImageUrl: string | null;
+  /** Changes when mission content is edited — used for client pack invalidation. */
+  contentVersion?: string | null;
   vocabCount: number;
   itemCount: number;
 }
@@ -130,13 +132,33 @@ export interface StarCamHuntItem {
   showSampleImage: false;
 }
 
+/** Stable downloadable asset identity from backend media manifest. */
+export interface StarCamMediaAssetRef {
+  key: string;
+  mediaId: string | null;
+  url: string;
+  updatedAt: string | null;
+  kind: string | null;
+}
+
+export interface StarCamMediaManifest {
+  missionId: string;
+  contentVersion: string | null;
+  assetCount: number;
+  assets: StarCamMediaAssetRef[];
+}
+
 export interface StarCamChildMissionStartPayload {
   mission: {
     id: string;
     missionId: string;
     title: string;
+    /** Mission revision timestamp for offline pack invalidation. */
+    contentVersion?: string | null;
     category: { key: string | null; name: string | null };
   };
+  /** Structured asset list for preload / offline mission packs. */
+  mediaManifest?: StarCamMediaManifest;
   flow: {
     start: {
       promptTitle: string;
@@ -263,6 +285,15 @@ export const childStarCamService = {
   ): Promise<ApiResponse<StarCamChildMissionStartPayload>> =>
     api.get<ApiResponse<StarCamChildMissionStartPayload>>(
       `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/start`
+    ),
+
+  /** Lightweight media manifest for mission pack preload / restore. */
+  getMissionMediaManifest: (
+    childId: string,
+    missionIdOrSlug: string
+  ): Promise<ApiResponse<StarCamMediaManifest>> =>
+    api.get<ApiResponse<StarCamMediaManifest>>(
+      `/child/star-cam/child/${childId}/missions/${encodeURIComponent(missionIdOrSlug)}/media-manifest`
     ),
 
   /**

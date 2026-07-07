@@ -25,6 +25,8 @@ export interface StarCamMissionStartScreenProps {
   borderColor?: string;
   accentColor?: string;
   loading?: boolean;
+  /** When false, intro media waits until mission pack / cache is fully ready. */
+  mediaReady?: boolean;
   onBack: () => void;
   onStartMission: () => void;
 }
@@ -97,6 +99,7 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
   loading = false,
+  mediaReady = false,
   onBack,
   onStartMission,
 }: StarCamMissionStartScreenProps) {
@@ -109,9 +112,10 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   const defaultButtonColor = lightenColor(accentColor, 0.12);
   const pressedAccentColor = darkenColor(accentColor, 0.23);
   const hasPlayableIntroVideo = Boolean(resolvedVideoUrl) && !videoFailed;
+  const canPlayIntroMedia = isFocused && mediaReady && !loading;
 
   useEffect(() => {
-    if (isFocused) return;
+    if (canPlayIntroMedia) return;
     const stopAndUnload = async () => {
       try {
         await videoRef.current?.stopAsync?.();
@@ -126,13 +130,13 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
       await stopStarCamMissionIntroAudio();
     };
     void stopAndUnload();
-  }, [isFocused]);
+  }, [canPlayIntroMedia]);
 
   useEffect(() => {
-    if (!isFocused || !resolvedIntroAudioUrl || !introAudioAssetKey) return;
+    if (!canPlayIntroMedia || !resolvedIntroAudioUrl || !introAudioAssetKey) return;
 
     void ensureStarCamMissionIntroAudio(resolvedIntroAudioUrl, introAudioAssetKey);
-  }, [isFocused, resolvedIntroAudioUrl, introAudioAssetKey]);
+  }, [canPlayIntroMedia, resolvedIntroAudioUrl, introAudioAssetKey]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -155,8 +159,8 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
                 ref={videoRef}
                 source={{ uri: resolvedVideoUrl || '' }}
                 style={styles.image}
-                shouldPlay={isFocused}
-                isLooping={isFocused}
+                shouldPlay={canPlayIntroMedia}
+                isLooping={canPlayIntroMedia}
                 resizeMode={ResizeMode.COVER}
                 useNativeControls={false}
                 onError={() => setVideoFailed(true)}

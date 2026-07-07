@@ -2,6 +2,7 @@ import { useCameraPermissions } from 'expo-camera';
 import { Audio } from 'expo-av';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
@@ -9,6 +10,12 @@ import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdispl
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
 import { StarCamDetectObjectError } from '@/services/childStarCamService';
+import {
+  getStarCamScopedMediaCache,
+  resolveStarCamPlayableUrl,
+  starCamMissionKeysMatch,
+} from '@/services/starCamMissionMedia';
+import { useStarCamStore } from '@/store/starCamStore';
 
 function formatDisplayLabel(value: string | null | undefined): string {
   const cleaned = String(value || '')
@@ -95,6 +102,7 @@ export default function StarCamMissionCamRoute() {
     missionId?: string;
   }>();
   const router = useRouter();
+  const isFocused = useIsFocused();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
 
@@ -111,6 +119,12 @@ export default function StarCamMissionCamRoute() {
     isDetectingObject,
     huntItems,
   } = useStarCam();
+  const cachedMissionId = useStarCamStore((s) => s.cachedMissionId);
+  const cachedMediaUris = useStarCamStore((s) => s.cachedMediaUris);
+  const scopedMediaCache = useMemo(
+    () => getStarCamScopedMediaCache(missionSlug, cachedMissionId, cachedMediaUris, missionFlow),
+    [missionSlug, cachedMissionId, cachedMediaUris, missionFlow]
+  );
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [foundCount, setFoundCount] = useState(0);
   const [notificationState, setNotificationState] = useState<{
@@ -130,7 +144,7 @@ export default function StarCamMissionCamRoute() {
   const detectInFlightRef = useRef(false);
   const audioRef = useRef<Audio.Sound | null>(null);
   const audioRequestIdRef = useRef(0);
-  const autoPromptAudioKeyRef = useRef<string | null>(null);
+  const autoIntroAudioKeyRef = useRef<string | null>(null);
   const isScreenActiveRef = useRef(true);
   const isAudioModeReadyRef = useRef(false);
 
@@ -141,9 +155,10 @@ export default function StarCamMissionCamRoute() {
   }, [cameraPermission, requestCameraPermission]);
 
   useEffect(() => {
-    if (!childId || !missionSlug) return;
+    if (!isFocused || !childId || !missionSlug) return;
+    if (starCamMissionKeysMatch(missionSlug, missionFlow)) return;
     void loadMissionFlow(childId, missionSlug);
-  }, [childId, missionSlug, loadMissionFlow]);
+  }, [isFocused, childId, missionSlug, missionFlow, loadMissionFlow]);
 
   const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
@@ -270,42 +285,57 @@ export default function StarCamMissionCamRoute() {
     if (!currentTarget) return 'OBJECT';
     return formatDisplayLabel(currentPracticeItem?.displayText || currentPracticeItem?.target || currentTarget || 'object');
   }, [currentPracticeItem?.displayText, currentPracticeItem?.target, currentTarget]);
+  const resolveCachedMediaUrl = useCallback(
+    (url: string | null | undefined) => {
+      const cached = resolveStarCamPlayableUrl(url, scopedMediaCache);
+      return cached || resolveMediaUrl(url);
+    },
+    [scopedMediaCache]
+  );
+
   const questionPrompt = useMemo(() => {
     const explicit = currentItem?.questionText || currentItem?.prompt;
     if (explicit?.trim()) return explicit.trim();
     return `Is this a ${formatQuestionLabel(targetLabel)}?`;
   }, [currentItem?.prompt, currentItem?.questionText, targetLabel]);
-  const questionAudioUrl = resolveMediaUrl(
-    currentItem?.questionAudioUrl || currentPracticeItem?.introAudioUrl || currentPracticeItem?.audioUrl || null
+  /** Main vocabulary audio for object intro — practice.vocab[N].audio */
+  const objectIntroAudioUrl = useMemo(
+    () => resolveCachedMediaUrl(currentPracticeItem?.audioUrl || null),
+    [currentPracticeItem?.audioUrl, resolveCachedMediaUrl]
   );
-  const tryAgainAudioUrl = resolveMediaUrl(currentItem?.tryAgainAudioUrl || currentPracticeItem?.tryAgainAudioUrl || null);
-  const successAudioUrl = resolveMediaUrl(currentItem?.successAudioUrl || currentPracticeItem?.successAudioUrl || null);
+  /** Scan-only prompt — e.g. "Is this a book?" while checking the camera capture */
+  const scanQuestionAudioUrl = useMemo(
+    () => resolveCachedMediaUrl(currentItem?.questionAudioUrl || null),
+    [currentItem?.questionAudioUrl, resolveCachedMediaUrl]
+  );
+  const tryAgainAudioUrl = resolveCachedMediaUrl(currentItem?.tryAgainAudioUrl || currentPracticeItem?.tryAgainAudioUrl || null);
+  const successAudioUrl = resolveCachedMediaUrl(currentItem?.successAudioUrl || currentPracticeItem?.successAudioUrl || null);
   const tryAgainText = currentItem?.tryAgainText || currentItem?.fail || '';
   const successText = currentItem?.successText || currentItem?.success || '';
 
   useEffect(() => {
-    if (!questionAudioUrl) return;
-    const autoPromptKey = `${missionSlug || ''}:${currentItemIndex}:${questionAudioUrl}`;
-    if (autoPromptAudioKeyRef.current === autoPromptKey) return;
-    autoPromptAudioKeyRef.current = autoPromptKey;
-    void playAudio(questionAudioUrl);
-  }, [currentItemIndex, missionSlug, playAudio, questionAudioUrl]);
+    if (!objectIntroAudioUrl) return;
+    const autoIntroKey = `${missionSlug || ''}:${currentItemIndex}:intro:${objectIntroAudioUrl}`;
+    if (autoIntroAudioKeyRef.current === autoIntroKey) return;
+    autoIntroAudioKeyRef.current = autoIntroKey;
+    void playAudio(objectIntroAudioUrl);
+  }, [currentItemIndex, missionSlug, playAudio, objectIntroAudioUrl]);
 
-  const replayQuestionAudio = useCallback(() => {
-    if (!questionAudioUrl) return;
+  const replayObjectIntroAudio = useCallback(() => {
+    if (!objectIntroAudioUrl) return;
     audioRequestIdRef.current += 1;
     void (async () => {
       await unloadActiveAudio();
       if (!isScreenActiveRef.current) return;
-      await playAudio(questionAudioUrl);
+      await playAudio(objectIntroAudioUrl);
     })();
-  }, [playAudio, questionAudioUrl, unloadActiveAudio]);
+  }, [objectIntroAudioUrl, playAudio, unloadActiveAudio]);
 
-  const playQuestionAudioForScan = useCallback(() => {
-    if (!questionAudioUrl) return wait(700);
+  const playScanQuestionAudio = useCallback(() => {
+    if (!scanQuestionAudioUrl) return wait(700);
     audioRequestIdRef.current += 1;
-    return playAudio(questionAudioUrl, { waitForFinish: true, fallbackMs: 2500 });
-  }, [playAudio, questionAudioUrl]);
+    return playAudio(scanQuestionAudioUrl, { waitForFinish: true, fallbackMs: 2500 });
+  }, [playAudio, scanQuestionAudioUrl]);
 
   const onBack = () => {
     if (!id) {
@@ -342,7 +372,7 @@ export default function StarCamMissionCamRoute() {
       title: '?',
       message: questionPrompt,
     });
-    const questionAudioPromise = playQuestionAudioForScan();
+    const questionAudioPromise = playScanQuestionAudio();
     try {
       const photo = await cameraRef.current?.takePictureAsync?.({
         quality: 0.45,
@@ -460,13 +490,13 @@ export default function StarCamMissionCamRoute() {
       }, 1800);
       detectInFlightRef.current = false;
     }
-  }, [childId, missionSlug, hasCameraPermission, detectObject, currentItemIndex, targetLabel, totalObjects, id, router, categoryKey, missionFlow?.mission?.title, playAudio, playQuestionAudioForScan, questionPrompt, successAudioUrl, successText, tryAgainAudioUrl, tryAgainText]);
+  }, [childId, missionSlug, hasCameraPermission, detectObject, currentItemIndex, targetLabel, totalObjects, id, router, categoryKey, missionFlow?.mission?.title, playAudio, playScanQuestionAudio, questionPrompt, successAudioUrl, successText, tryAgainAudioUrl, tryAgainText]);
 
   return (
     <StarCamMissionCamScreen
       targetLabel={targetLabel}
       promptText={questionPrompt}
-      hasPromptAudio={Boolean(questionAudioUrl)}
+      hasPromptAudio={Boolean(objectIntroAudioUrl)}
       backgroundColor={categoryPreset.gradient[1]}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}
@@ -482,7 +512,7 @@ export default function StarCamMissionCamRoute() {
       notificationMessage={notificationState.message}
       cameraRef={cameraRef}
       onCaptureAndDetect={onCaptureAndDetect}
-      onReplayPromptAudio={replayQuestionAudio}
+      onReplayPromptAudio={replayObjectIntroAudio}
       onBack={onBack}
     />
   );

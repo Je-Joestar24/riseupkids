@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useIsFocused } from '@react-navigation/native';
+import React, { useEffect, useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { StarCamPracticeModeScreen } from '@/components/child/starcampracticemode';
@@ -7,6 +8,7 @@ import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdispl
 import { colors } from '@/config/theme/colors';
 import { useStarCam } from '@/hooks/starCamHook';
 import { useStarCamPracticeItems } from '@/hooks/useStarCamPracticeItems';
+import { starCamMissionKeysMatch } from '@/services/starCamMissionMedia';
 
 export default function StarCamPracticeModeRoute() {
   const { id, category, missionId, title, imageUrl } = useLocalSearchParams<{
@@ -17,13 +19,20 @@ export default function StarCamPracticeModeRoute() {
     imageUrl?: string;
   }>();
   const router = useRouter();
+  const isFocused = useIsFocused();
 
   const childId = id ?? null;
   const missionSlug = missionId ?? null;
   const categoryKey = (category || 'reading').toLowerCase();
 
-  const { missionFlow } = useStarCam();
-  const { items, isMediaReady } = useStarCamPracticeItems(missionFlow);
+  const { missionFlow, loadMissionFlow, isLoadingMissionFlow } = useStarCam();
+  const { items, isMediaReady } = useStarCamPracticeItems(missionFlow, missionSlug);
+
+  useEffect(() => {
+    if (!isFocused || !childId || !missionSlug) return;
+    if (starCamMissionKeysMatch(missionSlug, missionFlow)) return;
+    void loadMissionFlow(childId, missionSlug);
+  }, [isFocused, childId, missionSlug, missionFlow, loadMissionFlow]);
 
   const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 
@@ -44,7 +53,7 @@ export default function StarCamPracticeModeRoute() {
     );
   };
 
-  if (!missionFlow || !isMediaReady) {
+  if (!missionFlow || !isMediaReady || isLoadingMissionFlow) {
     return (
       <View style={styles.boot} accessibilityLabel="Preparing practice media">
         <ActivityIndicator size="large" color={categoryPreset.borderColor} />
@@ -54,6 +63,7 @@ export default function StarCamPracticeModeRoute() {
 
   return (
     <StarCamPracticeModeScreen
+      key={missionSlug || 'practice'}
       title="Let's practice"
       items={items}
       gradientColors={categoryPreset.gradient}

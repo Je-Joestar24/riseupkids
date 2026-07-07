@@ -1,10 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useMemo } from 'react';
 
 import { StarCamMissionSuccessScreen } from '@/components/child/starcammissionsuccess';
 import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
+import { starCamMissionKeysMatch } from '@/services/starCamMissionMedia';
 
 function resolveMediaUrl(url: string | null | undefined): string | null {
   if (!url) return null;
@@ -21,6 +23,7 @@ export default function StarCamMissionSuccessRoute() {
     title?: string;
   }>();
   const router = useRouter();
+  const isFocused = useIsFocused();
 
   const childId = id ?? null;
   const missionSlug = missionId ?? null;
@@ -28,9 +31,10 @@ export default function StarCamMissionSuccessRoute() {
   const { missionFlow, loadMissionFlow } = useStarCam();
 
   useEffect(() => {
-    if (!childId || !missionSlug) return;
+    if (!isFocused || !childId || !missionSlug) return;
+    if (starCamMissionKeysMatch(missionSlug, missionFlow)) return;
     void loadMissionFlow(childId, missionSlug);
-  }, [childId, missionSlug, loadMissionFlow]);
+  }, [isFocused, childId, missionSlug, missionFlow, loadMissionFlow]);
 
   const categoryPreset = useMemo(() => getStarCamCategoryPreset(categoryKey), [categoryKey]);
 

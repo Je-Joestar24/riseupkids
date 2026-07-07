@@ -9,6 +9,71 @@ import type {
   StarCamPracticeItem,
 } from '@/services/childStarCamService';
 
+/** Normalize mission route keys (slug, missionId, or document id). */
+export function normalizeStarCamMissionKey(value: string | null | undefined): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+/** True when a route mission key matches the loaded flow for that mission. */
+export function starCamMissionKeysMatch(
+  routeMissionKey: string | null | undefined,
+  flow: StarCamChildMissionStartPayload | null | undefined
+): boolean {
+  const routeKey = normalizeStarCamMissionKey(routeMissionKey);
+  if (!routeKey || !flow?.mission) return false;
+
+  const candidates = [flow.mission.missionId, flow.mission.id, routeMissionKey]
+    .map(normalizeStarCamMissionKey)
+    .filter(Boolean);
+
+  return candidates.includes(routeKey);
+}
+
+export function getStarCamMissionKeyFromFlow(
+  flow: StarCamChildMissionStartPayload | null | undefined
+): string | null {
+  const key = flow?.mission?.missionId || flow?.mission?.id || null;
+  return key ? normalizeStarCamMissionKey(key) : null;
+}
+
+/** Only expose cached URIs when they belong to the active mission flow. */
+export function getStarCamScopedMediaCache(
+  routeMissionKey: string | null | undefined,
+  cachedMissionKey: string | null | undefined,
+  cacheMap: Record<string, string>,
+  flow: StarCamChildMissionStartPayload | null | undefined
+): Record<string, string> {
+  if (!starCamMissionKeysMatch(routeMissionKey, flow)) return {};
+
+  const cacheMatchesMission = starCamCacheKeysMatch(cachedMissionKey, routeMissionKey, flow);
+
+  if (!cacheMatchesMission) return {};
+  return cacheMap;
+}
+
+/** True when downloaded media belongs to the same mission as the route + flow. */
+export function starCamCacheKeysMatch(
+  cachedMissionKey: string | null | undefined,
+  routeMissionKey: string | null | undefined,
+  flow: StarCamChildMissionStartPayload | null | undefined
+): boolean {
+  const cacheKey = normalizeStarCamMissionKey(cachedMissionKey);
+  if (!cacheKey) return false;
+
+  const routeKey = normalizeStarCamMissionKey(routeMissionKey);
+  if (routeKey && cacheKey === routeKey) return true;
+
+  const flowKey = getStarCamMissionKeyFromFlow(flow);
+  if (flowKey && cacheKey === flowKey) return true;
+
+  return (
+    starCamMissionKeysMatch(routeMissionKey, flow) &&
+    starCamMissionKeysMatch(cachedMissionKey, flow)
+  );
+}
+
 export function resolveStarCamMediaUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== 'string') return null;
   const trimmed = url.trim();

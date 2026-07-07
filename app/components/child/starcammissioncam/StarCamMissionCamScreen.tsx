@@ -87,7 +87,7 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
               onPress={onReplayPromptAudio}
               disabled={isReplayPromptDisabled}
               accessibilityRole="button"
-              accessibilityLabel="Replay scan question audio"
+              accessibilityLabel="Replay vocabulary audio"
               accessibilityState={{ disabled: isReplayPromptDisabled }}
               hitSlop={8}
               style={({ pressed }) => [

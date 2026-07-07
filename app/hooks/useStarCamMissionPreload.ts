@@ -1,18 +1,22 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { StarCamChildMissionStartPayload } from '@/services/childStarCamService';
+import type { StarCamChildMissionStartPayload, StarCamMediaAssetRef } from '@/services/childStarCamService';
+import { normalizeStarCamMissionKey, collectStarCamMissionMediaUrls } from '@/services/starCamMissionMedia';
+import { preloadStarCamManifestAssets } from '@/services/starCamMediaCache';
+import { stopStarCamMissionIntroAudio } from '@/services/starCamMissionIntroAudio';
 import {
-  ensureStarCamMissionIntroAudio,
-  getStarCamMissionIntroAudioAssetKey,
-  stopStarCamMissionIntroAudio,
-} from '@/services/starCamMissionIntroAudio';
-import { collectStarCamMissionMediaUrls, resolveStarCamMediaUrl } from '@/services/starCamMissionMedia';
-import { preloadStarCamMediaUrls } from '@/services/starCamMediaCache';
+  assetNeedsDownload,
+  getMissionPackAssetPath,
+  resolveManifestAssets,
+  saveMissionPack,
+  tryRestoreMissionPack,
+} from '@/services/starCamMissionPackStorage';
 import { useStarCamStore } from '@/store/starCamStore';
 
 export interface StarCamMissionPreloadResult {
   flow: StarCamChildMissionStartPayload;
   failedCount: number;
+  restoredFromPack: boolean;
 }
 
 export interface UseStarCamMissionPreloadReturn {
@@ -26,9 +30,23 @@ export interface UseStarCamMissionPreloadReturn {
   cancelPreload: () => void;
 }
 
+function buildManifestAssets(flow: StarCamChildMissionStartPayload): StarCamMediaAssetRef[] {
+  const fromManifest = resolveManifestAssets(flow.mediaManifest);
+  if (fromManifest.length) return fromManifest;
+
+  return collectStarCamMissionMediaUrls(flow).map((url, index) => ({
+    key: `legacy.asset[${String(index + 1).padStart(2, '0')}]`,
+    mediaId: null,
+    url,
+    updatedAt: flow.mission.contentVersion ?? null,
+    kind: null,
+  }));
+}
+
 export function useStarCamMissionPreload(childId: string | null): UseStarCamMissionPreloadReturn {
   const fetchMissionStartFlow = useStarCamStore((s) => s.fetchMissionStartFlow);
-  const mergeCachedMediaUris = useStarCamStore((s) => s.mergeCachedMediaUris);
+  const commitPreloadedMission = useStarCamStore((s) => s.commitPreloadedMission);
+  const cancelMissionFlowRequest = useStarCamStore((s) => s.cancelMissionFlowRequest);
 
   const [isPreloading, setIsPreloading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -41,13 +59,14 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
 
   const cancelPreload = useCallback(() => {
     runIdRef.current += 1;
+    cancelMissionFlowRequest();
     setIsPreloading(false);
     setPreparingMissionId(null);
     setProgress(0);
     setError(null);
     setFailedCount(0);
     void stopStarCamMissionIntroAudio();
-  }, []);
+  }, [cancelMissionFlowRequest]);
 
   const preloadMission = useCallback(
     async (missionId: string): Promise<StarCamMissionPreloadResult | null> => {
@@ -61,8 +80,10 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
       setProgress(0);
       setError(null);
       setFailedCount(0);
+      void stopStarCamMissionIntroAudio();
 
       try {
+        const routeMissionKey = normalizeStarCamMissionKey(missionId);
         const flow = await fetchMissionStartFlow(childId, missionId);
         if (runIdRef.current !== runId) return null;
 
@@ -71,36 +92,47 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
           return null;
         }
 
-        const introAssetKey = getStarCamMissionIntroAudioAssetKey(flow.flow?.start?.introAudioUrl);
-        const introPlayableUri = resolveStarCamMediaUrl(flow.flow?.start?.introAudioUrl);
-        if (introAssetKey && introPlayableUri) {
-          void ensureStarCamMissionIntroAudio(introPlayableUri, introAssetKey);
-        }
+        const contentVersion = flow.mission.contentVersion ?? flow.mediaManifest?.contentVersion ?? null;
+        const manifestAssets = buildManifestAssets(flow);
 
-        const urls = collectStarCamMissionMediaUrls(flow);
-        let mediaFailed = 0;
+        const restored = await tryRestoreMissionPack(routeMissionKey, contentVersion);
+        if (runIdRef.current !== runId) return null;
 
-        if (urls.length) {
-          const { failed, uriMap } = await preloadStarCamMediaUrls(
-            urls,
-            (pct) => {
-              if (runIdRef.current === runId) setProgress(pct);
-            },
-            3
-          );
-          mediaFailed = failed.length;
-          if (runIdRef.current === runId) {
-            mergeCachedMediaUris(uriMap);
-            setFailedCount(mediaFailed);
-            setProgress(100);
-          }
-        } else if (runIdRef.current === runId) {
+        if (restored?.uriMap && Object.keys(restored.uriMap).length) {
+          commitPreloadedMission(missionId, flow, restored.uriMap);
           setProgress(100);
+          setFailedCount(0);
+          return { flow, failedCount: 0, restoredFromPack: true };
         }
+
+        const preloadResult = await preloadStarCamManifestAssets(manifestAssets, routeMissionKey, {
+          seedUriMap: restored?.uriMap ?? {},
+          onProgress: (pct) => {
+            if (runIdRef.current === runId) setProgress(pct);
+          },
+          concurrency: 3,
+          resolveDest: (asset, remoteUrl) => getMissionPackAssetPath(routeMissionKey, asset.key, remoteUrl),
+          shouldDownload: (asset) => assetNeedsDownload(asset, restored?.manifest ?? null),
+        });
 
         if (runIdRef.current !== runId) return null;
 
-        return { flow, failedCount: mediaFailed };
+        await saveMissionPack({
+          missionId: routeMissionKey,
+          contentVersion,
+          assets: manifestAssets,
+          uriMap: preloadResult.uriMap,
+        });
+
+        commitPreloadedMission(missionId, flow, preloadResult.uriMap);
+        setFailedCount(preloadResult.failed.length);
+        setProgress(100);
+
+        return {
+          flow,
+          failedCount: preloadResult.failed.length,
+          restoredFromPack: false,
+        };
       } catch (err) {
         if (runIdRef.current !== runId) return null;
         const msg = err instanceof Error ? err.message : 'Failed to prepare mission media';
@@ -113,7 +145,7 @@ export function useStarCamMissionPreload(childId: string | null): UseStarCamMiss
         }
       }
     },
-    [childId, fetchMissionStartFlow, mergeCachedMediaUris]
+    [childId, fetchMissionStartFlow, commitPreloadedMission]
   );
 
   return {

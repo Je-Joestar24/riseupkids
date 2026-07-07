@@ -11,6 +11,18 @@ const MEDIA_SUBDIR = 'starcam-mission-media/';
 const inflight = new Map<string, Promise<string>>();
 const memoryMap = new Map<string, string>();
 
+function sanitizeMissionScopeId(missionScopeId: string): string {
+  const safe = String(missionScopeId || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .slice(0, 120);
+  return safe || 'default';
+}
+
+function scopedMemoryKey(missionScopeId: string, remoteUrl: string): string {
+  return `${sanitizeMissionScopeId(missionScopeId)}::${remoteUrl}`;
+}
+
 let fileSystemUsable: boolean | null = null;
 
 function simpleHash(input: string): string {
@@ -48,11 +60,12 @@ async function canUseFileSystem(): Promise<boolean> {
   return fileSystemUsable;
 }
 
-async function ensureMediaDir(): Promise<string> {
+async function ensureMediaDir(missionScopeId?: string): Promise<string> {
   if (!(await canUseFileSystem())) return '';
   const root = FileSystem.documentDirectory || FileSystem.cacheDirectory;
   if (!root) return '';
-  const dir = `${root}${MEDIA_SUBDIR}`;
+  const scope = missionScopeId ? `${sanitizeMissionScopeId(missionScopeId)}/` : '';
+  const dir = `${root}${MEDIA_SUBDIR}${scope}`;
   try {
     const info = await FileSystem.getInfoAsync(dir);
     if (!info.exists) {
@@ -95,31 +108,52 @@ async function downloadWithRetry(remoteUrl: string, dest: string, retries = 2): 
 /**
  * Download one remote asset; returns local file:// URI or the original remote URL on failure.
  */
-export async function cacheStarCamMediaUrl(remoteUrl: string): Promise<string> {
+export async function cacheStarCamMediaUrl(
+  remoteUrl: string,
+  missionScopeId?: string,
+  options: { assetKey?: string; destPath?: string } = {}
+): Promise<string> {
   if (!remoteUrl || !isHttp(remoteUrl)) return remoteUrl;
 
   if (!(await canUseFileSystem())) return remoteUrl;
 
-  const memo = memoryMap.get(remoteUrl);
+  const scopeId = missionScopeId ? sanitizeMissionScopeId(missionScopeId) : 'default';
+  const memoryKey = options.assetKey
+    ? `${scopeId}::${options.assetKey}`
+    : scopedMemoryKey(scopeId, remoteUrl);
+
+  const memo = memoryMap.get(memoryKey);
   if (memo && (await fileExists(memo))) return memo;
 
-  const existing = inflight.get(remoteUrl);
+  const existing = inflight.get(memoryKey);
   if (existing) return existing;
 
   const task = (async () => {
     try {
-      const dir = await ensureMediaDir();
+      const dir = await ensureMediaDir(scopeId);
       if (!dir) return remoteUrl;
 
-      const dest = `${dir}${simpleHash(remoteUrl)}${extensionFromUrl(remoteUrl)}`;
+      const dest =
+        options.destPath ||
+        (options.assetKey
+          ? `${dir}${String(options.assetKey).replace(/[^a-zA-Z0-9._-]+/g, '_')}${extensionFromUrl(remoteUrl)}`
+          : `${dir}${simpleHash(remoteUrl)}${extensionFromUrl(remoteUrl)}`);
+
+      if (options.destPath) {
+        const parentDir = dest.includes('/') ? dest.slice(0, dest.lastIndexOf('/')) : dir;
+        if (parentDir) {
+          await FileSystem.makeDirectoryAsync(`${parentDir}/`, { intermediates: true }).catch(() => undefined);
+        }
+      }
+
       if (await fileExists(dest)) {
-        memoryMap.set(remoteUrl, dest);
+        memoryMap.set(memoryKey, dest);
         return dest;
       }
 
       const local = await downloadWithRetry(remoteUrl, dest);
       if (local) {
-        memoryMap.set(remoteUrl, local);
+        memoryMap.set(memoryKey, local);
         return local;
       }
     } catch {
@@ -128,12 +162,91 @@ export async function cacheStarCamMediaUrl(remoteUrl: string): Promise<string> {
     return remoteUrl;
   })();
 
-  inflight.set(remoteUrl, task);
+  inflight.set(memoryKey, task);
   try {
     return await task;
   } finally {
-    inflight.delete(remoteUrl);
+    inflight.delete(memoryKey);
   }
+}
+
+export interface StarCamManifestPreloadAsset {
+  key: string;
+  url: string;
+  mediaId?: string | null;
+  updatedAt?: string | null;
+}
+
+/** Preload manifest assets into a mission-scoped content pack folder. */
+export async function preloadStarCamManifestAssets(
+  assets: StarCamManifestPreloadAsset[],
+  missionScopeId: string,
+  options: {
+    onProgress?: (percent: number) => void;
+    concurrency?: number;
+    seedUriMap?: Record<string, string>;
+    resolveDest?: (asset: StarCamManifestPreloadAsset, remoteUrl: string) => string;
+    shouldDownload?: (asset: StarCamManifestPreloadAsset, remoteUrl: string) => boolean;
+  } = {}
+): Promise<StarCamPreloadResult> {
+  const failed: string[] = [];
+  const uriMap: Record<string, string> = { ...(options.seedUriMap || {}) };
+  const diskOk = await canUseFileSystem();
+  const queue = assets.filter((asset) => Boolean(asset?.url && asset?.key));
+
+  if (!queue.length) {
+    options.onProgress?.(100);
+    return { failed, uriMap, usedDiskCache: diskOk };
+  }
+
+  if (!diskOk) {
+    queue.forEach((asset) => {
+      const remote = asset.url;
+      uriMap[remote] = remote;
+      failed.push(remote);
+    });
+    options.onProgress?.(100);
+    return { failed, uriMap, usedDiskCache: false };
+  }
+
+  let completed = 0;
+  const report = () => {
+    options.onProgress?.(Math.round((completed / queue.length) * 100));
+  };
+
+  const workers = Array.from(
+    { length: Math.min(options.concurrency ?? 3, queue.length) },
+    async () => {
+      while (queue.length) {
+        const asset = queue.shift();
+        if (!asset) break;
+        const remote = asset.url;
+        const needsDownload = options.shouldDownload ? options.shouldDownload(asset, remote) : true;
+
+        if (!needsDownload && uriMap[remote]) {
+          completed += 1;
+          report();
+          continue;
+        }
+
+        const destPath = options.resolveDest?.(asset, remote);
+        const resolved = await cacheStarCamMediaUrl(remote, missionScopeId, {
+          assetKey: asset.key,
+          destPath,
+        });
+        uriMap[remote] = resolved;
+        if (!isLocalMediaUri(resolved)) {
+          failed.push(remote);
+        }
+        completed += 1;
+        report();
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  options.onProgress?.(100);
+  return { failed, uriMap, usedDiskCache: true };
 }
 
 export interface StarCamPreloadResult {
@@ -145,6 +258,7 @@ export interface StarCamPreloadResult {
 /** Preload mission media with real per-file progress (0–100). */
 export async function preloadStarCamMediaUrls(
   urls: string[],
+  missionScopeId: string,
   onProgress?: (percent: number) => void,
   concurrency = 3
 ): Promise<StarCamPreloadResult> {
@@ -177,7 +291,7 @@ export async function preloadStarCamMediaUrls(
     while (queue.length) {
       const remote = queue.shift();
       if (!remote) break;
-      const resolved = await cacheStarCamMediaUrl(remote);
+      const resolved = await cacheStarCamMediaUrl(remote, missionScopeId);
       uriMap[remote] = resolved;
       if (!isLocalMediaUri(resolved)) {
         failed.push(remote);

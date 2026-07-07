@@ -19,10 +19,13 @@ import type {
   StarCamPracticeMaterialPayload,
   StarCamDetectObjectPayload,
 } from '@/services/childStarCamService';
+import { normalizeStarCamMissionKey } from '@/services/starCamMissionMedia';
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
+
+let missionFlowRequestSeq = 0;
 
 export interface StarCamState {
   categories: StarCamCategoryListItem[];
@@ -44,6 +47,8 @@ export interface StarCamState {
 
   error: string | null;
   lastDetection: StarCamDetectObjectPayload | null;
+  /** Mission key (slug/id) that `cachedMediaUris` belongs to. */
+  cachedMissionId: string | null;
   /** Remote http(s) URL → local file URI after mission preload. */
   cachedMediaUris: Record<string, string>;
 }
@@ -71,14 +76,24 @@ export interface StarCamActions {
     image: { uri: string; name?: string; type?: string },
     options?: { itemOrder?: number; sortOrder?: number }
   ) => Promise<StarCamDetectObjectPayload | null>;
-  /** Replace mission media URI map. */
+  /** Replace all cached media URIs for a specific mission. */
+  setMissionMediaCache: (missionIdOrSlug: string, map: Record<string, string>) => void;
+  /** Force mission flow + cache after a successful preload (wins over stale requests). */
+  commitPreloadedMission: (
+    missionIdOrSlug: string,
+    flow: StarCamChildMissionStartPayload,
+    cacheMap: Record<string, string>
+  ) => void;
+  /** @deprecated Prefer setMissionMediaCache — merges only for the active mission key. */
   setCachedMediaUris: (map: Record<string, string>) => void;
-  /** Merge downloaded URIs into the cache map (after preload). */
+  /** @deprecated Prefer setMissionMediaCache. */
   mergeCachedMediaUris: (map: Record<string, string>) => void;
   /** Clear loaded mission flow. */
   clearMissionFlow: () => void;
   /** Clear error. */
   clearError: () => void;
+  /** Invalidate in-flight mission flow requests (e.g. user cancelled preload). */
+  cancelMissionFlowRequest: () => void;
   /** Reset whole store. */
   reset: () => void;
 }
@@ -97,6 +112,7 @@ const initialState: StarCamState = {
   isDetectingObject: false,
   error: null,
   lastDetection: null,
+  cachedMissionId: null,
   cachedMediaUris: {},
 };
 
@@ -128,6 +144,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
       selectedMissionId: null,
       missionFlow: null,
       practiceMaterial: null,
+      cachedMissionId: null,
       cachedMediaUris: {},
       error: null,
     });
@@ -141,6 +158,7 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
       missions: [],
       missionFlow: null,
       practiceMaterial: null,
+      cachedMissionId: null,
       cachedMediaUris: {},
     });
     try {
@@ -156,7 +174,32 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
   },
 
   selectMission: (missionId) =>
-    set({ selectedMissionId: missionId, missionFlow: null, practiceMaterial: null, cachedMediaUris: {}, error: null }),
+    set({
+      selectedMissionId: missionId,
+      missionFlow: null,
+      practiceMaterial: null,
+      cachedMissionId: null,
+      cachedMediaUris: {},
+      error: null,
+    }),
+
+  setMissionMediaCache: (missionIdOrSlug, map) =>
+    set({
+      cachedMissionId: normalizeStarCamMissionKey(missionIdOrSlug) || null,
+      cachedMediaUris: map,
+    }),
+
+  commitPreloadedMission: (missionIdOrSlug, flow, cacheMap) => {
+    missionFlowRequestSeq += 1;
+    set({
+      selectedMissionId: missionIdOrSlug,
+      missionFlow: flow,
+      cachedMissionId: normalizeStarCamMissionKey(missionIdOrSlug) || null,
+      cachedMediaUris: cacheMap,
+      isLoadingMissionFlow: false,
+      error: null,
+    });
+  },
 
   setCachedMediaUris: (map) => set({ cachedMediaUris: map }),
   mergeCachedMediaUris: (map) =>
@@ -165,15 +208,36 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     })),
 
   fetchMissionStartFlow: async (childId, missionIdOrSlug) => {
-    set({ isLoadingMissionFlow: true, error: null, selectedMissionId: missionIdOrSlug, missionFlow: null });
+    const requestSeq = missionFlowRequestSeq + 1;
+    missionFlowRequestSeq = requestSeq;
+    const missionKey = normalizeStarCamMissionKey(missionIdOrSlug);
+    const switchingMission =
+      Boolean(missionKey) &&
+      normalizeStarCamMissionKey(get().cachedMissionId) !== missionKey;
+
+    set({
+      isLoadingMissionFlow: true,
+      error: null,
+      selectedMissionId: missionIdOrSlug,
+      ...(switchingMission ? { cachedMissionId: null, cachedMediaUris: {} } : {}),
+    });
+
     try {
       const res = await childStarCamService.getMissionStartFlow(childId, missionIdOrSlug);
       const flow = res?.success ? res.data ?? null : null;
-      set({ missionFlow: flow, isLoadingMissionFlow: false });
+      const isLatest = requestSeq === missionFlowRequestSeq;
+
+      if (isLatest) {
+        set({ missionFlow: flow, isLoadingMissionFlow: false });
+      }
+
       return flow;
     } catch (err) {
+      const isLatest = requestSeq === missionFlowRequestSeq;
       const msg = err instanceof Error ? err.message : String(err);
-      set({ error: msg, isLoadingMissionFlow: false });
+      if (isLatest) {
+        set({ error: msg, isLoadingMissionFlow: false });
+      }
       return null;
     }
   },
@@ -211,9 +275,15 @@ export const useStarCamStore = create<StarCamState & StarCamActions>((set, get) 
     }
   },
 
-  clearMissionFlow: () => set({ missionFlow: null, practiceMaterial: null, cachedMediaUris: {} }),
+  clearMissionFlow: () =>
+    set({ missionFlow: null, practiceMaterial: null, cachedMissionId: null, cachedMediaUris: {} }),
 
   clearError: () => set({ error: null }),
+
+  cancelMissionFlowRequest: () => {
+    missionFlowRequestSeq += 1;
+    set({ isLoadingMissionFlow: false });
+  },
 
   reset: () => set(initialState),
 }));

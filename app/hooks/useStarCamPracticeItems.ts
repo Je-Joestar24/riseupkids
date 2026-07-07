@@ -5,21 +5,40 @@ import {
   buildStarCamPracticeSequenceItems,
   type StarCamPracticeSequenceItem,
 } from '@/services/starCamPracticeMedia';
+import {
+  getStarCamScopedMediaCache,
+  starCamCacheKeysMatch,
+  starCamMissionKeysMatch,
+} from '@/services/starCamMissionMedia';
 import { useStarCamStore } from '@/store/starCamStore';
 
 export type { StarCamPracticeSequenceItem };
 
-export function useStarCamPracticeItems(missionFlow: StarCamChildMissionStartPayload | null) {
+export function useStarCamPracticeItems(
+  missionFlow: StarCamChildMissionStartPayload | null,
+  routeMissionId?: string | null
+) {
+  const cachedMissionId = useStarCamStore((s) => s.cachedMissionId);
   const cachedMediaUris = useStarCamStore((s) => s.cachedMediaUris);
+  const missionKey = routeMissionId ?? missionFlow?.mission?.missionId ?? null;
 
   const practiceItems = missionFlow?.flow?.practice?.items ?? [];
 
-  const items = useMemo(
-    () => buildStarCamPracticeSequenceItems(practiceItems, cachedMediaUris),
-    [practiceItems, cachedMediaUris]
+  const scopedCache = getStarCamScopedMediaCache(
+    missionKey,
+    cachedMissionId,
+    cachedMediaUris,
+    missionFlow
   );
 
-  const isMediaReady = Boolean(missionFlow);
+  const items = useMemo(
+    () => buildStarCamPracticeSequenceItems(practiceItems, scopedCache),
+    [practiceItems, scopedCache]
+  );
 
-  return { items, isMediaReady };
+  const isFlowReady = starCamMissionKeysMatch(missionKey, missionFlow);
+  const isCacheReady = starCamCacheKeysMatch(cachedMissionId, missionKey, missionFlow);
+  const isMediaReady = isFlowReady;
+
+  return { items, isMediaReady, isFlowReady, isCacheReady, scopedCache };
 }
