@@ -1,16 +1,14 @@
 /**
- * Chant Recording Modal
- * Child-facing: instruction video, record chant, complete (no review)
- * Uses useContentProgress hook and GlobalDialog on completion
+ * Chant Watch Modal
+ * Child-facing: instruction video, optional reference audio, "I finished watching" completion.
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,6 +18,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { InstructionVideoPlayer } from '@/components/child/common/instruction-video-player';
+import { buildPublicUrl } from '@/components/child/module/module-utils';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -27,9 +26,11 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
+import { isInstructionVideoBunnyEmbed } from '@/utils/instructionVideoPlayback';
 
-function ChantAudioPlayer({ uri }: { uri: string }) {
+function ChantReferenceAudioPlayer({ uri, label }: { uri: string; label: string }) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -37,24 +38,45 @@ function ChantAudioPlayer({ uri }: { uri: string }) {
     };
   }, [sound]);
 
-  const play = async () => {
+  const togglePlay = async () => {
     try {
       if (sound) {
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && status.isPlaying) {
+          await sound.pauseAsync();
+          setIsPlaying(false);
+          return;
+        }
         await sound.replayAsync();
+        setIsPlaying(true);
         return;
       }
-      const { sound: s } = await Audio.Sound.createAsync({ uri });
-      setSound(s);
-      await s.playAsync();
+      const { sound: nextSound } = await Audio.Sound.createAsync({ uri });
+      nextSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        setIsPlaying(status.isPlaying);
+        if (status.didJustFinish) setIsPlaying(false);
+      });
+      setSound(nextSound);
+      await nextSound.playAsync();
+      setIsPlaying(true);
     } catch {
       // ignore
     }
   };
 
   return (
-    <Pressable style={audioPlayerStyles.wrap} onPress={play}>
-      <MaterialCommunityIcons name="play-circle" size={36} color={colors.secondary} />
-      <ThemedText style={audioPlayerStyles.label}>Tap to play your recording</ThemedText>
+    <Pressable
+      style={audioPlayerStyles.wrap}
+      onPress={() => void togglePlay()}
+      accessibilityRole="button"
+      accessibilityLabel={label}>
+      <MaterialCommunityIcons
+        name={isPlaying ? 'pause-circle' : 'play-circle'}
+        size={36}
+        color={colors.secondary}
+      />
+      <ThemedText style={audioPlayerStyles.label}>{label}</ThemedText>
     </Pressable>
   );
 }
@@ -64,10 +86,11 @@ const audioPlayerStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
+    paddingVertical: spacing[2],
   },
   label: {
     fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_500Medium',
+    fontFamily: 'Quicksand_600SemiBold',
     color: colors.textSecondary,
   },
 });
@@ -104,129 +127,70 @@ export function ChantModal({
   } = useContentProgress({ childId, courseId });
 
   const [submitting, setSubmitting] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
-  const [recordUri, setRecordUri] = useState<string | null>(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
-
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const progress = useMemo(() => {
     if (!chantId || chantId === 'undefined') return null;
-    const cached = getChantProgressCached(chantId);
-    return cached as { status?: string; chant?: { instructionVideo?: unknown }; starsEarned?: number } | null;
+    return getChantProgressCached(chantId) as {
+      status?: string;
+      chant?: { instructionVideo?: unknown; audio?: unknown };
+      starsEarned?: number;
+    } | null;
   }, [chantId, getChantProgressCached]);
 
   const instructionVideoMedia = useMemo(() => {
-    return (
-      (progress as { chant?: { instructionVideo?: unknown } } | null)?.chant?.instructionVideo ??
-      chant?.instructionVideo ??
-      null
-    );
+    return progress?.chant?.instructionVideo ?? chant?.instructionVideo ?? null;
   }, [progress, chant?.instructionVideo]);
+
+  const referenceAudioUrl = useMemo(() => {
+    const media = progress?.chant?.audio ?? chant?.audio;
+    const url =
+      typeof media === 'string'
+        ? media
+        : media && typeof media === 'object' && 'url' in media
+          ? (media as { url?: string }).url
+          : null;
+    return buildPublicUrl(url);
+  }, [progress, chant?.audio]);
+
+  const hasInstructionVideo = Boolean(instructionVideoMedia);
+  const isBunnyEmbed = isInstructionVideoBunnyEmbed(instructionVideoMedia);
 
   const status = (progress?.status ?? 'not_started') as string;
   const isCompleted = status === 'completed';
-
-  const cleanupRecording = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setIsRecording(false);
-    recordingRef.current = null;
-  }, []);
-
-  const cleanupRecordedMedia = useCallback(() => {
-    setRecordUri(null);
-    setRecordSeconds(0);
-  }, []);
 
   useEffect(() => {
     if (!open || !chantId || chantId === 'undefined' || !childId) return;
     clearError();
     startChant(chantId).then(() => getChantProgress(chantId));
-  }, [open, chantId, childId]);
+  }, [open, chantId, childId, clearError, startChant, getChantProgress]);
 
   useEffect(() => {
     if (!open) {
-      cleanupRecording();
-      cleanupRecordedMedia();
       setShowConfirmClose(false);
     }
-  }, [open, cleanupRecording, cleanupRecordedMedia]);
+  }, [open]);
 
   const handleCloseAttempt = useCallback(() => {
-    if ((recordUri || isRecording) && !isCompleted) {
+    if (!isCompleted && !submitting) {
       setShowConfirmClose(true);
-    } else {
-      onClose();
+      return;
     }
-  }, [recordUri, isRecording, isCompleted, onClose]);
+    onClose();
+  }, [isCompleted, submitting, onClose]);
 
   const handleConfirmedClose = useCallback(() => {
     setShowConfirmClose(false);
-    cleanupRecordedMedia();
-    cleanupRecording();
     onClose();
-  }, [cleanupRecordedMedia, cleanupRecording, onClose]);
+  }, [onClose]);
 
-  const handleStartRecording = useCallback(async () => {
-    if (!childId || isRecording) return;
-    try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-      cleanupRecordedMedia();
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      showDialog({
-        message: (e as Error)?.message ?? 'Microphone access denied',
-        type: 'error',
-        duration: 5000,
-      });
-    }
-  }, [childId, isRecording, cleanupRecordedMedia, showDialog]);
-
-  const handleStopRecording = useCallback(async () => {
-    if (!isRecording || !recordingRef.current) return;
-    try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      setRecordUri(uri ?? null);
-    } catch {
-      // ignore
-    } finally {
-      cleanupRecording();
-    }
-  }, [isRecording, cleanupRecording]);
-
-  const handleComplete = useCallback(async () => {
-    if (!recordUri || !chantId || chantId === 'undefined' || !childId) return;
+  const handleFinishedWatching = useCallback(async () => {
+    if (!chantId || chantId === 'undefined' || !childId || isCompleted || submitting) return;
     setSubmitting(true);
     try {
       const fd = new FormData();
-      const ext = Platform.OS === 'ios' ? 'caf' : 'm4a';
-      const mime = Platform.OS === 'ios' ? 'audio/x-caf' : 'audio/mp4';
-      fd.append('recordedAudio', {
-        uri: recordUri,
-        type: mime,
-        name: `chant-${chantId}-${childId}-${Date.now()}.${ext}`,
-      } as unknown as Blob);
-      fd.append('timeSpent', String(recordSeconds));
-      fd.append('metadata', JSON.stringify({ recordedSeconds: recordSeconds }));
+      fd.append('timeSpent', '0');
+      fd.append('metadata', JSON.stringify({ completionType: 'watch' }));
 
       const result = (await completeChant(chantId, fd)) as { starsEarned?: number } | null;
       const starsEarned = result?.starsEarned ?? progress?.starsEarned ?? 0;
@@ -236,9 +200,10 @@ export function ChantModal({
       }
 
       showDialog({
-        message: starsEarned > 0
-          ? `Completed! You earned ${starsEarned} star${starsEarned !== 1 ? 's' : ''}! 🎉`
-          : 'Completed! Great job! 🎉',
+        message:
+          starsEarned > 0
+            ? `Completed! You earned ${starsEarned} star${starsEarned !== 1 ? 's' : ''}! 🎉`
+            : 'Completed! Great job! 🎉',
         type: 'success',
         duration: 5000,
         onClose: () => {
@@ -255,14 +220,21 @@ export function ChantModal({
     } finally {
       setSubmitting(false);
     }
-  }, [recordUri, chantId, childId, recordSeconds, completeChant, progress?.starsEarned, courseId, updateCourseContentProgress, showDialog, onAfterComplete, onClose]);
+  }, [
+    chantId,
+    childId,
+    isCompleted,
+    submitting,
+    completeChant,
+    progress?.starsEarned,
+    courseId,
+    updateCourseContentProgress,
+    showDialog,
+    onAfterComplete,
+    onClose,
+  ]);
 
   if (!open) return null;
-
-  const statusColor =
-    isCompleted ? colors.success : status === 'in_progress' ? colors.secondary : colors.textMuted;
-  const statusLabel =
-    isCompleted ? 'Completed' : status === 'in_progress' ? 'In progress' : 'Not started';
 
   return (
     <>
@@ -275,15 +247,14 @@ export function ChantModal({
         <View style={styles.overlay}>
           <View style={styles.card}>
             <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <ThemedText style={styles.title} numberOfLines={1}>
-                  {chant?.title ?? 'Chant'}
-                </ThemedText>
-                <View style={[styles.statusChip, { backgroundColor: statusColor }]}>
-                  <ThemedText style={styles.statusChipText}>{statusLabel}</ThemedText>
-                </View>
-              </View>
-              <Pressable onPress={handleCloseAttempt} hitSlop={12} accessibilityLabel="Close">
+              <ThemedText style={styles.title} numberOfLines={1}>
+                {chant?.title ?? 'Chant'}
+              </ThemedText>
+              <Pressable
+                onPress={handleCloseAttempt}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Close">
                 <MaterialIcons name="close" size={26} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -291,125 +262,71 @@ export function ChantModal({
             <ScrollView
               style={styles.scroll}
               contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={true}
-              bounces={true}
-              nestedScrollEnabled={true}>
+              showsVerticalScrollIndicator
+              bounces
+              nestedScrollEnabled>
               {isLoadingChant ? (
                 <View style={styles.loadingWrap}>
                   <ActivityIndicator size="large" color={colors.secondary} />
                 </View>
               ) : (
                 <>
-                  {error && (
+                  {error ? (
                     <View style={styles.errorWrap}>
                       <ThemedText style={styles.errorText}>{error}</ThemedText>
                     </View>
-                  )}
+                  ) : null}
 
-                  {instructionVideoMedia ? (
+                  {hasInstructionVideo ? (
                     <InstructionVideoPlayer
                       media={instructionVideoMedia}
-                      title={String(chant?.title ?? 'Instruction video')}
+                      title={String(chant?.title ?? 'Chant video')}
                       style={styles.videoWrap}
+                      autoPlayMutedLoop={false}
+                      showPlaybackButtons={!isBunnyEmbed}
                     />
                   ) : null}
 
-                  {chant?.instructions && (
+                  {referenceAudioUrl ? (
+                    <View style={styles.audioBox}>
+                      <ChantReferenceAudioPlayer uri={referenceAudioUrl} label="Tap to play chant audio" />
+                    </View>
+                  ) : null}
+
+                  {chant?.instructions ? (
                     <View style={styles.instructionsBox}>
-                      <ThemedText style={styles.instructionsTitle}>Instructions</ThemedText>
-                      <ThemedText style={styles.instructionsText}>
-                        {String(chant?.instructions ?? '')}
+                      <ThemedText style={styles.instructionsText}>{String(chant.instructions)}</ThemedText>
+                    </View>
+                  ) : null}
+
+                  {isCompleted ? (
+                    <View style={styles.completedWrap}>
+                      <MaterialCommunityIcons name="check-circle" size={28} color={colors.success} />
+                      <ThemedText style={styles.completedText}>
+                        Completed! You earned {progress?.starsEarned ?? 0} stars.
                       </ThemedText>
                     </View>
-                  )}
-
-                  <View style={styles.recordBox}>
-                    <View style={styles.recordHeader}>
-                      <ThemedText style={styles.recordTitle}>Record your chant</ThemedText>
-                      <View style={[styles.timerChip, isRecording && styles.timerChipRecording]}>
-                        <ThemedText style={[styles.timerText, isRecording && styles.timerTextRecording]}>
-                          {recordSeconds}s
-                        </ThemedText>
-                      </View>
-                    </View>
-                    <View style={styles.recordActions}>
-                      <Pressable
-                        style={[
-                          styles.btn,
-                          styles.recordBtn,
-                          (isRecording || submitting || isCompleted) && styles.btnDisabled,
-                        ]}
-                        onPress={handleStartRecording}
-                        disabled={isRecording || submitting || isCompleted}
-                        accessibilityRole="button"
-                        accessibilityLabel="Start recording">
-                        <MaterialCommunityIcons name="microphone" size={24} color={colors.textInverse} />
-                        <ThemedText style={styles.recordBtnText}>Record</ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.btn, styles.stopBtn, !isRecording && styles.btnDisabled]}
-                        onPress={handleStopRecording}
-                        disabled={!isRecording}
-                        accessibilityRole="button"
-                        accessibilityLabel="Stop recording">
-                        <MaterialCommunityIcons name="stop" size={24} color={colors.orange} />
-                        <ThemedText style={styles.stopBtnText}>Stop</ThemedText>
-                      </Pressable>
-                      <Pressable
-                        style={[
-                          styles.btn,
-                          (isRecording || submitting || (!recordUri && !isRecording)) && styles.btnDisabled,
-                        ]}
-                        onPress={() => {
-                          cleanupRecording();
-                          cleanupRecordedMedia();
-                        }}
-                        disabled={isRecording || submitting || (!recordUri && !isRecording)}
-                        accessibilityRole="button"
-                        accessibilityLabel="Re-record">
-                        <ThemedText style={styles.rerecordBtnText}>Re-record</ThemedText>
-                      </Pressable>
-                    </View>
-                    {recordUri && (
-                      <View style={styles.yourRecordingWrap}>
-                        <ThemedText style={styles.yourRecordingTitle}>
-                          Your recording
-                        </ThemedText>
-                        <ChantAudioPlayer uri={recordUri} />
-                        <ThemedText style={styles.recordedLabel}>
-                          Ready? Tap Complete below to submit.
-                        </ThemedText>
-                      </View>
-                    )}
-                    {isCompleted && (
-                      <View style={styles.completedWrap}>
-                        <MaterialCommunityIcons name="check-circle" size={28} color={colors.success} />
-                        <ThemedText style={styles.completedText}>
-                          Completed! You earned {progress?.starsEarned ?? 0} stars.
-                        </ThemedText>
-                      </View>
-                    )}
-                  </View>
+                  ) : null}
                 </>
               )}
             </ScrollView>
 
-            <View style={styles.footer}>
-              <Pressable style={[styles.btn, styles.closeBtn]} onPress={handleCloseAttempt}>
-                <ThemedText style={styles.closeBtnText}>Close</ThemedText>
-              </Pressable>
+            {!isCompleted && !isLoadingChant ? (
               <Pressable
-                style={[
-                  styles.btn,
-                  styles.completeBtn,
-                  (!recordUri || isRecording || submitting || isCompleted) && styles.btnDisabled,
-                ]}
-                onPress={handleComplete}
-                disabled={!recordUri || isRecording || submitting || isCompleted}>
-                <MaterialCommunityIcons name="check" size={22} color={colors.textInverse} />
-                <ThemedText style={styles.completeBtnText}>
-                  {submitting ? 'Saving…' : 'Complete'}
+                style={[styles.finishedBtn, submitting && styles.finishedBtnDisabled]}
+                onPress={() => void handleFinishedWatching()}
+                disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel="I finished watching">
+                <ThemedText style={styles.finishedBtnText}>
+                  {submitting ? 'Saving…' : 'I finished watching'}
                 </ThemedText>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.footer}>
+              <Pressable style={styles.closeBtn} onPress={handleCloseAttempt}>
+                <ThemedText style={styles.closeBtnText}>Close</ThemedText>
               </Pressable>
             </View>
           </View>
@@ -418,10 +335,10 @@ export function ChantModal({
 
       <ConfirmModal
         open={showConfirmClose}
-        title="Save your recording?"
-        message="Do you want to close this activity? Your recording will be lost!"
+        title="Close chant?"
+        message="Do you want to close this chant? Tap I finished watching when you are done to save your progress."
         confirmLabel="Yes, Close"
-        cancelLabel="Keep Recording"
+        cancelLabel="Keep Watching"
         onConfirm={handleConfirmedClose}
         onCancel={() => setShowConfirmClose(false)}
       />
@@ -440,7 +357,6 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 480,
-    height: '70%',
     maxHeight: '90%',
     backgroundColor: colors.bgCard,
     borderRadius: radii.xl,
@@ -455,33 +371,17 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     borderBottomWidth: 2,
     borderBottomColor: colors.bgTertiary,
-  },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing[2],
-    minWidth: 0,
   },
   title: {
+    flex: 1,
     fontSize: typography.sizes.xl,
     fontFamily: 'Quicksand_700Bold',
     color: colors.primary,
-    flex: 1,
-  },
-  statusChip: {
-    paddingVertical: 4,
-    paddingHorizontal: spacing[2],
-    borderRadius: radii.md,
-  },
-  statusChipText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.textInverse,
   },
   scroll: {
-    flex: 1,
-    minHeight: 0,
+    flexGrow: 0,
+    maxHeight: 420,
   },
   scrollContent: {
     padding: spacing[4],
@@ -509,20 +409,16 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     overflow: 'hidden',
   },
-  video: {
-    width: '100%',
-    height: '100%',
+  audioBox: {
+    backgroundColor: colors.textInverse,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+    borderRadius: radii.lg,
   },
   instructionsBox: {
     backgroundColor: colors.textInverse,
     padding: spacing[4],
     borderRadius: radii.lg,
-  },
-  instructionsTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.text,
-    marginBottom: spacing[2],
   },
   instructionsText: {
     fontSize: typography.sizes.base,
@@ -530,99 +426,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 24,
   },
-  recordBox: {
-    backgroundColor: colors.textInverse,
-    padding: spacing[4],
-    borderRadius: radii.lg,
-  },
-  recordHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing[3],
-  },
-  recordTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.text,
-  },
-  timerChip: {
-    backgroundColor: colors.bgTertiary,
-    paddingVertical: 6,
-    paddingHorizontal: spacing[3],
-    borderRadius: radii.md,
-  },
-  timerChipRecording: {
-    backgroundColor: colors.error,
-  },
-  timerText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.text,
-  },
-  timerTextRecording: {
-    color: colors.textInverse,
-  },
-  recordActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing[2],
-  },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing[2],
-    paddingVertical: spacing[3],
-    paddingHorizontal: spacing[4],
-    borderRadius: radii.lg,
-  },
-  btnDisabled: {
-    opacity: 0.5,
-  },
-  recordBtn: {
-    backgroundColor: colors.secondary,
-  },
-  recordBtnText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.textInverse,
-  },
-  stopBtn: {
-    borderWidth: 2,
-    borderColor: colors.orange,
-  },
-  stopBtnText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.orange,
-  },
-  rerecordBtn: {},
-  rerecordBtnText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.orange,
-  },
-  yourRecordingWrap: {
-    marginTop: spacing[3],
-  },
-  yourRecordingTitle: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.text,
-    marginBottom: spacing[2],
-  },
-  recordedLabel: {
-    fontSize: typography.sizes.sm,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textSecondary,
-    marginTop: spacing[2],
-  },
   completedWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing[2],
-    marginTop: spacing[3],
     padding: spacing[3],
     backgroundColor: 'rgba(16,185,129,0.1)',
     borderRadius: radii.md,
@@ -631,15 +438,34 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.success,
+    flex: 1,
+  },
+  finishedBtn: {
+    marginHorizontal: spacing[4],
+    marginTop: spacing[2],
+    paddingVertical: spacing[4],
+    borderRadius: radii.lg,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+  },
+  finishedBtnDisabled: {
+    opacity: 0.6,
+  },
+  finishedBtnText: {
+    fontSize: typography.sizes.lg,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.textInverse,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     padding: spacing[4],
     borderTopWidth: 2,
     borderTopColor: colors.bgTertiary,
   },
   closeBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing[3],
+    borderRadius: radii.lg,
     borderWidth: 2,
     borderColor: colors.borderSecondary,
   },
@@ -647,13 +473,5 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontFamily: 'Quicksand_700Bold',
     color: colors.text,
-  },
-  completeBtn: {
-    backgroundColor: colors.success,
-  },
-  completeBtnText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_700Bold',
-    color: colors.textInverse,
   },
 });

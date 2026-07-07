@@ -70,12 +70,12 @@ const getChantProgressForChild = async (req, res) => {
 };
 
 /**
- * @desc    Complete chant with child's recorded audio (no admin/teacher review)
+ * @desc    Complete chant (watch-only or with optional recorded audio)
  * @route   POST /api/chants/:id/child/:childId/complete
  * @access  Private (Parent/Admin)
  *
  * Request (multipart/form-data):
- * - recordedAudio: File (required)
+ * - recordedAudio: File (optional)
  * - timeSpent: Number (optional) - seconds
  * - metadata: JSON String (optional)
  */

@@ -105,11 +105,7 @@ export function ModuleBooks({
   onBookPress,
 }: ModuleBooksProps) {
   if (!books?.length) {
-    return (
-      <View style={styles.section}>
-        <ThemedText style={styles.emptyText}>No books in this course.</ThemedText>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -242,12 +238,5 @@ const styles = StyleSheet.create({
   },
   circleFilled: {
     backgroundColor: colors.orange,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    padding: spacing[8],
   },
 });

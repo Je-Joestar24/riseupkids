@@ -102,11 +102,7 @@ export function ModuleVideos({
   onVideoPress,
 }: ModuleVideosProps) {
   if (!videos?.length) {
-    return (
-      <View style={styles.section}>
-        <ThemedText style={styles.emptyText}>No videos in this course.</ThemedText>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -239,12 +235,5 @@ const styles = StyleSheet.create({
   },
   circleFilled: {
     backgroundColor: colors.orange,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    padding: spacing[8],
   },
 });

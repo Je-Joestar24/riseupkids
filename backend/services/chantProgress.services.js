@@ -42,11 +42,17 @@ const startChant = async ({ childId, chantId }) => {
     .populate('recordedAudio', 'type title url mimeType size duration')
     .populate({
       path: 'chant',
-      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
-      populate: {
-        path: 'instructionVideo',
-        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
-      },
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo audio',
+      populate: [
+        {
+          path: 'instructionVideo',
+          select: INSTRUCTION_VIDEO_POPULATE_SELECT,
+        },
+        {
+          path: 'audio',
+          select: 'type title url mimeType size duration',
+        },
+      ],
     })
     .lean();
 };
@@ -65,11 +71,17 @@ const getChantProgress = async ({ childId, chantId }) => {
     .populate('recordedAudio', 'type title url mimeType size duration')
     .populate({
       path: 'chant',
-      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
-      populate: {
-        path: 'instructionVideo',
-        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
-      },
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo audio',
+      populate: [
+        {
+          path: 'instructionVideo',
+          select: INSTRUCTION_VIDEO_POPULATE_SELECT,
+        },
+        {
+          path: 'audio',
+          select: 'type title url mimeType size duration',
+        },
+      ],
     })
     .lean();
 };
@@ -82,30 +94,27 @@ const completeChant = async ({
   timeSpent,
   metadata,
 }) => {
-  if (!recordedAudioFile) {
-    throw new Error('Recorded audio file is required');
-  }
-
   const chant = await Chant.findById(chantId).select('title starsAwarded badgeAwarded').lean();
   if (!chant) throw new Error('Chant not found');
 
   const child = await ChildProfile.findById(childId).select('_id displayName').lean();
   if (!child) throw new Error('Child not found');
 
-  const { url: audioUrl, s3Key } = await s3Service.uploadFileFromMulter(recordedAudioFile, 'scorm/chants');
-  const recordedAudioMedia = await Media.create({
-    type: 'audio',
-    title: recordedAudioFile.originalname || `chant-${chantId}`,
-    filePath: s3Key,
-    url: audioUrl,
-    mimeType: recordedAudioFile.mimetype,
-    size: recordedAudioFile.size,
-    uploadedBy: uploadedByUserId,
-  });
-
   const progress = await getOrCreateProgress({ childId, chantId });
 
-  progress.recordedAudio = recordedAudioMedia._id;
+  if (recordedAudioFile) {
+    const { url: audioUrl, s3Key } = await s3Service.uploadFileFromMulter(recordedAudioFile, 'scorm/chants');
+    const recordedAudioMedia = await Media.create({
+      type: 'audio',
+      title: recordedAudioFile.originalname || `chant-${chantId}`,
+      filePath: s3Key,
+      url: audioUrl,
+      mimeType: recordedAudioFile.mimetype,
+      size: recordedAudioFile.size,
+      uploadedBy: uploadedByUserId,
+    });
+    progress.recordedAudio = recordedAudioMedia._id;
+  }
   progress.status = 'completed';
   progress.timeSpent = typeof timeSpent === 'number' ? timeSpent : parseInt(timeSpent || '0', 10) || 0;
   progress.metadata = metadata && typeof metadata === 'object' ? metadata : progress.metadata || {};
@@ -170,11 +179,17 @@ const completeChant = async ({
     .populate('recordedAudio', 'type title url mimeType size duration')
     .populate({
       path: 'chant',
-      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo',
-      populate: {
-        path: 'instructionVideo',
-        select: INSTRUCTION_VIDEO_POPULATE_SELECT,
-      },
+      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo audio',
+      populate: [
+        {
+          path: 'instructionVideo',
+          select: INSTRUCTION_VIDEO_POPULATE_SELECT,
+        },
+        {
+          path: 'audio',
+          select: 'type title url mimeType size duration',
+        },
+      ],
     })
     .lean();
 };

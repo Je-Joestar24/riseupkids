@@ -103,11 +103,7 @@ export function ModuleAudioAssignments({
   onAudioPress,
 }: ModuleAudioAssignmentsProps) {
   if (!audioAssignments?.length) {
-    return (
-      <View style={styles.section}>
-        <ThemedText style={styles.emptyText}>No audio assignments in this course.</ThemedText>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -274,12 +270,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.accent,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    padding: spacing[8],
   },
 });

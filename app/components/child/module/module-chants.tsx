@@ -98,11 +98,7 @@ export function ModuleChants({
   onChantPress,
 }: ModuleChantsProps) {
   if (!chants?.length) {
-    return (
-      <View style={styles.section}>
-        <ThemedText style={styles.emptyText}>No chants in this course.</ThemedText>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -253,12 +249,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textAlign: 'center',
-    padding: spacing[8],
   },
 });

@@ -758,6 +758,10 @@ const getCourseDetailsForChild = async (childId, courseId) => {
       } else if (contentItem.contentType === 'chant') {
         const chant = await Chant.findById(contentItem.contentId)
           .populate('audio', 'type title url mimeType size duration')
+          .populate({
+            path: 'instructionVideo',
+            select: 'type title url mimeType size duration embedUrl cloudUrl filePath videoSource',
+          })
           .populate('scormFile', 'type title url mimeType size')
           .populate('badgeAwarded', 'name description icon image category rarity')
           .lean();
