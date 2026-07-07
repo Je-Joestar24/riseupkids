@@ -3,6 +3,11 @@ const s3Service = require('./s3.service');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const {
+  getCoverPage,
+  syncCmsBookTitleFromCoverPage,
+  withResolvedCmsBookTitle,
+} = require('../utils/cmsBookTitle.util');
 
 const CMS_BOOK_STATUSES = ['draft', 'published', 'archived'];
 
@@ -177,16 +182,6 @@ function collectBookMediaIds(book) {
   return [...ids];
 }
 
-function getCoverPage(book) {
-  const pages = Array.isArray(book?.pages) ? book.pages : [];
-  return (
-    pages.find((page) => page?.type === 'cover' && Number(page?.order) === 1) ||
-    pages.find((page) => page?.type === 'cover') ||
-    pages.find((page) => Number(page?.order) === 1) ||
-    null
-  );
-}
-
 function isSameCoverPage(page, coverPage) {
   if (!page || !coverPage) return false;
   if (coverPage.pageId && page.pageId === coverPage.pageId) return true;
@@ -272,7 +267,7 @@ async function attachAllPagesMediaToBooks(books = []) {
       ...plain,
       pages: plain.pages.map((page) => enrichPageMediaForAdmin(page, mediaById)),
     };
-  });
+  }).map(withResolvedCmsBookTitle);
 }
 
 async function attachCoverPageMediaToBooks(books = []) {
@@ -331,7 +326,7 @@ async function attachCoverPageMediaToBooks(books = []) {
       introBackgroundMusicMedia: introBackgroundMusicMedia || null,
       introBackgroundMusicUrl: introBackgroundMusicMedia?.url || null,
     };
-  });
+  }).map(withResolvedCmsBookTitle);
 }
 
 async function enrichBookWithCoverPageMedia(book) {
@@ -343,19 +338,21 @@ async function enrichBookWithCoverPageMedia(book) {
 
 async function createCmsBook({ userId, payload }) {
   if (!userId) throw createHttpError('userId is required', 400);
-  if (!payload || !payload.title || !String(payload.title).trim()) {
-    throw createHttpError('Book title is required', 400);
-  }
 
   const safePayload = { ...(payload || {}) };
   const status = normalizeBookStatus(safePayload.status, { fallback: 'draft' });
   delete safePayload.status;
   safePayload.pages = normalizePages(safePayload.pages);
+  syncCmsBookTitleFromCoverPage(safePayload);
+
+  if (!String(safePayload.title || '').trim()) {
+    throw createHttpError('Book title is required', 400);
+  }
 
   try {
     const created = await CmsBook.create({
       ...safePayload,
-      title: String(payload.title).trim(),
+      title: String(safePayload.title || payload.title).trim(),
       status,
       createdBy: userId,
       updatedBy: userId,
@@ -443,6 +440,7 @@ async function updateCmsBook({ user, bookId, userId, patch }) {
   }
 
   safePatch.pages = normalizePages(safePatch.pages);
+  syncCmsBookTitleFromCoverPage(safePatch);
 
   Object.assign(book, safePatch, { updatedBy: userId });
 

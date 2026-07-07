@@ -1,6 +1,7 @@
 const { CmsBook, Media } = require('../models');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
+const { getCoverPage, resolveCmsBookTitle } = require('../utils/cmsBookTitle.util');
 
 /**
  * Parent/teacher player for CmsBook (built-in book builder).
@@ -234,11 +235,11 @@ async function listPlayableCmsBooksForParent({
       hasPrevPage: safePage > 1,
     },
     items: items.map((book) => {
-      const coverPage = (book.pages || []).find((page) => page.type === 'cover' && page.order === 1) || null;
+      const coverPage = getCoverPage(book);
       const introBackgroundMusicMediaId = coverPage?.media?.audioMediaId || null;
       return {
         id: String(book._id),
-        title: book.title,
+        title: resolveCmsBookTitle(book),
         description: book.description || null,
         language: book.language || 'en',
         version: book.version || 1,
@@ -280,7 +281,7 @@ async function getPlayableCmsBookForParent({ user, userRole, bookId }) {
 
   return {
     id: String(book._id),
-    title: book.title,
+    title: resolveCmsBookTitle(book),
     description: book.description || null,
     language: book.language || 'en',
     version: book.version || 1,

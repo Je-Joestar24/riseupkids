@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { assertReadingFontSizePx } = require('../utils/cmsContentReading.util');
+const { syncCmsBookTitleFromCoverPage } = require('../utils/cmsBookTitle.util');
 
 const pageTypes = [
   'cover',
@@ -297,6 +298,15 @@ function validatePageByType(page) {
     throw new Error(`Page at order=${page.order} has invalid scoring.points`);
   }
 }
+
+cmsBookSchema.pre('save', function (next) {
+  try {
+    syncCmsBookTitleFromCoverPage(this);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 cmsBookSchema.pre('validate', function (next) {
   try {

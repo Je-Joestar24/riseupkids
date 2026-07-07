@@ -91,6 +91,65 @@ describe('cmsBookPlayer.service', () => {
     expect(result.pages).toHaveLength(2);
     expect(result.pages[0].pageId).toBe('p1');
     expect(result.pages[1].pageId).toBe('p2');
+    expect(result.title).toBe('Cover');
+  });
+
+  it('returns cover page title instead of stale document title for parent play', async () => {
+    CmsBook.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        _id: 'book-1',
+        title: 'Wrong Stored Title',
+        description: null,
+        language: 'en',
+        version: 2,
+        pages: [
+          {
+            pageId: 'p1',
+            order: 1,
+            type: 'cover',
+            title: 'Correct Cover Title',
+            media: { imageMediaId: 'm1' },
+            interaction: null,
+            navigation: {},
+            scoring: {},
+          },
+        ],
+      }),
+    });
+
+    const result = await service.getPlayableCmsBookForParent({ userRole: 'parent', bookId: 'book-1' });
+    expect(result.title).toBe('Correct Cover Title');
+  });
+
+  it('lists cover page title instead of stale document title in playable summaries', async () => {
+    CmsBook.countDocuments.mockResolvedValue(1);
+    CmsBook.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'book-1',
+          title: 'Wrong Stored Title',
+          description: 'desc',
+          language: 'en',
+          version: 1,
+          pages: [
+            {
+              order: 1,
+              type: 'cover',
+              title: 'Correct Cover Title',
+              media: { imageMediaId: 'media-1' },
+            },
+          ],
+          updatedAt: new Date('2026-01-01'),
+        },
+      ]),
+    });
+
+    const result = await service.listPlayableCmsBooksForParent({ userRole: 'parent', page: 1, limit: 10 });
+    expect(result.items[0].title).toBe('Correct Cover Title');
   });
 
   it('resolves optional intro background music on cover page for parent play', async () => {

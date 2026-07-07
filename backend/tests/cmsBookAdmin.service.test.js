@@ -100,6 +100,46 @@ describe('cmsBookAdmin.service', () => {
     );
   });
 
+  it('lists cms books with cover page title when document title is stale', async () => {
+    CmsBook.countDocuments.mockResolvedValue(1);
+    CmsBook.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'book-1',
+          title: 'Wrong Stored Title',
+          pages: [
+            {
+              pageId: 'cover-1',
+              order: 1,
+              type: 'cover',
+              title: 'Correct Cover Title',
+              media: { imageMediaId: 'media-cover-1' },
+            },
+          ],
+        },
+      ]),
+    });
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          _id: 'media-cover-1',
+          type: 'image',
+          url: '/uploads/media/images/cover.png',
+          cloudUrl: null,
+          mimeType: 'image/png',
+        },
+      ]),
+    });
+
+    const result = await service.listCmsBooks({ page: 1, limit: 10 });
+
+    expect(result.items[0].title).toBe('Correct Cover Title');
+  });
+
   it('lists cms books with resolved cover page image media', async () => {
     CmsBook.countDocuments.mockResolvedValue(1);
     CmsBook.find.mockReturnValue({
@@ -323,6 +363,37 @@ describe('cmsBookAdmin.service', () => {
       type: 'audio',
       url: '/answer1.mp3',
     });
+  });
+
+  it('syncs document title from cover page title on update', async () => {
+    const doc = makeDoc({
+      title: 'Stale Title',
+      pages: [
+        {
+          pageId: 'cover-1',
+          order: 1,
+          type: 'cover',
+          title: 'Updated Cover Title',
+          media: { imageMediaId: 'media-cover-1' },
+        },
+      ],
+    });
+    CmsBook.findById.mockResolvedValue(doc);
+    Media.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
+
+    await service.updateCmsBook({
+      bookId: 'book-1',
+      userId: 'admin-1',
+      patch: {
+        pages: doc.pages,
+      },
+    });
+
+    expect(doc.title).toBe('Updated Cover Title');
+    expect(doc.save).toHaveBeenCalled();
   });
 
   it('updates draft cms book', async () => {
