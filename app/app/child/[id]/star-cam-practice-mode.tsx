@@ -66,6 +66,8 @@ export default function StarCamPracticeModeRoute() {
       key={missionSlug || 'practice'}
       title="Let's practice"
       items={items}
+      childId={childId}
+      missionId={missionSlug}
       gradientColors={categoryPreset.gradient}
       borderColor={categoryPreset.borderColor}
       accentColor={categoryPreset.borderColor}

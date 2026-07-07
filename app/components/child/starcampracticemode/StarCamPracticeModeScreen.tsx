@@ -1,18 +1,21 @@
 import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
-import React, { memo, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
 import { ThemedText } from '@/components/themed-text';
 import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeSequence } from '@/hooks/useStarCamPracticeSequence';
+import { useStarCamPracticeWatchProgress } from '@/hooks/useStarCamPracticeWatchProgress';
 
 export interface StarCamPracticeModeScreenProps {
   title: string;
   items: StarCamPracticeSequenceItem[];
+  childId?: string | null;
+  missionId?: string | null;
   gradientColors?: readonly [string, string, string];
   borderColor?: string;
   accentColor?: string;
@@ -23,6 +26,8 @@ export interface StarCamPracticeModeScreenProps {
 export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen({
   title,
   items,
+  childId = null,
+  missionId = null,
   gradientColors = ['#F4EDD8', '#CFE3DF', '#A8D5CF'],
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
@@ -32,6 +37,10 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
   const isFocused = useIsFocused();
   const videoRef = useRef<Video | null>(null);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
+  const { isItemWatched, markItemWatched, isLoaded: isWatchStateLoaded } = useStarCamPracticeWatchProgress({
+    childId,
+    missionId,
+  });
   useEffect(() => {
     setVideoLoadFailed(false);
   }, [items]);
@@ -65,6 +74,7 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     onVideoLoad,
     onVideoError,
     onPlaybackStatusUpdate,
+    skipToNext,
   } = useStarCamPracticeSequence({
     items,
     stepDelayMs: 900,
@@ -73,10 +83,42 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
   });
 
   const targetLabel = current?.targetLabel || '...';
+  const itemKey = current?.itemKey ?? null;
   const pronunciationVideoUrl = current?.pronunciationVideoUrl || null;
   const sampleImageUrl = current?.sampleImageUrl || null;
 
   const hasPlayableVideo = Boolean(pronunciationVideoUrl) && !videoLoadFailed;
+  const canShowSkipNow =
+    isWatchStateLoaded &&
+    hasPlayableVideo &&
+    !isVideoLoading &&
+    !isShowingNextIntro &&
+    isItemWatched(itemKey);
+
+  const handleVideoFinished = useCallback(() => {
+    if (itemKey) {
+      void markItemWatched(itemKey);
+    }
+  }, [itemKey, markItemWatched]);
+
+  const handlePlaybackStatusUpdate = useCallback(
+    (status: unknown) => {
+      if (status && typeof status === 'object' && 'didJustFinish' in status && status.didJustFinish) {
+        handleVideoFinished();
+      }
+      onPlaybackStatusUpdate(status);
+    },
+    [handleVideoFinished, onPlaybackStatusUpdate]
+  );
+
+  const handleSkipNow = useCallback(async () => {
+    try {
+      await videoRef.current?.stopAsync?.();
+    } catch {
+      // no-op
+    }
+    skipToNext();
+  }, [skipToNext]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'right', 'bottom', 'left']}>
@@ -127,7 +169,7 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                       setVideoLoadFailed(true);
                       onVideoError();
                     }}
-                    onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                    onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
                     accessibilityLabel={`${targetLabel} pronunciation video`}
                   />
                 ) : (
@@ -170,6 +212,17 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
             </View>
           </View>
         </View>
+
+        {canShowSkipNow ? (
+          <Pressable
+            style={[styles.skipFab, { borderColor: accentColor }]}
+            onPress={() => void handleSkipNow()}
+            accessibilityRole="button"
+            accessibilityLabel={`Skip ${targetLabel} pronunciation video`}
+            accessibilityHint="Skips this vocabulary video because you have already watched it">
+            <ThemedText style={[styles.skipFabText, { color: accentColor }]}>Skip now</ThemedText>
+          </Pressable>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -303,6 +356,27 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '700',
     fontSize: 18,
+  },
+  skipFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    zIndex: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  skipFabText: {
+    fontWeight: '800',
+    fontSize: 16,
+    lineHeight: 18,
   },
 });
 

@@ -28,6 +28,7 @@ export interface UseStarCamPracticeSequenceResult {
   onVideoLoad: () => void;
   onVideoError: () => void;
   onPlaybackStatusUpdate: (status: any) => void;
+  skipToNext: () => void;
 }
 
 export function useStarCamPracticeSequence({
@@ -134,6 +135,10 @@ export function useStarCamPracticeSequence({
     [announceAndAdvance]
   );
 
+  const skipToNext = useCallback(() => {
+    announceAndAdvance();
+  }, [announceAndAdvance]);
+
   const progressText = useMemo(() => {
     if (total <= 0) return '0/0';
     return `${Math.min(total, index + 1)}/${total}`;
@@ -153,6 +158,7 @@ export function useStarCamPracticeSequence({
     onVideoLoad,
     onVideoError,
     onPlaybackStatusUpdate,
+    skipToNext,
   };
 }
 
