@@ -479,6 +479,7 @@ export default function ChildModuleScreen() {
       <CmsPlayerModal
         open={Boolean(cmsModalBook)}
         onClose={closeCmsPlayer}
+        book={cmsPlayableBook}
         pages={cmsPlayableBook?.pages ?? []}
         isPreloading={
           cmsModalBook && (isCmsBookLoading || !(cmsPlayableBook?.pages?.length ?? 0))

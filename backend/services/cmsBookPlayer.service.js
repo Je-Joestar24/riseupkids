@@ -2,6 +2,7 @@ const { CmsBook, Media } = require('../models');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
 const { getCoverPage, resolveCmsBookTitle } = require('../utils/cmsBookTitle.util');
+const { buildCmsBookMediaManifest } = require('../utils/cmsBookMediaManifest.util');
 
 /**
  * Parent/teacher player for CmsBook (built-in book builder).
@@ -116,6 +117,7 @@ function toMediaView(media) {
     type: media.type || null,
     url: media.url || media.cloudUrl || null,
     mimeType: media.mimeType || null,
+    updatedAt: media.updatedAt || null,
   };
 }
 
@@ -274,10 +276,12 @@ async function getPlayableCmsBookForParent({ user, userRole, bookId }) {
   const mediaIds = collectMediaIdsFromPages(orderedPages);
   const mediaDocs = mediaIds.length
     ? await Media.find({ _id: { $in: mediaIds }, isActive: true })
-      .select('_id type url cloudUrl mimeType')
+      .select('_id type url cloudUrl mimeType updatedAt')
       .lean()
     : [];
   const mediaMap = new Map(mediaDocs.map((item) => [String(item._id), toMediaView(item)]));
+
+  const mediaManifest = buildCmsBookMediaManifest(book, mediaDocs);
 
   return {
     id: String(book._id),
@@ -285,6 +289,9 @@ async function getPlayableCmsBookForParent({ user, userRole, bookId }) {
     description: book.description || null,
     language: book.language || 'en',
     version: book.version || 1,
+    updatedAt: book.updatedAt || null,
+    contentVersion: mediaManifest.contentVersion,
+    mediaManifest,
     pages: orderedPages.map((page) => enrichPageMedia(page, mediaMap)),
   };
 }

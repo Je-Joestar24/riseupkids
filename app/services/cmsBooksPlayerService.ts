@@ -135,6 +135,19 @@ export interface CmsPlayableBookDetail extends CmsPlayableBookDetailMeta {
   description: string | null;
   language: string;
   version: number;
+  updatedAt?: string | null;
+  contentVersion?: string | null;
+  mediaManifest?: {
+    bookId: string;
+    contentVersion: string;
+    assets: Array<{
+      key: string;
+      mediaId: string | null;
+      url: string;
+      updatedAt: string | null;
+      kind: string | null;
+    }>;
+  } | null;
   pages: CmsPlayablePage[];
 }
 
@@ -231,6 +244,9 @@ export function normalizePlayableBookDetail(
     pages,
     introBackgroundMusicMediaId,
     introBackgroundMusicUrl: introBackgroundMusicUrl || null,
+    updatedAt: book.updatedAt ?? null,
+    contentVersion: book.contentVersion ?? null,
+    mediaManifest: book.mediaManifest ?? null,
   };
 }
 

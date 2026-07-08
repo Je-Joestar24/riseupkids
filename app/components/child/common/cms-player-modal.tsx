@@ -24,6 +24,15 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import {
+  preloadCmsBookPackAssets,
+  type PreloadCmsBookPackResult,
+} from '@/services/cmsBookMediaCache';
+import {
+  resolveCmsBookMediaManifest,
+  type CmsBookMediaManifest,
+} from '@/services/cmsBookMediaManifest';
+import type { CmsPlayableBookDetail } from '@/services/cmsBooksPlayerService';
+import {
   CMS_PLAYER_MODAL_ORIENTATIONS,
   prepareCmsPlayerOrientation,
   restoreAppPortraitOrientation,
@@ -65,6 +74,8 @@ export interface CmsPlayerModalProps {
   open: boolean;
   onClose: () => void;
   pages: CmsPlayablePage[];
+  /** Loaded book detail — enables durable pack preload with contentVersion checks. */
+  book?: CmsPlayableBookDetail | null;
   /** Controlled preload: when set, auto preload inside modal is skipped for this cycle. */
   isPreloading?: boolean;
   preloadProgress?: number;
@@ -85,6 +96,7 @@ export function CmsPlayerModal({
   open,
   onClose,
   pages = [],
+  book = null,
   isPreloading: controlledPreloading,
   preloadProgress: controlledProgress = 0,
   preloadSummary: controlledSummary = null,
@@ -136,6 +148,15 @@ export function CmsPlayerModal({
     };
   }, [open]);
 
+  const bookManifest = useMemo(
+    (): CmsBookMediaManifest | null => resolveCmsBookMediaManifest(book),
+    [book]
+  );
+  const bookPreloadKey = useMemo(
+    () => (book?.id ? `${book.id}:${bookManifest?.contentVersion ?? book.version ?? 0}` : signature),
+    [book?.id, book?.version, bookManifest?.contentVersion, signature]
+  );
+
   useEffect(() => {
     if (!usesInternalPreload) {
       if (!open) {
@@ -151,29 +172,49 @@ export function CmsPlayerModal({
     setInternalProgress(0);
     setInternalSummary(null);
 
-    const urls = collectCmsPlayerMediaUrls(playablePages);
-    if (!urls.length) {
-      setInternalProgress(100);
-      setInternalSummary(null);
-      setMediaReady(true);
-      return;
-    }
-
-    preloadCmsPlayerAssets(urls, (pct) => {
-      if (!preloadCancelled.current) setInternalProgress(pct);
-    }).then((summary) => {
-      if (!preloadCancelled.current) {
-        setInternalSummary({ failed: summary.failed });
-        setMediaUriMap(summary.uriMap);
+    const runPreload = async () => {
+      if (book?.id && bookManifest?.assets?.length) {
+        const result: PreloadCmsBookPackResult = await preloadCmsBookPackAssets({
+          bookId: book.id,
+          contentVersion: bookManifest.contentVersion ?? null,
+          assets: bookManifest.assets,
+          onProgress: (pct) => {
+            if (!preloadCancelled.current) setInternalProgress(pct);
+          },
+          concurrency: 4,
+        });
+        if (preloadCancelled.current) return;
+        setInternalSummary({ failed: result.failed });
+        setMediaUriMap(result.uriMap);
         setInternalProgress(100);
         setMediaReady(true);
+        return;
       }
-    });
+
+      const urls = collectCmsPlayerMediaUrls(playablePages);
+      if (!urls.length) {
+        setInternalProgress(100);
+        setInternalSummary(null);
+        setMediaReady(true);
+        return;
+      }
+
+      const summary = await preloadCmsPlayerAssets(urls, (pct) => {
+        if (!preloadCancelled.current) setInternalProgress(pct);
+      });
+      if (preloadCancelled.current) return;
+      setInternalSummary({ failed: summary.failed });
+      setMediaUriMap(summary.uriMap);
+      setInternalProgress(100);
+      setMediaReady(true);
+    };
+
+    void runPreload();
 
     return () => {
       preloadCancelled.current = true;
     };
-  }, [open, usesInternalPreload, signature, playablePages]);
+  }, [open, usesInternalPreload, bookPreloadKey, playablePages, book?.id, bookManifest]);
 
   useEffect(() => {
     if (!open) {
