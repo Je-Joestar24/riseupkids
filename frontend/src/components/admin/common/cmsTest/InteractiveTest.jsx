@@ -4,13 +4,15 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, IconButton, Typography } from '@mui/material';
+import retryButtonImage from '../../../../assets/images/book/retry_button.png';
 import {
   extractInteractiveLayoutsFromCms,
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '../../../../utils/cmsInteractiveLayout';
 import {
+  imageActionButtonSx,
   pageFrameSx,
   resolveCmsAbsoluteMediaUrl,
   resolveDropZoneAudioUrl,
@@ -273,6 +275,19 @@ const InteractiveTest = ({
       advanceTimeoutRef.current = null;
       onCorrectDrop?.();
     }, delayMs);
+  };
+
+  const handleRetryClick = () => {
+    clearAdvanceTimeout();
+    stopOptionAndAnswerAudio();
+    stopFeedbackAudio();
+    setDragState(null);
+    setDragLayer(null);
+    setPlacedByZone({});
+    setPlacedByOption({});
+    setDropResult('');
+    setResetSeed((prev) => prev + 1);
+    onRetry?.();
   };
 
   const stopFeedbackAudio = () => {
@@ -595,19 +610,6 @@ const InteractiveTest = ({
 
     setDragState(null);
     setDragLayer(null);
-  };
-
-  const handleRetryClick = () => {
-    clearAdvanceTimeout();
-    stopOptionAndAnswerAudio();
-    stopFeedbackAudio();
-    setDragState(null);
-    setDragLayer(null);
-    setPlacedByZone({});
-    setPlacedByOption({});
-    setDropResult('');
-    setResetSeed((prev) => prev + 1);
-    onRetry?.();
   };
 
   return (
@@ -962,6 +964,22 @@ const InteractiveTest = ({
         tone={dropResult === 'correct' ? 'success' : 'retry'}
         onDismiss={dropResult === 'wrong' ? handleRetryClick : undefined}
       />
+
+      <IconButton
+        onClick={handleRetryClick}
+        disabled={isPreloading}
+        aria-label="Try again"
+        sx={{
+          ...imageActionButtonSx,
+          position: 'absolute',
+          right: '0.9375%',
+          bottom: '5.1852%',
+          zIndex: 30,
+          pointerEvents: 'auto',
+        }}
+      >
+        <img src={retryButtonImage} alt="" />
+      </IconButton>
     </Box>
   );
 };

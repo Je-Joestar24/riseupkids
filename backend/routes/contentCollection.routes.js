@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createCourse,
   getAllCourses,
+  getCoursesForReorder,
   getCourseById,
   updateCourse,
   archiveCourse,
@@ -26,6 +27,7 @@ const { uploadCourse } = require('../middleware/upload');
  * Routes:
  * - POST / - Create new course (with cover image upload and contents)
  * - GET / - Get all courses (with filtering and pagination)
+ * - GET /reorder-list - Get all courses for reorder UI (lightweight, no pagination)
  * - GET /default - Get all default courses
  * - PATCH /reorder - Reorder courses
  * - GET /:id - Get single course by ID (with populated contents)
@@ -48,6 +50,9 @@ router.post('/', uploadCourse, createCourse);
 
 // Get all courses
 router.get('/', getAllCourses);
+
+// Lightweight list for module reorder modal (must be before /:id)
+router.get('/reorder-list', getCoursesForReorder);
 
 // Get all default courses
 router.get('/default', getDefaultCourses);

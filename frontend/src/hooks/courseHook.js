@@ -18,6 +18,7 @@ import {
 } from '../store/slices/courseSlice';
 import { showNotification } from '../store/slices/uiSlice';
 import { BACKEND_BASE_URL } from '../config/constants';
+import courseService from '../services/courseService';
 
 /**
  * Custom hook for course/content collection management
@@ -50,6 +51,23 @@ export const useCourse = () => {
     } catch (error) {
       dispatch(showNotification({
         message: error || 'Failed to fetch courses',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Fetch all courses for reorder modal (lightweight, no pagination)
+   * @returns {Promise<Array>} Course list sorted by stepOrder
+   */
+  const fetchCoursesForReorder = async () => {
+    try {
+      const result = await courseService.getCoursesForReorder();
+      return result.data || [];
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Failed to load modules for reorder',
         type: 'error',
       }));
       throw error;
@@ -406,6 +424,7 @@ export const useCourse = () => {
     error,
     // Methods
     fetchCourses,
+    fetchCoursesForReorder,
     fetchCourse,
     createNewCourse,
     updateCourseData,

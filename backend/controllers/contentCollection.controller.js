@@ -101,6 +101,35 @@ const getAllCourses = async (req, res) => {
 };
 
 /**
+ * @desc    Get all courses for reorder UI (lightweight, no pagination)
+ * @route   GET /api/courses/reorder-list
+ * @access  Private (Admin/Teacher only)
+ */
+const getCoursesForReorder = async (req, res) => {
+  try {
+    if (!['admin', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only admins and teachers can access courses',
+      });
+    }
+
+    const courses = await courseService.getCoursesForReorder();
+
+    res.status(200).json({
+      success: true,
+      message: 'Courses for reorder retrieved successfully',
+      data: courses,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to retrieve courses for reorder',
+    });
+  }
+};
+
+/**
  * @desc    Get single course by ID with populated contents
  * @route   GET /api/courses/:id
  * @access  Private (Admin/Teacher only)
@@ -506,6 +535,7 @@ const reorderCourseContents = async (req, res) => {
 module.exports = {
   createCourse,
   getAllCourses,
+  getCoursesForReorder,
   getCourseById,
   updateCourse,
   archiveCourse,

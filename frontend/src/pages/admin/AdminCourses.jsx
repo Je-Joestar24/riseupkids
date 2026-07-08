@@ -24,7 +24,7 @@ const AdminCourses = () => {
   const [cmsTestModalOpen, setCmsTestModalOpen] = useState(false);
   const [cmsTestPages, setCmsTestPages] = useState([]);
   const [cmsTestingBookId, setCmsTestingBookId] = useState('');
-  const { contentDrawer, closeDrawer, fetchCourses, filters, courses } = useCourse();
+  const { contentDrawer, closeDrawer, fetchCourses, filters } = useCourse();
   const {
     loadPlayableBookById,
     preloadBookMedia,
@@ -126,7 +126,6 @@ const AdminCourses = () => {
       <CourseOrganizerModal
         open={reorderModalOpen}
         onClose={handleReorderModalClose}
-        courses={courses}
       />
 
       {/* Content Creation Drawer - Managed by Redux */}

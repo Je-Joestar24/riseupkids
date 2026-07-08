@@ -35,6 +35,19 @@ const courseService = {
   },
 
   /**
+   * Get all courses for reorder UI (lightweight, no pagination)
+   * @returns {Promise} API response with minimal course data sorted by stepOrder
+   */
+  getCoursesForReorder: async () => {
+    try {
+      const response = await api.get('/courses/reorder-list');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || error.message;
+    }
+  },
+
+  /**
    * Create new course with optional cover image and contents
    * @param {FormData} formData - Course data with files
    * @returns {Promise} API response with created course data

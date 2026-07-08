@@ -288,6 +288,43 @@ const getAllCourses = async (queryParams = {}) => {
 };
 
 /**
+ * Get Courses For Reorder Service
+ *
+ * Returns all non-archived courses with minimal fields for the reorder UI.
+ * No pagination — intended for drag-and-drop ordering of the full module list.
+ *
+ * @returns {Array} Lightweight course records sorted by stepOrder
+ */
+const getCoursesForReorder = async () => {
+  const query = { isArchived: false };
+
+  const allCourses = await Course.find(query)
+    .select('_id title description stepOrder createdAt')
+    .lean();
+
+  allCourses.sort((a, b) => {
+    const aHasOrder = a.stepOrder !== null && a.stepOrder !== undefined;
+    const bHasOrder = b.stepOrder !== null && b.stepOrder !== undefined;
+
+    if (aHasOrder && bHasOrder) {
+      if (a.stepOrder !== b.stepOrder) {
+        return a.stepOrder - b.stepOrder;
+      }
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+    if (aHasOrder && !bHasOrder) {
+      return -1;
+    }
+    if (!aHasOrder && bHasOrder) {
+      return 1;
+    }
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+
+  return allCourses;
+};
+
+/**
  * Get Course By ID Service
  * 
  * Retrieves a single course by ID with populated contents
@@ -950,6 +987,7 @@ const reorderCourseContents = async (courseId, contentType, contentIds) => {
 module.exports = {
   createCourse,
   getAllCourses,
+  getCoursesForReorder,
   getCourseById,
   updateCourse,
   archiveCourse,

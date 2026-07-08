@@ -26,7 +26,7 @@ const COPY = {
   },
   retry: {
     title: 'Nice try!',
-    message: 'Tap anywhere on the background to try again!',
+    message: 'Tap the background or the retry button to try again!',
     emoji: '💪',
   },
 };

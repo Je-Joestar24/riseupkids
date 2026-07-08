@@ -129,47 +129,64 @@ const SortableCourseItem = ({ course, isDragging }) => {
   );
 };
 
+const sortCoursesByOrder = (courseList) => {
+  return [...courseList].sort((a, b) => {
+    if (a.stepOrder !== null && a.stepOrder !== undefined && b.stepOrder !== null && b.stepOrder !== undefined) {
+      return a.stepOrder - b.stepOrder;
+    }
+    if (a.stepOrder !== null && a.stepOrder !== undefined) return -1;
+    if (b.stepOrder !== null && b.stepOrder !== undefined) return 1;
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+};
+
 /**
  * Course Organizer Modal Component
- * 
- * Modal for reordering courses with drag-and-drop functionality
+ *
+ * Modal for reordering courses with drag-and-drop functionality.
+ * Loads all modules via a lightweight API (no pagination).
  */
-const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) => {
+const CourseOrganizerModal = ({ open, onClose }) => {
   const theme = useTheme();
-  const { reorderCoursesData } = useCourse();
+  const { reorderCoursesData, fetchCoursesForReorder } = useCourse();
   const [courses, setCourses] = useState([]);
+  const [originalCourses, setOriginalCourses] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeId, setActiveId] = useState(null);
-  const hasLoadedRef = useRef(false);
+  const loadRequestRef = useRef(0);
 
-  // Initialize courses when modal opens (use initialCourses, NO API call)
   useEffect(() => {
-    if (open && !hasLoadedRef.current) {
-      hasLoadedRef.current = true;
-      
-      // Use initialCourses directly - no API call needed
-      if (initialCourses && initialCourses.length > 0) {
-        // Sort by current order if available, otherwise by createdAt
-        const sorted = [...initialCourses].sort((a, b) => {
-          if (a.stepOrder !== null && b.stepOrder !== null) {
-            return a.stepOrder - b.stepOrder;
-          }
-          if (a.stepOrder !== null) return -1;
-          if (b.stepOrder !== null) return 1;
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        });
-        setCourses(sorted);
-      } else {
-        setCourses([]);
-      }
-    } else if (!open) {
-      // Reset when modal closes
-      hasLoadedRef.current = false;
+    if (!open) {
+      loadRequestRef.current += 1;
       setCourses([]);
+      setOriginalCourses([]);
       setActiveId(null);
+      setIsLoading(false);
+      return;
     }
+
+    const requestId = ++loadRequestRef.current;
+    setIsLoading(true);
+
+    fetchCoursesForReorder()
+      .then((data) => {
+        if (requestId !== loadRequestRef.current) return;
+        const sorted = sortCoursesByOrder(data);
+        setCourses(sorted);
+        setOriginalCourses(sorted);
+      })
+      .catch(() => {
+        if (requestId !== loadRequestRef.current) return;
+        setCourses([]);
+        setOriginalCourses([]);
+      })
+      .finally(() => {
+        if (requestId !== loadRequestRef.current) return;
+        setIsLoading(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]); // Only depend on 'open' - use initialCourses prop, no API calls
+  }, [open]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -208,17 +225,13 @@ const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) =
       onClose();
     } catch (error) {
       console.error('Error reordering courses:', error);
-      // Error notification is handled by the hook
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleCancel = () => {
-    // Reset to original order
-    if (initialCourses.length > 0) {
-      setCourses(initialCourses);
-    }
+    setCourses(originalCourses);
     onClose();
   };
 
@@ -282,7 +295,11 @@ const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) =
           Drag and drop courses to reorder them. Click "Save Order" when done.
         </Typography>
 
-        {courses.length === 0 ? (
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', padding: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : courses.length === 0 ? (
           <Box sx={{ textAlign: 'center', padding: 4 }}>
             <Typography
               variant="body1"
@@ -356,7 +373,7 @@ const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) =
       >
         <Button
           onClick={handleCancel}
-          disabled={isSaving}
+          disabled={isSaving || isLoading}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,
@@ -370,7 +387,7 @@ const CourseOrganizerModal = ({ open, onClose, courses: initialCourses = [] }) =
         <Button
           onClick={handleSave}
           variant="contained"
-          disabled={isSaving || courses.length === 0}
+          disabled={isSaving || isLoading || courses.length === 0}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 600,

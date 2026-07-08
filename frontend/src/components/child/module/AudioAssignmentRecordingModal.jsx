@@ -178,6 +178,10 @@ const AudioAssignmentRecordingModal = ({
     return progress?.audioAssignment?.instructionVideo || audioAssignment?.instructionVideo || null;
   }, [progress?.audioAssignment?.instructionVideo, audioAssignment?.instructionVideo]);
 
+  const coverImage = useMemo(() => {
+    return progress?.audioAssignment?.coverImage || audioAssignment?.coverImage || null;
+  }, [progress?.audioAssignment?.coverImage, audioAssignment?.coverImage]);
+
   const referenceAudioUrl = useMemo(() => {
     const media = progress?.audioAssignment?.referenceAudio || audioAssignment?.referenceAudio;
     const url = typeof media === 'string' ? media : media?.url;
@@ -550,12 +554,11 @@ const AudioAssignmentRecordingModal = ({
               </Alert>
             )}
 
-            {instructionVideoMedia && (
-              <InstructionVideoPlayer
-                media={instructionVideoMedia}
-                title="Instruction video"
-              />
-            )}
+            <InstructionVideoPlayer
+              media={instructionVideoMedia}
+              coverImage={coverImage}
+              title={audioAssignment?.title || 'Instruction video'}
+            />
 
             {/* Instructions + reference audio */}
             {audioAssignment?.instructions && (
@@ -567,7 +570,7 @@ const AudioAssignmentRecordingModal = ({
                   boxShadow: '0 8px 20px rgba(0,0,0,0.06)',
                 }}
               >
-                <Typography
+                {/*<Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
                     fontWeight: 800,
@@ -585,7 +588,7 @@ const AudioAssignmentRecordingModal = ({
                   }}
                 >
                   {audioAssignment.instructions}
-                </Typography>
+                </Typography>*/}
 
                 {referenceAudioUrl && (
                   <Box sx={{ marginTop: 1.5 }}>

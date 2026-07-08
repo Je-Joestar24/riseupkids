@@ -1,6 +1,6 @@
 /**
- * Chant Watch Modal
- * Child-facing: instruction video, optional reference audio, "I finished watching" completion.
+ * Chant Modal
+ * Child-facing: optional instruction video, optional reference audio, context-aware completion.
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -8,17 +8,19 @@ import { Audio } from 'expo-av';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { InstructionVideoPlayer } from '@/components/child/common/instruction-video-player';
-import { buildPublicUrl } from '@/components/child/module/module-utils';
+import { buildPublicUrl, getCoverImageUrl } from '@/components/child/module/module-utils';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -26,9 +28,18 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
-import { isInstructionVideoBunnyEmbed } from '@/utils/instructionVideoPlayback';
+import { isInstructionVideoBunnyEmbed, resolveInstructionVideoPlayback } from '@/utils/instructionVideoPlayback';
+import { getChantCompletionLabels } from '@/utils/chantCompletionLabels';
 
-function ChantReferenceAudioPlayer({ uri, label }: { uri: string; label: string }) {
+function ChantReferenceAudioPlayer({
+  uri,
+  label,
+  audioOnly = false,
+}: {
+  uri: string;
+  label: string;
+  audioOnly?: boolean;
+}) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -65,6 +76,31 @@ function ChantReferenceAudioPlayer({ uri, label }: { uri: string; label: string 
     }
   };
 
+  if (audioOnly) {
+    return (
+      <View style={audioPlayerStyles.audioOnlyWrap}>
+        <View style={audioPlayerStyles.audioOnlyIconWrap}>
+          <MaterialCommunityIcons name="music-circle" size={56} color={colors.secondary} />
+        </View>
+        <ThemedText style={audioPlayerStyles.audioOnlyTitle}>Chant audio</ThemedText>
+        <Pressable
+          style={audioPlayerStyles.audioOnlyPlayer}
+          onPress={() => void togglePlay()}
+          accessibilityRole="button"
+          accessibilityLabel={label}>
+          <MaterialCommunityIcons
+            name={isPlaying ? 'pause-circle' : 'play-circle'}
+            size={48}
+            color={colors.secondary}
+          />
+          <ThemedText style={audioPlayerStyles.audioOnlyLabel}>
+            {isPlaying ? 'Pause chant audio' : 'Play chant audio'}
+          </ThemedText>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <Pressable
       style={audioPlayerStyles.wrap}
@@ -93,6 +129,44 @@ const audioPlayerStyles = StyleSheet.create({
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.textSecondary,
   },
+  audioOnlyWrap: {
+    width: '100%',
+    alignItems: 'center',
+    gap: spacing[3],
+    paddingVertical: spacing[2],
+  },
+  audioOnlyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: colors.bgSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioOnlyTitle: {
+    fontSize: typography.sizes.lg,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  audioOnlyPlayer: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    paddingVertical: spacing[4],
+    paddingHorizontal: spacing[3],
+    borderRadius: radii.lg,
+    backgroundColor: colors.bgSecondary,
+  },
+  audioOnlyLabel: {
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_700Bold',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
 });
 
 export interface ChantModalProps {
@@ -112,6 +186,8 @@ export function ChantModal({
   courseId,
   onAfterComplete,
 }: ChantModalProps) {
+  const { width: windowWidth } = useWindowDimensions();
+  const isPhone = windowWidth < 600;
   const chantId = String(chant?._id ?? chant?._contentId ?? chant?.contentId ?? chant?.id ?? '');
   const showDialog = useUiStore((s) => s.showDialog);
 
@@ -153,7 +229,34 @@ export function ChantModal({
     return buildPublicUrl(url);
   }, [progress, chant?.audio]);
 
-  const hasInstructionVideo = Boolean(instructionVideoMedia);
+  const coverImageUrl = useMemo(() => {
+    const raw = progress?.chant?.coverImage ?? chant?.coverImage;
+    if (!raw) return null;
+    if (typeof raw === 'string') return getCoverImageUrl(raw);
+    if (typeof raw === 'object' && raw && 'url' in raw) {
+      return getCoverImageUrl((raw as { url?: string }).url ?? undefined);
+    }
+    return null;
+  }, [progress, chant?.coverImage]);
+
+  const hasInstructionVideo = useMemo(() => {
+    const playback = resolveInstructionVideoPlayback(instructionVideoMedia, buildPublicUrl);
+    return Boolean(playback.url);
+  }, [instructionVideoMedia]);
+
+  const completionLabels = useMemo(
+    () =>
+      getChantCompletionLabels({
+        hasInstructionVideo,
+        hasReferenceAudio: Boolean(referenceAudioUrl),
+      }),
+    [hasInstructionVideo, referenceAudioUrl]
+  );
+
+  const isAudioOnlyChant = Boolean(referenceAudioUrl) && !hasInstructionVideo && !coverImageUrl;
+  const isAudioOnlyPhoneMode = isAudioOnlyChant && isPhone;
+  const hasCoverOnly = !hasInstructionVideo && Boolean(coverImageUrl);
+
   const isBunnyEmbed = isInstructionVideoBunnyEmbed(instructionVideoMedia);
 
   const status = (progress?.status ?? 'not_started') as string;
@@ -245,7 +348,12 @@ export function ChantModal({
         onRequestClose={handleCloseAttempt}
         statusBarTranslucent>
         <View style={styles.overlay}>
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              isAudioOnlyPhoneMode && styles.cardAudioOnly,
+              hasCoverOnly && styles.cardCompact,
+            ]}>
             <View style={styles.header}>
               <ThemedText style={styles.title} numberOfLines={1}>
                 {chant?.title ?? 'Chant'}
@@ -260,8 +368,11 @@ export function ChantModal({
             </View>
 
             <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
+              style={[styles.scroll, isAudioOnlyPhoneMode && styles.scrollAudioOnly]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                isAudioOnlyPhoneMode && styles.scrollContentAudioOnly,
+              ]}
               showsVerticalScrollIndicator
               bounces
               nestedScrollEnabled>
@@ -285,11 +396,24 @@ export function ChantModal({
                       autoPlayMutedLoop={false}
                       showPlaybackButtons={!isBunnyEmbed}
                     />
+                  ) : coverImageUrl ? (
+                    <View style={hasCoverOnly ? styles.coverWrapCompact : styles.coverWrap}>
+                      <Image
+                        source={{ uri: coverImageUrl }}
+                        style={styles.coverImage}
+                        resizeMode="cover"
+                        accessibilityLabel={chant?.title ? `${chant.title} cover` : 'Chant cover'}
+                      />
+                    </View>
                   ) : null}
 
                   {referenceAudioUrl ? (
-                    <View style={styles.audioBox}>
-                      <ChantReferenceAudioPlayer uri={referenceAudioUrl} label="Tap to play chant audio" />
+                    <View style={[styles.audioBox, isAudioOnlyPhoneMode && styles.audioBoxOnly]}>
+                      <ChantReferenceAudioPlayer
+                        uri={referenceAudioUrl}
+                        label="Tap to play chant audio"
+                        audioOnly={isAudioOnlyPhoneMode}
+                      />
                     </View>
                   ) : null}
 
@@ -317,9 +441,9 @@ export function ChantModal({
                 onPress={() => void handleFinishedWatching()}
                 disabled={submitting}
                 accessibilityRole="button"
-                accessibilityLabel="I finished watching">
+                accessibilityLabel={completionLabels.finishLabel}>
                 <ThemedText style={styles.finishedBtnText}>
-                  {submitting ? 'Saving…' : 'I finished watching'}
+                  {submitting ? 'Saving…' : completionLabels.finishLabel}
                 </ThemedText>
               </Pressable>
             ) : null}
@@ -336,9 +460,9 @@ export function ChantModal({
       <ConfirmModal
         open={showConfirmClose}
         title="Close chant?"
-        message="Do you want to close this chant? Tap I finished watching when you are done to save your progress."
+        message={completionLabels.closeConfirmMessage}
         confirmLabel="Yes, Close"
-        cancelLabel="Keep Watching"
+        cancelLabel={completionLabels.keepGoingLabel}
         onConfirm={handleConfirmedClose}
         onCancel={() => setShowConfirmClose(false)}
       />
@@ -364,6 +488,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderBottomColor: colors.secondary,
   },
+  cardAudioOnly: {
+    maxWidth: 360,
+  },
+  cardCompact: {
+    maxWidth: 400,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -383,10 +513,18 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     maxHeight: 420,
   },
+  scrollAudioOnly: {
+    maxHeight: 320,
+  },
   scrollContent: {
     padding: spacing[4],
     gap: spacing[4],
     paddingBottom: spacing[6],
+  },
+  scrollContentAudioOnly: {
+    alignItems: 'center',
+    paddingTop: spacing[5],
+    gap: spacing[3],
   },
   loadingWrap: {
     padding: spacing[8],
@@ -409,11 +547,33 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     overflow: 'hidden',
   },
+  coverWrap: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: colors.bgTertiary,
+    overflow: 'hidden',
+  },
+  coverWrapCompact: {
+    width: 168,
+    alignSelf: 'center',
+    aspectRatio: 1,
+    backgroundColor: colors.bgTertiary,
+    overflow: 'hidden',
+  },
+  coverImage: {
+    width: '100%',
+    height: '100%',
+  },
   audioBox: {
     backgroundColor: colors.textInverse,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
     borderRadius: radii.lg,
+  },
+  audioBoxOnly: {
+    width: '100%',
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[3],
   },
   instructionsBox: {
     backgroundColor: colors.textInverse,

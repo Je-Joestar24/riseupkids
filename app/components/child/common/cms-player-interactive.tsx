@@ -25,6 +25,7 @@ import {
   CMS_GOOD_JOB_ADVANCE_DELAY_MS,
   CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
   cmsInteractiveFeedbackAudio,
+  cmsLocalUiAssets,
   getScaledInteractiveMetrics,
   resolveImageUrl,
 } from './cms-player-shared';
@@ -398,6 +399,21 @@ export function CmsInteractivePage({
     ]);
   }, []);
 
+  const handleRetry = useCallback(() => {
+    audioRequestIdRef.current += 1;
+    clearAdvanceTimeout();
+    void stopAllInteractiveAudio();
+    setDragLayer(null);
+    dragStateRef.current = null;
+    setPlacedByZone({});
+    setPlacedByOption({});
+    placedByZoneRef.current = {};
+    placedByOptionRef.current = {};
+    setDropResult('');
+    setResetSeed((s) => s + 1);
+    onRetry?.();
+  }, [clearAdvanceTimeout, onRetry, stopAllInteractiveAudio]);
+
   const pageId = page?.pageId ?? '';
 
   useEffect(() => {
@@ -561,21 +577,6 @@ export function CmsInteractivePage({
     },
     [stopAllInteractiveAudio]
   );
-
-  const handleRetry = useCallback(() => {
-    audioRequestIdRef.current += 1;
-    clearAdvanceTimeout();
-    void stopAllInteractiveAudio();
-    setDragLayer(null);
-    dragStateRef.current = null;
-    setPlacedByZone({});
-    setPlacedByOption({});
-    placedByZoneRef.current = {};
-    placedByOptionRef.current = {};
-    setDropResult('');
-    setResetSeed((s) => s + 1);
-    onRetry?.();
-  }, [clearAdvanceTimeout, onRetry, stopAllInteractiveAudio]);
 
   const buildPanResponder = useCallback(
     (option: OptionModel) =>
@@ -904,6 +905,22 @@ export function CmsInteractivePage({
         tone={dropResult === 'correct' ? 'success' : 'retry'}
         onDismiss={dropResult === 'wrong' ? handleRetry : undefined}
       />
+
+      <Pressable
+        onPress={handleRetry}
+        disabled={isPreloading}
+        style={({ pressed }) => [styles.retryBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+        accessibilityState={{ disabled: isPreloading }}
+      >
+        <Image
+          source={cmsLocalUiAssets.retryButton}
+          style={styles.btnImg}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+      </Pressable>
     </View>
   );
 }
@@ -970,5 +987,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#fff',
     fontFamily: Quicksand.bold,
+  },
+  retryBtn: {
+    position: 'absolute',
+    right: '0.9375%',
+    bottom: '5.1852%',
+    width: '7.5%',
+    aspectRatio: 1,
+    zIndex: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnImg: {
+    width: '100%',
+    height: '100%',
+  },
+  pressed: {
+    opacity: 0.88,
   },
 });
