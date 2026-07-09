@@ -177,9 +177,15 @@ const useCmsBookAdmin = () => {
   );
 
   const uploadBookMedia = useCallback(
-    async ({ file, mediaType, title, description }) => {
+    async ({ file, mediaType, title, description, preTrimmed = false }) => {
       try {
-        return await cmsBookAdminService.uploadBookMedia({ file, mediaType, title, description });
+        return await cmsBookAdminService.uploadBookMedia({
+          file,
+          mediaType,
+          title,
+          description,
+          preTrimmed,
+        });
       } catch (error) {
         dispatch(showNotification({ message: error || 'Failed to upload media', type: 'error' }));
         throw error;

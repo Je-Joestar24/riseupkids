@@ -18,18 +18,34 @@ const EXT_BY_MIME = {
   'audio/x-m4a': 'm4a',
 };
 
+const ANALYSIS_SAMPLE_RATE = 44100;
+
 function readTrimConfig() {
   const thresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB);
+  const speechThresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB);
   const minSilenceRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC);
+  const minSpeechRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC);
   const padRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_PAD_MS, 10);
+  const highpassRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_HIGHPASS_HZ, 10);
 
   return {
     enabled: process.env.AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-    thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -40,
-    minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : 0.1,
-    padMs: Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : 80,
+    /** Quiet/noise band — below this counts as silence. */
+    thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -36,
+    /** Louder band — sustained windows above this count as speech (ignores quiet hiss). */
+    speechThresholdDb: Number.isFinite(speechThresholdRaw) ? speechThresholdRaw : -28,
+    minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : 0.12,
+    /** Minimum sustained speech before trim point is set. */
+    minSpeechSec: Number.isFinite(minSpeechRaw) ? minSpeechRaw : 0.15,
+    /** Edge padding kept after trim (0.2s). */
+    padMs: Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : 200,
+    /** High-pass cutoff (Hz) for speech detection — ignores low-frequency hum. */
+    highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : 400,
+    windowSec: 0.01,
   };
 }
+
+const dbToLinear = (db) => 10 ** (db / 20);
 
 function extensionFromFile(file) {
   const mime = String(file?.mimetype || '').toLowerCase();
@@ -77,6 +93,27 @@ function runProcess(binary, args) {
   });
 }
 
+function runProcessBuffer(binary, args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(binary, args, { windowsHide: true });
+    const chunks = [];
+
+    proc.stdout.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+    proc.stderr.on('data', () => {});
+
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks));
+      } else {
+        reject(new Error(`${path.basename(binary)} exited with code ${code}`));
+      }
+    });
+  });
+}
+
 async function probeDurationSec(filePath) {
   const { stdout } = await runProcess(ffprobePath, [
     '-v',
@@ -91,73 +128,167 @@ async function probeDurationSec(filePath) {
   return Number.isFinite(duration) && duration > 0 ? duration : null;
 }
 
-function parseSilenceDetect(stderr, totalDurationSec) {
-  const starts = [];
-  const ends = [];
-  const startRegex = /silence_start:\s*([\d.]+)/g;
-  const endRegex = /silence_end:\s*([\d.]+)/g;
-
-  let match = startRegex.exec(stderr);
-  while (match) {
-    starts.push(Number.parseFloat(match[1]));
-    match = startRegex.exec(stderr);
+function getWindowPeak(samples, start, end) {
+  let peak = 0;
+  for (let i = start; i < end; i += 1) {
+    peak = Math.max(peak, Math.abs(samples[i]));
   }
+  return peak;
+}
 
-  match = endRegex.exec(stderr);
-  while (match) {
-    ends.push(Number.parseFloat(match[1]));
-    match = endRegex.exec(stderr);
-  }
+/**
+ * Window-based edge detection with dual thresholds:
+ * - silence threshold for quiet/hiss
+ * - speech threshold requiring sustained loud windows (avoids early noise blips)
+ */
+function findSpeechBounds(samples, sampleRate, config) {
+  const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
+  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
+  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
+  const silenceThreshold = dbToLinear(config.thresholdDb);
+  const speechThreshold = dbToLinear(config.speechThresholdDb);
 
-  let trimmedStartSec = 0;
-  if (starts.length && starts[0] <= 0.05 && ends.length) {
-    trimmedStartSec = Math.max(0, ends[0]);
-  }
+  let silentRun = 0;
+  let seenLeadingSilence = false;
+  let speechRun = 0;
+  let startSample = 0;
 
-  let trimmedEndSec = 0;
-  if (starts.length) {
-    const lastStart = starts[starts.length - 1];
-    const lastEnd = ends.length ? ends[ends.length - 1] : null;
-    const total = Number(totalDurationSec);
-    if (Number.isFinite(total) && lastStart < total - 0.05) {
-      if (lastEnd == null || lastEnd < lastStart + 0.01) {
-        trimmedEndSec = Math.max(0, total - lastStart);
-      } else if (lastEnd >= total - 0.05) {
-        trimmedEndSec = Math.max(0, total - lastStart);
+  for (let start = 0; start < samples.length; start += windowSize) {
+    const end = Math.min(samples.length, start + windowSize);
+    const peak = getWindowPeak(samples, start, end);
+
+    if (peak < silenceThreshold) {
+      silentRun += 1;
+      speechRun = 0;
+      if (silentRun >= minSilentWindows) {
+        seenLeadingSilence = true;
       }
+      continue;
+    }
+
+    if (!seenLeadingSilence) {
+      startSample = 0;
+      speechRun = 0;
+      continue;
+    }
+
+    if (peak >= speechThreshold) {
+      speechRun += 1;
+      if (speechRun >= minSpeechWindows) {
+        startSample = Math.max(0, start - (minSpeechWindows - 1) * windowSize);
+        break;
+      }
+    } else {
+      speechRun = 0;
     }
   }
 
-  return { trimmedStartSec, trimmedEndSec };
+  speechRun = 0;
+  let lastSpeechEndSample = samples.length;
+
+  for (let start = 0; start < samples.length; start += windowSize) {
+    const end = Math.min(samples.length, start + windowSize);
+    const peak = getWindowPeak(samples, start, end);
+
+    if (peak >= speechThreshold) {
+      speechRun += 1;
+      if (speechRun >= minSpeechWindows) {
+        lastSpeechEndSample = end;
+      }
+    } else {
+      speechRun = 0;
+    }
+  }
+
+  const endSample = lastSpeechEndSample;
+
+  return { startSample, endSample };
+}
+
+async function decodeMonoPcmForAnalysis(filePath, config) {
+  const highpassHz = config.highpassHz || 400;
+  const pcmBuffer = await runProcessBuffer(ffmpegPath, [
+    '-hide_banner',
+    '-i',
+    filePath,
+    '-af',
+    `highpass=f=${highpassHz}`,
+    '-ac',
+    '1',
+    '-ar',
+    String(ANALYSIS_SAMPLE_RATE),
+    '-f',
+    'f32le',
+    'pipe:1',
+  ]);
+
+  if (!pcmBuffer || pcmBuffer.length < 4) {
+    return null;
+  }
+
+  return new Float32Array(
+    pcmBuffer.buffer,
+    pcmBuffer.byteOffset,
+    pcmBuffer.byteLength / Float32Array.BYTES_PER_ELEMENT
+  );
 }
 
 async function detectEdgeSilence(filePath, config, totalDurationSec) {
-  const threshold = `${config.thresholdDb}dB`;
-  const minSilence = String(config.minSilenceSec);
-
   try {
-    const { stderr } = await runProcess(ffmpegPath, [
-      '-hide_banner',
-      '-i',
-      filePath,
-      '-af',
-      `silencedetect=noise=${threshold}:d=${minSilence}`,
-      '-f',
-      'null',
-      '-',
-    ]);
-    return parseSilenceDetect(stderr, totalDurationSec);
+    const samples = await decodeMonoPcmForAnalysis(filePath, config);
+    if (!samples || samples.length === 0) {
+      return { trimmedStartSec: 0, trimmedEndSec: 0 };
+    }
+
+    const { startSample, endSample } = findSpeechBounds(samples, ANALYSIS_SAMPLE_RATE, config);
+    const analysisDurationSec = samples.length / ANALYSIS_SAMPLE_RATE;
+    const trimmedStartSec = startSample / ANALYSIS_SAMPLE_RATE;
+    const trimmedEndSec = Math.max(0, analysisDurationSec - endSample / ANALYSIS_SAMPLE_RATE);
+
+    if (Number.isFinite(totalDurationSec) && totalDurationSec > 0) {
+      const scale = totalDurationSec / analysisDurationSec;
+      return {
+        trimmedStartSec: trimmedStartSec * scale,
+        trimmedEndSec: trimmedEndSec * scale,
+      };
+    }
+
+    return { trimmedStartSec, trimmedEndSec };
   } catch (_error) {
     return { trimmedStartSec: 0, trimmedEndSec: 0 };
   }
 }
 
-function buildSilenceRemoveFilter(config) {
-  const threshold = `${config.thresholdDb}dB`;
-  const minSilence = String(config.minSilenceSec);
-  const startFilter = `silenceremove=start_periods=1:start_duration=${minSilence}:start_threshold=${threshold}`;
-  const padDelay = config.padMs > 0 ? `,adelay=${config.padMs}|${config.padMs}` : '';
-  return `${startFilter},areverse,${startFilter},areverse${padDelay}`;
+function buildAtrimFilter(config, edgeEstimate, totalDurationSec) {
+  const padSec = config.padMs / 1000;
+  const total = Number(totalDurationSec);
+  if (!Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  const speechStart = Math.max(0, Number(edgeEstimate.trimmedStartSec) || 0);
+  const trailingSilence = Math.max(0, Number(edgeEstimate.trimmedEndSec) || 0);
+  const trimStart = Math.max(0, speechStart - padSec);
+  const trimEnd = Math.min(total, total - trailingSilence + padSec);
+
+  if (trimEnd <= trimStart + 0.05) {
+    return null;
+  }
+
+  return `atrim=start=${trimStart.toFixed(3)}:end=${trimEnd.toFixed(3)},asetpts=PTS-STARTPTS`;
+}
+
+async function probeDurationFromBuffer(buffer, ext = 'mp3') {
+  let tempDir = null;
+  try {
+    const { dir, inputPath } = await writeTempFile(buffer, ext);
+    tempDir = dir;
+    return probeDurationSec(inputPath);
+  } catch {
+    return null;
+  } finally {
+    await cleanupTemp(tempDir);
+  }
 }
 
 async function writeTempFile(buffer, ext) {
@@ -192,7 +323,7 @@ async function cleanupTemp(dir) {
  *   }
  * }>}
  */
-async function trimLeadingTrailingSilence(file) {
+async function trimLeadingTrailingSilence(file, { preTrimmed = false } = {}) {
   const buffer = file?.buffer;
   const originalMimetype = file?.mimetype || 'audio/mpeg';
   const ext = extensionFromFile(file);
@@ -203,6 +334,7 @@ async function trimLeadingTrailingSilence(file) {
     trimmedDurationSec: null,
     trimmedStartSec: 0,
     trimmedEndSec: 0,
+    preTrimmed: Boolean(preTrimmed),
   };
 
   if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) {
@@ -219,6 +351,24 @@ async function trimLeadingTrailingSilence(file) {
   let tempDir = null;
 
   try {
+    if (preTrimmed) {
+      const durationSec = await probeDurationFromBuffer(buffer, ext);
+      return {
+        buffer,
+        mimetype: originalMimetype,
+        size: buffer.length,
+        durationSec,
+        trimMeta: {
+          applied: true,
+          originalDurationSec: durationSec,
+          trimmedDurationSec: durationSec,
+          trimmedStartSec: 0,
+          trimmedEndSec: 0,
+          preTrimmed: true,
+        },
+      };
+    }
+
     const { dir, inputPath, outputPath } = await writeTempFile(buffer, ext);
     tempDir = dir;
 
@@ -236,7 +386,17 @@ async function trimLeadingTrailingSilence(file) {
     }
 
     const edgeEstimate = await detectEdgeSilence(inputPath, config, originalDurationSec);
-    const filter = buildSilenceRemoveFilter(config);
+    const atrimFilter = buildAtrimFilter(config, edgeEstimate, originalDurationSec);
+
+    if (!atrimFilter) {
+      return {
+        buffer,
+        mimetype: originalMimetype,
+        size: buffer.length,
+        durationSec: originalDurationSec,
+        trimMeta: baseTrimMeta,
+      };
+    }
 
     await runProcess(ffmpegPath, [
       '-hide_banner',
@@ -244,20 +404,18 @@ async function trimLeadingTrailingSilence(file) {
       '-i',
       inputPath,
       '-af',
-      filter,
+      atrimFilter,
       outputPath,
     ]);
 
     const trimmedBuffer = await fs.readFile(outputPath);
     const trimmedDurationSec = await probeDurationSec(outputPath);
 
-    const trimmedStartSec = Number.isFinite(originalDurationSec) && Number.isFinite(trimmedDurationSec)
-      ? Math.max(0, edgeEstimate.trimmedStartSec)
-      : edgeEstimate.trimmedStartSec;
-
+    const padSec = config.padMs / 1000;
+    const trimmedStartSec = Math.max(0, (Number(edgeEstimate.trimmedStartSec) || 0) - padSec);
     const trimmedEndSec = Number.isFinite(originalDurationSec) && Number.isFinite(trimmedDurationSec)
       ? Math.max(0, originalDurationSec - trimmedDurationSec - trimmedStartSec)
-      : edgeEstimate.trimmedEndSec;
+      : Math.max(0, Number(edgeEstimate.trimmedEndSec) || 0) - padSec;
 
     const removedTotal = Number.isFinite(originalDurationSec) && Number.isFinite(trimmedDurationSec)
       ? originalDurationSec - trimmedDurationSec
@@ -276,6 +434,7 @@ async function trimLeadingTrailingSilence(file) {
         trimmedDurationSec: applied ? trimmedDurationSec : originalDurationSec,
         trimmedStartSec: applied ? trimmedStartSec : 0,
         trimmedEndSec: applied ? trimmedEndSec : 0,
+        preTrimmed: false,
       },
     };
   } catch (error) {
@@ -296,4 +455,5 @@ module.exports = {
   readTrimConfig,
   trimLeadingTrailingSilence,
   extensionFromFile,
+  probeDurationFromBuffer,
 };

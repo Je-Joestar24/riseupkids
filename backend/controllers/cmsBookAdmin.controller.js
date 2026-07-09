@@ -145,6 +145,7 @@ const uploadCmsBookMedia = async (req, res) => {
       mediaType: req.body?.mediaType,
       title: req.body?.title,
       description: req.body?.description,
+      preTrimmed: req.body?.preTrimmed === 'true' || req.body?.preTrimmed === true,
     });
     return res.status(201).json({ success: true, data });
   } catch (error) {

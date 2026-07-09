@@ -9,6 +9,7 @@ import CmsBooksModalTest from '../common/CmsBooksModalTest';
 import BooksBuilderCreateHeader from './BooksBuilderCreateHeader';
 import BooksBuilderCreateActions from './BooksBuilderCreateActions';
 import BooksBuilderPageSection from './BooksBuilderPageSection';
+import { parseMediaUploadResponse } from '../../../services/cmsBookAdminService';
 import { normalizeBookStatus } from '../../../services/cmsBookAdminService';
 import BooksBuilderTypeMenu from './BooksBuilderTypeMenu';
 import { PAGE_TYPES } from './BooksBuilderCreate.constants';
@@ -350,7 +351,15 @@ const BooksBuilderCreateMain = () => {
       return new File([blob], filename, { type: blob.type || fallbackMime || 'application/octet-stream' });
     };
 
-    const ensureUploadedMediaId = async ({ source, mediaType, title, existingMediaId = null }) => {
+    const ensureUploadedMediaId = async ({
+      source,
+      mediaType,
+      title,
+      existingMediaId = null,
+      preTrimmed = false,
+      knownDurationSec = null,
+      knownTrimMeta = null,
+    }) => {
       const preservedId = existingMediaId || null;
       if (!source || typeof source !== 'string') {
         return {
@@ -381,6 +390,12 @@ const BooksBuilderCreateMain = () => {
         fileToUpload = new File([blob], `${mediaType}-${Date.now()}.${extFromMime}`, {
           type: blob.type || fallbackMime,
         });
+      } else if (source.startsWith('http://') || source.startsWith('https://')) {
+        return {
+          mediaId: existingMediaId || null,
+          durationSec: Number.isFinite(Number(knownDurationSec)) ? Number(knownDurationSec) : null,
+          trimMeta: knownTrimMeta || null,
+        };
       } else {
         return {
           mediaId: existingMediaId || null,
@@ -393,13 +408,9 @@ const BooksBuilderCreateMain = () => {
         file: fileToUpload,
         mediaType,
         title,
+        preTrimmed,
       });
-      const uploadData = uploadResponse?.data || {};
-      const uploadResult = {
-        mediaId: uploadData._id || uploadData.id || null,
-        durationSec: Number.isFinite(Number(uploadData.duration)) ? Number(uploadData.duration) : null,
-        trimMeta: uploadData.trimMeta || null,
-      };
+      const uploadResult = parseMediaUploadResponse(uploadResponse);
       mediaCache.set(source, uploadResult);
       return uploadResult;
     };
@@ -458,6 +469,8 @@ const BooksBuilderCreateMain = () => {
             mediaType: 'audio',
             title: `${page.title || 'Content'} audio`,
             existingMediaId: page.audioMediaId,
+            knownDurationSec: page.audioDurationSec,
+            knownTrimMeta: page.audioTrimMeta,
           });
           pagePayload.media.audioMediaId =
             audioUpload.mediaId || page.audioMediaId || null;
@@ -478,9 +491,12 @@ const BooksBuilderCreateMain = () => {
                 && Number.isFinite(Number(w?.start))
                 && Number.isFinite(Number(w?.end))
             );
-          const trimOffsetSec = audioUpload.trimMeta?.applied
-            ? Number(audioUpload.trimMeta?.trimmedStartSec) || 0
-            : 0;
+          const serverAlreadyTrimmed =
+            Boolean(page.audioMediaId) || page.audioTrimMeta?.source === 'backend';
+          const trimOffsetSec =
+            !serverAlreadyTrimmed && audioUpload.trimMeta?.applied
+              ? Number(audioUpload.trimMeta?.trimmedStartSec) || 0
+              : 0;
           let readingWords = [];
           if (readingText && hasValidDuration) {
             if (hasSavedTimeline) {
@@ -770,6 +786,7 @@ const BooksBuilderCreateMain = () => {
             canMoveDown={canMovePage(index, 'down')}
             onDeletePage={deletePage}
             canDelete={canDeletePage(index)}
+            uploadBookMedia={uploadBookMedia}
           />
           {page?.type !== 'reward' ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>

@@ -7,6 +7,7 @@
 import { Audio } from 'expo-av';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   Image,
   Pressable,
   StyleSheet,
@@ -22,9 +23,13 @@ import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap, useCmsPlayableMediaUri } from './cms-player-media-context';
 import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
 import {
+  CMS_READING_LINE_ERASE_MS,
   cmsLocalUiAssets,
   extractReadingWordsFromPage,
-  getActiveReadingWordIndex,
+  getActiveReadingLineIndex,
+  getActiveReadingWordIndexInLine,
+  groupReadingWordsByLine,
+  normalizeReadingText,
   resolveAudioUrl,
   resolveContentReadingFontSizePx,
   resolveImageUrl,
@@ -35,6 +40,61 @@ import {
 let cmsIntroAudioModeReady = false;
 
 const DOT_COUNT = 14;
+
+function useReadingLineTransition(activeLineIndex: number, resetKey: string) {
+  const [displayLineIndex, setDisplayLineIndex] = useState(-1);
+  const opacity = useRef(new Animated.Value(0)).current;
+  const previousLineRef = useRef(activeLineIndex);
+
+  useEffect(() => {
+    setDisplayLineIndex(-1);
+    opacity.setValue(0);
+    previousLineRef.current = -1;
+  }, [resetKey, opacity]);
+
+  useEffect(() => {
+    const previousLine = previousLineRef.current;
+    if (activeLineIndex === previousLine) return;
+
+    if (activeLineIndex < 0) {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: CMS_READING_LINE_ERASE_MS,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setDisplayLineIndex(-1);
+          previousLineRef.current = activeLineIndex;
+        }
+      });
+      return;
+    }
+
+    if (previousLine >= 0 && previousLine !== activeLineIndex) {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: CMS_READING_LINE_ERASE_MS,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        setDisplayLineIndex(activeLineIndex);
+        previousLineRef.current = activeLineIndex;
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: CMS_READING_LINE_ERASE_MS,
+          useNativeDriver: true,
+        }).start();
+      });
+      return;
+    }
+
+    setDisplayLineIndex(activeLineIndex);
+    previousLineRef.current = activeLineIndex;
+    opacity.setValue(1);
+  }, [activeLineIndex, opacity]);
+
+  return { displayLineIndex, opacity };
+}
 
 export function CmsIntroPage({
   page,
@@ -254,11 +314,14 @@ export function CmsContentPage({
 
   const readingText = useMemo(
     () =>
-      String(page?.reading?.text || (page as { readingText?: string }).readingText || page.subtitle || '').trim(),
+      normalizeReadingText(
+        page?.reading?.text || (page as { readingText?: string }).readingText || page.subtitle || ''
+      ),
     [page]
   );
 
   const words = useMemo(() => extractReadingWordsFromPage(page), [page]);
+  const lineGroups = useMemo(() => groupReadingWordsByLine(words, readingText), [words, readingText]);
   const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
   const readingTextStyles = useMemo(
     () => ({ fontSize: readingFontSizePx }),
@@ -266,14 +329,29 @@ export function CmsContentPage({
   );
 
   const wordTimingFingerprint = useMemo(
-    () => words.map((w) => `${w.start}:${w.end}:${w.w}`).join('|'),
+    () => words.map((w) => `${w.start}:${w.end}:${w.w}:${w.lineIndex ?? 0}`).join('|'),
     [words]
   );
 
-  const activeWordIndex = useMemo(() => {
+  const activeLineIndex = useMemo(() => {
     if (!karaokeReady) return -1;
-    return getActiveReadingWordIndex(currentTime, words);
-  }, [currentTime, words, karaokeReady]);
+    return getActiveReadingLineIndex(currentTime, lineGroups);
+  }, [currentTime, lineGroups, karaokeReady]);
+
+  const { displayLineIndex, opacity } = useReadingLineTransition(
+    activeLineIndex,
+    String(page.pageId ?? '')
+  );
+
+  const visibleLineWords = useMemo(() => {
+    if (displayLineIndex < 0) return [];
+    return lineGroups[displayLineIndex]?.words ?? [];
+  }, [displayLineIndex, lineGroups]);
+
+  const activeWordIndex = useMemo(() => {
+    if (displayLineIndex !== activeLineIndex || activeLineIndex < 0) return -1;
+    return getActiveReadingWordIndexInLine(currentTime, visibleLineWords);
+  }, [currentTime, visibleLineWords, displayLineIndex, activeLineIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -343,24 +421,24 @@ export function CmsContentPage({
           </View>
           <View style={styles.readingBlock}>
             {words.length ? (
-              <View
-                style={styles.readingTextRow}
+              <Animated.View
+                style={[styles.readingTextRow, { opacity }]}
                 accessibilityRole="text"
                 accessibilityLabel="Reading text with timed highlighting"
               >
-                {words.map((word, index) => (
+                {visibleLineWords.map((word, index) => (
                   <Text
-                    key={`w-${index}-${word.w}-${word.start}`}
+                    key={`w-${displayLineIndex}-${index}-${word.w}-${word.start}`}
                     style={[
                       index === activeWordIndex ? styles.wordActive : styles.wordIdle,
                       readingTextStyles,
                     ]}
                   >
                     {word.w}
-                    {index < words.length - 1 ? ' ' : ''}
+                    {index < visibleLineWords.length - 1 ? ' ' : ''}
                   </Text>
                 ))}
-              </View>
+              </Animated.View>
             ) : (
               <Text
                 style={[styles.readingText, readingTextStyles]}
@@ -519,6 +597,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 8,
+    minHeight: 96,
   },
   readingTextRow: {
     flexDirection: 'row',
@@ -527,6 +606,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     maxWidth: '96%',
+    minHeight: 48,
   },
   readingText: {
     fontFamily: Quicksand.bold,

@@ -39,6 +39,7 @@ export interface PlayerReadingWord {
   w: string;
   start: number;
   end: number;
+  lineIndex?: number;
 }
 
 export interface PlayerReading {

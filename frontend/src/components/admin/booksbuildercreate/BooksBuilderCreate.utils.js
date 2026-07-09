@@ -8,12 +8,50 @@ import {
 
 let tempPageCounter = 0;
 
-const normalizeTextTokens = (text = '') =>
-  String(text)
+const splitReadingLines = (text = '') =>
+  String(text || '')
+    .replace(/\r\n/g, '\n')
     .trim()
-    .split(/\s+/)
-    .map((token) => token.trim())
+    .split('\n')
+    .map((line) => line.trim())
     .filter(Boolean);
+
+export const buildWeightedWords = (text, durationSec) => {
+  const lines = splitReadingLines(text);
+  const tokensWithLine = [];
+
+  lines.forEach((line, lineIndex) => {
+    String(line)
+      .trim()
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean)
+      .forEach((token) => {
+        tokensWithLine.push({ w: token, lineIndex });
+      });
+  });
+
+  const duration = Number(durationSec);
+  if (!tokensWithLine.length || !Number.isFinite(duration) || duration <= 0) return [];
+
+  const weights = tokensWithLine.map((token) => Math.max(String(token.w).length, 1));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (!totalWeight) return [];
+
+  let cursor = 0;
+  return tokensWithLine.map((token, index) => {
+    const raw = (weights[index] / totalWeight) * duration;
+    const end = index === tokensWithLine.length - 1 ? duration : Math.min(duration, cursor + raw);
+    const segment = {
+      w: token.w,
+      lineIndex: token.lineIndex,
+      start: Number(cursor.toFixed(3)),
+      end: Number(end.toFixed(3)),
+    };
+    cursor = end;
+    return segment;
+  });
+};
 
 export const adjustReadingWordsForTrim = (words, { durationSec, trimmedStartSec = 0 }) => {
   if (!Array.isArray(words) || !words.length) return [];
@@ -36,29 +74,6 @@ export const adjustReadingWordsForTrim = (words, { durationSec, trimmedStartSec 
       };
     })
     .filter((word) => word && word.w && word.end > word.start);
-};
-
-export const buildWeightedWords = (text, durationSec) => {
-  const tokens = normalizeTextTokens(text);
-  const duration = Number(durationSec);
-  if (!tokens.length || !Number.isFinite(duration) || duration <= 0) return [];
-
-  const weights = tokens.map((token) => Math.max(String(token).length, 1));
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  if (!totalWeight) return [];
-
-  let cursor = 0;
-  return tokens.map((token, index) => {
-    const raw = (weights[index] / totalWeight) * duration;
-    const end = index === tokens.length - 1 ? duration : Math.min(duration, cursor + raw);
-    const segment = {
-      w: token,
-      start: Number(cursor.toFixed(3)),
-      end: Number(end.toFixed(3)),
-    };
-    cursor = end;
-    return segment;
-  });
 };
 
 export const createEmptyPage = (index) => {

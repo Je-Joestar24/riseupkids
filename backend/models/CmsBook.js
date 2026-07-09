@@ -104,6 +104,8 @@ const pageReadingWordSchema = new mongoose.Schema(
     w: { type: String, required: true, trim: true },
     start: { type: Number, required: true, min: 0 },
     end: { type: Number, required: true, min: 0 },
+    /** Zero-based line index when reading.text contains newline-separated lines. */
+    lineIndex: { type: Number, default: 0, min: 0 },
   },
   { _id: false }
 );

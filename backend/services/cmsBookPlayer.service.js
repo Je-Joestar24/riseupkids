@@ -1,5 +1,10 @@
 const { CmsBook, Media } = require('../models');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
+const {
+  normalizeReadingText,
+  buildWeightedWords,
+  normalizeReadingWordsForOutput,
+} = require('../utils/cmsReadingWords.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
 const { getCoverPage, resolveCmsBookTitle } = require('../utils/cmsBookTitle.util');
 const { buildCmsBookMediaManifest } = require('../utils/cmsBookMediaManifest.util');
@@ -28,40 +33,9 @@ function ensurePlayerAccess(userRole) {
   }
 }
 
-function normalizeTextTokens(text = '') {
-  return String(text)
-    .trim()
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-function buildWeightedWords(text, durationSec) {
-  const tokens = normalizeTextTokens(text);
-  const duration = Number(durationSec);
-  if (!tokens.length || !Number.isFinite(duration) || duration <= 0) return [];
-
-  const weights = tokens.map((token) => Math.max(String(token).length, 1));
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  if (!totalWeight) return [];
-
-  let cursor = 0;
-  return tokens.map((token, index) => {
-    const raw = (weights[index] / totalWeight) * duration;
-    const end = index === tokens.length - 1 ? duration : Math.min(duration, cursor + raw);
-    const segment = {
-      w: token,
-      start: Number(cursor.toFixed(3)),
-      end: Number(end.toFixed(3)),
-    };
-    cursor = end;
-    return segment;
-  });
-}
-
 function normalizeReadingForPlayer(reading = null) {
   if (!reading || typeof reading !== 'object') return null;
-  const text = String(reading.text || '').trim();
+  const text = normalizeReadingText(reading.text || '');
   const durationSec = Number(reading.durationSec);
   const hasDuration = Number.isFinite(durationSec) && durationSec > 0;
   const fontSizePx = normalizeReadingFontSizePx(reading.fontSizePx);
@@ -73,13 +47,15 @@ function normalizeReadingForPlayer(reading = null) {
   };
 
   if (Array.isArray(reading.words) && reading.words.length) {
-    normalized.words = reading.words
-      .map((word) => ({
+    normalized.words = normalizeReadingWordsForOutput(
+      reading.words.map((word) => ({
         w: String(word?.w || '').trim(),
         start: Number(word?.start),
         end: Number(word?.end),
-      }))
-      .filter((word) => word.w && Number.isFinite(word.start) && Number.isFinite(word.end));
+        lineIndex: word?.lineIndex,
+      })),
+      text
+    );
   } else if (normalized.text && normalized.durationSec) {
     normalized.words = buildWeightedWords(normalized.text, normalized.durationSec);
   }

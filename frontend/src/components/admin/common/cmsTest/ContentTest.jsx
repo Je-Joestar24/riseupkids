@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import contentBackButtonImage from '../../../../assets/images/book/content_back_button.png';
 import contentNextButtonImage from '../../../../assets/images/book/content_next_button.png';
@@ -10,6 +10,56 @@ import {
   resolveContentReadingFontSizePx,
   resolveImageUrl,
 } from './shared';
+import {
+  CMS_READING_LINE_ERASE_MS,
+  getActiveReadingLineIndex,
+  getActiveReadingWordIndexInLine,
+  groupReadingWordsByLine,
+  normalizeReadingText,
+} from './readingLines';
+
+function useReadingLineTransition(activeLineIndex, resetKey) {
+  const [displayLineIndex, setDisplayLineIndex] = useState(-1);
+  const [visible, setVisible] = useState(false);
+  const previousLineRef = useRef(activeLineIndex);
+
+  useEffect(() => {
+    setDisplayLineIndex(-1);
+    setVisible(false);
+    previousLineRef.current = -1;
+  }, [resetKey]);
+
+  useEffect(() => {
+    const previousLine = previousLineRef.current;
+    if (activeLineIndex === previousLine) return undefined;
+
+    if (activeLineIndex < 0) {
+      setVisible(false);
+      const timer = window.setTimeout(() => {
+        setDisplayLineIndex(-1);
+        previousLineRef.current = activeLineIndex;
+      }, CMS_READING_LINE_ERASE_MS);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (previousLine >= 0 && previousLine !== activeLineIndex) {
+      setVisible(false);
+      const timer = window.setTimeout(() => {
+        setDisplayLineIndex(activeLineIndex);
+        setVisible(true);
+        previousLineRef.current = activeLineIndex;
+      }, CMS_READING_LINE_ERASE_MS);
+      return () => window.clearTimeout(timer);
+    }
+
+    setDisplayLineIndex(activeLineIndex);
+    setVisible(true);
+    previousLineRef.current = activeLineIndex;
+    return undefined;
+  }, [activeLineIndex]);
+
+  return { displayLineIndex, visible };
+}
 
 const ContentTest = ({
   page,
@@ -25,7 +75,7 @@ const ContentTest = ({
   const [currentTime, setCurrentTime] = useState(0);
 
   const readingText = useMemo(
-    () => String(page?.reading?.text || page?.readingText || page?.subtitle || '').trim(),
+    () => normalizeReadingText(page?.reading?.text || page?.readingText || page?.subtitle || ''),
     [page]
   );
 
@@ -39,16 +89,30 @@ const ContentTest = ({
     return [];
   }, [page]);
 
+  const lineGroups = useMemo(
+    () => groupReadingWordsByLine(words, readingText),
+    [words, readingText]
+  );
+
+  const activeLineIndex = useMemo(
+    () => getActiveReadingLineIndex(currentTime, lineGroups),
+    [currentTime, lineGroups]
+  );
+
+  const { displayLineIndex, visible } = useReadingLineTransition(
+    activeLineIndex,
+    page?.pageId || page?.id || 'content'
+  );
+
+  const visibleLineWords = useMemo(() => {
+    if (displayLineIndex < 0) return [];
+    return lineGroups[displayLineIndex]?.words || [];
+  }, [displayLineIndex, lineGroups]);
+
   const activeWordIndex = useMemo(() => {
-    if (!words.length) return -1;
-    return words.findIndex(
-      (word) =>
-        Number.isFinite(Number(word?.start))
-        && Number.isFinite(Number(word?.end))
-        && currentTime >= Number(word.start)
-        && currentTime < Number(word.end)
-    );
-  }, [currentTime, words]);
+    if (!visible || displayLineIndex !== activeLineIndex) return -1;
+    return getActiveReadingWordIndexInLine(currentTime, visibleLineWords);
+  }, [visible, displayLineIndex, activeLineIndex, currentTime, visibleLineWords]);
 
   const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
   const readingFontSx = useMemo(
@@ -135,17 +199,20 @@ const ContentTest = ({
                 color: '#141414',
                 textAlign: 'center',
                 px: 1,
+                minHeight: '3.2em',
                 display: 'flex',
                 flexWrap: 'wrap',
                 justifyContent: 'center',
                 alignItems: 'center',
                 gap: 0.8,
+                opacity: visible ? 1 : 0,
+                transition: `opacity ${CMS_READING_LINE_ERASE_MS}ms ease`,
               }}
             >
-              {words.length
-                ? words.map((word, index) => (
+              {visibleLineWords.length
+                ? visibleLineWords.map((word, index) => (
                   <Typography
-                    key={`inline-reading-word-${index + 1}-${word?.w || 'word'}`}
+                    key={`inline-reading-word-${displayLineIndex}-${index + 1}-${word?.w || 'word'}`}
                     component="span"
                     sx={{
                       fontFamily: 'inherit',
@@ -153,13 +220,13 @@ const ContentTest = ({
                       fontSize: 'inherit',
                       color: index === activeWordIndex ? 'accent.main' : '#141414',
                       px: 0.2,
-                      transition: 'all 160ms ease',
+                      transition: 'color 160ms ease',
                     }}
                   >
                     {word?.w || ''}
                   </Typography>
                 ))
-                : (readingText || 'Subtitle')}
+                : !words.length && (readingText || 'Subtitle')}
             </Typography>
           </Box>
 

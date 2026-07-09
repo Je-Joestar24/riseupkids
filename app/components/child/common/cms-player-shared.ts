@@ -243,6 +243,128 @@ export interface NormalizedReadingWord {
   w: string;
   start: number;
   end: number;
+  lineIndex?: number;
+}
+
+export interface ReadingLineGroup {
+  lineIndex: number;
+  words: NormalizedReadingWord[];
+}
+
+export const CMS_READING_LINE_ERASE_MS = 180;
+
+export function normalizeReadingText(text = ''): string {
+  return String(text || '')
+    .replace(/\r\n/g, '\n')
+    .trim();
+}
+
+export function splitReadingLines(text = ''): string[] {
+  return normalizeReadingText(text)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function tokenizeLine(line = ''): string[] {
+  return String(line)
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+export function assignLineIndicesToWords(
+  words: NormalizedReadingWord[],
+  text = ''
+): NormalizedReadingWord[] {
+  if (!words.length) return [];
+
+  const hasExplicitLineIndex = words.some((word) => Number.isFinite(Number(word.lineIndex)));
+  if (hasExplicitLineIndex) {
+    return words.map((word) => ({
+      ...word,
+      lineIndex: Math.max(0, Number(word.lineIndex) || 0),
+    }));
+  }
+
+  const lineTokenCounts = splitReadingLines(text).map((line) => tokenizeLine(line).length);
+  if (!lineTokenCounts.length) {
+    return words.map((word) => ({ ...word, lineIndex: 0 }));
+  }
+
+  let lineIdx = 0;
+  let posInLine = 0;
+
+  return words.map((word) => {
+    const lineIndex = Math.min(lineIdx, lineTokenCounts.length - 1);
+    posInLine += 1;
+    if (lineIdx < lineTokenCounts.length - 1 && posInLine >= lineTokenCounts[lineIdx]) {
+      lineIdx += 1;
+      posInLine = 0;
+    }
+    return { ...word, lineIndex };
+  });
+}
+
+export function groupReadingWordsByLine(
+  words: NormalizedReadingWord[],
+  text = ''
+): ReadingLineGroup[] {
+  const withLines = assignLineIndicesToWords(words, text);
+  const groups = new Map<number, NormalizedReadingWord[]>();
+
+  withLines.forEach((word) => {
+    const lineIndex = Number(word.lineIndex) || 0;
+    const bucket = groups.get(lineIndex) ?? [];
+    bucket.push(word);
+    groups.set(lineIndex, bucket);
+  });
+
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => a - b)
+    .map(([lineIndex, lineWords]) => ({
+      lineIndex,
+      words: lineWords.sort((a, b) => a.start - b.start),
+    }));
+}
+
+export function getActiveReadingLineIndex(
+  timeSec: number,
+  lineGroups: ReadingLineGroup[]
+): number {
+  if (!lineGroups.length || !Number.isFinite(timeSec)) return -1;
+  const t = Math.max(0, timeSec);
+
+  for (let i = 0; i < lineGroups.length; i += 1) {
+    const lineWords = lineGroups[i]?.words ?? [];
+    if (!lineWords.length) continue;
+    const start = lineWords[0].start;
+    const end = lineWords[lineWords.length - 1].end;
+    if (t >= start && t <= end + 0.001) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+export function getActiveReadingWordIndexInLine(
+  timeSec: number,
+  lineWords: NormalizedReadingWord[]
+): number {
+  if (!lineWords.length || !Number.isFinite(timeSec)) return -1;
+  const t = Math.max(0, timeSec);
+
+  for (let i = 0; i < lineWords.length; i += 1) {
+    const { start, end } = lineWords[i];
+    const isLast = i === lineWords.length - 1;
+    if (t >= start && (isLast ? t <= end + 0.001 : t < end)) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 /**
@@ -268,12 +390,13 @@ export function extractReadingWordsFromPage(
 
   const parsed: NormalizedReadingWord[] = [];
   for (const item of raw) {
-    const row = item as { w?: string; start?: unknown; end?: unknown };
+    const row = item as { w?: string; start?: unknown; end?: unknown; lineIndex?: unknown };
     const w = String(row?.w ?? '').trim();
     const start = Number(row?.start);
     const end = Number(row?.end);
+    const lineIndex = Number.isFinite(Number(row?.lineIndex)) ? Number(row.lineIndex) : undefined;
     if (!w || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    parsed.push({ w, start, end });
+    parsed.push({ w, start, end, lineIndex });
   }
 
   if (!parsed.length) return [];

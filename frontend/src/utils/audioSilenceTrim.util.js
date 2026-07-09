@@ -1,8 +1,13 @@
 const DEFAULT_CONFIG = {
   enabled: import.meta.env.VITE_AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-  thresholdDb: -40,
-  minSilenceSec: 0.1,
-  padMs: 80,
+  thresholdDb: -36,
+  speechThresholdDb: -28,
+  minSilenceSec: 0.12,
+  minSpeechSec: 0.15,
+  /** Edge padding kept after trim (0.2s). */
+  padMs: 200,
+  /** High-pass cutoff (Hz) — ignore low-frequency hum/rumble during speech detection. */
+  highpassHz: 400,
   windowSec: 0.01,
 };
 
@@ -10,14 +15,20 @@ const dbToLinear = (db) => 10 ** (db / 20);
 
 const readConfig = () => {
   const thresholdRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_THRESHOLD_DB);
+  const speechThresholdRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB);
   const minSilenceRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC);
+  const minSpeechRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC);
   const padRaw = Number.parseInt(import.meta.env.VITE_AUDIO_SILENCE_TRIM_PAD_MS, 10);
+  const highpassRaw = Number.parseInt(import.meta.env.VITE_AUDIO_SILENCE_TRIM_HIGHPASS_HZ, 10);
 
   return {
     enabled: DEFAULT_CONFIG.enabled,
     thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : DEFAULT_CONFIG.thresholdDb,
+    speechThresholdDb: Number.isFinite(speechThresholdRaw) ? speechThresholdRaw : DEFAULT_CONFIG.speechThresholdDb,
     minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : DEFAULT_CONFIG.minSilenceSec,
+    minSpeechSec: Number.isFinite(minSpeechRaw) ? minSpeechRaw : DEFAULT_CONFIG.minSpeechSec,
     padMs: Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : DEFAULT_CONFIG.padMs,
+    highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : DEFAULT_CONFIG.highpassHz,
     windowSec: DEFAULT_CONFIG.windowSec,
   };
 };
@@ -40,50 +51,93 @@ const getWindowPeak = (buffer, start, end) => {
   return peak;
 };
 
-const findSpeechStartSample = (buffer, config) => {
-  const sampleRate = buffer.sampleRate;
+/**
+ * High-pass filter for analysis only — speech band, not rumble/hum (slice uses original buffer).
+ */
+const applyHighpassForAnalysis = async (buffer, cutoffHz) => {
+  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!OfflineCtx) return buffer;
+
+  const offline = new OfflineCtx(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  const source = offline.createBufferSource();
+  source.buffer = buffer;
+  const highpass = offline.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = cutoffHz;
+  highpass.Q.value = 0.707;
+  source.connect(highpass);
+  highpass.connect(offline.destination);
+  source.start(0);
+  return offline.startRendering();
+};
+
+const findSpeechStartSample = (analysisBuffer, config) => {
+  const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
-  const minWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const threshold = dbToLinear(config.thresholdDb);
-  const padSamples = Math.floor((sampleRate * config.padMs) / 1000);
+  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
+  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
+  const silenceThreshold = dbToLinear(config.thresholdDb);
+  const speechThreshold = dbToLinear(config.speechThresholdDb);
 
   let silentRun = 0;
-  for (let start = 0; start < buffer.length; start += windowSize) {
-    const end = Math.min(buffer.length, start + windowSize);
-    const peak = getWindowPeak(buffer, start, end);
-    if (peak < threshold) {
+  let seenLeadingSilence = false;
+  let speechRun = 0;
+
+  for (let start = 0; start < analysisBuffer.length; start += windowSize) {
+    const end = Math.min(analysisBuffer.length, start + windowSize);
+    const peak = getWindowPeak(analysisBuffer, start, end);
+
+    if (peak < silenceThreshold) {
       silentRun += 1;
+      speechRun = 0;
+      if (silentRun >= minSilentWindows) {
+        seenLeadingSilence = true;
+      }
       continue;
     }
-    if (silentRun >= minWindows || start === 0) {
-      return Math.max(0, start - padSamples);
+
+    if (!seenLeadingSilence) {
+      speechRun = 0;
+      continue;
     }
-    silentRun = 0;
+
+    if (peak >= speechThreshold) {
+      speechRun += 1;
+      if (speechRun >= minSpeechWindows) {
+        return Math.max(0, start - (minSpeechWindows - 1) * windowSize);
+      }
+    } else {
+      speechRun = 0;
+    }
   }
+
   return 0;
 };
 
-const findSpeechEndSample = (buffer, config) => {
-  const sampleRate = buffer.sampleRate;
+const findSpeechEndSample = (analysisBuffer, config) => {
+  const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
-  const minWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const threshold = dbToLinear(config.thresholdDb);
-  const padSamples = Math.floor((sampleRate * config.padMs) / 1000);
+  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
+  const speechThreshold = dbToLinear(config.speechThresholdDb);
 
-  let silentRun = 0;
-  for (let end = buffer.length; end > 0; end -= windowSize) {
-    const start = Math.max(0, end - windowSize);
-    const peak = getWindowPeak(buffer, start, end);
-    if (peak < threshold) {
-      silentRun += 1;
-      continue;
+  let speechRun = 0;
+  let lastSpeechEndSample = analysisBuffer.length;
+
+  for (let start = 0; start < analysisBuffer.length; start += windowSize) {
+    const end = Math.min(analysisBuffer.length, start + windowSize);
+    const peak = getWindowPeak(analysisBuffer, start, end);
+
+    if (peak >= speechThreshold) {
+      speechRun += 1;
+      if (speechRun >= minSpeechWindows) {
+        lastSpeechEndSample = end;
+      }
+    } else {
+      speechRun = 0;
     }
-    if (silentRun >= minWindows || end >= buffer.length) {
-      return Math.min(buffer.length, end + padSamples);
-    }
-    silentRun = 0;
   }
-  return buffer.length;
+
+  return lastSpeechEndSample;
 };
 
 const sliceAudioBuffer = (audioContext, source, startSample, endSample) => {
@@ -156,29 +210,29 @@ const blobToDataUrl = (blob) =>
 
 /**
  * Trim leading/trailing silence from an audio File using the Web Audio API.
- * Fail-open: returns the original file as a data URL when trim is disabled or fails.
+ * Speech detection runs on a high-pass filtered copy; the cut is applied to the original audio.
  */
 export const trimLeadingTrailingSilenceFromFile = async (file) => {
   const config = readConfig();
-  const originalDurationSec = await new Promise((resolve) => {
-    const objectUrl = URL.createObjectURL(file);
-    const audioEl = new Audio();
-    audioEl.preload = 'metadata';
-    audioEl.src = objectUrl;
-    audioEl.onloadedmetadata = () => {
-      const duration = Number.isFinite(audioEl.duration) && audioEl.duration > 0
-        ? Number(audioEl.duration.toFixed(3))
-        : null;
-      URL.revokeObjectURL(objectUrl);
-      resolve(duration);
-    };
-    audioEl.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(null);
-    };
-  });
 
   const failOpen = async () => {
+    const originalDurationSec = await new Promise((resolve) => {
+      const objectUrl = URL.createObjectURL(file);
+      const audioEl = new Audio();
+      audioEl.preload = 'metadata';
+      audioEl.src = objectUrl;
+      audioEl.onloadedmetadata = () => {
+        const duration = Number.isFinite(audioEl.duration) && audioEl.duration > 0
+          ? Number(audioEl.duration.toFixed(3))
+          : null;
+        URL.revokeObjectURL(objectUrl);
+        resolve(duration);
+      };
+      audioEl.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(null);
+      };
+    });
     const dataUrl = await blobToDataUrl(file);
     return {
       audioUrl: dataUrl,
@@ -189,6 +243,7 @@ export const trimLeadingTrailingSilenceFromFile = async (file) => {
         trimmedDurationSec: originalDurationSec,
         trimmedStartSec: 0,
         trimmedEndSec: 0,
+        preTrimmed: false,
       },
     };
   };
@@ -205,27 +260,54 @@ export const trimLeadingTrailingSilenceFromFile = async (file) => {
     audioContext = new AudioCtx();
     const arrayBuffer = await file.arrayBuffer();
     const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const originalDurationSec = Number((decoded.length / decoded.sampleRate).toFixed(3));
 
-    const startSample = findSpeechStartSample(decoded, config);
-    const endSample = findSpeechEndSample(decoded, config);
+    const analysisBuffer = await applyHighpassForAnalysis(decoded, config.highpassHz);
+    const speechStartSample = findSpeechStartSample(analysisBuffer, config);
+    const speechEndSample = findSpeechEndSample(analysisBuffer, config);
+    const padSamples = Math.floor((decoded.sampleRate * config.padMs) / 1000);
+    const startSample = Math.max(0, speechStartSample - padSamples);
+    const endSample = Math.min(decoded.length, speechEndSample + padSamples);
 
     if (endSample <= startSample + Math.floor(decoded.sampleRate * 0.05)) {
-      return failOpen();
+      const dataUrl = await blobToDataUrl(file);
+      return {
+        audioUrl: dataUrl,
+        durationSec: originalDurationSec,
+        trimMeta: {
+          applied: false,
+          originalDurationSec,
+          trimmedDurationSec: originalDurationSec,
+          trimmedStartSec: 0,
+          trimmedEndSec: 0,
+          preTrimmed: false,
+        },
+      };
     }
 
     const trimmedBuffer = sliceAudioBuffer(audioContext, decoded, startSample, endSample);
     const trimmedDurationSec = Number((trimmedBuffer.length / trimmedBuffer.sampleRate).toFixed(3));
     const trimmedStartSec = Number((startSample / decoded.sampleRate).toFixed(3));
-    const trimmedEndSec = Number.isFinite(originalDurationSec)
-      ? Number(Math.max(0, originalDurationSec - trimmedDurationSec - trimmedStartSec).toFixed(3))
-      : 0;
+    const trimmedEndSec = Number(
+      Math.max(0, originalDurationSec - trimmedDurationSec - trimmedStartSec).toFixed(3)
+    );
 
-    const removedTotal = Number.isFinite(originalDurationSec)
-      ? originalDurationSec - trimmedDurationSec
-      : 0;
+    const removedTotal = originalDurationSec - trimmedDurationSec;
 
     if (removedTotal <= 0.05) {
-      return failOpen();
+      const dataUrl = await blobToDataUrl(file);
+      return {
+        audioUrl: dataUrl,
+        durationSec: originalDurationSec,
+        trimMeta: {
+          applied: false,
+          originalDurationSec,
+          trimmedDurationSec: originalDurationSec,
+          trimmedStartSec: 0,
+          trimmedEndSec: 0,
+          preTrimmed: false,
+        },
+      };
     }
 
     const wavBlob = encodeWavBlob(trimmedBuffer);
@@ -240,6 +322,7 @@ export const trimLeadingTrailingSilenceFromFile = async (file) => {
         trimmedDurationSec,
         trimmedStartSec,
         trimmedEndSec,
+        preTrimmed: true,
       },
     };
   } catch (error) {

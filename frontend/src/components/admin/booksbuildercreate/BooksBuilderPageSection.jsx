@@ -18,6 +18,7 @@ const BooksBuilderPageSection = ({
   canMoveDown = false,
   onDeletePage,
   canDelete = false,
+  uploadBookMedia,
 }) => {
   const theme = useTheme();
   const isMovableType = page?.type === 'content' || page?.type === 'interactive';
@@ -174,7 +175,11 @@ const BooksBuilderPageSection = ({
         onPatch={(patch) => onPatchPage(pageIndex, patch)}
       />
 
-      <BooksBuilderPageFields page={page} onPatch={(patch) => onPatchPage(pageIndex, patch)} />
+      <BooksBuilderPageFields
+        page={page}
+        onPatch={(patch) => onPatchPage(pageIndex, patch)}
+        uploadBookMedia={uploadBookMedia}
+      />
     </Paper>
   );
 };

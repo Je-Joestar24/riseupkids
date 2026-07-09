@@ -262,7 +262,7 @@ const cmsBookAdminService = {
    * Upload CMS book media. Audio uploads may return `duration` and `trimMeta`
    * when server-side silence trim is applied.
    */
-  uploadBookMedia: async ({ file, mediaType, title, description }) => {
+  uploadBookMedia: async ({ file, mediaType, title, description, preTrimmed = false }) => {
     try {
       if (!file) throw new Error('File is required');
       const formData = new FormData();
@@ -270,6 +270,7 @@ const cmsBookAdminService = {
       if (mediaType) formData.append('mediaType', mediaType);
       if (title) formData.append('title', title);
       if (description) formData.append('description', description);
+      if (preTrimmed) formData.append('preTrimmed', 'true');
       const response = await api.post(`${BASE_PATH}/media`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -344,6 +345,18 @@ const cmsBookAdminService = {
       throw getErrorMessage(error, 'Failed to delete CMS book');
     }
   },
+};
+
+/** Normalizes POST /admin/cms-books/media response for builder previews. */
+export const parseMediaUploadResponse = (response) => {
+  const payload = response?.data ?? response;
+  const media = payload?.data ?? payload;
+  return {
+    mediaId: media?._id || media?.id || null,
+    url: media?.url || media?.cloudUrl || null,
+    durationSec: Number.isFinite(Number(media?.duration)) ? Number(media.duration) : null,
+    trimMeta: media?.trimMeta || null,
+  };
 };
 
 export default cmsBookAdminService;

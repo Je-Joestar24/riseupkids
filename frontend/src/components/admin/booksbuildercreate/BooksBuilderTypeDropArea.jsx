@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Box, IconButton, MenuItem, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { AddCircleOutline, PlayArrow, Stop } from '@mui/icons-material';
@@ -11,6 +11,13 @@ import {
 import { buildWeightedWords, getOppositeInteractiveOption } from './BooksBuilderCreate.utils';
 import BooksBuilderInteractiveEditor from './BooksBuilderInteractiveEditor';
 import bigLogo from '../../../assets/images/big-logo.png';
+import {
+  getActiveReadingLineIndex,
+  getActiveReadingWordIndexInLine,
+  getUpcomingReadingLineIndex,
+  groupReadingWordsByLine,
+  normalizeReadingText,
+} from './../common/cmsTest/readingLines';
 
 const interactiveSelectProps = {
   MenuProps: {
@@ -49,7 +56,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
   const [timelineDragIndex, setTimelineDragIndex] = useState(-1);
 
   const contentReadingText = useMemo(
-    () => String(page.readingText || page.subtitle || '').trim(),
+    () => normalizeReadingText(page.readingText || page.subtitle || ''),
     [page.readingText, page.subtitle]
   );
 
@@ -63,16 +70,47 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
     return [];
   }, [contentReadingText, page.audioDurationSec, page.reading?.words, page.readingWords]);
 
+  const contentLineGroups = useMemo(
+    () => groupReadingWordsByLine(contentTimingWords, contentReadingText),
+    [contentTimingWords, contentReadingText]
+  );
+
+  const activeContentLineIndex = useMemo(() => {
+    if (!isContentPlaying || !contentLineGroups.length) return -1;
+    return getActiveReadingLineIndex(contentCurrentTime, contentLineGroups);
+  }, [contentCurrentTime, contentLineGroups, isContentPlaying]);
+
   const activeContentWordIndex = useMemo(() => {
-    if (!contentTimingWords.length) return -1;
-    return contentTimingWords.findIndex(
-      (word) =>
-        Number.isFinite(Number(word?.start))
-        && Number.isFinite(Number(word?.end))
-        && contentCurrentTime >= Number(word.start)
-        && contentCurrentTime < Number(word.end)
-    );
-  }, [contentCurrentTime, contentTimingWords]);
+    if (!isContentPlaying || activeContentLineIndex < 0) return -1;
+    const lineWords = contentLineGroups[activeContentLineIndex]?.words || [];
+    return getActiveReadingWordIndexInLine(contentCurrentTime, lineWords);
+  }, [contentCurrentTime, contentLineGroups, activeContentLineIndex, isContentPlaying]);
+
+  const nextContentLineWords = useMemo(() => {
+    if (!isContentPlaying) return [];
+    if (activeContentLineIndex >= 0) {
+      return contentLineGroups[activeContentLineIndex + 1]?.words || [];
+    }
+    const upcomingIndex = getUpcomingReadingLineIndex(contentCurrentTime, contentLineGroups);
+    return upcomingIndex >= 0 ? contentLineGroups[upcomingIndex]?.words || [] : [];
+  }, [activeContentLineIndex, contentCurrentTime, contentLineGroups, isContentPlaying]);
+
+  const showNextLinePreview = isContentPlaying && nextContentLineWords.length > 0;
+
+  const renderOverlayWords = (lineWords, activeWordIndex, muted = false) =>
+    lineWords.map((word, index) => (
+      <Box
+        key={`editor-overlay-word-${word?.w || 'word'}-${word?.start}-${index}`}
+        component="span"
+        sx={{
+          color: !muted && index === activeWordIndex ? 'accent.main' : '#141414',
+          opacity: muted ? 0.42 : 1,
+          transition: 'color 150ms ease, opacity 150ms ease',
+        }}
+      >
+        {`${word?.w || ''}${index < lineWords.length - 1 ? ' ' : ''}`}
+      </Box>
+    ));
 
   const contentReadingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
   const contentReadingFontSx = useMemo(
@@ -91,6 +129,15 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
       : 0;
     return Number.isFinite(fallbackEnd) && fallbackEnd > 0 ? fallbackEnd : 0;
   }, [contentTimingWords, page.audioDurationSec]);
+
+  useEffect(() => {
+    setContentCurrentTime(0);
+    setIsContentPlaying(false);
+    if (contentAudioRef.current) {
+      contentAudioRef.current.pause();
+      contentAudioRef.current.currentTime = 0;
+    }
+  }, [page.audioUrl, page.audioDurationSec]);
 
   const formatTimelineTime = (value) => {
     const safe = Number(value);
@@ -543,6 +590,7 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
           {page.audioUrl ? (
             <audio
               ref={contentAudioRef}
+              key={`content-audio-${page.id || page.pageId || 'page'}-${page.audioUrl}`}
               src={page.audioUrl}
               preload="metadata"
               onTimeUpdate={(event) => {
@@ -646,22 +694,69 @@ const BooksBuilderTypeDropArea = ({ page, pageIndex, onOpenTypeMenu, onPatch }) 
                   wordBreak: 'break-word',
                   pointerEvents: 'none',
                   minHeight: { xs: 92, md: 108 },
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  gap: 1,
                 }}
               >
-                {contentTimingWords.length
-                  ? contentTimingWords.map((word, index) => (
-                    <Box
-                      key={`editor-overlay-word-${index + 1}-${word?.w || 'word'}`}
-                      component="span"
-                      sx={{
-                        color: index === activeContentWordIndex ? 'accent.main' : '#141414',
-                        transition: 'color 150ms ease',
-                      }}
-                    >
-                      {`${word?.w || ''} `}
-                    </Box>
-                  ))
-                  : (contentReadingText || 'Type transcript text...')}
+                {contentTimingWords.length ? (
+                  isContentPlaying ? (
+                    <>
+                      <Box
+                        component="span"
+                        sx={{
+                          display: 'block',
+                          minHeight: '1.45em',
+                          opacity: activeContentLineIndex >= 0 ? 1 : 0,
+                          transition: 'opacity 180ms ease',
+                        }}
+                      >
+                        {activeContentLineIndex >= 0
+                          ? renderOverlayWords(
+                              contentLineGroups[activeContentLineIndex]?.words || [],
+                              activeContentWordIndex
+                            )
+                          : null}
+                      </Box>
+                      {showNextLinePreview ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.35 }}>
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontFamily: 'Quicksand, sans-serif',
+                              fontWeight: 700,
+                              fontSize: { xs: '0.62rem', md: '0.68rem' },
+                              color: 'text.secondary',
+                              letterSpacing: '0.04em',
+                              textTransform: 'uppercase',
+                            }}
+                          >
+                            Next line
+                          </Typography>
+                          <Box component="span" sx={{ display: 'block' }}>
+                            {renderOverlayWords(nextContentLineWords, -1, true)}
+                          </Box>
+                        </Box>
+                      ) : null}
+                    </>
+                  ) : (
+                    contentLineGroups.map((lineGroup, lineIndex) => (
+                      <Box
+                        key={`editor-line-${lineGroup.lineIndex}-${lineIndex}`}
+                        component="span"
+                        sx={{
+                          display: 'block',
+                          pb: lineIndex < contentLineGroups.length - 1 ? 0.6 : 0,
+                        }}
+                      >
+                        {renderOverlayWords(lineGroup.words, -1)}
+                      </Box>
+                    ))
+                  )
+                ) : (
+                  contentReadingText || 'Type transcript text...'
+                )}
               </Box>
 
               <TextField

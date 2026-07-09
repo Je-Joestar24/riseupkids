@@ -2,6 +2,11 @@ const { CmsBook, Media } = require('../models');
 const s3Service = require('./s3.service');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const { normalizeReadingFontSizePx } = require('../utils/cmsContentReading.util');
+const {
+  normalizeReadingText,
+  buildWeightedWords,
+  normalizeReadingWordsForOutput,
+} = require('../utils/cmsReadingWords.util');
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 const {
   getCoverPage,
@@ -42,38 +47,7 @@ function normalizeSearch(value) {
   return String(value || '').trim();
 }
 
-function normalizeTextTokens(text = '') {
-  return String(text)
-    .trim()
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
-}
-
-function buildWeightedWords(text, durationSec) {
-  const tokens = normalizeTextTokens(text);
-  const duration = Number(durationSec);
-  if (!tokens.length || !Number.isFinite(duration) || duration <= 0) return [];
-
-  const weights = tokens.map((token) => Math.max(String(token).length, 1));
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  if (!totalWeight) return [];
-
-  let cursor = 0;
-  return tokens.map((token, index) => {
-    const raw = (weights[index] / totalWeight) * duration;
-    const end = index === tokens.length - 1 ? duration : Math.min(duration, cursor + raw);
-    const segment = {
-      w: token,
-      start: Number(cursor.toFixed(3)),
-      end: Number(end.toFixed(3)),
-    };
-    cursor = end;
-    return segment;
-  });
-}
-
-function normalizeReadingWords({ words, durationSec }) {
+function normalizeReadingWords({ words, durationSec, text = '' }) {
   if (!Array.isArray(words) || words.length === 0) return [];
   const duration = Number(durationSec);
   if (!Number.isFinite(duration) || duration <= 0) {
@@ -81,7 +55,7 @@ function normalizeReadingWords({ words, durationSec }) {
   }
 
   let previousEnd = 0;
-  return words.map((word, index) => {
+  const normalized = words.map((word, index) => {
     const token = String(word?.w || '').trim();
     const start = Number(word?.start);
     const end = Number(word?.end);
@@ -100,15 +74,18 @@ function normalizeReadingWords({ words, durationSec }) {
       w: token,
       start: Number(start.toFixed(3)),
       end: Number(end.toFixed(3)),
+      lineIndex: Number.isFinite(Number(word?.lineIndex)) ? Number(word.lineIndex) : undefined,
     };
   });
+
+  return normalizeReadingWordsForOutput(normalized, text);
 }
 
 function normalizeContentReading(page = {}) {
   if (page?.type !== 'content') return page;
   const next = { ...page };
   const reading = page?.reading ? { ...page.reading } : {};
-  const text = String(reading.text || '').trim();
+  const text = normalizeReadingText(reading.text || '');
   const durationSec = reading.durationSec == null ? null : Number(reading.durationSec);
   const hasDuration = Number.isFinite(durationSec) && durationSec > 0;
 
@@ -123,7 +100,11 @@ function normalizeContentReading(page = {}) {
   else delete reading.fontSizePx;
 
   if (Array.isArray(reading.words) && reading.words.length) {
-    reading.words = normalizeReadingWords({ words: reading.words, durationSec: reading.durationSec });
+    reading.words = normalizeReadingWords({
+      words: reading.words,
+      durationSec: reading.durationSec,
+      text,
+    });
   } else if (reading.text && hasDuration) {
     reading.words = buildWeightedWords(reading.text, reading.durationSec);
   } else {
@@ -549,6 +530,7 @@ async function uploadCmsBookMedia({
   mediaType,
   title,
   description,
+  preTrimmed = false,
 }) {
   if (!userId) throw createHttpError('userId is required', 400);
   if (!file || !file.buffer) throw createHttpError('Media file is required', 400);
@@ -578,7 +560,7 @@ async function uploadCmsBookMedia({
   let trimMeta = null;
 
   if (normalizedType === 'audio') {
-    const trimmed = await trimLeadingTrailingSilence(file);
+    const trimmed = await trimLeadingTrailingSilence(file, { preTrimmed: Boolean(preTrimmed) });
     uploadFile = {
       ...file,
       buffer: trimmed.buffer,

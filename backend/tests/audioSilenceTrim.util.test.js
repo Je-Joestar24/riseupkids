@@ -57,9 +57,12 @@ describe('audioSilenceTrim.util', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     process.env.AUDIO_SILENCE_TRIM_ENABLED = 'true';
-    process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB = '-40';
-    process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC = '0.1';
-    process.env.AUDIO_SILENCE_TRIM_PAD_MS = '80';
+    process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB = '-36';
+    process.env.AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB = '-28';
+    process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC = '0.12';
+    process.env.AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC = '0.15';
+    process.env.AUDIO_SILENCE_TRIM_PAD_MS = '200';
+    process.env.AUDIO_SILENCE_TRIM_HIGHPASS_HZ = '400';
   });
 
   afterAll(() => {
@@ -69,9 +72,12 @@ describe('audioSilenceTrim.util', () => {
   it('exposes trim config defaults', () => {
     const config = readTrimConfig();
     expect(config.enabled).toBe(true);
-    expect(config.thresholdDb).toBe(-40);
-    expect(config.minSilenceSec).toBe(0.1);
-    expect(config.padMs).toBe(80);
+    expect(config.thresholdDb).toBe(-36);
+    expect(config.speechThresholdDb).toBe(-28);
+    expect(config.minSilenceSec).toBe(0.12);
+    expect(config.minSpeechSec).toBe(0.15);
+    expect(config.padMs).toBe(200);
+    expect(config.highpassHz).toBe(400);
   });
 
   it('trims leading and trailing silence from a wav buffer', async () => {
