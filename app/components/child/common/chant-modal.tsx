@@ -454,18 +454,19 @@ export function ChantModal({
               </Pressable>
             </View>
           </View>
+
+          <ConfirmModal
+            inline
+            open={showConfirmClose}
+            title="Close chant?"
+            message={completionLabels.closeConfirmMessage}
+            confirmLabel="Yes, Close"
+            cancelLabel={completionLabels.keepGoingLabel}
+            onConfirm={handleConfirmedClose}
+            onCancel={() => setShowConfirmClose(false)}
+          />
         </View>
       </Modal>
-
-      <ConfirmModal
-        open={showConfirmClose}
-        title="Close chant?"
-        message={completionLabels.closeConfirmMessage}
-        confirmLabel="Yes, Close"
-        cancelLabel={completionLabels.keepGoingLabel}
-        onConfirm={handleConfirmedClose}
-        onCancel={() => setShowConfirmClose(false)}
-      />
     </>
   );
 }

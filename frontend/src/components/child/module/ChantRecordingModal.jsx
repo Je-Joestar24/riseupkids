@@ -39,94 +39,109 @@ const buildPublicUrl = (maybeUrl) => {
   return `${BACKEND_BASE_URL}${urlStr.startsWith('/') ? urlStr : `/${urlStr}`}`;
 };
 
-const ConfirmCloseDialog = ({ open, onConfirm, onCancel, message, keepGoingLabel }) => (
-  <Dialog
-    open={open}
-    onClose={onCancel}
-    maxWidth="sm"
-    fullWidth
-    PaperProps={{
-      sx: {
-        borderRadius: '20px',
-        fontFamily: 'Quicksand, sans-serif',
-        backgroundColor: themeColors.bgCard,
-        padding: '8px',
-        mx: { xs: 1.5, sm: 2 },
-      },
-    }}
-  >
-    <DialogTitle
+const ConfirmCloseOverlay = ({ open, onConfirm, onCancel, message, keepGoingLabel }) => {
+  if (!open) return null;
+
+  return (
+    <Box
+      role="dialog"
+      aria-modal="true"
+      aria-label="Close chant confirmation"
+      onClick={onCancel}
       sx={{
-        fontFamily: 'Quicksand, sans-serif',
-        fontWeight: 700,
-        fontSize: { xs: '1.5rem', sm: '2rem' },
-        color: themeColors.primary,
-        textAlign: 'center',
-        padding: { xs: '20px', sm: '24px' },
-      }}
-    >
-      Close chant?
-    </DialogTitle>
-    <DialogContent sx={{ padding: '0 24px' }}>
-      <Typography
-        sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontSize: { xs: '1.1rem', sm: '1.35rem' },
-          color: themeColors.text,
-          textAlign: 'center',
-          lineHeight: 1.6,
-        }}
-      >
-        {message}
-      </Typography>
-    </DialogContent>
-    <DialogActions
-      sx={{
-        padding: { xs: '20px', sm: '24px' },
+        position: 'absolute',
+        inset: 0,
+        zIndex: 10,
+        bgcolor: 'rgba(0,0,0,0.55)',
+        display: 'flex',
+        alignItems: 'center',
         justifyContent: 'center',
-        gap: 2,
-        flexDirection: { xs: 'column', sm: 'row' },
+        p: { xs: 2, sm: 3 },
       }}
     >
-      <Button
-        onClick={onCancel}
-        variant="outlined"
-        fullWidth
+      <Box
+        onClick={(event) => event.stopPropagation()}
         sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontWeight: 600,
-          fontSize: { xs: '1rem', sm: '1.2rem' },
-          textTransform: 'none',
-          padding: '12px 24px',
-          borderRadius: '12px',
-          color: themeColors.orange,
-          maxWidth: { sm: 220 },
+          width: '100%',
+          maxWidth: 400,
+          bgcolor: themeColors.bgCard,
+          borderRadius: '20px',
+          p: { xs: 2.5, sm: 3 },
+          textAlign: 'center',
+          boxShadow: '0 12px 32px rgba(0,0,0,0.2)',
         }}
       >
-        {keepGoingLabel}
-      </Button>
-      <Button
-        onClick={onConfirm}
-        variant="contained"
-        fullWidth
-        sx={{
-          fontFamily: 'Quicksand, sans-serif',
-          fontWeight: 600,
-          fontSize: { xs: '1rem', sm: '1.2rem' },
-          textTransform: 'none',
-          padding: '12px 24px',
-          borderRadius: '12px',
-          backgroundColor: themeColors.secondary,
-          color: themeColors.textInverse,
-          maxWidth: { sm: 220 },
-          '&:hover': { backgroundColor: themeColors.primary },
-        }}
-      >
-        Yes, Close
-      </Button>
-    </DialogActions>
-  </Dialog>
-);
+        <Typography
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 700,
+            fontSize: { xs: '1.5rem', sm: '2rem' },
+            color: themeColors.primary,
+            mb: 2,
+          }}
+        >
+          Close chant?
+        </Typography>
+        <Typography
+          sx={{
+            fontFamily: 'Quicksand, sans-serif',
+            fontSize: { xs: '1.1rem', sm: '1.35rem' },
+            color: themeColors.text,
+            lineHeight: 1.6,
+            mb: 3,
+          }}
+        >
+          {message}
+        </Typography>
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 2,
+            justifyContent: 'center',
+          }}
+        >
+          <Button
+            onClick={onCancel}
+            variant="outlined"
+            fullWidth
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 600,
+              fontSize: { xs: '1rem', sm: '1.2rem' },
+              textTransform: 'none',
+              padding: '12px 24px',
+              borderRadius: '12px',
+              color: themeColors.orange,
+              maxWidth: { sm: 220 },
+            }}
+          >
+            {keepGoingLabel}
+          </Button>
+          <Button
+            onClick={onConfirm}
+            variant="contained"
+            fullWidth
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              fontWeight: 600,
+              fontSize: { xs: '1rem', sm: '1.2rem' },
+              textTransform: 'none',
+              padding: '12px 24px',
+              borderRadius: '12px',
+              backgroundColor: themeColors.secondary,
+              color: themeColors.textInverse,
+              maxWidth: { sm: 220 },
+              '&:hover': { backgroundColor: themeColors.primary },
+            }}
+          >
+            Yes, Close
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 const ChantReferenceAudio = ({ url, label, audioOnly = false }) => {
   const audioRef = React.useRef(null);
@@ -435,6 +450,7 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
         fullScreen={isAudioOnlyPhoneMode}
         PaperProps={{
           sx: {
+            position: 'relative',
             borderRadius: isAudioOnlyPhoneMode ? 0 : { xs: '16px', sm: '18px' },
             overflow: 'hidden',
             backgroundColor: themeColors.bgCard,
@@ -616,15 +632,15 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
             Close
           </Button>
         </DialogActions>
-      </Dialog>
 
-      <ConfirmCloseDialog
-        open={showConfirmClose}
-        onConfirm={handleConfirmedClose}
-        onCancel={() => setShowConfirmClose(false)}
-        message={completionLabels.closeConfirmMessage}
-        keepGoingLabel={completionLabels.keepGoingLabel}
-      />
+        <ConfirmCloseOverlay
+          open={showConfirmClose}
+          onConfirm={handleConfirmedClose}
+          onCancel={() => setShowConfirmClose(false)}
+          message={completionLabels.closeConfirmMessage}
+          keepGoingLabel={completionLabels.keepGoingLabel}
+        />
+      </Dialog>
     </>
   );
 };
