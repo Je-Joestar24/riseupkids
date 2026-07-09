@@ -29,6 +29,31 @@ import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 
+async function ensurePlaybackAudioMode(): Promise<void> {
+  try {
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+  } catch {
+    // Best-effort — still attempt playback.
+  }
+}
+
+async function ensureRecordingAudioMode(): Promise<void> {
+  await Audio.requestPermissionsAsync();
+  await Audio.setAudioModeAsync({
+    allowsRecordingIOS: true,
+    playsInSilentModeIOS: true,
+    staysActiveInBackground: false,
+    shouldDuckAndroid: true,
+    playThroughEarpieceAndroid: false,
+  });
+}
+
 export interface AudioModalProps {
   open: boolean;
   onClose: () => void;
@@ -143,6 +168,7 @@ export function AudioModal({
       cleanupRecording();
       cleanupRecordedMedia();
       setShowConfirmClose(false);
+      void ensurePlaybackAudioMode();
     }
   }, [open, cleanupRecording, cleanupRecordedMedia]);
 
@@ -154,32 +180,40 @@ export function AudioModal({
     }
   }, [open, isApproved, courseId, audioId, updateCourseContentProgress, onAfterApproved]);
 
-  const handleCloseAttempt = useCallback(() => {
-    if ((recordUri || isRecordingSessionActive) && !isApproved && !isRejected) {
-      setShowConfirmClose(true);
-    } else {
-      onClose();
-    }
-  }, [recordUri, isRecordingSessionActive, isApproved, isRejected, onClose]);
+  const skipCloseConfirm = isApproved || isSubmitted || submitting;
 
-  const handleConfirmedClose = useCallback(() => {
+  const closeConfirmMessage =
+    recordUri || isRecordingSessionActive
+      ? 'Do you want to close this activity? Your recording will be lost!'
+      : 'Do you want to close this activity? Tap Submit when you are done to save your recording.';
+
+  const handleCloseAttempt = useCallback(() => {
+    if (skipCloseConfirm) {
+      onClose();
+      return;
+    }
+    setShowConfirmClose(true);
+  }, [skipCloseConfirm, onClose]);
+
+  const handleConfirmedClose = useCallback(async () => {
     setShowConfirmClose(false);
+    if (recordingRef.current) {
+      try {
+        await recordingRef.current.stopAndUnloadAsync();
+      } catch {
+        // ignore
+      }
+    }
     cleanupRecordedMedia();
     cleanupRecording();
+    void ensurePlaybackAudioMode();
     onClose();
   }, [cleanupRecordedMedia, cleanupRecording, onClose]);
 
   const handleStartRecording = useCallback(async () => {
     if (!childId || isRecordingSessionActive) return;
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      await ensureRecordingAudioMode();
       cleanupRecordedMedia();
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
@@ -236,6 +270,7 @@ export function AudioModal({
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       setRecordUri(uri ?? null);
+      await ensurePlaybackAudioMode();
     } catch {
       // ignore
     } finally {
@@ -575,18 +610,19 @@ export function AudioModal({
               </Pressable>
             </View>
           </View>
+
+          <ConfirmModal
+            inline
+            open={showConfirmClose}
+            title="Close Audio Assignment?"
+            message={closeConfirmMessage}
+            confirmLabel="Yes, Close"
+            cancelLabel={recordUri || isRecordingSessionActive ? 'Keep Recording' : 'Keep Going'}
+            onConfirm={() => void handleConfirmedClose()}
+            onCancel={() => setShowConfirmClose(false)}
+          />
         </View>
       </Modal>
-
-      <ConfirmModal
-        open={showConfirmClose}
-        title="Save your recording?"
-        message="Do you want to close this activity? Your recording will be lost!"
-        confirmLabel="Yes, Close"
-        cancelLabel="Keep Recording"
-        onConfirm={handleConfirmedClose}
-        onCancel={() => setShowConfirmClose(false)}
-      />
     </>
   );
 }
@@ -631,7 +667,13 @@ function AudioPlayer({
 
   const ensureSoundLoaded = useCallback(async () => {
     if (soundRef.current) return soundRef.current;
-    const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false }, handlePlaybackStatus);
+    await ensurePlaybackAudioMode();
+    const { sound } = await Audio.Sound.createAsync(
+      { uri },
+      { shouldPlay: false, volume: 1, isLooping: false },
+      handlePlaybackStatus
+    );
+    await sound.setVolumeAsync(1);
     soundRef.current = sound;
     return sound;
   }, [handlePlaybackStatus, uri]);
@@ -640,7 +682,9 @@ function AudioPlayer({
     if (isLoading || isPlaying) return;
     setIsLoading(true);
     try {
+      await ensurePlaybackAudioMode();
       const sound = await ensureSoundLoaded();
+      await sound.setVolumeAsync(1);
       await sound.playAsync();
       setIsPlaying(true);
     } catch {

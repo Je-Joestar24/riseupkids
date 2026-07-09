@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing[4],
     marginBottom: spacing[6],
   },
@@ -87,17 +87,21 @@ const styles = StyleSheet.create({
   },
   textWrap: {
     flex: 1,
+    flexShrink: 1,
+    paddingTop: spacing[1],
   },
   greeting: {
     fontSize: typography.sizes['3xl'],
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.secondary,
     marginBottom: spacing[1],
+    lineHeight: typography.sizes['3xl'] * typography.lineHeights.tight,
   },
   subgreeting: {
     fontSize: typography.sizes.xl,
     fontFamily: 'Quicksand_500Medium',
     color: colors.textSecondary,
+    lineHeight: typography.sizes.xl * typography.lineHeights.normal,
   },
   startButton: {
     flexDirection: 'row',
@@ -121,6 +125,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes['2xl'],
     fontFamily: 'Quicksand_700Bold',
     color: colors.textInverse,
+    lineHeight: typography.sizes['2xl'] * typography.lineHeights.tight,
   },
 });
 

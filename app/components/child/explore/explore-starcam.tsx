@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
+import { typography } from '@/config/theme/typography';
 
 const STAR_SIZE = 96;
 const CAMERA_SIZE = 40;
@@ -85,9 +86,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   label: {
-    fontSize: 30,
-    fontWeight: '700',
+    fontSize: typography.sizes['3xl'],
+    fontFamily: 'Quicksand_700Bold',
     color: colors.textInverse,
     letterSpacing: -0.3,
+    lineHeight: typography.sizes['3xl'] * typography.lineHeights.tight,
+    paddingTop: spacing[1],
   },
 });
