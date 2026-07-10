@@ -3,6 +3,7 @@ import { Box, IconButton, Typography } from '@mui/material';
 import contentBackButtonImage from '../../../../assets/images/book/content_back_button.png';
 import contentNextButtonImage from '../../../../assets/images/book/content_next_button.png';
 import bigLogo from '../../../../assets/images/big-logo.png';
+import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
 import {
   imageActionButtonSx,
   pageFrameSx,
@@ -71,6 +72,7 @@ const ContentTest = ({
 }) => {
   const bgImage = resolveImageUrl(page);
   const audioUrl = resolveAudioUrl(page);
+  const { src: audioSrc, onMediaError: onAudioError } = useMediaLoadRecovery(audioUrl);
   const audioRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
 
@@ -139,16 +141,18 @@ const ContentTest = ({
           position: 'relative',
         }}
       >
-        {audioUrl ? (
+        {audioSrc ? (
           <audio
             ref={audioRef}
-            key={`${page?.pageId || page?.id || 'content'}-audio`}
-            src={audioUrl}
+            key={`${page?.pageId || page?.id || 'content'}-audio-${audioSrc}`}
+            src={audioSrc}
             autoPlay
+            preload="metadata"
             aria-label="Content background audio"
             onTimeUpdate={(event) => {
               setCurrentTime(Number(event.currentTarget?.currentTime || 0));
             }}
+            onError={onAudioError}
             style={{ display: 'none' }}
           />
         ) : null}

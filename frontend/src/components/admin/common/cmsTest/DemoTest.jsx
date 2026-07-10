@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import demoPlayButtonImage from '../../../../assets/images/book/demo_play_button.png';
+import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
 import {
   cmsPageSubtitleTextSx,
   cmsPageSubtitleWrapSx,
@@ -18,6 +19,7 @@ const DemoTest = ({
 }) => {
   const bgImage = resolveImageUrl(page);
   const videoUrl = resolveVideoUrl(page);
+  const { src: videoSrc, onMediaError: onVideoError } = useMediaLoadRecovery(videoUrl);
 
   return (
     <Box sx={pageFrameSx}>
@@ -30,15 +32,18 @@ const DemoTest = ({
         />
       ) : null}
 
-      {videoUrl ? (
+      {videoSrc ? (
         <Box
           component="video"
-          src={videoUrl}
+          key={videoSrc}
+          src={videoSrc}
           autoPlay
           muted
           loop
           playsInline
+          preload="metadata"
           aria-label="Demo video preview"
+          onError={onVideoError}
           sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
         />
       ) : null}

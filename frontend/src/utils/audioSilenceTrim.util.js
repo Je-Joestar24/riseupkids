@@ -71,6 +71,7 @@ const applyHighpassForAnalysis = async (buffer, cutoffHz) => {
   return offline.startRendering();
 };
 
+/** Leading edge only — returns 0 when audio starts with speech (internal pauses ignored). */
 const findSpeechStartSample = (analysisBuffer, config) => {
   const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
@@ -80,8 +81,6 @@ const findSpeechStartSample = (analysisBuffer, config) => {
   const speechThreshold = dbToLinear(config.speechThresholdDb);
 
   let silentRun = 0;
-  let seenLeadingSilence = false;
-  let speechRun = 0;
 
   for (let start = 0; start < analysisBuffer.length; start += windowSize) {
     const end = Math.min(analysisBuffer.length, start + windowSize);
@@ -89,55 +88,81 @@ const findSpeechStartSample = (analysisBuffer, config) => {
 
     if (peak < silenceThreshold) {
       silentRun += 1;
-      speechRun = 0;
-      if (silentRun >= minSilentWindows) {
-        seenLeadingSilence = true;
-      }
       continue;
     }
 
-    if (!seenLeadingSilence) {
-      speechRun = 0;
-      continue;
+    if (silentRun < minSilentWindows) {
+      return 0;
     }
 
-    if (peak >= speechThreshold) {
-      speechRun += 1;
-      if (speechRun >= minSpeechWindows) {
-        return Math.max(0, start - (minSpeechWindows - 1) * windowSize);
+    let speechRun = 0;
+    for (let s = start; s < analysisBuffer.length; s += windowSize) {
+      const e = Math.min(analysisBuffer.length, s + windowSize);
+      const pk = getWindowPeak(analysisBuffer, s, e);
+
+      if (pk >= speechThreshold) {
+        speechRun += 1;
+        if (speechRun >= minSpeechWindows) {
+          return Math.max(0, s - (minSpeechWindows - 1) * windowSize);
+        }
+      } else if (pk < silenceThreshold) {
+        speechRun = 0;
+      } else {
+        speechRun = 0;
       }
-    } else {
-      speechRun = 0;
     }
+
+    return Math.min(analysisBuffer.length, silentRun * windowSize);
   }
 
   return 0;
 };
 
+/** Trailing edge only — returns full length when audio ends with speech. */
 const findSpeechEndSample = (analysisBuffer, config) => {
   const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
+  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
   const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
+  const silenceThreshold = dbToLinear(config.thresholdDb);
   const speechThreshold = dbToLinear(config.speechThresholdDb);
 
-  let speechRun = 0;
-  let lastSpeechEndSample = analysisBuffer.length;
+  let silentRun = 0;
 
-  for (let start = 0; start < analysisBuffer.length; start += windowSize) {
-    const end = Math.min(analysisBuffer.length, start + windowSize);
+  for (let end = analysisBuffer.length; end > 0; end -= windowSize) {
+    const start = Math.max(0, end - windowSize);
     const peak = getWindowPeak(analysisBuffer, start, end);
 
-    if (peak >= speechThreshold) {
-      speechRun += 1;
-      if (speechRun >= minSpeechWindows) {
-        lastSpeechEndSample = end;
-      }
-    } else {
-      speechRun = 0;
+    if (peak < silenceThreshold) {
+      silentRun += 1;
+      continue;
     }
+
+    if (silentRun < minSilentWindows) {
+      return analysisBuffer.length;
+    }
+
+    let speechRun = 0;
+    for (let e = end; e > 0; e -= windowSize) {
+      const s = Math.max(0, e - windowSize);
+      const pk = getWindowPeak(analysisBuffer, s, e);
+
+      if (pk >= speechThreshold) {
+        speechRun += 1;
+        if (speechRun >= minSpeechWindows) {
+          return Math.min(analysisBuffer.length, e + (minSpeechWindows - 1) * windowSize);
+        }
+      } else if (pk < silenceThreshold) {
+        speechRun = 0;
+      } else {
+        speechRun = 0;
+      }
+    }
+
+    return Math.max(0, analysisBuffer.length - silentRun * windowSize);
   }
 
-  return lastSpeechEndSample;
+  return analysisBuffer.length;
 };
 
 const sliceAudioBuffer = (audioContext, source, startSample, endSample) => {

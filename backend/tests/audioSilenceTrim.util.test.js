@@ -51,6 +51,59 @@ function createWavWithSilenceEdges({
   return buffer;
 }
 
+function createWavWithInternalPause({
+  sampleRate = 44100,
+  firstToneSec = 0.6,
+  pauseSec = 1.2,
+  secondToneSec = 0.6,
+  toneAmplitude = 8000,
+} = {}) {
+  const firstSamples = Math.floor(firstToneSec * sampleRate);
+  const pauseSamples = Math.floor(pauseSec * sampleRate);
+  const secondSamples = Math.floor(secondToneSec * sampleRate);
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const dataSize = (firstSamples + pauseSamples + secondSamples) * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * numChannels * bytesPerSample, 28);
+  buffer.writeUInt16LE(numChannels * bytesPerSample, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  let offset = 44;
+  const writeTone = (count, phaseOffset = 0) => {
+    for (let i = 0; i < count; i += 1) {
+      const t = (i + phaseOffset) / sampleRate;
+      const sample = Math.round(toneAmplitude * Math.sin(2 * Math.PI * 440 * t));
+      buffer.writeInt16LE(sample, offset);
+      offset += 2;
+    }
+  };
+  const writeSilence = (count) => {
+    for (let i = 0; i < count; i += 1) {
+      buffer.writeInt16LE(0, offset);
+      offset += 2;
+    }
+  };
+
+  writeTone(firstSamples);
+  writeSilence(pauseSamples);
+  writeTone(secondSamples, firstSamples + pauseSamples);
+
+  return buffer;
+}
+
 describe('audioSilenceTrim.util', () => {
   const originalEnv = { ...process.env };
 
@@ -97,6 +150,24 @@ describe('audioSilenceTrim.util', () => {
     expect(result.trimMeta.trimmedDurationSec).toBeLessThan(result.trimMeta.originalDurationSec);
     expect(result.durationSec).toBe(result.trimMeta.trimmedDurationSec);
     expect(result.trimMeta.trimmedStartSec).toBeGreaterThan(0);
+  }, 30000);
+
+  it('does not trim internal pauses when speech starts immediately', async () => {
+    const wavBuffer = createWavWithInternalPause();
+    const expectedDuration = 2.4;
+
+    const result = await trimLeadingTrailingSilence({
+      buffer: wavBuffer,
+      mimetype: 'audio/wav',
+      originalname: 'speech-pause-speech.wav',
+    });
+
+    expect(result.trimMeta.applied).toBe(false);
+    expect(result.buffer).toBe(wavBuffer);
+    expect(result.trimMeta.trimmedStartSec).toBe(0);
+    expect(result.trimMeta.trimmedEndSec).toBe(0);
+    expect(result.durationSec).toBeGreaterThan(expectedDuration - 0.2);
+    expect(result.durationSec).toBeLessThan(expectedDuration + 0.2);
   }, 30000);
 
   it('fail-open returns original buffer when trim is disabled', async () => {

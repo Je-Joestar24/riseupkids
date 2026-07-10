@@ -137,11 +137,11 @@ function getWindowPeak(samples, start, end) {
 }
 
 /**
- * Window-based edge detection with dual thresholds:
- * - silence threshold for quiet/hiss
- * - speech threshold requiring sustained loud windows (avoids early noise blips)
+ * Leading edge only: trim silence at the very start of the file.
+ * If audio begins with speech (no leading silence), returns 0.
+ * Internal pauses are never treated as a trim point.
  */
-function findSpeechBounds(samples, sampleRate, config) {
+function findLeadingTrimSample(samples, sampleRate, config) {
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
   const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
   const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
@@ -149,9 +149,6 @@ function findSpeechBounds(samples, sampleRate, config) {
   const speechThreshold = dbToLinear(config.speechThresholdDb);
 
   let silentRun = 0;
-  let seenLeadingSilence = false;
-  let speechRun = 0;
-  let startSample = 0;
 
   for (let start = 0; start < samples.length; start += windowSize) {
     const end = Math.min(samples.length, start + windowSize);
@@ -159,48 +156,88 @@ function findSpeechBounds(samples, sampleRate, config) {
 
     if (peak < silenceThreshold) {
       silentRun += 1;
-      speechRun = 0;
-      if (silentRun >= minSilentWindows) {
-        seenLeadingSilence = true;
-      }
       continue;
     }
 
-    if (!seenLeadingSilence) {
-      startSample = 0;
-      speechRun = 0;
-      continue;
+    if (silentRun < minSilentWindows) {
+      return 0;
     }
 
-    if (peak >= speechThreshold) {
-      speechRun += 1;
-      if (speechRun >= minSpeechWindows) {
-        startSample = Math.max(0, start - (minSpeechWindows - 1) * windowSize);
-        break;
+    let speechRun = 0;
+    for (let s = start; s < samples.length; s += windowSize) {
+      const e = Math.min(samples.length, s + windowSize);
+      const pk = getWindowPeak(samples, s, e);
+
+      if (pk >= speechThreshold) {
+        speechRun += 1;
+        if (speechRun >= minSpeechWindows) {
+          return Math.max(0, s - (minSpeechWindows - 1) * windowSize);
+        }
+      } else if (pk < silenceThreshold) {
+        speechRun = 0;
+      } else {
+        speechRun = 0;
       }
-    } else {
-      speechRun = 0;
     }
+
+    return Math.min(samples.length, silentRun * windowSize);
   }
 
-  speechRun = 0;
-  let lastSpeechEndSample = samples.length;
+  return 0;
+}
 
-  for (let start = 0; start < samples.length; start += windowSize) {
-    const end = Math.min(samples.length, start + windowSize);
+/**
+ * Trailing edge only: trim silence at the very end of the file.
+ * If audio ends with speech (no trailing silence), returns samples.length.
+ */
+function findTrailingTrimSample(samples, sampleRate, config) {
+  const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
+  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
+  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
+  const silenceThreshold = dbToLinear(config.thresholdDb);
+  const speechThreshold = dbToLinear(config.speechThresholdDb);
+
+  let silentRun = 0;
+
+  for (let end = samples.length; end > 0; end -= windowSize) {
+    const start = Math.max(0, end - windowSize);
     const peak = getWindowPeak(samples, start, end);
 
-    if (peak >= speechThreshold) {
-      speechRun += 1;
-      if (speechRun >= minSpeechWindows) {
-        lastSpeechEndSample = end;
-      }
-    } else {
-      speechRun = 0;
+    if (peak < silenceThreshold) {
+      silentRun += 1;
+      continue;
     }
+
+    if (silentRun < minSilentWindows) {
+      return samples.length;
+    }
+
+    let speechRun = 0;
+    for (let e = end; e > 0; e -= windowSize) {
+      const s = Math.max(0, e - windowSize);
+      const pk = getWindowPeak(samples, s, e);
+
+      if (pk >= speechThreshold) {
+        speechRun += 1;
+        if (speechRun >= minSpeechWindows) {
+          return Math.min(samples.length, e + (minSpeechWindows - 1) * windowSize);
+        }
+      } else if (pk < silenceThreshold) {
+        speechRun = 0;
+      } else {
+        speechRun = 0;
+      }
+    }
+
+    return Math.max(0, samples.length - silentRun * windowSize);
   }
 
-  const endSample = lastSpeechEndSample;
+  return samples.length;
+}
+
+function findSpeechBounds(samples, sampleRate, config) {
+  const startSample = findLeadingTrimSample(samples, sampleRate, config);
+  const endSample = findTrailingTrimSample(samples, sampleRate, config);
 
   return { startSample, endSample };
 }

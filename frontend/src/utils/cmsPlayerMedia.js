@@ -125,37 +125,14 @@ const preloadImage = (url) =>
     url
   );
 
-const preloadMediaElement = (url, kind) =>
+const preloadMediaElement = (url) =>
   withTimeout(
-    new Promise((resolve, reject) => {
-      const element = kind === 'audio' ? new Audio() : document.createElement('video');
-      element.preload = 'auto';
-      element.muted = true;
-      if (kind === 'video') {
-        element.playsInline = true;
-      }
-
-      let settled = false;
-      const cleanup = () => {
-        element.onload = null;
-        element.onerror = null;
-        element.onloadeddata = null;
-        element.oncanplaythrough = null;
-        element.src = '';
-      };
-      const finish = (ok) => {
-        if (settled) return;
-        settled = true;
-        cleanup();
-        ok ? resolve() : reject(new Error(`${kind} preload failed: ${url}`));
-      };
-
-      element.oncanplaythrough = () => finish(true);
-      element.onloadeddata = () => finish(true);
-      element.onerror = () => finish(false);
-      element.src = url;
-      element.load?.();
-    }),
+    fetch(url, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      cache: 'no-store',
+      credentials: 'omit',
+    }).catch(() => undefined),
     PRELOAD_TIMEOUT_MS,
     url
   );
@@ -179,7 +156,7 @@ export const preloadCmsMediaUrl = async (url) => {
     await preloadImage(url);
     return;
   }
-  await preloadMediaElement(url, kind);
+  await preloadMediaElement(url);
 };
 
 export const MAX_CMS_PRELOAD_CONCURRENCY = 4;
