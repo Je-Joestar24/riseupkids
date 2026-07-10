@@ -20,6 +20,7 @@ import {
   WallpaperOutlined,
 } from '@mui/icons-material';
 import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
+import useImageFileWithTransparentTrim from '../../../hooks/useImageFileWithTransparentTrim';
 import {
   createEmptyInteractiveLayouts,
   resolveBuilderInteractiveLayouts,
@@ -49,13 +50,14 @@ const interactiveSelectProps = {
   MenuProps: { disableScrollLock: true, keepMounted: false },
 };
 
-const readImageFile = (file, onDone) => {
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === 'string') onDone(reader.result);
-  };
-  reader.readAsDataURL(file);
-};
+const INTERACTIVE_IMAGE_TRIM_FIELDS = new Set([
+  'sceneImageOne',
+  'sceneImageTwo',
+  'guideImageOne',
+  'guideImageTwo',
+  'optionImageOne',
+  'optionImageTwo',
+]);
 
 const SectionLabel = ({ children }) => (
   <Typography
@@ -239,7 +241,7 @@ const AssetRow = ({
         />
       ) : null}
       {onUpload ? (
-        <Tooltip title={uploadDisabled ? 'Trimming silence…' : 'Upload or replace'}>
+        <Tooltip title={uploadDisabled ? 'Processing upload…' : 'Upload or replace'}>
           <span>
             <IconButton
               size="small"
@@ -277,7 +279,9 @@ const AssetRow = ({
 
 const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatch }) => {
   const theme = useTheme();
-  const { processAudioFile, isTrimming } = useAudioFileWithSilenceTrim();
+  const { processAudioFile, isTrimming: isTrimmingAudio } = useAudioFileWithSilenceTrim();
+  const { processImageFile, isTrimming: isTrimmingImage } = useImageFileWithTransparentTrim();
+  const isTrimming = isTrimmingAudio || isTrimmingImage;
   const backgroundInputRef = useRef(null);
   const sceneOneInputRef = useRef(null);
   const sceneTwoInputRef = useRef(null);
@@ -308,15 +312,31 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
     });
   };
 
-  const handleImageUpload = (event, fieldKey) => {
+  const handleImageUpload = async (event, fieldKey) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const mediaIdField = INTERACTIVE_IMAGE_MEDIA_ID_FIELDS[fieldKey];
-    readImageFile(file, (dataUrl) => onPatch({
-      [fieldKey]: dataUrl,
-      ...(mediaIdField ? { [mediaIdField]: null } : {}),
-    }));
     event.target.value = '';
+
+    const mediaIdField = INTERACTIVE_IMAGE_MEDIA_ID_FIELDS[fieldKey];
+    let imageUrl = '';
+
+    if (INTERACTIVE_IMAGE_TRIM_FIELDS.has(fieldKey)) {
+      const trimmed = await processImageFile(file);
+      imageUrl = trimmed?.imageUrl || '';
+    } else {
+      const reader = new FileReader();
+      imageUrl = await new Promise((resolve) => {
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (!imageUrl) return;
+
+    onPatch({
+      [fieldKey]: imageUrl,
+      ...(mediaIdField ? { [mediaIdField]: null } : {}),
+    });
   };
 
   const handleAudioUpload = async (event, fieldKey) => {
@@ -369,15 +389,15 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
 
   const hiddenInputs = (
     <>
-      <input ref={backgroundInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'backgroundImageUrl')} />
-      <input ref={sceneOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'sceneImageOne')} />
-      <input ref={sceneTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'sceneImageTwo')} />
-      <input ref={answerOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageOne')} />
-      <input ref={answerTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'guideImageTwo')} />
+      <input ref={backgroundInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'backgroundImageUrl')} />
+      <input ref={sceneOneInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'sceneImageOne')} />
+      <input ref={sceneTwoInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'sceneImageTwo')} />
+      <input ref={answerOneInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'guideImageOne')} />
+      <input ref={answerTwoInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'guideImageTwo')} />
       <input ref={answerAudioOneInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'answerAudioOne')} />
       <input ref={answerAudioTwoInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'answerAudioTwo')} />
-      <input ref={optionImageOneInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageOne')} />
-      <input ref={optionImageTwoInputRef} type="file" accept="image/*" hidden onChange={(e) => handleImageUpload(e, 'optionImageTwo')} />
+      <input ref={optionImageOneInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'optionImageOne')} />
+      <input ref={optionImageTwoInputRef} type="file" accept="image/*" hidden disabled={isTrimmingImage} onChange={(e) => handleImageUpload(e, 'optionImageTwo')} />
       <input ref={optionAudioOneInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'optionAudioOne')} />
       <input ref={optionAudioTwoInputRef} type="file" accept="audio/*" hidden disabled={isTrimming} onChange={(e) => handleAudioUpload(e, 'optionAudioTwo')} />
     </>
@@ -481,9 +501,14 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
             <Typography variant="caption" sx={{ fontFamily: FONT, color: 'text.secondary' }}>
               Tap row for canvas · ↑ upload · ▶ preview audio
             </Typography>
-            {isTrimming ? (
+            {isTrimmingAudio ? (
               <Typography variant="caption" sx={{ fontFamily: FONT, color: 'warning.main', fontWeight: 700 }}>
                 Trimming audio…
+              </Typography>
+            ) : null}
+            {isTrimmingImage ? (
+              <Typography variant="caption" sx={{ fontFamily: FONT, color: 'warning.main', fontWeight: 700 }}>
+                Cropping empty image padding…
               </Typography>
             ) : null}
           </Box>
@@ -505,6 +530,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                     onUpload={row.upload}
                     onClear={row.clear}
                     clearLabel={`Remove ${row.label}`}
+                    uploadDisabled={isTrimming}
                   />
                 ))}
               </BorderedList>
@@ -522,6 +548,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                   onSelect={() => setSelectedKey('answerOne')}
                   onUpload={() => answerOneInputRef.current?.click()}
                   onClear={page.guideImageOne ? () => onPatch({ guideImageOne: '', guideImageMediaId: null }) : null}
+                  uploadDisabled={isTrimming}
                 />
                 <AssetRow
                   icon={AudiotrackOutlined}
@@ -589,6 +616,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       onSelect={() => setSelectedKey('answerTwo')}
                       onUpload={() => answerTwoInputRef.current?.click()}
                       onClear={page.guideImageTwo ? () => onPatch({ guideImageTwo: '' }) : null}
+                      uploadDisabled={isTrimming}
                     />
                     <AssetRow
                       icon={AudiotrackOutlined}
@@ -683,6 +711,7 @@ const BooksBuilderInteractiveEditor = ({ page, pageIndex, onOpenTypeMenu, onPatc
                       onSelect={() => setSelectedKey(opt.key)}
                       onUpload={() => opt.imageRef.current?.click()}
                       onClear={opt.image ? () => onPatch({ [opt.imageField]: '' }) : null}
+                      uploadDisabled={isTrimming}
                     />,
                     <AssetRow
                       key={`${opt.key}-audio`}
