@@ -1,8 +1,8 @@
-import { Video, ResizeMode } from 'expo-av';
+import { Audio, Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
@@ -10,6 +10,22 @@ import { ThemedText } from '@/components/themed-text';
 import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeSequence } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeWatchProgress } from '@/hooks/useStarCamPracticeWatchProgress';
+
+const applyVideoPlaybackRate = async (player: Video | null, rate: number) => {
+  if (!player) return;
+
+  try {
+    if (Platform.OS === 'ios') {
+      // iOS ignores the shouldCorrectPitch prop on <Video>; rate must be applied imperatively.
+      await player.setRateAsync(rate, true, Audio.PitchCorrectionQuality.High);
+      return;
+    }
+
+    await player.setRateAsync(rate, true);
+  } catch {
+    // Player may not be loaded yet.
+  }
+};
 
 export interface StarCamPracticeModeScreenProps {
   title: string;
@@ -101,6 +117,28 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     }
   }, [itemKey, markItemWatched]);
 
+  const applyCurrentPlaybackRate = useCallback(async () => {
+    await applyVideoPlaybackRate(videoRef.current, playbackRate);
+  }, [playbackRate]);
+
+  useEffect(() => {
+    if (!isFocused || isShowingNextIntro || !hasPlayableVideo) return;
+    void applyCurrentPlaybackRate();
+  }, [
+    applyCurrentPlaybackRate,
+    hasPlayableVideo,
+    isFocused,
+    isShowingNextIntro,
+    passNumber,
+    playbackRate,
+    pronunciationVideoUrl,
+  ]);
+
+  const handleVideoLoad = useCallback(() => {
+    onVideoLoad();
+    void applyCurrentPlaybackRate();
+  }, [applyCurrentPlaybackRate, onVideoLoad]);
+
   const handlePlaybackStatusUpdate = useCallback(
     (status: unknown) => {
       if (status && typeof status === 'object' && 'didJustFinish' in status && status.didJustFinish) {
@@ -164,7 +202,7 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                     shouldCorrectPitch
                     useNativeControls={false}
                     onLoadStart={onVideoLoadStart}
-                    onLoad={onVideoLoad}
+                    onLoad={handleVideoLoad}
                     onError={() => {
                       setVideoLoadFailed(true);
                       onVideoError();
