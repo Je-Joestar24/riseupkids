@@ -18,7 +18,6 @@ import {
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import {
   createStarCamCategoryRenderValue,
   renderStarCamCategoryMenuItems,
@@ -74,17 +73,10 @@ const StarCamMissionCreateModal = ({
   const introAudioInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const rewardVideoInputRef = useRef(null);
-  const { processAudioFileForUpload } = useAudioFileWithSilenceTrim();
-
-  const handleMissionAudioChange = async (fieldKey, event) => {
+  const handleMissionAudioChange = (fieldKey, event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) {
-      setForm((prev) => ({ ...prev, [fieldKey]: null }));
-      return;
-    }
-    const result = await processAudioFileForUpload(file);
-    if (result?.file) setForm((prev) => ({ ...prev, [fieldKey]: result.file }));
+    setForm((prev) => ({ ...prev, [fieldKey]: file || null }));
   };
 
   const isEditMode = Boolean(editingMission?._id);

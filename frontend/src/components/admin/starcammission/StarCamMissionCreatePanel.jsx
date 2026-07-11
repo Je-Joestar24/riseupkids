@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import {
   createStarCamCategoryRenderValue,
   renderStarCamCategoryMenuItems,
@@ -19,17 +18,10 @@ const StarCamMissionCreatePanel = ({ categories = [], onCreateMission, creating 
     rewardAudioFile: null,
   });
   const [previewUrl, setPreviewUrl] = useState('');
-  const { processAudioFileForUpload } = useAudioFileWithSilenceTrim();
-
-  const handleRewardAudioChange = async (event) => {
+  const handleRewardAudioChange = (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) {
-      setForm((prev) => ({ ...prev, rewardAudioFile: null }));
-      return;
-    }
-    const result = await processAudioFileForUpload(file);
-    if (result?.file) setForm((prev) => ({ ...prev, rewardAudioFile: result.file }));
+    setForm((prev) => ({ ...prev, rewardAudioFile: file || null }));
   };
 
   const isValid = useMemo(

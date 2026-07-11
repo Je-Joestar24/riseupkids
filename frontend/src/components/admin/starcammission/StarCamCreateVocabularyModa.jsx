@@ -12,7 +12,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import useAudioFileWithSilenceTrim from '../../../hooks/useAudioFileWithSilenceTrim';
 import StarCamCategoryChip from './StarCamCategoryChip';
 import StarCamLabelAutocomplete from './StarCamLabelAutocomplete';
 
@@ -41,8 +40,6 @@ const StarCamCreateVocabularyModa = ({
   const [tryAgainAudioPreview, setTryAgainAudioPreview] = useState('');
   const [successAudioPreview, setSuccessAudioPreview] = useState('');
   const [pronunciationVideoPreview, setPronunciationVideoPreview] = useState('');
-  const { processAudioFileForUpload } = useAudioFileWithSilenceTrim();
-
   const handleLabelPayload = (payload) => {
     if (!payload) {
       onVocabChange('target', '');
@@ -62,15 +59,10 @@ const StarCamCreateVocabularyModa = ({
     }
   };
 
-  const handleAudioFieldChange = async (fieldKey, event) => {
+  const handleAudioFieldChange = (fieldKey, event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) {
-      onVocabChange(fieldKey, null);
-      return;
-    }
-    const result = await processAudioFileForUpload(file);
-    if (result?.file) onVocabChange(fieldKey, result.file);
+    onVocabChange(fieldKey, file || null);
   };
 
   const isValid = useMemo(() => {
