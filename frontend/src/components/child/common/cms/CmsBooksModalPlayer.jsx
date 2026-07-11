@@ -151,6 +151,7 @@ const CmsBooksModalPlayer = ({
     if (pageType === 'content') {
       return (
         <ContentTest
+          key={currentPage.pageId || currentPage.id || `content-${currentIndex}`}
           page={currentPage}
           hasPrev={hasPrev}
           hasNext={hasNext}

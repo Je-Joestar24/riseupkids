@@ -11,13 +11,48 @@ import {
   resolveContentReadingFontSizePx,
   resolveImageUrl,
 } from './shared';
+import { buildWeightedWords } from '../../booksbuildercreate/BooksBuilderCreate.utils';
 import {
   CMS_READING_LINE_ERASE_MS,
   getActiveReadingLineIndex,
   getActiveReadingWordIndexInLine,
+  getUpcomingReadingLineIndex,
   groupReadingWordsByLine,
   normalizeReadingText,
 } from './readingLines';
+
+const isValidTimedWord = (word) => {
+  const start = Number(word?.start);
+  const end = Number(word?.end);
+  return Boolean(
+    String(word?.w || '').trim()
+    && Number.isFinite(start)
+    && Number.isFinite(end)
+    && end > start
+  );
+};
+
+const resolveReadingDurationSec = (page = {}) => {
+  const fromReading = Number(page?.reading?.durationSec);
+  if (Number.isFinite(fromReading) && fromReading > 0) return fromReading;
+  const fromPage = Number(page?.audioDurationSec);
+  if (Number.isFinite(fromPage) && fromPage > 0) return fromPage;
+  return null;
+};
+
+const resolveTimedReadingWords = (page = {}, readingText = '') => {
+  const rawWords = Array.isArray(page?.reading?.words) && page.reading.words.length
+    ? page.reading.words
+    : (Array.isArray(page?.readingWords) ? page.readingWords : []);
+  const validWords = rawWords.filter(isValidTimedWord);
+  if (validWords.length) return validWords;
+
+  const durationSec = resolveReadingDurationSec(page);
+  if (readingText && durationSec) {
+    return buildWeightedWords(readingText, durationSec);
+  }
+  return [];
+};
 
 function useReadingLineTransition(activeLineIndex, resetKey) {
   const [displayLineIndex, setDisplayLineIndex] = useState(-1);
@@ -75,35 +110,52 @@ const ContentTest = ({
   const { src: audioSrc, onMediaError: onAudioError } = useMediaLoadRecovery(audioUrl);
   const audioRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const pageKey = page?.pageId || page?.id || 'content';
 
   const readingText = useMemo(
     () => normalizeReadingText(page?.reading?.text || page?.readingText || page?.subtitle || ''),
-    [page]
+    [page?.reading?.text, page?.readingText, page?.subtitle]
   );
 
-  const words = useMemo(() => {
-    if (Array.isArray(page?.reading?.words) && page.reading.words.length) {
-      return page.reading.words;
-    }
-    if (Array.isArray(page?.readingWords) && page.readingWords.length) {
-      return page.readingWords;
-    }
-    return [];
-  }, [page]);
+  const words = useMemo(
+    () => resolveTimedReadingWords(page, readingText),
+    [page, readingText]
+  );
 
   const lineGroups = useMemo(
     () => groupReadingWordsByLine(words, readingText),
     [words, readingText]
   );
 
+  const hasTimedWords = lineGroups.length > 0;
+
+  useEffect(() => {
+    setCurrentTime(0);
+  }, [pageKey, audioSrc]);
+
   const activeLineIndex = useMemo(
     () => getActiveReadingLineIndex(currentTime, lineGroups),
     [currentTime, lineGroups]
   );
 
+  const transitionLineIndex = useMemo(() => {
+    if (!hasTimedWords) return -1;
+    if (activeLineIndex >= 0) return activeLineIndex;
+
+    const upcomingIndex = getUpcomingReadingLineIndex(currentTime, lineGroups);
+    if (upcomingIndex >= 0) return upcomingIndex;
+
+    const firstStart = Number(lineGroups[0]?.words?.[0]?.start);
+    if (Number.isFinite(firstStart) && currentTime <= firstStart + 0.05) {
+      return 0;
+    }
+
+    return -1;
+  }, [activeLineIndex, currentTime, hasTimedWords, lineGroups]);
+
   const { displayLineIndex, visible } = useReadingLineTransition(
-    activeLineIndex,
-    page?.pageId || page?.id || 'content'
+    transitionLineIndex,
+    pageKey
   );
 
   const visibleLineWords = useMemo(() => {
@@ -115,6 +167,9 @@ const ContentTest = ({
     if (!visible || displayLineIndex !== activeLineIndex) return -1;
     return getActiveReadingWordIndexInLine(currentTime, visibleLineWords);
   }, [visible, displayLineIndex, activeLineIndex, currentTime, visibleLineWords]);
+
+  const showStaticReadingText = !hasTimedWords && Boolean(readingText);
+  const textVisible = showStaticReadingText || visible;
 
   const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
   const readingFontSx = useMemo(
@@ -144,11 +199,14 @@ const ContentTest = ({
         {audioSrc ? (
           <audio
             ref={audioRef}
-            key={`${page?.pageId || page?.id || 'content'}-audio-${audioSrc}`}
+            key={`${pageKey}-audio-${audioSrc}`}
             src={audioSrc}
             autoPlay
             preload="metadata"
             aria-label="Content background audio"
+            onLoadedMetadata={(event) => {
+              setCurrentTime(Number(event.currentTarget?.currentTime || 0));
+            }}
             onTimeUpdate={(event) => {
               setCurrentTime(Number(event.currentTarget?.currentTime || 0));
             }}
@@ -209,8 +267,8 @@ const ContentTest = ({
                 justifyContent: 'center',
                 alignItems: 'center',
                 gap: 0.8,
-                opacity: visible ? 1 : 0,
-                transition: `opacity ${CMS_READING_LINE_ERASE_MS}ms ease`,
+                opacity: textVisible ? 1 : 0,
+                transition: showStaticReadingText ? 'none' : `opacity ${CMS_READING_LINE_ERASE_MS}ms ease`,
               }}
             >
               {visibleLineWords.length
