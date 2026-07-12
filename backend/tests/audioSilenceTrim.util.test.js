@@ -104,6 +104,60 @@ function createWavWithInternalPause({
   return buffer;
 }
 
+function createWavWithQuietEnding({
+  sampleRate = 44100,
+  loudToneSec = 1,
+  quietToneSec = 0.35,
+  trailingSilenceSec = 0.6,
+  loudAmplitude = 8000,
+  quietAmplitude = 500,
+} = {}) {
+  const loudSamples = Math.floor(loudToneSec * sampleRate);
+  const quietSamples = Math.floor(quietToneSec * sampleRate);
+  const trailingSamples = Math.floor(trailingSilenceSec * sampleRate);
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const bytesPerSample = bitsPerSample / 8;
+  const dataSize = (loudSamples + quietSamples + trailingSamples) * bytesPerSample;
+  const buffer = Buffer.alloc(44 + dataSize);
+
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(numChannels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * numChannels * bytesPerSample, 28);
+  buffer.writeUInt16LE(numChannels * bytesPerSample, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  let offset = 44;
+  const writeTone = (count, amplitude, phaseOffset = 0) => {
+    for (let i = 0; i < count; i += 1) {
+      const t = (i + phaseOffset) / sampleRate;
+      const sample = Math.round(amplitude * Math.sin(2 * Math.PI * 440 * t));
+      buffer.writeInt16LE(sample, offset);
+      offset += 2;
+    }
+  };
+  const writeSilence = (count) => {
+    for (let i = 0; i < count; i += 1) {
+      buffer.writeInt16LE(0, offset);
+      offset += 2;
+    }
+  };
+
+  writeTone(loudSamples, loudAmplitude);
+  writeTone(quietSamples, quietAmplitude, loudSamples);
+  writeSilence(trailingSamples);
+
+  return buffer;
+}
+
 describe('audioSilenceTrim.util', () => {
   const originalEnv = { ...process.env };
 
@@ -112,9 +166,12 @@ describe('audioSilenceTrim.util', () => {
     process.env.AUDIO_SILENCE_TRIM_ENABLED = 'true';
     process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB = '-36';
     process.env.AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB = '-28';
+    process.env.AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB = '-42';
     process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC = '0.12';
+    process.env.AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC = '0.25';
     process.env.AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC = '0.15';
     process.env.AUDIO_SILENCE_TRIM_PAD_MS = '200';
+    process.env.AUDIO_SILENCE_TRIM_TRAILING_PAD_MS = '400';
     process.env.AUDIO_SILENCE_TRIM_HIGHPASS_HZ = '400';
   });
 
@@ -127,9 +184,12 @@ describe('audioSilenceTrim.util', () => {
     expect(config.enabled).toBe(true);
     expect(config.thresholdDb).toBe(-36);
     expect(config.speechThresholdDb).toBe(-28);
+    expect(config.trailingThresholdDb).toBe(-42);
     expect(config.minSilenceSec).toBe(0.12);
+    expect(config.minTrailingSilenceSec).toBe(0.25);
     expect(config.minSpeechSec).toBe(0.15);
     expect(config.padMs).toBe(200);
+    expect(config.trailingPadMs).toBe(400);
     expect(config.highpassHz).toBe(400);
   });
 
@@ -168,6 +228,23 @@ describe('audioSilenceTrim.util', () => {
     expect(result.trimMeta.trimmedEndSec).toBe(0);
     expect(result.durationSec).toBeGreaterThan(expectedDuration - 0.2);
     expect(result.durationSec).toBeLessThan(expectedDuration + 0.2);
+  }, 30000);
+
+  it('preserves quiet ending syllables before trailing silence', async () => {
+    const wavBuffer = createWavWithQuietEnding();
+    const expectedDuration = 1.95;
+    const loudPlusQuietSec = 1.35;
+
+    const result = await trimLeadingTrailingSilence({
+      buffer: wavBuffer,
+      mimetype: 'audio/wav',
+      originalname: 'quiet-ending.wav',
+    });
+
+    expect(result.trimMeta.applied).toBe(true);
+    expect(result.durationSec).toBeGreaterThan(loudPlusQuietSec - 0.15);
+    expect(result.durationSec).toBeLessThan(expectedDuration + 0.1);
+    expect(result.trimMeta.trimmedDurationSec).toBeGreaterThan(loudPlusQuietSec - 0.15);
   }, 30000);
 
   it('fail-open returns original buffer when trim is disabled', async () => {

@@ -86,11 +86,13 @@ See `.env.example` for all available environment variables.
 
 ### CMS book audio silence trim
 
-CMS book admin audio uploads (`POST /api/admin/cms-books/media` with `mediaType=audio`) can remove **leading and trailing silence** before files are stored on S3/CloudFront.
+CMS book and Star Cam admin audio uploads trim **leading and trailing silence** before files are stored on S3/CloudFront.
 
 - Enabled by default (`AUDIO_SILENCE_TRIM_ENABLED=true`). Set to `false` to disable.
 - Uses FFmpeg via `@ffmpeg-installer/ffmpeg` (installed with `npm install`). No separate system install is required on most hosts.
-- Tunables: `AUDIO_SILENCE_TRIM_THRESHOLD_DB`, `AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC`, `AUDIO_SILENCE_TRIM_PAD_MS` (see `.env.example`).
+- Leading edge uses dual thresholds (`AUDIO_SILENCE_TRIM_THRESHOLD_DB`, `AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB`) to ignore quiet hiss.
+- Trailing edge is conservative: only sustained silence at the file end is removed (`AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB`, `AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC`, `AUDIO_SILENCE_TRIM_TRAILING_PAD_MS`) so quiet syllables are preserved.
+- Tunables: see `.env.example`.
 - API response includes `duration` (seconds after trim) and `trimMeta` for the book builder to keep reading word highlights aligned.
 
 **Staging QA checklist**

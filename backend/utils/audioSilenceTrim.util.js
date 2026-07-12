@@ -23,22 +23,37 @@ const ANALYSIS_SAMPLE_RATE = 44100;
 function readTrimConfig() {
   const thresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB);
   const speechThresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB);
+  const trailingThresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB);
   const minSilenceRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC);
+  const minTrailingSilenceRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC);
   const minSpeechRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC);
   const padRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_PAD_MS, 10);
+  const trailingPadRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_TRAILING_PAD_MS, 10);
   const highpassRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_HIGHPASS_HZ, 10);
+
+  const padMs = Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : 200;
+  const trailingPadMs = Number.isFinite(trailingPadRaw) && trailingPadRaw >= 0 ? trailingPadRaw : 400;
 
   return {
     enabled: process.env.AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-    /** Quiet/noise band — below this counts as silence. */
+    /** Quiet/noise band — below this counts as silence at the leading edge. */
     thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -36,
     /** Louder band — sustained windows above this count as speech (ignores quiet hiss). */
     speechThresholdDb: Number.isFinite(speechThresholdRaw) ? speechThresholdRaw : -28,
+    /**
+     * Trailing edge only — more lenient than thresholdDb so quiet word endings
+     * (e.g. "book" in "notebook") are not treated as silence.
+     */
+    trailingThresholdDb: Number.isFinite(trailingThresholdRaw) ? trailingThresholdRaw : -42,
     minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : 0.12,
-    /** Minimum sustained speech before trim point is set. */
+    /** Minimum sustained silence required at the file end before trimming. */
+    minTrailingSilenceSec: Number.isFinite(minTrailingSilenceRaw) ? minTrailingSilenceRaw : 0.25,
+    /** Minimum sustained speech before leading trim point is set. */
     minSpeechSec: Number.isFinite(minSpeechRaw) ? minSpeechRaw : 0.15,
-    /** Edge padding kept after trim (0.2s). */
-    padMs: Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : 200,
+    /** Padding kept before speech after a leading trim. */
+    padMs,
+    /** Extra padding kept after speech when trimming trailing silence. */
+    trailingPadMs,
     /** High-pass cutoff (Hz) for speech detection — ignores low-frequency hum. */
     highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : 400,
     windowSec: 0.01,
@@ -187,15 +202,15 @@ function findLeadingTrimSample(samples, sampleRate, config) {
 }
 
 /**
- * Trailing edge only: trim silence at the very end of the file.
- * If audio ends with speech (no trailing silence), returns samples.length.
+ * Trailing edge only: remove sustained silence at the very end.
+ * Uses a lenient threshold and never walks backward through speech — quiet
+ * syllables and volume dips at the end of a phrase are preserved.
  */
 function findTrailingTrimSample(samples, sampleRate, config) {
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
-  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
-  const silenceThreshold = dbToLinear(config.thresholdDb);
-  const speechThreshold = dbToLinear(config.speechThresholdDb);
+  const minTrailingSilenceSec = config.minTrailingSilenceSec ?? config.minSilenceSec;
+  const minSilentWindows = Math.max(1, Math.ceil(minTrailingSilenceSec / config.windowSec));
+  const trailingThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
 
@@ -203,32 +218,15 @@ function findTrailingTrimSample(samples, sampleRate, config) {
     const start = Math.max(0, end - windowSize);
     const peak = getWindowPeak(samples, start, end);
 
-    if (peak < silenceThreshold) {
+    if (peak < trailingThreshold) {
       silentRun += 1;
       continue;
     }
 
-    if (silentRun < minSilentWindows) {
-      return samples.length;
-    }
+    break;
+  }
 
-    let speechRun = 0;
-    for (let e = end; e > 0; e -= windowSize) {
-      const s = Math.max(0, e - windowSize);
-      const pk = getWindowPeak(samples, s, e);
-
-      if (pk >= speechThreshold) {
-        speechRun += 1;
-        if (speechRun >= minSpeechWindows) {
-          return Math.min(samples.length, e + (minSpeechWindows - 1) * windowSize);
-        }
-      } else if (pk < silenceThreshold) {
-        speechRun = 0;
-      } else {
-        speechRun = 0;
-      }
-    }
-
+  if (silentRun >= minSilentWindows) {
     return Math.max(0, samples.length - silentRun * windowSize);
   }
 
@@ -297,7 +295,8 @@ async function detectEdgeSilence(filePath, config, totalDurationSec) {
 }
 
 function buildAtrimFilter(config, edgeEstimate, totalDurationSec) {
-  const padSec = config.padMs / 1000;
+  const padStartSec = config.padMs / 1000;
+  const padEndSec = (config.trailingPadMs ?? config.padMs) / 1000;
   const total = Number(totalDurationSec);
   if (!Number.isFinite(total) || total <= 0) {
     return null;
@@ -305,8 +304,8 @@ function buildAtrimFilter(config, edgeEstimate, totalDurationSec) {
 
   const speechStart = Math.max(0, Number(edgeEstimate.trimmedStartSec) || 0);
   const trailingSilence = Math.max(0, Number(edgeEstimate.trimmedEndSec) || 0);
-  const trimStart = Math.max(0, speechStart - padSec);
-  const trimEnd = Math.min(total, total - trailingSilence + padSec);
+  const trimStart = Math.max(0, speechStart - padStartSec);
+  const trimEnd = Math.min(total, total - trailingSilence + padEndSec);
 
   if (trimEnd <= trimStart + 0.05) {
     return null;
@@ -448,11 +447,12 @@ async function trimLeadingTrailingSilence(file, { preTrimmed = false } = {}) {
     const trimmedBuffer = await fs.readFile(outputPath);
     const trimmedDurationSec = await probeDurationSec(outputPath);
 
-    const padSec = config.padMs / 1000;
-    const trimmedStartSec = Math.max(0, (Number(edgeEstimate.trimmedStartSec) || 0) - padSec);
+    const padStartSec = config.padMs / 1000;
+    const padEndSec = (config.trailingPadMs ?? config.padMs) / 1000;
+    const trimmedStartSec = Math.max(0, (Number(edgeEstimate.trimmedStartSec) || 0) - padStartSec);
     const trimmedEndSec = Number.isFinite(originalDurationSec) && Number.isFinite(trimmedDurationSec)
       ? Math.max(0, originalDurationSec - trimmedDurationSec - trimmedStartSec)
-      : Math.max(0, Number(edgeEstimate.trimmedEndSec) || 0) - padSec;
+      : Math.max(0, Number(edgeEstimate.trimmedEndSec) || 0) - padEndSec;
 
     const removedTotal = Number.isFinite(originalDurationSec) && Number.isFinite(trimmedDurationSec)
       ? originalDurationSec - trimmedDurationSec
