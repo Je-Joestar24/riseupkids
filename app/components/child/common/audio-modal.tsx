@@ -10,7 +10,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,7 +19,7 @@ import {
 import { ThemedText } from '@/components/themed-text';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { InstructionVideoPlayer } from '@/components/child/common/instruction-video-player';
-import { buildPublicUrl } from '@/components/child/module/module-utils';
+import { buildPublicUrl, getContentId } from '@/components/child/module/module-utils';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -28,6 +27,9 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
+import type { AudioAssignmentProgress } from '@/services/audioAssignmentService';
+
+type AudioProgressState = AudioAssignmentProgress | null;
 
 async function ensurePlaybackAudioMode(): Promise<void> {
   try {
@@ -71,13 +73,7 @@ export function AudioModal({
   courseId,
   onAfterApproved,
 }: AudioModalProps) {
-  const audioId = String(
-    audioAssignment?._id ??
-    audioAssignment?._contentId ??
-    audioAssignment?.contentId ??
-    audioAssignment?.id ??
-    ''
-  );
+  const audioId = getContentId(audioAssignment);
   const showDialog = useUiStore((s) => s.showDialog);
 
   const {
@@ -85,12 +81,14 @@ export function AudioModal({
     getAudioProgress,
     submitAudioAssignment,
     getAudioProgressCached,
+    audioProgressByAudioId,
     updateCourseContentProgress,
     clearError,
     isLoadingAudio,
     error,
   } = useContentProgress({ childId, courseId });
 
+  const [loadedProgress, setLoadedProgress] = useState<AudioProgressState>(null);
   const [submitting, setSubmitting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isRecordingPaused, setIsRecordingPaused] = useState(false);
@@ -103,14 +101,9 @@ export function AudioModal({
 
   const progress = useMemo(() => {
     if (!audioId || audioId === 'undefined') return null;
-    const cached = getAudioProgressCached(audioId);
-    return cached as {
-      status?: string;
-      audioAssignment?: { instructionVideo?: unknown; referenceAudio?: unknown };
-      adminFeedback?: string;
-      starsEarned?: number;
-    } | null;
-  }, [audioId, getAudioProgressCached]);
+    const cached = getAudioProgressCached(audioId) as AudioProgressState;
+    return (loadedProgress ?? cached) as AudioProgressState;
+  }, [audioId, getAudioProgressCached, audioProgressByAudioId, loadedProgress]);
 
   const instructionVideoMedia = useMemo(() => {
     return (
@@ -127,11 +120,30 @@ export function AudioModal({
     return buildPublicUrl(url);
   }, [progress, audioAssignment?.referenceAudio]);
 
+  const submittedAudioUrl = useMemo(() => {
+    const media = progress?.recordedAudio;
+    if (media && typeof media === 'object' && 'url' in media) {
+      return buildPublicUrl(media as { url?: string });
+    }
+    if (typeof media === 'string') {
+      return buildPublicUrl(media);
+    }
+    return buildPublicUrl(progress?.recordedAudioUrl ?? null);
+  }, [progress?.recordedAudio, progress?.recordedAudioUrl]);
+
   const status = (progress?.status ?? 'not_started') as string;
   const isApproved = status === 'approved';
   const isSubmitted = status === 'submitted';
   const isRejected = status === 'rejected';
   const isRecordingSessionActive = isRecording || isRecordingPaused;
+  const showLocalRecording = !!recordUri;
+  const showSubmittedRecording =
+    !!submittedAudioUrl && !recordUri && !isRecordingSessionActive;
+  const submittedRecordingLabel = isApproved
+    ? 'Listen back to the recording you submitted. Great job!'
+    : isRejected
+      ? 'Listen to your last recording, then try again.'
+      : 'Listen back to the recording you submitted.';
 
   const stopRecordTimer = useCallback(() => {
     if (timerRef.current) {
@@ -159,12 +171,31 @@ export function AudioModal({
 
   useEffect(() => {
     if (!open || !audioId || !childId) return;
+
+    let active = true;
     clearError();
-    startAudioAssignment(audioId).then(() => getAudioProgress(audioId));
-  }, [open, audioId, childId]);
+    setLoadedProgress(null);
+
+    void (async () => {
+      try {
+        await startAudioAssignment(audioId);
+        const fresh = (await getAudioProgress(audioId)) as AudioProgressState;
+        if (active && fresh) {
+          setLoadedProgress(fresh);
+        }
+      } catch {
+        // Errors surface via store `error`.
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [open, audioId, childId, clearError, startAudioAssignment, getAudioProgress]);
 
   useEffect(() => {
     if (!open) {
+      setLoadedProgress(null);
       cleanupRecording();
       cleanupRecordedMedia();
       setShowConfirmClose(false);
@@ -282,19 +313,18 @@ export function AudioModal({
     if (!recordUri || !audioId || !childId) return;
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      const ext = Platform.OS === 'ios' ? 'caf' : 'm4a';
-      const mime = Platform.OS === 'ios' ? 'audio/x-caf' : 'audio/mp4';
-      fd.append('recordedAudio', {
-        uri: recordUri,
-        type: mime,
-        name: `audio-assignment-${audioId}-${childId}-${Date.now()}.${ext}`,
-      } as unknown as Blob);
-      fd.append('timeSpent', String(recordSeconds));
-      fd.append('metadata', JSON.stringify({ recordedSeconds: recordSeconds }));
+      const fresh = (await submitAudioAssignment(audioId, {
+        recordUri,
+        timeSpent: recordSeconds,
+        metadata: { recordedSeconds: recordSeconds },
+      })) as AudioProgressState;
 
-      await submitAudioAssignment(audioId, fd);
-      await getAudioProgress(audioId);
+      if (!fresh) {
+        throw new Error('Failed to submit recording. Please try again.');
+      }
+
+      setLoadedProgress(fresh);
+      cleanupRecordedMedia();
 
       showDialog({
         message: 'Submitted! Waiting for teacher review.',
@@ -310,7 +340,16 @@ export function AudioModal({
     } finally {
       setSubmitting(false);
     }
-  }, [recordUri, audioId, childId, recordSeconds, submitAudioAssignment, getAudioProgress, showDialog]);
+  }, [
+    recordUri,
+    audioId,
+    childId,
+    recordSeconds,
+    submitAudioAssignment,
+    getAudioProgress,
+    showDialog,
+    cleanupRecordedMedia,
+  ]);
 
   if (!open) return null;
 
@@ -528,18 +567,26 @@ export function AudioModal({
                         </ThemedText>
                       </Pressable>
                     </View>
-                    {recordUri && (
+                    {showLocalRecording && (
                       <View style={styles.yourRecordingWrap}>
                         <ThemedText style={styles.yourRecordingTitle}>
                           Your recording
                         </ThemedText>
                         <AudioPlayer
-                          uri={recordUri}
+                          uri={recordUri!}
                           label="Listen back to your recording before you submit."
                         />
                         <ThemedText style={styles.recordedLabel}>
                           Ready to submit? Tap Submit below to send for review.
                         </ThemedText>
+                      </View>
+                    )}
+                    {showSubmittedRecording && submittedAudioUrl && (
+                      <View style={styles.yourRecordingWrap}>
+                        <ThemedText style={styles.yourRecordingTitle}>
+                          Your submitted recording
+                        </ThemedText>
+                        <AudioPlayer uri={submittedAudioUrl} label={submittedRecordingLabel} />
                       </View>
                     )}
                     {isRejected && (

@@ -90,6 +90,17 @@ export function getCoverImageUrl(coverImagePath?: string | null): string | null 
   return `${base}${path}`;
 }
 
+/** Resolve the canonical content id used by progress APIs (prefers `_contentId`). */
+export function getContentId(item: {
+  _contentId?: string;
+  _id?: string;
+  contentId?: string;
+  id?: string;
+} | null | undefined): string {
+  if (!item) return '';
+  return String(item._contentId ?? item._id ?? item.contentId ?? item.id ?? '');
+}
+
 /** Build full media URL from backend path or Media object. Skips ObjectId-like strings. */
 export function buildPublicUrl(
   maybeUrl?: string | { url?: string } | null

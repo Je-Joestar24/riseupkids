@@ -14,7 +14,10 @@ import { create } from 'zustand';
 import { chantService } from '@/services/chantService';
 import type { ChantProgress } from '@/services/chantService';
 import { audioAssignmentService } from '@/services/audioAssignmentService';
-import type { AudioAssignmentProgress } from '@/services/audioAssignmentService';
+import type {
+  AudioAssignmentProgress,
+  SubmitAudioRecordingInput,
+} from '@/services/audioAssignmentService';
 import { videoWatchService } from '@/services/videoWatchService';
 import type {
   VideoWatchStatus,
@@ -79,7 +82,7 @@ export interface ContentProgressActions {
   submitAudioAssignment: (
     audioAssignmentId: string,
     childId: string,
-    formData: FormData
+    input: SubmitAudioRecordingInput
   ) => Promise<AudioAssignmentProgress | null>;
 
   // ----- Video Watch -----
@@ -255,13 +258,13 @@ export const useContentProgressStore = create<
     }
   },
 
-  submitAudioAssignment: async (audioAssignmentId, childId, formData) => {
+  submitAudioAssignment: async (audioAssignmentId, childId, input) => {
     set({ isLoadingAudio: true, error: null });
     try {
       const res = await audioAssignmentService.submit(
         audioAssignmentId,
         childId,
-        formData
+        input
       );
       const progress = res?.success ? res.data ?? null : null;
       if (progress) {
@@ -271,17 +274,16 @@ export const useContentProgressStore = create<
           isLoadingAudio: false,
           error: null,
         }));
-      } else {
-        set({
-          isLoadingAudio: false,
-          error: res?.message ?? 'Failed to submit audio assignment',
-        });
+        return progress;
       }
-      return progress ?? null;
+
+      const message = res?.message ?? 'Failed to submit audio assignment';
+      set({ isLoadingAudio: false, error: message });
+      throw new Error(message);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ isLoadingAudio: false, error: msg });
-      return null;
+      throw err instanceof Error ? err : new Error(msg);
     }
   },
 

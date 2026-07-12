@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { isLocalMediaUri } from '@/components/child/common/cms-player-media';
-import type { StarCamPracticeSequenceItem } from '@/services/starCamPracticeMedia';
+import {
+  hasPlayablePracticeVideo,
+  type StarCamPracticeSequenceItem,
+} from '@/services/starCamPracticeMedia';
 
 export type { StarCamPracticeSequenceItem };
 
@@ -11,6 +14,8 @@ export interface UseStarCamPracticeSequenceParams {
   stepDelayMs?: number;
   /** Duration for the "Next word" notification before it disappears. */
   nextToastMs?: number;
+  /** Delay when auto-skipping items that have no practice video. */
+  missingVideoSkipDelayMs?: number;
   onComplete?: () => void;
 }
 
@@ -23,6 +28,7 @@ export interface UseStarCamPracticeSequenceResult {
   progressText: string;
   isVideoLoading: boolean;
   isShowingNextIntro: boolean;
+  isShowingMissingVideoSkip: boolean;
   nextIntroText: string | null;
   onVideoLoadStart: () => void;
   onVideoLoad: () => void;
@@ -31,33 +37,51 @@ export interface UseStarCamPracticeSequenceResult {
   skipToNext: () => void;
 }
 
+const shouldShowVideoLoading = (item: StarCamPracticeSequenceItem | null | undefined) =>
+  hasPlayablePracticeVideo(item) && !isLocalMediaUri(item?.pronunciationVideoUrl ?? null);
+
 export function useStarCamPracticeSequence({
   items,
   stepDelayMs = 900,
   nextToastMs = 500,
+  missingVideoSkipDelayMs = 500,
   onComplete,
 }: UseStarCamPracticeSequenceParams): UseStarCamPracticeSequenceResult {
   const [index, setIndex] = useState(0);
   const [passNumber, setPassNumber] = useState<1 | 2>(1);
   const [isVideoLoading, setIsVideoLoading] = useState(false);
   const [isShowingNextIntro, setIsShowingNextIntro] = useState(false);
+  const [isShowingMissingVideoSkip, setIsShowingMissingVideoSkip] = useState(false);
   const [nextIntroText, setNextIntroText] = useState<string | null>(null);
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const nextIntroTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionInProgressRef = useRef(false);
+  const hasAnyPlayableVideo = useMemo(
+    () => items.some((item) => hasPlayablePracticeVideo(item)),
+    [items]
+  );
 
   useEffect(() => {
     setIndex(0);
     setPassNumber(1);
-    setIsVideoLoading(
-      Boolean(items?.[0]?.pronunciationVideoUrl) && !isLocalMediaUri(items[0].pronunciationVideoUrl)
-    );
+    setIsVideoLoading(shouldShowVideoLoading(items[0] ?? null));
     setIsShowingNextIntro(false);
+    setIsShowingMissingVideoSkip(false);
     setNextIntroText(null);
     transitionInProgressRef.current = false;
     if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
     if (nextIntroTimerRef.current) clearTimeout(nextIntroTimerRef.current);
   }, [items]);
+
+  useEffect(() => {
+    if (!items.length) {
+      onComplete?.();
+      return;
+    }
+    if (!hasAnyPlayableVideo) {
+      onComplete?.();
+    }
+  }, [hasAnyPlayableVideo, items.length, onComplete]);
 
   useEffect(() => {
     return () => {
@@ -70,12 +94,13 @@ export function useStarCamPracticeSequence({
   const total = items.length || 0;
   const playbackRate = passNumber === 2 ? 1.5 : 1;
 
-  const announceAndAdvance = useCallback(() => {
+  const announceAndAdvance = useCallback((options?: { silent?: boolean }) => {
     if (transitionInProgressRef.current) return;
     transitionInProgressRef.current = true;
     if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
     if (nextIntroTimerRef.current) clearTimeout(nextIntroTimerRef.current);
 
+    const silent = options?.silent ?? false;
     const nextItem = items[index + 1] ?? null;
     const isEndOfCurrentPass = !nextItem;
     const isSecondPass = passNumber === 2;
@@ -83,21 +108,8 @@ export function useStarCamPracticeSequence({
     const nextIndex = isEndOfCurrentPass ? 0 : index + 1;
     const transitionLabel = isEndOfCurrentPass ? items[0]?.targetLabel : nextItem?.targetLabel;
 
-    if (!transitionLabel) {
-      onComplete?.();
-      transitionInProgressRef.current = false;
-      return;
-    }
-
-    setIsShowingNextIntro(true);
-    setNextIntroText(isEndOfCurrentPass && !isSecondPass ? `Round 2! Next word: ${transitionLabel}` : `Next word: ${transitionLabel}`);
-
-    nextIntroTimerRef.current = setTimeout(() => {
-      setIsShowingNextIntro(false);
-      setNextIntroText(null);
-    }, nextToastMs);
-
-    advanceTimerRef.current = setTimeout(() => {
+    const finishAdvance = () => {
+      setIsShowingMissingVideoSkip(false);
       if (isEndOfCurrentPass && isSecondPass) {
         onComplete?.();
         transitionInProgressRef.current = false;
@@ -105,13 +117,48 @@ export function useStarCamPracticeSequence({
       }
       setPassNumber(nextPass);
       setIndex(nextIndex);
-      setIsVideoLoading(
-        Boolean(items?.[nextIndex]?.pronunciationVideoUrl) &&
-          !isLocalMediaUri(items[nextIndex]?.pronunciationVideoUrl ?? null)
-      );
+      setIsVideoLoading(shouldShowVideoLoading(items[nextIndex] ?? null));
       transitionInProgressRef.current = false;
-    }, Math.max(stepDelayMs, nextToastMs));
-  }, [index, items, nextToastMs, onComplete, passNumber, stepDelayMs]);
+    };
+
+    if (!transitionLabel) {
+      onComplete?.();
+      transitionInProgressRef.current = false;
+      return;
+    }
+
+    if (silent) {
+      advanceTimerRef.current = setTimeout(finishAdvance, missingVideoSkipDelayMs);
+      return;
+    }
+
+    setIsShowingNextIntro(true);
+    setNextIntroText(
+      isEndOfCurrentPass && !isSecondPass
+        ? `Round 2! Next word: ${transitionLabel}`
+        : `Next word: ${transitionLabel}`
+    );
+
+    nextIntroTimerRef.current = setTimeout(() => {
+      setIsShowingNextIntro(false);
+      setNextIntroText(null);
+    }, nextToastMs);
+
+    advanceTimerRef.current = setTimeout(finishAdvance, Math.max(stepDelayMs, nextToastMs));
+  }, [index, items, missingVideoSkipDelayMs, nextToastMs, onComplete, passNumber, stepDelayMs]);
+
+  useEffect(() => {
+    if (!items.length || !hasAnyPlayableVideo) return;
+    if (transitionInProgressRef.current) return;
+
+    if (hasPlayablePracticeVideo(current)) {
+      setIsShowingMissingVideoSkip(false);
+      return;
+    }
+
+    setIsShowingMissingVideoSkip(true);
+    announceAndAdvance({ silent: true });
+  }, [announceAndAdvance, current, hasAnyPlayableVideo, index, items.length, passNumber]);
 
   const onVideoLoadStart = useCallback(() => {
     if (isLocalMediaUri(current?.pronunciationVideoUrl ?? null)) return;
@@ -153,6 +200,7 @@ export function useStarCamPracticeSequence({
     progressText,
     isVideoLoading,
     isShowingNextIntro,
+    isShowingMissingVideoSkip,
     nextIntroText,
     onVideoLoadStart,
     onVideoLoad,
@@ -161,4 +209,3 @@ export function useStarCamPracticeSequence({
     skipToNext,
   };
 }
-

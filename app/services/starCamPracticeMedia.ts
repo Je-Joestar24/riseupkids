@@ -9,6 +9,12 @@ export interface StarCamPracticeSequenceItem {
   sampleImageUrl: string | null;
 }
 
+export function hasPlayablePracticeVideo(
+  item: StarCamPracticeSequenceItem | null | undefined
+): boolean {
+  return Boolean(String(item?.pronunciationVideoUrl ?? '').trim());
+}
+
 export function buildStarCamPracticeSequenceItems(
   practiceItems: StarCamPracticeItem[],
   cacheMap: Record<string, string>

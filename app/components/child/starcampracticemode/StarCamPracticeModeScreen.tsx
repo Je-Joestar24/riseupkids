@@ -6,6 +6,7 @@ import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
+import { StarCamPracticeMissingVideoSkip } from '@/components/child/starcampracticemode/StarCamPracticeMissingVideoSkip';
 import { ThemedText } from '@/components/themed-text';
 import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeSequence } from '@/hooks/useStarCamPracticeSequence';
@@ -57,9 +58,6 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     childId,
     missionId,
   });
-  useEffect(() => {
-    setVideoLoadFailed(false);
-  }, [items]);
 
   useEffect(() => {
     if (isFocused) return;
@@ -85,6 +83,7 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     playbackRate,
     isVideoLoading,
     isShowingNextIntro,
+    isShowingMissingVideoSkip,
     nextIntroText,
     onVideoLoadStart,
     onVideoLoad,
@@ -95,6 +94,7 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     items,
     stepDelayMs: 900,
     nextToastMs: 500,
+    missingVideoSkipDelayMs: 500,
     onComplete,
   });
 
@@ -103,12 +103,17 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
   const pronunciationVideoUrl = current?.pronunciationVideoUrl || null;
   const sampleImageUrl = current?.sampleImageUrl || null;
 
+  useEffect(() => {
+    setVideoLoadFailed(false);
+  }, [itemKey, pronunciationVideoUrl]);
+
   const hasPlayableVideo = Boolean(pronunciationVideoUrl) && !videoLoadFailed;
   const canShowSkipNow =
     isWatchStateLoaded &&
     hasPlayableVideo &&
     !isVideoLoading &&
     !isShowingNextIntro &&
+    !isShowingMissingVideoSkip &&
     isItemWatched(itemKey);
 
   const handleVideoFinished = useCallback(() => {
@@ -210,12 +215,12 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
                     onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
                     accessibilityLabel={`${targetLabel} pronunciation video`}
                   />
+                ) : isShowingMissingVideoSkip ? (
+                  <StarCamPracticeMissingVideoSkip accentColor={accentColor} />
                 ) : (
                   <View style={styles.centered}>
                     <ThemedText style={[styles.placeholderText, { color: accentColor }]}>
-                      {pronunciationVideoUrl
-                        ? 'Video is unavailable right now.'
-                        : 'Pronunciation video will be available soon.'}
+                      Video is unavailable right now.
                     </ThemedText>
                   </View>
                 )}

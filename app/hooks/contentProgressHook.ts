@@ -56,7 +56,11 @@ export interface UseContentProgressReturn {
   getAudioProgress: (audioAssignmentId: string) => Promise<unknown>;
   submitAudioAssignment: (
     audioAssignmentId: string,
-    formData: FormData
+    input: {
+      recordUri: string;
+      timeSpent: number;
+      metadata?: Record<string, unknown>;
+    }
   ) => Promise<unknown>;
   getAudioProgressCached: (audioAssignmentId: string) => unknown;
 
@@ -176,9 +180,16 @@ export function useContentProgress({
   );
 
   const submitAudioAssignment = useCallback(
-    (audioAssignmentId: string, formData: FormData) => {
+    (
+      audioAssignmentId: string,
+      input: {
+        recordUri: string;
+        timeSpent: number;
+        metadata?: Record<string, unknown>;
+      }
+    ) => {
       if (!childId) return Promise.resolve(null);
-      return submitAudioAction(audioAssignmentId, childId, formData);
+      return submitAudioAction(audioAssignmentId, childId, input);
     },
     [childId, submitAudioAction]
   );

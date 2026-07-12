@@ -12,6 +12,13 @@
  */
 
 import { api } from './api';
+import {
+  submitAudioAssignmentFormData,
+  submitAudioAssignmentRecording,
+  type SubmitAudioRecordingInput,
+} from './audioAssignmentUpload';
+
+export type { SubmitAudioRecordingInput };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -37,6 +44,17 @@ export interface AudioAssignmentProgress {
   child: string;
   status: 'not_started' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
   starsEarned?: number;
+  recordedAudio?:
+    | string
+    | {
+        _id?: string;
+        type?: string;
+        title?: string;
+        url?: string;
+        mimeType?: string;
+        size?: number;
+        duration?: number;
+      };
   recordedAudioUrl?: string;
   recordedAudioPath?: string;
   timeSpent?: number;
@@ -93,25 +111,24 @@ const audioAssignmentService = {
   },
 
   /**
-   * Submit child's recorded audio
+   * Submit child's recorded audio (native-safe multipart upload)
    * POST /api/audio-assignments/:audioAssignmentId/child/:childId/submit
-   * multipart/form-data: recordedAudio, timeSpent, metadata (JSON string)
    */
   submit: async (
     audioAssignmentId: string,
     childId: string,
+    input: SubmitAudioRecordingInput
+  ): Promise<ApiResponse<AudioAssignmentProgress>> => {
+    return submitAudioAssignmentRecording(audioAssignmentId, childId, input);
+  },
+
+  /** @deprecated Prefer submit() with SubmitAudioRecordingInput */
+  submitFormData: async (
+    audioAssignmentId: string,
+    childId: string,
     formData: FormData
   ): Promise<ApiResponse<AudioAssignmentProgress>> => {
-    const res = await api.post<ApiResponse<AudioAssignmentProgress>>(
-      `/audio-assignments/${audioAssignmentId}/child/${childId}/submit`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
-    return res as ApiResponse<AudioAssignmentProgress>;
+    return submitAudioAssignmentFormData(audioAssignmentId, childId, formData);
   },
 
   /**
