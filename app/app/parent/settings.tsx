@@ -1,3 +1,4 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +21,14 @@ export default function ParentSettingsScreen() {
   const { showSuccess, showError } = useUI();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const handleBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/parent/selectchild' as never);
+  };
 
   const handleDeleteAccount = async (payload: { password: string; confirmText: string }) => {
     setDeleting(true);
@@ -80,6 +89,14 @@ export default function ParentSettingsScreen() {
         </View>
       </ScrollView>
 
+      <Pressable
+        onPress={handleBack}
+        style={({ pressed }) => [styles.floatingBack, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Go back">
+        <MaterialIcons name="arrow-back" size={26} color={colors.textInverse} />
+      </Pressable>
+
       <DeleteAccountModal
         visible={deleteOpen}
         loading={deleting}
@@ -97,12 +114,30 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing[6],
+    paddingBottom: spacing[20],
     gap: spacing[6],
   },
   title: {
     fontFamily: 'Quicksand_700Bold',
     fontSize: typography.sizes['2xl'],
     color: colors.primary,
+  },
+  floatingBack: {
+    position: 'absolute',
+    right: spacing[4],
+    bottom: spacing[4],
+    zIndex: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   section: {
     backgroundColor: colors.bgCard,
