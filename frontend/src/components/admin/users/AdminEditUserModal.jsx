@@ -17,6 +17,7 @@ import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
 import { isParentRole } from '../../../utils/adminUserRoles';
+import { getAdminAccountDisplayStatus } from '../../../utils/accountDisplayStatus';
 
 /**
  * AdminEditUserModal Component
@@ -115,6 +116,9 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
     setErrors({});
     onClose();
   };
+
+  const accountStatus = currentParent ? getAdminAccountDisplayStatus(currentParent) : null;
+  const statusFieldLocked = Boolean(accountStatus?.deletionRequest);
 
   return (
     <Dialog
@@ -236,7 +240,7 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
             />
 
             {/* Status Field */}
-            <FormControl fullWidth>
+            <FormControl fullWidth disabled={statusFieldLocked}>
               <InputLabel
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
@@ -245,7 +249,7 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
                 Status
               </InputLabel>
               <Select
-                value={String(formData.isActive)}
+                value={statusFieldLocked ? String(currentParent?.isActive ?? false) : String(formData.isActive)}
                 label="Status"
                 onChange={handleChange('isActive')}
                 sx={{
@@ -266,6 +270,19 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
                 <MenuItem value="true">Active</MenuItem>
                 <MenuItem value="false">Archived</MenuItem>
               </Select>
+              {statusFieldLocked && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    mt: 1,
+                    display: 'block',
+                    fontFamily: 'Quicksand, sans-serif',
+                    color: theme.palette.warning.main,
+                  }}
+                >
+                  Status is locked while account deletion is {accountStatus?.label?.toLowerCase()}.
+                </Typography>
+              )}
             </FormControl>
 
             {/* Subscription Status Field */}

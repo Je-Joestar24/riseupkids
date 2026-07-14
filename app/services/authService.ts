@@ -66,4 +66,17 @@ export const authService = {
   clearStorage: async (): Promise<void> => {
     await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
   },
+
+  deleteAccount: async (payload: {
+    password: string;
+    confirmText: string;
+  }): Promise<{ success: boolean; message: string; data?: Record<string, unknown> }> => {
+    const response = await api.post<{
+      success: boolean;
+      message: string;
+      data?: Record<string, unknown>;
+    }>('/auth/delete-account', payload);
+    await authService.clearStorage();
+    return response;
+  },
 };

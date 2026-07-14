@@ -1,4 +1,13 @@
 const childrenService = require('../services/children.services');
+const accountDeletionService = require('../services/accountDeletion.service');
+
+function getClientIp(req) {
+  return (
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.socket?.remoteAddress ||
+    null
+  );
+}
 
 /**
  * @desc    Get all children of logged-in parent
@@ -167,74 +176,6 @@ const updateChild = async (req, res) => {
 };
 
 /**
- * @desc    Delete child profile (soft delete)
- * @route   DELETE /api/children/:id
- * @access  Private (Parent only)
- */
-const deleteChild = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const parentId = req.user._id;
-
-    // Verify user is a parent
-    if (req.user.role !== 'parent') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only parents can delete child profiles',
-      });
-    }
-
-    const child = await childrenService.deleteChild(id, parentId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Child profile deleted successfully',
-      data: child,
-    });
-  } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 400;
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || 'Failed to delete child profile',
-    });
-  }
-};
-
-/**
- * @desc    Restore archived child profile
- * @route   PUT /api/children/:id/restore
- * @access  Private (Parent only)
- */
-const restoreChild = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const parentId = req.user._id;
-
-    // Verify user is a parent
-    if (req.user.role !== 'parent') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only parents can restore child profiles',
-      });
-    }
-
-    const child = await childrenService.restoreChild(id, parentId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Child profile restored successfully',
-      data: child,
-    });
-  } catch (error) {
-    const statusCode = error.message.includes('not found') ? 404 : 400;
-    res.status(statusCode).json({
-      success: false,
-      message: error.message || 'Failed to restore child profile',
-    });
-  }
-};
-
-/**
  * @desc    Get child profile with full stats, badges, and level info
  * @route   GET /api/children/:id/profile
  * @access  Private (Parent only)
@@ -268,13 +209,50 @@ const getChildProfile = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Request child profile deletion (revokes access immediately; purge via admin/script)
+ * @route   POST /api/children/:id/request-deletion
+ * @access  Private (Parent only)
+ */
+const requestChildDeletion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const parentId = req.user._id;
+    const { password, confirmText } = req.body || {};
+
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only parents can delete child profiles',
+      });
+    }
+
+    const result = await accountDeletionService.requestChildProfileDeletion(parentId, id, {
+      password,
+      confirmText,
+      requesterIp: getClientIp(req),
+    });
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 400;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to submit child deletion request',
+    });
+  }
+};
+
 module.exports = {
   getAllChildren,
   getChildById,
   createChild,
   updateChild,
-  deleteChild,
-  restoreChild,
+  requestChildDeletion,
   getChildProfile,
 };
 

@@ -27,6 +27,10 @@ import {
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
 import { getAdminUserRoleLabel, isParentRole } from '../../../utils/adminUserRoles';
+import {
+  formatDeletionScheduleDate,
+  getAdminAccountDisplayStatus,
+} from '../../../utils/accountDisplayStatus';
 
 /**
  * AdminViewModal Component
@@ -54,6 +58,7 @@ const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
 
   const resolvedRole = currentParent?.role || userRole || filters.role;
   const showParentDetails = isParentRole(resolvedRole);
+  const accountStatus = currentParent ? getAdminAccountDisplayStatus(currentParent) : null;
 
   return (
     <Dialog
@@ -170,22 +175,55 @@ const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
                     </Box>
                   </Box>
                   <Chip
-                    label={currentParent.isActive ? 'Active' : 'Archived'}
+                    label={accountStatus?.label || 'Unknown'}
                     size="small"
+                    color={accountStatus?.muiColor || 'default'}
                     icon={currentParent.isActive ? <CheckCircleIcon /> : <CancelIcon />}
                     sx={{
-                      backgroundColor: currentParent.isActive
-                        ? `${theme.palette.success.main}20`
-                        : `${theme.palette.text.secondary}20`,
-                      color: currentParent.isActive
-                        ? theme.palette.success.main
-                        : theme.palette.text.secondary,
                       fontFamily: 'Quicksand, sans-serif',
                       fontWeight: 600,
                       fontSize: '0.75rem',
                     }}
                   />
                 </Box>
+
+                {accountStatus?.deletionRequest &&
+                  (accountStatus.deletionRequest.status === 'pending' ||
+                    accountStatus.deletionRequest.status === 'processing') && (
+                  <Paper
+                    sx={{
+                      p: 2,
+                      borderRadius: '8px',
+                      backgroundColor: `${theme.palette.warning.main}12`,
+                      border: `1px solid ${theme.palette.warning.main}40`,
+                    }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        color: theme.palette.text.primary,
+                        fontWeight: 600,
+                        mb: 0.5,
+                      }}
+                    >
+                      Self-service deletion requested
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: 'Quicksand, sans-serif',
+                        color: theme.palette.text.secondary,
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      Login access is revoked. Data purge is scheduled for{' '}
+                      {formatDeletionScheduleDate(accountStatus.deletionRequest.scheduledPurgeAt) ||
+                        'within 30 days'}
+                      . This account cannot be restored from the users table.
+                    </Typography>
+                  </Paper>
+                )}
 
                 <Divider />
 

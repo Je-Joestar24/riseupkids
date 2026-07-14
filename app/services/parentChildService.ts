@@ -111,19 +111,17 @@ export const parentChildService = {
   },
 
   /**
-   * Delete child profile (soft delete)
+   * Request child profile deletion (self-service)
    */
-  deleteChild: async (childId: string): Promise<ApiResponse<ChildProfile>> => {
-    const response = await api.delete<ApiResponse<ChildProfile>>(`/children/${childId}`);
-    return response as ApiResponse<ChildProfile>;
-  },
-
-  /**
-   * Restore archived child profile
-   */
-  restoreChild: async (childId: string): Promise<ApiResponse<ChildProfile>> => {
-    const response = await api.put<ApiResponse<ChildProfile>>(`/children/${childId}/restore`);
-    return response as ApiResponse<ChildProfile>;
+  requestChildDeletion: async (
+    childId: string,
+    payload: { password: string; confirmText: string }
+  ): Promise<ApiResponse<Record<string, unknown>>> => {
+    const response = await api.post<ApiResponse<Record<string, unknown>>>(
+      `/children/${childId}/request-deletion`,
+      payload
+    );
+    return response as ApiResponse<Record<string, unknown>>;
   },
 
   /**

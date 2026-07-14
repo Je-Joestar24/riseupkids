@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
 import { getAdminUserRoleLabel, isParentRole } from '../../../utils/adminUserRoles';
+import { getAdminAccountDisplayStatus } from '../../../utils/accountDisplayStatus';
 import { useDispatch } from 'react-redux';
 import { showConfirmationDialog } from '../../../store/slices/uiSlice';
 import AdminViewModal from './AdminViewModal';
@@ -166,7 +167,10 @@ const AdminUsersTable = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {parents.map((user) => (
+          {parents.map((user) => {
+            const accountStatus = getAdminAccountDisplayStatus(user);
+
+            return (
             <TableRow key={user._id}>
               <TableCell>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -191,9 +195,9 @@ const AdminUsersTable = () => {
               )}
               <TableCell>
                 <Chip
-                  label={user.isActive ? 'Active' : 'Archived'}
+                  label={accountStatus.label}
                   size="small"
-                  color={user.isActive ? 'success' : 'default'}
+                  color={accountStatus.muiColor}
                 />
               </TableCell>
               {showParentColumns && (
@@ -214,17 +218,36 @@ const AdminUsersTable = () => {
               </TableCell>
               <TableCell align="center">
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                  {user.isActive ? (
+                  {accountStatus.canArchive && (
                     <Tooltip title="Archive">
                       <IconButton size="small" onClick={() => handleArchive(user)} aria-label="Archive user">
                         <ArchiveIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
-                  ) : (
+                  )}
+                  {accountStatus.canRestore && (
                     <Tooltip title="Restore">
                       <IconButton size="small" onClick={() => handleRestore(user)} aria-label="Restore user">
                         <RestoreIcon fontSize="small" />
                       </IconButton>
+                    </Tooltip>
+                  )}
+                  {accountStatus.deletionRequest &&
+                    (accountStatus.deletionRequest.status === 'pending' ||
+                      accountStatus.deletionRequest.status === 'processing') && (
+                    <Tooltip
+                      title={
+                        accountStatus.deletionRequest.scheduledPurgeAt
+                          ? `Scheduled purge: ${new Date(accountStatus.deletionRequest.scheduledPurgeAt).toLocaleDateString()}`
+                          : 'Self-service deletion in progress'
+                      }
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: theme.palette.warning.main, alignSelf: 'center', px: 0.5 }}
+                      >
+                        Pending purge
+                      </Typography>
                     </Tooltip>
                   )}
                   <Tooltip title="View Details">
@@ -256,7 +279,8 @@ const AdminUsersTable = () => {
                 </Box>
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>

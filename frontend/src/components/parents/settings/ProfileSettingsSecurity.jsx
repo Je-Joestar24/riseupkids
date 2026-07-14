@@ -9,6 +9,8 @@ import {
 import { Lock, PrivacyTip, Delete } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import ProfileSettingsChangesPasswordForm from './ProfileSettingsChangesPasswordForm';
+import DeleteAccountModal from './DeleteAccountModal';
+import useAuth from '../../../hooks/userHook';
 
 /**
  * ProfileSettingsSecurity Component
@@ -18,6 +20,8 @@ import ProfileSettingsChangesPasswordForm from './ProfileSettingsChangesPassword
  */
 const ProfileSettingsSecurity = () => {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { logout } = useAuth();
 
   const handleChangePassword = () => {
     setShowPasswordForm(!showPasswordForm);
@@ -29,8 +33,11 @@ const ProfileSettingsSecurity = () => {
   };
 
   const handleDeleteAccount = () => {
-    console.log('Delete account clicked');
-    // TODO: Implement delete account confirmation modal
+    setShowDeleteModal(true);
+  };
+
+  const handleAccountDeleted = async () => {
+    await logout();
   };
 
   const handleClosePasswordForm = () => {
@@ -182,6 +189,12 @@ const ProfileSettingsSecurity = () => {
           Delete Account
         </ListItemButton>
       </List>
+
+      <DeleteAccountModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onSuccess={handleAccountDeleted}
+      />
     </Box>
   );
 };

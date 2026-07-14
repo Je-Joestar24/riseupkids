@@ -13,6 +13,7 @@ import ParentDashboard from '../pages/parents/ParentDashboard';
 import ParentsDashboardPrintableTab from '../pages/parents/ParentsDashboardPrintableTab';
 import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminDeletionRequests from '../pages/admin/AdminDeletionRequests';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
@@ -250,6 +251,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminDashboard />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/deletion-requests"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminDeletionRequests />
               </AdminLayout>
             </AuthedAccess>
           }

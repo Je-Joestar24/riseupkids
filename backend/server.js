@@ -13,6 +13,7 @@ dotenv.config();
 // Node's SRV resolution while `nslookup` still works, causing querySrv ECONNREFUSED.
 dns.setDefaultResultOrder('ipv4first');
 const mailConfig = require('./config/mail');
+const { startDeletionScheduler, stopDeletionScheduler } = require('./jobs/deletionScheduler');
 
 // Import routes
 const apiRoutes = require('./routes/api');
@@ -43,6 +44,7 @@ const checkoutRoutes = require('./routes/checkout.routes');
 const paypalRoutes = require('./routes/paypal.routes');
 const pagseguroRoutes = require('./routes/pagseguro.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
+const accountDeletionRoutes = require('./routes/accountDeletion.routes');
 const badgeRoutes = require('./routes/badge.routes');
 const googleMeetRoutes = require('./routes/googleMeet.routes');
 const meetingRoutes = require('./routes/meeting.routes');
@@ -203,6 +205,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/paypal', paypalRoutes);
 app.use('/api/pagseguro', pagseguroRoutes);
 app.use('/api/admin/dashboard', adminDashboardRoutes);
+app.use('/api/admin/deletion-requests', accountDeletionRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -253,6 +256,7 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
+  startDeletionScheduler();
   const server = http.createServer(app);
   // Node's default request timeout (~5m) aborts slow large multipart uploads (e.g. explore videos).
   const requestTimeoutMs = parseInt(process.env.HTTP_REQUEST_TIMEOUT_MS || '0', 10);
@@ -274,6 +278,15 @@ const startServer = async () => {
       console.log('[Mail] SMTP Password configured:', Boolean(mailConfig.smtp.password));
     }
   });
+
+  const shutdown = (signal) => {
+    console.log(`[Server] ${signal} received — shutting down`);
+    stopDeletionScheduler();
+    server.close(() => process.exit(0));
+  };
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 };
 
 startServer();

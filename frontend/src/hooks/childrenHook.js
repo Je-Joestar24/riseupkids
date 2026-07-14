@@ -5,8 +5,7 @@ import {
   fetchChildById,
   createChild,
   updateChild,
-  deleteChild,
-  restoreChild,
+  requestChildDeletion,
   clearError,
   setFilters,
   clearFilters,
@@ -122,47 +121,25 @@ export const useChildren = () => {
   };
 
   /**
-   * Delete child profile (soft delete)
-   * @param {String} childId - Child's ID
-   * @returns {Promise} Delete result
+   * Request child profile deletion (self-service)
+   * @param {String} childId
+   * @param {{ password: string, confirmText: string }} credentials
    */
-  const deleteChildData = async (childId) => {
+  const deleteChildData = async (childId, credentials) => {
     try {
-      const result = await dispatch(deleteChild(childId)).unwrap();
-      
+      const result = await dispatch(
+        requestChildDeletion({ childId, ...credentials })
+      ).unwrap();
+
       dispatch(showNotification({
-        message: 'Child profile deleted successfully',
+        message: result.message || 'Child profile deletion requested. Access has been revoked.',
         type: 'success',
       }));
-      
+
       return result;
     } catch (error) {
       dispatch(showNotification({
         message: error || 'Failed to delete child profile',
-        type: 'error',
-      }));
-      throw error;
-    }
-  };
-
-  /**
-   * Restore archived child profile
-   * @param {String} childId - Child's ID
-   * @returns {Promise} Restore result
-   */
-  const restoreChildData = async (childId) => {
-    try {
-      const result = await dispatch(restoreChild(childId)).unwrap();
-      
-      dispatch(showNotification({
-        message: 'Child profile restored successfully!',
-        type: 'success',
-      }));
-      
-      return result;
-    } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to restore child profile',
         type: 'error',
       }));
       throw error;
@@ -211,7 +188,6 @@ export const useChildren = () => {
     createNewChild,
     updateChildData,
     deleteChildData,
-    restoreChildData,
     updateFilters,
     resetFilters,
     clearChild,

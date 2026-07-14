@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ChildAddModal } from '@/components/parents/child/child-add-modal';
+import { ChildDeleteModal } from '@/components/parents/child/child-delete-modal';
 import { ChildHeader } from '@/components/parents/child/child-header';
 import { ChildList } from '@/components/parents/child/child-list';
 import { colors } from '@/config/theme/colors';
@@ -30,6 +31,7 @@ import { typography } from '@/config/theme/typography';
 import { useAuth } from '@/hooks/authHook';
 import { useParentChild } from '@/hooks/parentChildHook';
 import type { ChildProfile } from '@/services/parentChildService';
+import { useUI } from '@/hooks/uiHook';
 
 const TABLET_BREAKPOINT = 600;
 const SELECTED_CHILD_KEY = '@riseupkids_selectedChildId';
@@ -42,9 +44,11 @@ export default function SelectChildScreen() {
   const maxContentWidth = isTablet ? 480 : width - spacing[8];
 
   const { user, isAuthenticated } = useAuth();
-  const { children, isLoading, fetchChildren } = useParentChild();
+  const { children, isLoading, fetchChildren, requestChildDeletion, isMutating } = useParentChild();
+  const { showSuccess, showError } = useUI();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [childToDelete, setChildToDelete] = useState<ChildProfile | null>(null);
 
   // Redirect if not authenticated or not a parent
   useEffect(() => {
@@ -78,6 +82,20 @@ export default function SelectChildScreen() {
     fetchChildren({ isActive: true });
   };
 
+  const handleDeleteChild = async (payload: { password: string; confirmText: string }) => {
+    if (!childToDelete?._id) return;
+    try {
+      await requestChildDeletion(childToDelete._id, payload);
+      showSuccess('Child profile deletion requested. Access has been revoked.');
+      setChildToDelete(null);
+      fetchChildren({ isActive: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete child profile';
+      showError(msg);
+      throw err;
+    }
+  };
+
   if (!isAuthenticated || !user || user.role !== 'parent') {
     return null;
   }
@@ -88,14 +106,23 @@ export default function SelectChildScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled">
-        {/* Logo */}
-        <View style={styles.logoWrap}>
-          <Image
-            source={require('@/assets/images/big-logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-            accessibilityLabel="Rise Up Kids Logo"
-          />
+        {/* Logo + settings */}
+        <View style={styles.logoRow}>
+          <View style={styles.logoWrap}>
+            <Image
+              source={require('@/assets/images/big-logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="Rise Up Kids Logo"
+            />
+          </View>
+          <Pressable
+            onPress={() => router.push('/parent/settings' as never)}
+            style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Account settings">
+            <MaterialIcons name="settings" size={28} color={colors.primary} />
+          </Pressable>
         </View>
 
         {/* Card */}
@@ -118,7 +145,11 @@ export default function SelectChildScreen() {
                 </ThemedText>
               </View>
             ) : (
-              <ChildList children={children} onSelectChild={handleSelectChild} />
+              <ChildList
+                children={children}
+                onSelectChild={handleSelectChild}
+                onDeleteChild={(child) => setChildToDelete(child)}
+              />
             )}
           </View>
 
@@ -153,6 +184,13 @@ export default function SelectChildScreen() {
       </ScrollView>
 
       <ChildAddModal open={addModalOpen} onClose={handleCloseAddModal} />
+      <ChildDeleteModal
+        visible={Boolean(childToDelete)}
+        child={childToDelete}
+        loading={isMutating}
+        onClose={() => setChildToDelete(null)}
+        onConfirm={handleDeleteChild}
+      />
     </SafeAreaView>
   );
 }
@@ -168,8 +206,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[6],
   },
-  logoWrap: {
+  logoRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
     marginBottom: spacing[6],
+    position: 'relative',
+  },
+  logoWrap: {
+    alignItems: 'center',
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: 0,
+    top: spacing[2],
+    padding: spacing[2],
+  },
+  pressed: {
+    opacity: 0.8,
   },
   logo: {
     width: 180,

@@ -362,74 +362,6 @@ const updateChild = async (childId, parentId, updateData) => {
 };
 
 /**
- * Delete Child Service
- * 
- * Soft deletes (archives) a child profile (only if belongs to parent)
- * 
- * @param {String} childId - Child profile's MongoDB ID
- * @param {String} parentId - Parent's MongoDB ID (for verification)
- * @returns {Object} Deleted child profile
- * @throws {Error} If child not found
- */
-const deleteChild = async (childId, parentId) => {
-  // Find child and verify it belongs to parent
-  const child = await ChildProfile.findOne({
-    _id: childId,
-    parent: parentId,
-  });
-
-  if (!child) {
-    throw new Error('Child profile not found or does not belong to you');
-  }
-
-  // Soft delete (set isActive to false)
-  child.isActive = false;
-  await child.save();
-
-  // Get deleted child
-  const deletedChild = await ChildProfile.findById(childId)
-    .populate('currentJourney', 'title description order')
-    .populate('currentLesson', 'title description order')
-    .lean();
-
-  return deletedChild;
-};
-
-/**
- * Restore Child Service
- * 
- * Restores (reactivates) an archived child profile
- * 
- * @param {String} childId - Child profile's MongoDB ID
- * @param {String} parentId - Parent's MongoDB ID (for verification)
- * @returns {Object} Restored child profile
- * @throws {Error} If child not found
- */
-const restoreChild = async (childId, parentId) => {
-  // Find child and verify it belongs to parent
-  const child = await ChildProfile.findOne({
-    _id: childId,
-    parent: parentId,
-  });
-
-  if (!child) {
-    throw new Error('Child profile not found or does not belong to you');
-  }
-
-  // Restore (set isActive to true)
-  child.isActive = true;
-  await child.save();
-
-  // Get restored child
-  const restoredChild = await ChildProfile.findById(childId)
-    .populate('currentJourney', 'title description order')
-    .populate('currentLesson', 'title description order')
-    .lean();
-
-  return restoredChild;
-};
-
-/**
  * Get Child Profile with Full Stats, Badges, and Level Info
  * 
  * Retrieves child profile with complete stats, earned badges, level info, and next level progress
@@ -505,8 +437,6 @@ module.exports = {
   getChildById,
   createChild,
   updateChild,
-  deleteChild,
-  restoreChild,
   assignDefaultCourses,
   getChildProfileWithStats,
 };

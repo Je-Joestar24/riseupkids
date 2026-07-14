@@ -21,9 +21,10 @@ const STAR_ICON = require('@/assets/icons/star-svgrepo-com.png');
 interface ChildListProps {
   children: ChildProfile[];
   onSelectChild: (child: ChildProfile) => void;
+  onDeleteChild?: (child: ChildProfile) => void;
 }
 
-export function ChildList({ children, onSelectChild }: ChildListProps) {
+export function ChildList({ children, onSelectChild, onDeleteChild }: ChildListProps) {
   const { width } = useWindowDimensions();
   const isTablet = width >= TABLET_BREAKPOINT;
   const avatarSize = isTablet ? 84 : 70;
@@ -43,12 +44,16 @@ export function ChildList({ children, onSelectChild }: ChildListProps) {
           <Pressable
             key={child._id}
             onPress={() => onSelectChild(child)}
+            onLongPress={onDeleteChild ? () => onDeleteChild(child) : undefined}
             style={({ pressed }) => [
               styles.card,
               { backgroundColor: pressed ? pressedColor : bgColor },
             ]}
             accessibilityRole="button"
-            accessibilityLabel={`Select ${child.displayName}`}>
+            accessibilityLabel={`Select ${child.displayName}`}
+            accessibilityHint={
+              onDeleteChild ? 'Long press to delete this child profile' : undefined
+            }>
             {/* Avatar */}
             <View
               style={[

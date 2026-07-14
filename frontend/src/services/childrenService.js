@@ -80,27 +80,16 @@ const childrenService = {
   },
 
   /**
-   * Delete child profile (soft delete)
+   * Request child profile deletion (revokes access immediately; purge via admin).
    * @param {String} childId - Child's ID
-   * @returns {Promise} API response with deleted child data
+   * @param {{ password: string, confirmText: string }} payload
    */
-  deleteChild: async (childId) => {
+  requestChildDeletion: async (childId, { password, confirmText }) => {
     try {
-      const response = await api.delete(`/children/${childId}`);
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || error.message;
-    }
-  },
-
-  /**
-   * Restore archived child profile
-   * @param {String} childId - Child's ID
-   * @returns {Promise} API response with restored child data
-   */
-  restoreChild: async (childId) => {
-    try {
-      const response = await api.put(`/children/${childId}/restore`);
+      const response = await api.post(`/children/${childId}/request-deletion`, {
+        password,
+        confirmText,
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;

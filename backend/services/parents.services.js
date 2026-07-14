@@ -1,5 +1,70 @@
 const { User } = require('../models');
 const { ChildProfile } = require('../models');
+const AccountDeletionRequest = require('../models/AccountDeletionRequest');
+
+async function getLatestParentDeletionRequestsByUserIds(userIds) {
+  if (!userIds.length) {
+    return new Map();
+  }
+
+  const requests = await AccountDeletionRequest.find({
+    userId: { $in: userIds },
+    type: 'parent_account',
+  })
+    .sort({ requestedAt: -1 })
+    .select('_id userId status type requestedAt scheduledPurgeAt completedAt')
+    .lean();
+
+  const map = new Map();
+  requests.forEach((request) => {
+    const key = String(request.userId);
+    if (!map.has(key)) {
+      map.set(key, {
+        _id: request._id,
+        status: request.status,
+        type: request.type,
+        requestedAt: request.requestedAt,
+        scheduledPurgeAt: request.scheduledPurgeAt,
+        completedAt: request.completedAt,
+      });
+    }
+  });
+
+  return map;
+}
+
+function attachDeletionRequest(parent, deletionMap) {
+  const deletionRequest = deletionMap.get(String(parent._id)) || null;
+  return {
+    ...parent,
+    deletionRequest,
+  };
+}
+
+async function assertParentCanBeReactivated(parentId) {
+  const request = await AccountDeletionRequest.findOne({
+    userId: parentId,
+    type: 'parent_account',
+    status: { $in: ['pending', 'processing', 'completed'] },
+  })
+    .sort({ requestedAt: -1 })
+    .select('status')
+    .lean();
+
+  if (!request) {
+    return;
+  }
+
+  if (request.status === 'pending' || request.status === 'processing') {
+    throw new Error(
+      'This account has a pending deletion request and cannot be restored.'
+    );
+  }
+
+  if (request.status === 'completed') {
+    throw new Error('This account has been permanently deleted and cannot be restored.');
+  }
+}
 
 /**
  * Get All Parents Service
@@ -69,6 +134,10 @@ const getAllParents = async (queryParams = {}) => {
   ]);
 
   // Get additional data for each parent (child profiles count)
+  const deletionMap = await getLatestParentDeletionRequestsByUserIds(
+    parents.map((parent) => parent._id)
+  );
+
   const parentsWithData = await Promise.all(
     parents.map(async (parent) => {
       const childProfilesCount = await ChildProfile.countDocuments({
@@ -80,11 +149,14 @@ const getAllParents = async (queryParams = {}) => {
         parent: parent._id,
       });
 
-      return {
-        ...parent,
-        childProfilesCount,
-        totalChildren,
-      };
+      return attachDeletionRequest(
+        {
+          ...parent,
+          childProfilesCount,
+          totalChildren,
+        },
+        deletionMap
+      );
     })
   );
 
@@ -147,14 +219,19 @@ const getParentById = async (parentId) => {
     parent: parentId,
   });
 
-  return {
-    ...parent,
-    childProfiles,
-    statistics: {
-      activeChildren: activeChildrenCount,
-      totalChildren: totalChildrenCount,
+  const deletionMap = await getLatestParentDeletionRequestsByUserIds([parentId]);
+
+  return attachDeletionRequest(
+    {
+      ...parent,
+      childProfiles,
+      statistics: {
+        activeChildren: activeChildrenCount,
+        totalChildren: totalChildrenCount,
+      },
     },
-  };
+    deletionMap
+  );
 };
 
 /**
@@ -241,6 +318,9 @@ const updateParent = async (parentId, updateData) => {
   }
 
   if (isActive !== undefined) {
+    if (isActive === true && parent.isActive === false) {
+      await assertParentCanBeReactivated(parentId);
+    }
     parent.isActive = isActive;
   }
 
@@ -279,6 +359,18 @@ const archiveParent = async (parentId) => {
     throw new Error('User is not a parent');
   }
 
+  const pendingDeletion = await AccountDeletionRequest.findOne({
+    userId: parentId,
+    type: 'parent_account',
+    status: { $in: ['pending', 'processing'] },
+  })
+    .select('status')
+    .lean();
+
+  if (pendingDeletion) {
+    throw new Error('This parent account has a pending deletion request and cannot be archived.');
+  }
+
   // Archive parent (set isActive to false)
   parent.isActive = false;
   await parent.save();
@@ -314,6 +406,8 @@ const restoreParent = async (parentId) => {
   if (parent.role !== 'parent') {
     throw new Error('User is not a parent');
   }
+
+  await assertParentCanBeReactivated(parentId);
 
   // Restore parent (set isActive to true)
   parent.isActive = true;

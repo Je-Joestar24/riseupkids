@@ -62,31 +62,19 @@ export const updateChild = createAsyncThunk(
 );
 
 /**
- * Async thunk for deleting child
+ * Async thunk for self-service child deletion request
  */
-export const deleteChild = createAsyncThunk(
-  'children/deleteChild',
-  async (childId, { rejectWithValue }) => {
+export const requestChildDeletion = createAsyncThunk(
+  'children/requestChildDeletion',
+  async ({ childId, password, confirmText }, { rejectWithValue }) => {
     try {
-      const response = await childrenService.deleteChild(childId);
+      const response = await childrenService.requestChildDeletion(childId, {
+        password,
+        confirmText,
+      });
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to delete child');
-    }
-  }
-);
-
-/**
- * Async thunk for restoring child
- */
-export const restoreChild = createAsyncThunk(
-  'children/restoreChild',
-  async (childId, { rejectWithValue }) => {
-    try {
-      const response = await childrenService.restoreChild(childId);
-      return response;
-    } catch (error) {
-      return rejectWithValue(error.message || 'Failed to restore child');
+      return rejectWithValue(error.message || 'Failed to delete child profile');
     }
   }
 );
@@ -204,60 +192,24 @@ const childrenSlice = createSlice({
         state.error = action.payload;
       });
 
-    // Delete Child
+    // Request Child Deletion (self-service)
     builder
-      .addCase(deleteChild.pending, (state) => {
+      .addCase(requestChildDeletion.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(deleteChild.fulfilled, (state, action) => {
+      .addCase(requestChildDeletion.fulfilled, (state, action) => {
         state.loading = false;
-        const deletedChild = action.payload.data;
-        if (deletedChild) {
-          // Update in children list
-          const index = state.children.findIndex(
-            (c) => c._id === deletedChild._id
-          );
-          if (index !== -1) {
-            state.children[index] = deletedChild;
-          }
-          // Clear current child if it's the same
-          if (state.currentChild?._id === deletedChild._id) {
+        const childId = action.payload?.data?.childId || action.meta?.arg?.childId;
+        if (childId) {
+          state.children = state.children.filter((c) => c._id !== childId);
+          if (state.currentChild?._id === childId) {
             state.currentChild = null;
           }
         }
         state.error = null;
       })
-      .addCase(deleteChild.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.payload;
-      });
-
-    // Restore Child
-    builder
-      .addCase(restoreChild.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(restoreChild.fulfilled, (state, action) => {
-        state.loading = false;
-        const restoredChild = action.payload.data;
-        if (restoredChild) {
-          // Update in children list
-          const index = state.children.findIndex(
-            (c) => c._id === restoredChild._id
-          );
-          if (index !== -1) {
-            state.children[index] = restoredChild;
-          }
-          // Update current child if it's the same
-          if (state.currentChild?._id === restoredChild._id) {
-            state.currentChild = restoredChild;
-          }
-        }
-        state.error = null;
-      })
-      .addCase(restoreChild.rejected, (state, action) => {
+      .addCase(requestChildDeletion.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

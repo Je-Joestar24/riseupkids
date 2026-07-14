@@ -169,6 +169,22 @@ const authService = {
   },
 
   /**
+   * Request parent account deletion (revokes access immediately).
+   * @param {{ password: string, confirmText: string }} payload
+   */
+  deleteAccount: async ({ password, confirmText }) => {
+    try {
+      const response = await api.post('/auth/delete-account', {
+        password,
+        confirmText,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
    * Get user from sessionStorage
    * @returns {Object|null} User object or null
    */

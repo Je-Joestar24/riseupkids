@@ -1,4 +1,5 @@
 const authService = require('../services/auth.services');
+const accountDeletionService = require('../services/accountDeletion.service');
 const { subscribeToFlodesk } = require('../services/flodeskService');
 
 /**
@@ -403,6 +404,45 @@ const resetPassword = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Request parent account deletion (revokes access immediately)
+ * @route   POST /api/auth/delete-account
+ * @access  Private (parent)
+ */
+const deleteAccount = async (req, res) => {
+  try {
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only parent accounts can delete their account from this screen',
+      });
+    }
+
+    const { password, confirmText } = req.body || {};
+    const requesterIp =
+      req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      null;
+
+    const result = await accountDeletionService.requestParentAccountDeletion(req.user._id, {
+      password,
+      confirmText,
+      requesterIp,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to submit account deletion request',
+    });
+  }
+};
+
 module.exports = {
   register,
   registerUser,
@@ -412,6 +452,7 @@ module.exports = {
   logout,
   updateProfile,
   changePassword,
+  deleteAccount,
   getTerms,
   forgotPassword,
   resetPassword,

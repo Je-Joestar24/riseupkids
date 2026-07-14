@@ -36,10 +36,11 @@ export interface ParentChildActions {
   createChild: (data: CreateChildInput) => Promise<ChildProfile | null>;
   /** Update child */
   updateChild: (childId: string, data: UpdateChildInput) => Promise<ChildProfile | null>;
-  /** Soft delete child */
-  deleteChild: (childId: string) => Promise<ChildProfile | null>;
-  /** Restore archived child */
-  restoreChild: (childId: string) => Promise<ChildProfile | null>;
+  /** Request child profile deletion (self-service) */
+  requestChildDeletion: (
+    childId: string,
+    payload: { password: string; confirmText: string }
+  ) => Promise<boolean>;
   /** Set selected child (e.g. when parent switches) */
   setSelectedChild: (child: ChildProfile | null) => void;
   /** Clear error */
@@ -127,46 +128,24 @@ export const useParentChildStore = create<ParentChildState & ParentChildActions>
     }
   },
 
-  deleteChild: async (childId) => {
+  requestChildDeletion: async (childId, payload) => {
     set({ isMutating: true, error: null });
     try {
-      const res = await parentChildService.deleteChild(childId);
-      const deleted = res?.data ?? null;
-      if (deleted) {
+      const res = await parentChildService.requestChildDeletion(childId, payload);
+      if (res?.success) {
         set((s) => ({
           children: s.children.filter((c) => c._id !== childId),
           selectedChild: s.selectedChild?._id === childId ? null : s.selectedChild,
           isMutating: false,
         }));
-      } else {
-        set({ isMutating: false });
+        return true;
       }
-      return deleted;
+      set({ isMutating: false });
+      return false;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ error: msg, isMutating: false });
-      return null;
-    }
-  },
-
-  restoreChild: async (childId) => {
-    set({ isMutating: true, error: null });
-    try {
-      const res = await parentChildService.restoreChild(childId);
-      const restored = res?.data ?? null;
-      if (restored) {
-        set((s) => ({
-          children: [restored, ...s.children.filter((c) => c._id !== childId)],
-          isMutating: false,
-        }));
-      } else {
-        set({ isMutating: false });
-      }
-      return restored;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      set({ error: msg, isMutating: false });
-      return null;
+      throw err;
     }
   },
 

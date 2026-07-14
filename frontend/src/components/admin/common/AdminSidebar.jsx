@@ -35,6 +35,7 @@ import {
   DescriptionOutlined,
   AutoAwesomeOutlined,
   AutoStoriesOutlined,
+  DeleteOutline,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -57,6 +58,7 @@ const AdminSidebar = () => {
   const menuItems = [
     { text: 'Dashboard', icon: <DashboardOutlined />, path: '/admin/dashboard' },
     { text: 'Users', icon: <PeopleOutline />, path: '/admin/users' },
+    { text: 'Deletion Requests', icon: <DeleteOutline />, path: '/admin/deletion-requests' },
     {
       text: 'Courses',
       icon: <MenuBookOutlined />,

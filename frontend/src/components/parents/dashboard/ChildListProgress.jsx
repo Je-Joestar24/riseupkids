@@ -79,16 +79,16 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
     }
   };
 
-  const handleDeleteChild = async (childId) => {
+  const handleDeleteChild = async (childId, credentials) => {
     try {
-      await deleteChildData(childId);
+      await deleteChildData(childId, credentials);
       handleCloseEditModal();
-      // Refresh children list with active filter
       setTimeout(() => {
         fetchChildren({ isActive: true });
       }, 500);
     } catch (error) {
       console.error('Error deleting child:', error);
+      throw error;
     }
   };
 

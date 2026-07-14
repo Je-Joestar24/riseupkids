@@ -7,11 +7,15 @@ import {
   Button,
   Box,
   Typography,
+  TextField,
+  Alert,
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import ModalHeader from './ModalHeader';
 import ModalForm from './ModalForm';
+
+const CONFIRM_TEXT = 'DELETE';
 
 /**
  * ChildEditModal Component
@@ -28,6 +32,9 @@ const ChildEditModal = ({
   onDelete,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const handleFormSubmit = async (formData) => {
     if (onSave) {
@@ -36,18 +43,40 @@ const ChildEditModal = ({
   };
 
   const handleDeleteClick = () => {
+    setDeletePassword('');
+    setDeleteConfirmText('');
+    setDeleteError('');
     setShowDeleteConfirm(true);
   };
 
   const handleConfirmDelete = async () => {
+    if (!deletePassword.trim()) {
+      setDeleteError('Please enter your password.');
+      return;
+    }
+    if (deleteConfirmText.trim().toUpperCase() !== CONFIRM_TEXT) {
+      setDeleteError(`Please type ${CONFIRM_TEXT} to confirm.`);
+      return;
+    }
+
     if (onDelete) {
-      await onDelete(child._id);
-      setShowDeleteConfirm(false);
+      try {
+        await onDelete(child._id, {
+          password: deletePassword,
+          confirmText: deleteConfirmText,
+        });
+        setShowDeleteConfirm(false);
+      } catch (error) {
+        setDeleteError(error?.message || error || 'Failed to delete child profile.');
+      }
     }
   };
 
   const handleCancelDelete = () => {
     setShowDeleteConfirm(false);
+    setDeletePassword('');
+    setDeleteConfirmText('');
+    setDeleteError('');
   };
 
   if (!child) return null;
@@ -125,7 +154,7 @@ const ChildEditModal = ({
                 },
               }}
             >
-              Archive Child Profile
+              Delete this child&apos;s profile
             </Button>
           </Box>
         </DialogContent>
@@ -153,7 +182,7 @@ const ChildEditModal = ({
             paddingBottom: { xs: '12px', sm: '16px' },
           }}
         >
-          Archive Child Profile?
+          Delete this child&apos;s profile?
         </DialogTitle>
 
         <DialogContent>
@@ -164,12 +193,39 @@ const ChildEditModal = ({
               fontWeight: 500,
               color: themeColors.textSecondary,
               lineHeight: 1.6,
+              mb: 2,
             }}
           >
-            Are you sure you want to archive{' '}
+            This will revoke access to{' '}
             <strong style={{ color: themeColors.text }}>{child.displayName || child.name}</strong>
-            's profile? This action can be undone later.
+            &apos;s profile immediately and request permanent deletion of their progress,
+            recordings, and Kids Wall photos. Data is typically removed within 30 days.
           </Typography>
+
+          {deleteError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {deleteError}
+            </Alert>
+          )}
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Your password"
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              fullWidth
+              disabled={loading}
+              autoComplete="current-password"
+            />
+            <TextField
+              label={`Type ${CONFIRM_TEXT} to confirm`}
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              fullWidth
+              disabled={loading}
+            />
+          </Box>
         </DialogContent>
 
         <DialogActions
@@ -219,7 +275,7 @@ const ChildEditModal = ({
               },
             }}
           >
-            {loading ? 'Archiving...' : 'Archive Profile'}
+            {loading ? 'Deleting…' : 'Delete profile'}
           </Button>
         </DialogActions>
       </Dialog>
