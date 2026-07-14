@@ -45,3 +45,28 @@ describe('authService.deleteAccount', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('authService.logout', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('posts logout and clears storage', async () => {
+    api.post.mockResolvedValue({ success: true });
+    AsyncStorage.multiRemove.mockResolvedValue(undefined);
+
+    await authService.logout();
+
+    expect(api.post).toHaveBeenCalledWith('/auth/logout');
+    expect(AsyncStorage.multiRemove).toHaveBeenCalled();
+  });
+
+  it('still clears storage when logout API fails', async () => {
+    api.post.mockRejectedValue(new Error('Network error'));
+    AsyncStorage.multiRemove.mockResolvedValue(undefined);
+
+    await authService.logout();
+
+    expect(AsyncStorage.multiRemove).toHaveBeenCalled();
+  });
+});

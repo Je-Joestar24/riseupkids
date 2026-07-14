@@ -1,7 +1,7 @@
 import api from '../api/axios';
 
 /** Terms version sent with checkout for legal record; bump when terms change. */
-export const TERMS_VERSION = 'terms_v1_2026-02-10';
+export const TERMS_VERSION = '2026-07-14';
 
 const stripeService = {
   /**

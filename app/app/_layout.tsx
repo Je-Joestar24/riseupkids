@@ -15,8 +15,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { GlobalDialog } from '@/components/ui/global-dialog';
+import { LegalAcceptanceGate } from '@/components/legal/LegalAcceptanceGate';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/authHook';
+import { useLegalAcceptance } from '@/hooks/legalAcceptanceHook';
 import { useStartupPermissions } from '@/hooks/useStartupPermissions';
 import { setTokenGetter } from '@/services/tokenBridge';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -26,6 +28,7 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const { hydrate } = useAuth();
+  const { isReady: legalReady, hasAccepted, accept } = useLegalAcceptance();
 
   useEffect(() => {
     setTokenGetter(() => useAuthStore.getState().token);
@@ -46,12 +49,12 @@ export default function RootLayout() {
   useStartupPermissions(fontsLoaded);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && legalReady) {
       hydrate().finally(() => SplashScreen.hideAsync());
     }
-  }, [fontsLoaded, hydrate]);
+  }, [fontsLoaded, legalReady, hydrate]);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded || !legalReady) return null;
 
   return (
     <SafeAreaProvider>
@@ -59,6 +62,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
         </Stack>
+        <LegalAcceptanceGate visible={!hasAccepted} onAccept={accept} />
         <GlobalDialog />
         <StatusBar style="auto" />
       </ThemeProvider>

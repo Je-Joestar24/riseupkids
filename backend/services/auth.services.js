@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { User, PasswordResetToken } = require('../models');
 const { ChildProfile, ChildStats } = require('../models');
 const mailService = require('./mail');
+const legalContent = require('./legalContent.service');
 
 /**
  * Generate JWT Token
@@ -243,12 +244,7 @@ const logout = async (userId) => {
  *
  * @returns {Object} { content: string }
  */
-const getTermsContent = async () => {
-  const placeholder = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas iaculis vel leo posuere varius. Suspendisse nec suscipit ipsum, nec sollicitudin justo. Phasellus sit amet ante a leo ornare gravida nec in arcu. Nullam efficitur est nulla, ac semper tellus tincidunt id. Quisque ullamcorper lectus vitae neque rutrum, non venenatis risus porttitor. Nulla egestas eu purus sit amet dictum. Proin interdum sem a risus venenatis, id pharetra ex venenatis. Etiam eget condimentum arcu. Aliquam nec ullamcorper neque. Donec elit nulla, tempus at convallis a, imperdiet non augue. Proin tempor eros a sagittis commodo. Fusce vitae dui sit amet diam porta fermentum. Mauris vestibulum eget neque sit amet mollis. Nullam tincidunt orci lectus, eget tempus ante varius at.
-
-Proin vitae suscipit libero. Aliquam erat volutpat. Duis sollicitudin nunc nec ex placerat, a elementum elit lacinia. Ut at lacus id arcu laoreet tincidunt vel a nunc. Quisque lobortis mattis tortor, commodo rutrum odio dignissim in. Aliquam odio felis, luctus non vehicula vel, consectetur non quam. Sed ullamcorper lectus quis venenatis condimentum. Maecenas non purus tempor, rhoncus massa vel, pellentesque lorem. Nullam molestie euismod augue, ac imperdiet est lobortis porta. Nunc in felis sem. Donec non tempus dui, non sollicitudin risus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum turpis nunc, bibendum vitae maximus a, malesuada sit amet tellus. Nullam eu suscipit ex.`;
-  return { content: placeholder };
-};
+const getTermsContent = async () => legalContent.getTermsContent();
 
 /** Expiry for reset code: 1 minute */
 const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;

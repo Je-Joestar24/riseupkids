@@ -12,6 +12,7 @@ import { typography } from '@/config/theme/typography';
 import { useAuth } from '@/hooks/authHook';
 import { useUI } from '@/hooks/uiHook';
 import { authService } from '@/services/authService';
+import { openPrivacyPolicy, openTermsOfUse } from '@/services/legalLinkService';
 
 export default function ParentSettingsScreen() {
   const router = useRouter();
@@ -43,6 +44,24 @@ export default function ParentSettingsScreen() {
         <ThemedText style={styles.title} accessibilityRole="header">
           Account Settings
         </ThemedText>
+
+        <View style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Legal</ThemedText>
+          <Pressable
+            onPress={() => openPrivacyPolicy()}
+            style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy">
+            <ThemedText style={styles.linkButtonText}>Privacy Policy</ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => openTermsOfUse()}
+            style={({ pressed }) => [styles.linkButton, pressed && styles.pressed]}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Use">
+            <ThemedText style={styles.linkButtonText}>Terms of Use</ThemedText>
+          </Pressable>
+        </View>
 
         <View style={styles.section}>
           <ThemedText style={styles.sectionTitle}>Privacy & Security</ThemedText>
@@ -101,6 +120,19 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: colors.textSecondary,
     lineHeight: 22,
+  },
+  linkButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
+    alignItems: 'center',
+  },
+  linkButtonText: {
+    fontFamily: 'Quicksand_600SemiBold',
+    color: colors.primary,
+    fontSize: typography.sizes.base,
   },
   dangerButton: {
     marginTop: spacing[2],

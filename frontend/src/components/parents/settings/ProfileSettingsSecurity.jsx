@@ -6,8 +6,9 @@ import {
   List,
   ListItemButton,
 } from '@mui/material';
-import { Lock, PrivacyTip, Delete } from '@mui/icons-material';
+import { Lock, PrivacyTip, Delete, Gavel } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
+import { LEGAL_URLS } from '../../../config/legalUrls';
 import ProfileSettingsChangesPasswordForm from './ProfileSettingsChangesPasswordForm';
 import DeleteAccountModal from './DeleteAccountModal';
 import useAuth from '../../../hooks/userHook';
@@ -28,8 +29,11 @@ const ProfileSettingsSecurity = () => {
   };
 
   const handlePrivacySettings = () => {
-    console.log('Privacy settings clicked');
-    // TODO: Implement privacy settings modal
+    window.open(LEGAL_URLS.privacy, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleTermsOfUse = () => {
+    window.open(LEGAL_URLS.terms, '_blank', 'noopener,noreferrer');
   };
 
   const handleDeleteAccount = () => {
@@ -121,7 +125,7 @@ const ProfileSettingsSecurity = () => {
           />
         )}
 
-        {/* Privacy Settings Button */}
+        {/* Privacy Policy */}
         <ListItemButton
           onClick={handlePrivacySettings}
           sx={{
@@ -152,7 +156,41 @@ const ProfileSettingsSecurity = () => {
               flexShrink: 0,
             }}
           />
-          Privacy Settings
+          Privacy Policy
+        </ListItemButton>
+
+        {/* Terms of Use */}
+        <ListItemButton
+          onClick={handleTermsOfUse}
+          sx={{
+            padding: { xs: '12px 16px', sm: '14px 16px' },
+            borderRadius: '12px',
+            backgroundColor: themeColors.bgSecondary,
+            transition: 'all 0.2s ease',
+            fontSize: { xs: '16px', sm: '18px' },
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 500,
+            color: themeColors.text,
+            '&:hover': {
+              backgroundColor: themeColors.bgTertiary,
+              transform: 'translateX(4px)',
+            },
+            '&:active': {
+              transform: 'translateX(2px)',
+            },
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <Gavel
+            sx={{
+              fontSize: '20px',
+              color: themeColors.primary,
+              flexShrink: 0,
+            }}
+          />
+          Terms of Use
         </ListItemButton>
 
         {/* Delete Account Button */}

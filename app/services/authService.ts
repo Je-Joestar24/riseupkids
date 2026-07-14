@@ -13,6 +13,8 @@ const STORAGE_KEYS = {
   childProfiles: '@riseupkids_childProfiles',
   childProfile: '@riseupkids_childProfile',
   parent: '@riseupkids_parent',
+  selectedChildId: '@riseupkids_selectedChildId',
+  selectedChild: '@riseupkids_selectedChild',
 } as const;
 
 export interface LoginResponse {
@@ -65,6 +67,15 @@ export const authService = {
 
   clearStorage: async (): Promise<void> => {
     await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Still clear local session if the API call fails (offline, expired token, etc.)
+    }
+    await authService.clearStorage();
   },
 
   deleteAccount: async (payload: {

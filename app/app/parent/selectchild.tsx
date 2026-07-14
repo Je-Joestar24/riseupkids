@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ChildAddModal } from '@/components/parents/child/child-add-modal';
 import { ChildDeleteModal } from '@/components/parents/child/child-delete-modal';
@@ -43,12 +44,14 @@ export default function SelectChildScreen() {
   const isTablet = width >= TABLET_BREAKPOINT;
   const maxContentWidth = isTablet ? 480 : width - spacing[8];
 
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { children, isLoading, fetchChildren, requestChildDeletion, isMutating } = useParentChild();
   const { showSuccess, showError } = useUI();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [childToDelete, setChildToDelete] = useState<ChildProfile | null>(null);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   // Redirect if not authenticated or not a parent
   useEffect(() => {
@@ -93,6 +96,20 @@ export default function SelectChildScreen() {
       const msg = err instanceof Error ? err.message : 'Failed to delete child profile';
       showError(msg);
       throw err;
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      router.replace('/');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not log out';
+      showError(msg);
+    } finally {
+      setLoggingOut(false);
+      setLogoutConfirmOpen(false);
     }
   };
 
@@ -170,18 +187,38 @@ export default function SelectChildScreen() {
             <ThemedText style={styles.addButtonText}>Add New Kid</ThemedText>
           </Pressable>
 
-          {/* Parent Login link - navigates back to main login 
           <Pressable
-            onPress={() => router.replace('/')}
-            style={styles.parentLink}
-            hitSlop={12}
+            onPress={() => setLogoutConfirmOpen(true)}
+            disabled={loggingOut}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              (pressed || loggingOut) && styles.pressed,
+              loggingOut && styles.logoutButtonDisabled,
+            ]}
             accessibilityRole="button"
-            accessibilityLabel="Parent login">
-            <MaterialIcons name="lock" size={20} color={colors.accent} />
-            <ThemedText style={styles.parentLinkText}>Parent Login</ThemedText>
-          </Pressable>*/}
+            accessibilityLabel="Log out"
+            accessibilityState={{ disabled: loggingOut }}>
+            {loggingOut ? (
+              <ActivityIndicator size="small" color={colors.textSecondary} />
+            ) : (
+              <MaterialIcons name="logout" size={22} color={colors.textSecondary} />
+            )}
+            <ThemedText style={styles.logoutButtonText}>
+              {loggingOut ? 'Logging out...' : 'Log out'}
+            </ThemedText>
+          </Pressable>
         </View>
       </ScrollView>
+
+      <ConfirmModal
+        open={logoutConfirmOpen}
+        title="Log out?"
+        message="You will return to the login screen. You can sign in again anytime."
+        confirmLabel="Log out"
+        cancelLabel="Stay signed in"
+        onConfirm={handleLogout}
+        onCancel={() => setLogoutConfirmOpen(false)}
+      />
 
       <ChildAddModal open={addModalOpen} onClose={handleCloseAddModal} />
       <ChildDeleteModal
@@ -284,6 +321,22 @@ const styles = StyleSheet.create({
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.textSecondary,
     opacity: 0.8,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing[2],
+    marginTop: spacing[5],
+    paddingVertical: spacing[3],
+  },
+  logoutButtonDisabled: {
+    opacity: 0.6,
+  },
+  logoutButtonText: {
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_600SemiBold',
+    color: colors.textSecondary,
   },
   parentLink: {
     flexDirection: 'row',

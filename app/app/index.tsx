@@ -21,6 +21,7 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useAuth } from '@/hooks/authHook';
+import { openPrivacyPolicy, openSignupPage, openTermsOfUse } from '@/services/legalLinkService';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -167,6 +168,33 @@ export default function LoginScreen() {
                 <ThemedText style={styles.signInText}>Sign In</ThemedText>
               )}
             </Pressable>
+
+            <View style={styles.legalLinks} accessibilityRole="group" accessibilityLabel="Legal and signup links">
+              <Pressable
+                onPress={() => openSignupPage()}
+                style={styles.linkButton}
+                accessibilityRole="link"
+                accessibilityLabel="Create a parent account on riseup.kids">
+                <ThemedText style={styles.linkText}>Don't have an account? Sign up</ThemedText>
+              </Pressable>
+              <View style={styles.legalRow}>
+                <Pressable
+                  onPress={() => openPrivacyPolicy()}
+                  style={styles.linkButton}
+                  accessibilityRole="link"
+                  accessibilityLabel="Privacy Policy">
+                  <ThemedText style={styles.legalLinkText}>Privacy Policy</ThemedText>
+                </Pressable>
+                <ThemedText style={styles.legalDivider}>·</ThemedText>
+                <Pressable
+                  onPress={() => openTermsOfUse()}
+                  style={styles.linkButton}
+                  accessibilityRole="link"
+                  accessibilityLabel="Terms of Use">
+                  <ThemedText style={styles.legalLinkText}>Terms of Use</ThemedText>
+                </Pressable>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -285,5 +313,36 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
     fontSize: typography.sizes.lg,
     fontFamily: 'Quicksand_600SemiBold',
+  },
+  legalLinks: {
+    marginTop: spacing[2],
+    alignItems: 'center',
+    gap: spacing[3],
+  },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: spacing[2],
+  },
+  linkButton: {
+    paddingVertical: spacing[1],
+  },
+  linkText: {
+    color: colors.primary,
+    fontSize: typography.sizes.base,
+    fontFamily: 'Quicksand_600SemiBold',
+    textAlign: 'center',
+  },
+  legalLinkText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    fontFamily: 'Quicksand_500Medium',
+    textDecorationLine: 'underline',
+  },
+  legalDivider: {
+    color: colors.textMuted,
+    fontSize: typography.sizes.sm,
   },
 });

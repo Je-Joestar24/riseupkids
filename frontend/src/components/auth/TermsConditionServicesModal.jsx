@@ -10,22 +10,16 @@ import {
   Box,
   Typography,
   CircularProgress,
+  Link,
 } from '@mui/material';
 import authService from '../../services/authService';
+import { LEGAL_URLS } from '../../config/legalUrls';
 
-/** Placeholder terms text until client provides final content */
-const DEFAULT_TERMS_TEXT = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas iaculis vel leo posuere varius. Suspendisse nec suscipit ipsum, nec sollicitudin justo. Phasellus sit amet ante a leo ornare gravida nec in arcu. Nullam efficitur est nulla, ac semper tellus tincidunt id. Quisque ullamcorper lectus vitae neque rutrum, non venenatis risus porttitor. Nulla egestas eu purus sit amet dictum. Proin interdum sem a risus venenatis, id pharetra ex venenatis. Etiam eget condimentum arcu. Aliquam nec ullamcorper neque. Donec elit nulla, tempus at convallis a, imperdiet non augue. Proin tempor eros a sagittis commodo. Fusce vitae dui sit amet diam porta fermentum. Mauris vestibulum eget neque sit amet mollis. Nullam tincidunt orci lectus, eget tempus ante varius at.
-
-Proin vitae suscipit libero. Aliquam erat volutpat. Duis sollicitudin nunc nec ex placerat, a elementum elit lacinia. Ut at lacus id arcu laoreet tincidunt vel a nunc. Quisque lobortis mattis tortor, commodo rutrum odio dignissim in. Aliquam odio felis, luctus non vehicula vel, consectetur non quam. Sed ullamcorper lectus quis venenatis condimentum. Maecenas non purus tempor, rhoncus massa vel, pellentesque lorem. Nullam molestie euismod augue, ac imperdiet est lobortis porta. Nunc in felis sem. Donec non tempus dui, non sollicitudin risus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vestibulum turpis nunc, bibendum vitae maximus a, malesuada sit amet tellus. Nullam eu suscipit ex.`;
+const TERMS_LOAD_ERROR =
+  'Could not load terms in this window. Please review the full Terms of Use online before continuing.';
 
 /**
  * Terms & Conditions modal with scrollable content and required checkbox.
- * User must check "I have read and agree" before accepting.
- *
- * @param {boolean} open - Whether the modal is open
- * @param {function} onClose - Called when modal is closed (Cancel or backdrop)
- * @param {function} onAccept - Called when user clicks "I Agree" (checkbox must be checked)
- * @param {string} [content] - Optional terms text; if not provided, fetches from API or uses default
  */
 const TermsConditionServicesModal = ({ open, onClose, onAccept, content: contentProp }) => {
   const [agreed, setAgreed] = useState(false);
@@ -42,10 +36,13 @@ const TermsConditionServicesModal = ({ open, onClose, onAccept, content: content
     setError(null);
     try {
       const data = await authService.getTermsContent();
-      setContent(data?.content ?? DEFAULT_TERMS_TEXT);
+      setContent(data?.content ?? '');
+      if (!data?.content) {
+        setError(TERMS_LOAD_ERROR);
+      }
     } catch (err) {
-      setError(err?.message || 'Could not load terms.');
-      setContent(DEFAULT_TERMS_TEXT);
+      setError(err?.message || TERMS_LOAD_ERROR);
+      setContent('');
     } finally {
       setLoading(false);
     }
@@ -69,7 +66,7 @@ const TermsConditionServicesModal = ({ open, onClose, onAccept, content: content
     onClose?.();
   };
 
-  const displayContent = (contentProp ?? content) || DEFAULT_TERMS_TEXT;
+  const displayContent = (contentProp ?? content) || '';
 
   return (
     <Dialog
@@ -108,12 +105,29 @@ const TermsConditionServicesModal = ({ open, onClose, onAccept, content: content
             <>
               {error && (
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Showing placeholder. {error}
+                  {error}{' '}
+                  <Link href={LEGAL_URLS.terms} target="_blank" rel="noopener noreferrer">
+                    Open Terms of Use
+                  </Link>
                 </Typography>
               )}
-              <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap' }}>
-                {displayContent}
-              </Typography>
+              {displayContent ? (
+                <Typography variant="body2" component="div" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {displayContent}
+                </Typography>
+              ) : (
+                !error && (
+                  <Typography variant="body2" color="text.secondary">
+                    <Link href={LEGAL_URLS.terms} target="_blank" rel="noopener noreferrer">
+                      View Terms of Use
+                    </Link>
+                    {' · '}
+                    <Link href={LEGAL_URLS.privacy} target="_blank" rel="noopener noreferrer">
+                      Privacy Policy
+                    </Link>
+                  </Typography>
+                )
+              )}
             </>
           )}
         </Box>
@@ -125,11 +139,23 @@ const TermsConditionServicesModal = ({ open, onClose, onAccept, content: content
                 onChange={(e) => setAgreed(e.target.checked)}
                 aria-describedby="terms-dialog-description"
                 inputProps={{
-                  'aria-label': 'I have read and agree to the Terms & Conditions',
+                  'aria-label':
+                    'I have read and agree to the Terms & Conditions and Privacy Policy',
                 }}
               />
             }
-            label="I have read and agree to the Terms & Conditions"
+            label={
+              <>
+                I have read and agree to the{' '}
+                <Link href={LEGAL_URLS.terms} target="_blank" rel="noopener noreferrer">
+                  Terms & Conditions
+                </Link>{' '}
+                and{' '}
+                <Link href={LEGAL_URLS.privacy} target="_blank" rel="noopener noreferrer">
+                  Privacy Policy
+                </Link>
+              </>
+            }
           />
         </Box>
       </DialogContent>
@@ -158,4 +184,3 @@ const TermsConditionServicesModal = ({ open, onClose, onAccept, content: content
 };
 
 export default TermsConditionServicesModal;
-export { DEFAULT_TERMS_TEXT };

@@ -42,7 +42,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   }),
 
   logout: async () => {
-    await authService.clearStorage();
+    try {
+      await authService.logout();
+    } catch {
+      await authService.clearStorage();
+    }
     set({ user: null, token: null, isAuthenticated: false });
   },
 
