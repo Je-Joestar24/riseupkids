@@ -16,12 +16,14 @@ import { WallShareSomething } from '@/components/child/wall/wall-sharesomething'
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
+import { useChildProfile } from '@/hooks/childProfileHook';
 import { useKidsWall } from '@/hooks/kidswallHook';
 
 export default function ChildWallScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const childId = id ?? null;
+  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(childId);
 
   const wall = useKidsWall(childId ?? undefined);
   const {
@@ -42,9 +44,9 @@ export default function ChildWallScreen() {
   }, [fetchFeed]);
 
   const handleSharePress = useCallback(() => {
-    if (!childId) return;
+    if (!childId || !kidsWallEnabled) return;
     router.push(`/child/${childId}/wall/share` as never);
-  }, [childId, router]);
+  }, [childId, kidsWallEnabled, router]);
 
   const handleToggleLike = useCallback(
     (postId: string) => {
@@ -59,6 +61,14 @@ export default function ChildWallScreen() {
     },
     [toggleStar]
   );
+
+  if (profileLoading) {
+    return (
+      <View style={styles.center}>
+        <WallCardsSkeleton />
+      </View>
+    );
+  }
 
   if (error) {
     return (
@@ -84,6 +94,7 @@ export default function ChildWallScreen() {
           <WallShareSomething
             onSharePress={handleSharePress}
             loading={loadingMutation}
+            uploadEnabled={kidsWallEnabled}
           />
         ) : null}
         {loading ? (

@@ -4,6 +4,10 @@ import { useTheme } from '@mui/material/styles';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { EXPLORE_VIDEO_TYPES } from '../../../constants/exploreVideoTypes';
 import { themeColors } from '../../../config/themeColors';
+import useChildProfile from '../../../hooks/useChildProfile';
+import { KIDS_WALL_UPLOAD_DISABLED_MESSAGE } from '../../../constants/kidsWallConsent';
+import { useDispatch } from 'react-redux';
+import { showNotification } from '../../../store/slices/uiSlice';
 
 
 /**
@@ -55,11 +59,20 @@ const ExploreVideosShare = ({ childId, videoType }) => {
     const theme = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
+    const dispatch = useDispatch();
+    const { kidsWallEnabled } = useChildProfile(childId);
 
     const handleShareClick = () => {
-        // Navigate to share page with state to track origin
-        // This allows ChildNavigation to keep "Explore" as active
-        // and the back button to return to the correct explore page
+        if (!kidsWallEnabled) {
+            dispatch(
+                showNotification({
+                    message: KIDS_WALL_UPLOAD_DISABLED_MESSAGE,
+                    type: 'info',
+                    duration: 5000,
+                })
+            );
+            return;
+        }
         navigate(`/child/${childId}/wall/share`, {
             state: {
                 from: 'explore',

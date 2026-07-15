@@ -2,21 +2,27 @@ import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
+import {
+  KIDS_WALL_UPLOAD_DISABLED_BUTTON,
+  KIDS_WALL_UPLOAD_DISABLED_SUBTITLE,
+} from '../../../constants/kidsWallConsent';
 
 /**
  * KidsWallShareSomething Component
  * 
  * Promotional card component encouraging users to share their work
  */
-const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
+const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = true }) => {
   const navigate = useNavigate();
 
-  // Handle button click - navigate to share page
   const handleShareClick = () => {
-    if (childId) {
-      navigate(`/child/${childId}/wall/share`);
-    }
+    if (!uploadEnabled || !childId) return;
+    navigate(`/child/${childId}/wall/share`);
   };
+
+  const subtitle = uploadEnabled
+    ? 'Ask a grown-up to help you share!'
+    : KIDS_WALL_UPLOAD_DISABLED_SUBTITLE;
 
   return (
     <Box
@@ -88,11 +94,11 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontSize: '18px',
-              color: 'oklch(0.446 0.03 256.802)',
+              color: uploadEnabled ? 'oklch(0.446 0.03 256.802)' : themeColors.textSecondary,
               fontWeight: 600
             }}
           >
-            Ask a grown-up to help you share!
+            {subtitle}
           </Typography>
         </Box>
       </Box>
@@ -100,7 +106,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
       {/* Second Row: Button */}
       <Button
         onClick={handleShareClick}
-        disabled={loading}
+        disabled={loading || !uploadEnabled}
         fullWidth
         sx={{
           fontFamily: 'Quicksand, sans-serif',
@@ -109,13 +115,14 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
           textTransform: 'none',
           padding: '16px 24px',
           borderRadius: '0px',
-          backgroundColor: themeColors.orange,
-          color: themeColors.textInverse,
+          backgroundColor: uploadEnabled ? themeColors.orange : themeColors.bgTertiary,
+          color: uploadEnabled ? themeColors.textInverse : themeColors.textSecondary,
+          border: uploadEnabled ? 'none' : `2px solid ${themeColors.border}`,
           transition: 'all 0.3s ease',
           '&:hover': {
-            backgroundColor: themeColors.orange,
-            opacity: 0.9,
-            transform: 'scale(1.05)',
+            backgroundColor: uploadEnabled ? themeColors.orange : themeColors.bgTertiary,
+            opacity: uploadEnabled ? 0.9 : 1,
+            transform: uploadEnabled ? 'scale(1.05)' : 'none',
           },
           '&:disabled': {
             backgroundColor: themeColors.bgTertiary,
@@ -123,7 +130,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading }) => {
           },
         }}
       >
-        Share Something Cool!
+        {uploadEnabled ? 'Share Something Cool!' : KIDS_WALL_UPLOAD_DISABLED_BUTTON}
       </Button>
     </Box>
   );

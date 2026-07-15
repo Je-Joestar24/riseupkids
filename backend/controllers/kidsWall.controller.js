@@ -1,4 +1,5 @@
 const kidsWallService = require('../services/kidsWall.service');
+const kidsWallConsentService = require('../services/kidsWallConsent.service');
 const { ChildProfile } = require('../models');
 
 /**
@@ -160,6 +161,17 @@ const createPost = async (req, res) => {
         success: false,
         message: 'Image is required',
       });
+    }
+
+    if (req.user.role !== 'admin') {
+      try {
+        await kidsWallConsentService.assertKidsWallEnabled(childId);
+      } catch (consentError) {
+        return res.status(403).json({
+          success: false,
+          message: consentError.message,
+        });
+      }
     }
 
     // Create post

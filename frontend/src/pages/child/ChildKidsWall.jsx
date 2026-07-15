@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 import { themeColors } from '../../config/themeColors';
 import useKidsWall from '../../hooks/kidsWallHook';
+import useChildProfile from '../../hooks/useChildProfile';
 import KidsWallHeader from '../../components/child/kidswall/KidsWallHeader';
 import KidsWallShareSomething from '../../components/child/kidswall/KidsWallShareSomething';
 import KidsWallCards from '../../components/child/kidswall/KidsWallCards';
@@ -15,6 +16,7 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
  * Displays form to share posts and list of all posts
  */
 const ChildKidsWall = ({ childId }) => {
+  const { kidsWallEnabled } = useChildProfile(childId);
   const {
     posts,
     loading,
@@ -76,6 +78,7 @@ const ChildKidsWall = ({ childId }) => {
           childId={childId}
           onSubmit={handleCreatePost}
           loading={loading}
+          uploadEnabled={kidsWallEnabled}
         />
 
         {/* Loading State */}

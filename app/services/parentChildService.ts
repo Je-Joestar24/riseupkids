@@ -30,6 +30,8 @@ export interface ChildProfile {
   currentJourney?: { _id: string; title?: string; description?: string; order?: number } | null;
   currentLesson?: { _id: string; title?: string; description?: string; order?: number } | null;
   preferences?: ChildPreferences;
+  kidsWallEnabled?: boolean;
+  kidsWallConsentAt?: string | null;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -122,6 +124,21 @@ export const parentChildService = {
       payload
     );
     return response as ApiResponse<Record<string, unknown>>;
+  },
+
+  /**
+   * Enable or disable Kids Wall for a child (parent consent required when enabling).
+   */
+  updateKidsWallConsent: async (
+    childId: string,
+    payload: { enabled: boolean; consentAcknowledged?: boolean }
+  ): Promise<ApiResponse<Pick<ChildProfile, '_id' | 'displayName' | 'kidsWallEnabled' | 'kidsWallConsentAt'>>> => {
+    const response = await api.put<
+      ApiResponse<Pick<ChildProfile, '_id' | 'displayName' | 'kidsWallEnabled' | 'kidsWallConsentAt'>>
+    >(`/children/${childId}/kids-wall-consent`, payload);
+    return response as ApiResponse<
+      Pick<ChildProfile, '_id' | 'displayName' | 'kidsWallEnabled' | 'kidsWallConsentAt'>
+    >;
   },
 
   /**

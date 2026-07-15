@@ -23,7 +23,9 @@ const getAllChildren = async (parentId, queryParams = {}) => {
 
   // Get all children for this parent
   const children = await ChildProfile.find(query)
-    .select('displayName age avatar currentJourney currentLesson preferences isActive createdAt updatedAt')
+    .select(
+      'displayName age avatar currentJourney currentLesson preferences kidsWallEnabled kidsWallConsentAt isActive createdAt updatedAt'
+    )
     .populate('currentJourney', 'title description order')
     .populate('currentLesson', 'title description order')
     .sort({ createdAt: -1 }) // Newest first
@@ -157,6 +159,8 @@ const createChild = async (parentId, childData) => {
       theme: preferences?.theme || 'light',
       soundEnabled: preferences?.soundEnabled !== undefined ? preferences.soundEnabled : true,
     },
+    kidsWallEnabled: false,
+    kidsWallConsentAt: null,
     isActive: true,
   });
 

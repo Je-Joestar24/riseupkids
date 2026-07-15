@@ -95,6 +95,23 @@ const childrenService = {
       throw error.response?.data || error.message;
     }
   },
+
+  /**
+   * Enable or disable Kids Wall for a child (consent required when enabling).
+   * @param {String} childId
+   * @param {{ enabled: boolean, consentAcknowledged?: boolean }} payload
+   */
+  updateKidsWallConsent: async (childId, { enabled, consentAcknowledged }) => {
+    try {
+      const response = await api.put(`/children/${childId}/kids-wall-consent`, {
+        enabled,
+        consentAcknowledged,
+      });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
 };
 
 export default childrenService;

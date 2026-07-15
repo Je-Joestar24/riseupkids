@@ -5,7 +5,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { ShareCta, type ShareCtaSubmitPayload } from '@/components/child/share/share-cta';
@@ -16,7 +16,9 @@ import { ShareHeader } from '@/components/child/share/share-header';
 import { SharePhoto } from '@/components/child/share/share-photo';
 import { ShareTitle } from '@/components/child/share/share-title';
 import { colors } from '@/config/theme/colors';
+import { KIDS_WALL_UPLOAD_DISABLED_MESSAGE } from '@/constants/kidsWallConsent';
 import { spacing } from '@/config/theme/spacing';
+import { useChildProfile } from '@/hooks/childProfileHook';
 import { useKidsWall } from '@/hooks/kidswallHook';
 import { useUiStore } from '@/store/uiStore';
 
@@ -24,6 +26,7 @@ export default function WallShareScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const childId = id ?? null;
+  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(childId);
 
   const [photo, setPhoto] = useState<SharePhotoAsset | null>(null);
   const [title, setTitle] = useState('');
@@ -37,6 +40,16 @@ export default function WallShareScreen() {
   const handleBack = useCallback(() => {
     router.back();
   }, [router]);
+
+  useEffect(() => {
+    if (profileLoading || kidsWallEnabled || !childId) return;
+    showDialog({
+      message: KIDS_WALL_UPLOAD_DISABLED_MESSAGE,
+      type: 'info',
+      duration: 5000,
+      onClose: () => router.replace(`/child/${childId}/wall` as never),
+    });
+  }, [profileLoading, kidsWallEnabled, childId, showDialog, router]);
 
   const handlePhotoSelect = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -97,6 +110,10 @@ export default function WallShareScreen() {
 
   if (!childId) {
     return null;
+  }
+
+  if (profileLoading || !kidsWallEnabled) {
+    return <View style={styles.container} />;
   }
 
   return (

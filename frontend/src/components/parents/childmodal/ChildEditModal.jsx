@@ -14,6 +14,7 @@ import { Delete as DeleteIcon } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import ModalHeader from './ModalHeader';
 import ModalForm from './ModalForm';
+import KidsWallConsentToggle from './KidsWallConsentToggle';
 
 const CONFIRM_TEXT = 'DELETE';
 
@@ -30,6 +31,8 @@ const ChildEditModal = ({
   loading,
   onSave,
   onDelete,
+  onUpdateKidsWallConsent,
+  consentLoading,
 }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -109,6 +112,16 @@ const ChildEditModal = ({
             onSubmit={handleFormSubmit}
             onCancel={onClose}
           />
+
+          {onUpdateKidsWallConsent && (
+            <Box sx={{ px: { xs: '20px', sm: '24px' }, pb: { xs: '20px', sm: '24px' } }}>
+              <KidsWallConsentToggle
+                child={child}
+                consentLoading={consentLoading}
+                onUpdateConsent={onUpdateKidsWallConsent}
+              />
+            </Box>
+          )}
 
           {/* Delete Section */}
           <Box

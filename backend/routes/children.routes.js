@@ -7,6 +7,7 @@ const {
   updateChild,
   requestChildDeletion,
   getChildProfile,
+  updateKidsWallConsent,
 } = require('../controllers/children.controller');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -25,6 +26,7 @@ router.get('/', getAllChildren);
 router.get('/:id', getChildById);
 router.get('/:id/profile', getChildProfile);
 router.post('/', createChild);
+router.put('/:id/kids-wall-consent', updateKidsWallConsent);
 router.put('/:id', updateChild);
 router.post('/:id/request-deletion', requestChildDeletion);
 

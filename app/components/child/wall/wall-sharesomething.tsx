@@ -11,41 +11,64 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import {
+  KIDS_WALL_UPLOAD_DISABLED_BUTTON,
+  KIDS_WALL_UPLOAD_DISABLED_SUBTITLE,
+} from '@/constants/kidsWallConsent';
 
 export interface WallShareSomethingProps {
   onSharePress: () => void;
   loading?: boolean;
+  /** When false, child can see the card but cannot start a share flow. */
+  uploadEnabled?: boolean;
 }
 
-export function WallShareSomething({ onSharePress, loading = false }: WallShareSomethingProps) {
+export function WallShareSomething({
+  onSharePress,
+  loading = false,
+  uploadEnabled = true,
+}: WallShareSomethingProps) {
+  const subtitle = uploadEnabled
+    ? 'Ask a grown-up to help you share!'
+    : KIDS_WALL_UPLOAD_DISABLED_SUBTITLE;
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.topRow}>
         <View style={styles.iconWrap}>
-          <MaterialCommunityIcons name="star-four-points-outline" size={48} color={colors.accent} />
+          {uploadEnabled ? (
+            <MaterialCommunityIcons name="star-four-points-outline" size={48} color={colors.accent} />
+          ) : (
+            <MaterialCommunityIcons name="lock" size={48} color={colors.textSecondary} />
+          )}
         </View>
         <View style={styles.textWrap}>
           <ThemedText style={styles.title}>Share Your Amazing Work!</ThemedText>
-          <ThemedText style={styles.subtitle}>
-            Ask a grown-up to help you share!
+          <ThemedText style={[styles.subtitle, !uploadEnabled && styles.subtitleDisabled]}>
+            {subtitle}
           </ThemedText>
         </View>
       </View>
       <Pressable
-        onPress={onSharePress}
-        disabled={loading}
+        onPress={uploadEnabled ? onSharePress : undefined}
+        disabled={loading || !uploadEnabled}
         style={({ pressed }) => [
           styles.btn,
-          pressed && styles.btnPressed,
+          !uploadEnabled && styles.btnDisabledLocked,
+          pressed && uploadEnabled && styles.btnPressed,
           loading && styles.btnDisabled,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Share something cool"
-        accessibilityState={{ disabled: loading }}>
+        accessibilityLabel={
+          uploadEnabled ? 'Share something cool' : KIDS_WALL_UPLOAD_DISABLED_BUTTON
+        }
+        accessibilityState={{ disabled: loading || !uploadEnabled }}>
         {loading ? (
           <ActivityIndicator size="small" color={colors.textInverse} />
         ) : (
-          <ThemedText style={styles.btnText}>Share Something Cool!</ThemedText>
+          <ThemedText style={[styles.btnText, !uploadEnabled && styles.btnTextDisabled]}>
+            {uploadEnabled ? 'Share Something Cool!' : KIDS_WALL_UPLOAD_DISABLED_BUTTON}
+          </ThemedText>
         )}
       </Pressable>
     </View>
@@ -103,6 +126,17 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     backgroundColor: colors.bgTertiary,
+  },
+  btnDisabledLocked: {
+    backgroundColor: colors.bgTertiary,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  btnTextDisabled: {
+    color: colors.textSecondary,
+  },
+  subtitleDisabled: {
+    color: colors.textSecondary,
   },
   btnText: {
     fontFamily: 'Quicksand_700Bold',

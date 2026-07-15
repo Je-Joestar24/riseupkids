@@ -11,6 +11,7 @@ import ChildProgressModal from './ChildProgressModal';
 import ChildEditModal from '../childmodal/ChildEditModal';
 import ChildAddModal from '../childmodal/ChildAddModal';
 import { useChildren } from '../../../hooks/childrenHook';
+import childrenService from '../../../services/childrenService';
 
 /**
  * ChildListProgress Component
@@ -37,6 +38,7 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
   
   // Add child modal state
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [consentLoading, setConsentLoading] = useState(false);
 
   const handleViewProgress = (childId) => {
     const child = children.find((c) => c._id === childId);
@@ -89,6 +91,24 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
     } catch (error) {
       console.error('Error deleting child:', error);
       throw error;
+    }
+  };
+
+  const handleUpdateKidsWallConsent = async (enabled) => {
+    if (!editChildId) return;
+    setConsentLoading(true);
+    try {
+      const response = await childrenService.updateKidsWallConsent(editChildId, {
+        enabled,
+        consentAcknowledged: enabled ? true : undefined,
+      });
+      setEditChild((prev) => (prev ? { ...prev, ...response.data } : prev));
+      await fetchChildren({ isActive: true });
+    } catch (error) {
+      console.error('Error updating Kids Wall consent:', error);
+      throw error;
+    } finally {
+      setConsentLoading(false);
     }
   };
 
@@ -414,6 +434,8 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
         loading={childrenLoading}
         onSave={handleSaveChild}
         onDelete={handleDeleteChild}
+        onUpdateKidsWallConsent={handleUpdateKidsWallConsent}
+        consentLoading={consentLoading}
       />
 
       {/* Child Add Modal */}

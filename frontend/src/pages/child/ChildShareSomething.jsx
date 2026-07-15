@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { themeColors } from '../../config/themeColors';
 import useKidsWall from '../../hooks/kidsWallHook';
+import useChildProfile from '../../hooks/useChildProfile';
+import { KIDS_WALL_UPLOAD_DISABLED_MESSAGE } from '../../constants/kidsWallConsent';
+import { useDispatch } from 'react-redux';
+import { showNotification } from '../../store/slices/uiSlice';
 import ShareSomethingHeader from '../../components/child/shareSomething/ShareSomethingHeader';
 import ShareSomethingPhoto from '../../components/child/shareSomething/ShareSomethingPhoto';
 import ShareSomethingTitle from '../../components/child/shareSomething/ShareSomethingTitle';
@@ -21,6 +25,8 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
 const ChildShareSomething = ({ childId }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
+  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(childId);
   const { createPost, loading } = useKidsWall(childId);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [title, setTitle] = useState('');
@@ -29,6 +35,18 @@ const ChildShareSomething = ({ childId }) => {
   // Get navigation origin from location state
   const fromState = location.state?.from;
   const backPath = location.state?.backPath;
+
+  useEffect(() => {
+    if (profileLoading || kidsWallEnabled) return;
+    dispatch(
+      showNotification({
+        message: KIDS_WALL_UPLOAD_DISABLED_MESSAGE,
+        type: 'info',
+        duration: 5000,
+      })
+    );
+    navigate(`/child/${childId}/wall`, { replace: true });
+  }, [profileLoading, kidsWallEnabled, childId, dispatch, navigate]);
 
   const handlePhotoSelect = (file) => {
     setSelectedPhoto(file);
@@ -83,6 +101,7 @@ const ChildShareSomething = ({ childId }) => {
         boxSizing: 'border-box',
       }}
     >
+      {profileLoading || !kidsWallEnabled ? null : (
       <Box
         sx={{
           maxWidth: '848px',
@@ -127,6 +146,7 @@ const ChildShareSomething = ({ childId }) => {
 
         <ShareSomethingFooter/>
       </Box>
+      )}
     </Box>
   );
 };

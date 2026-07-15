@@ -1,5 +1,6 @@
 const childrenService = require('../services/children.services');
 const accountDeletionService = require('../services/accountDeletion.service');
+const kidsWallConsentService = require('../services/kidsWallConsent.service');
 
 function getClientIp(req) {
   return (
@@ -210,6 +211,48 @@ const getChildProfile = async (req, res) => {
 };
 
 /**
+ * @desc    Enable or disable Kids Wall for a child (requires consent when enabling)
+ * @route   PUT /api/children/:id/kids-wall-consent
+ * @access  Private (Parent only)
+ *
+ * Request body:
+ * { "enabled": true, "consentAcknowledged": true }
+ */
+const updateKidsWallConsent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const parentId = req.user._id;
+    const { enabled, consentAcknowledged } = req.body || {};
+
+    if (req.user.role !== 'parent') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only parents can update Kids Wall consent',
+      });
+    }
+
+    const child = await kidsWallConsentService.updateKidsWallConsent(id, parentId, {
+      enabled,
+      consentAcknowledged,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: enabled
+        ? 'Kids Wall enabled for this child'
+        : 'Kids Wall disabled for this child',
+      data: child,
+    });
+  } catch (error) {
+    const statusCode = error.message.includes('not found') ? 404 : 400;
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Failed to update Kids Wall consent',
+    });
+  }
+};
+
+/**
  * @desc    Request child profile deletion (revokes access immediately; purge via admin/script)
  * @route   POST /api/children/:id/request-deletion
  * @access  Private (Parent only)
@@ -252,6 +295,7 @@ module.exports = {
   getChildById,
   createChild,
   updateChild,
+  updateKidsWallConsent,
   requestChildDeletion,
   getChildProfile,
 };

@@ -16,6 +16,9 @@ import {
   VIDEO_TYPE_SHARE_SUBTITLES,
   VIDEO_TYPE_SHARE_TITLES,
 } from '@/constants/explore';
+import { KIDS_WALL_UPLOAD_DISABLED_MESSAGE } from '@/constants/kidsWallConsent';
+import { useChildProfile } from '@/hooks/childProfileHook';
+import { useUiStore } from '@/store/uiStore';
 
 export interface ContentsShareProps {
   childId: string;
@@ -24,12 +27,22 @@ export interface ContentsShareProps {
 
 export function ContentsShare({ childId, videoType }: ContentsShareProps) {
   const router = useRouter();
+  const { kidsWallEnabled } = useChildProfile(childId);
+  const showDialog = useUiStore((s) => s.showDialog);
 
   const shareTitle = VIDEO_TYPE_SHARE_TITLES[videoType] ?? 'Share My Work!';
   const shareSubtitle = VIDEO_TYPE_SHARE_SUBTITLES[videoType] ?? 'Show everyone what you did!';
   const shareButtonText = VIDEO_TYPE_SHARE_BUTTONS[videoType] ?? 'Share My Work!';
 
   const handlePress = () => {
+    if (!kidsWallEnabled) {
+      showDialog({
+        message: KIDS_WALL_UPLOAD_DISABLED_MESSAGE,
+        type: 'info',
+        duration: 5000,
+      });
+      return;
+    }
     router.push(
       `/child/${childId}/wall/share?from=explore&videoType=${encodeURIComponent(videoType)}` as never
     );
