@@ -48,6 +48,49 @@ const starCamLabelCatalogService = {
       throw err;
     }
   },
+
+  listManagedLabels: async ({ page = 1, limit = 25, search, availableOnly, signal } = {}) => {
+    try {
+      const response = await api.get(`${BASE_PATH}/labels`, {
+        params: {
+          page,
+          limit,
+          ...(search ? { search } : {}),
+          ...(availableOnly === true ? { availableOnly: true } : {}),
+          ...(availableOnly === false ? { availableOnly: false } : {}),
+        },
+        signal,
+      });
+      return response.data?.data || { page: 1, limit, total: 0, items: [] };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to list vision labels'));
+    }
+  },
+
+  updateLabelAvailability: async (labelId, isAvailableForMissions) => {
+    try {
+      const response = await api.patch(`${BASE_PATH}/labels/${encodeURIComponent(labelId)}/availability`, {
+        isAvailableForMissions,
+      });
+      return response.data?.data || null;
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to update label availability'));
+    }
+  },
+
+  bulkUpdateLabelAvailability: async ({ labelIds, isAvailableForMissions, selectAllMatching, search } = {}) => {
+    try {
+      const response = await api.post(`${BASE_PATH}/labels/bulk-availability`, {
+        labelIds,
+        isAvailableForMissions,
+        selectAllMatching,
+        search,
+      });
+      return response.data?.data || { matched: 0, modified: 0 };
+    } catch (error) {
+      throw new Error(getErrorMessage(error, 'Failed to bulk update label availability'));
+    }
+  },
 };
 
 export default starCamLabelCatalogService;

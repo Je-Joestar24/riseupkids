@@ -6,6 +6,7 @@ import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { StarCamMissionCamScreen } from '@/components/child/starcammissioncam';
+import { resolveStarCamTotalObjects } from '@/constants/starCamMissionObjects';
 import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
 import { useStarCam } from '@/hooks/starCamHook';
@@ -280,7 +281,7 @@ export default function StarCamMissionCamRoute() {
       null
     );
   }, [currentTarget, missionFlow?.flow?.practice?.items]);
-  const totalObjects = huntItems.length || 7;
+  const totalObjects = resolveStarCamTotalObjects(huntItems, missionFlow?.flow?.starCam?.objectCount);
   const targetLabel = useMemo(() => {
     if (!currentTarget) return 'OBJECT';
     return formatDisplayLabel(currentPracticeItem?.displayText || currentPracticeItem?.target || currentTarget || 'object');

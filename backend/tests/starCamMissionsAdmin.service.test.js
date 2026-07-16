@@ -74,7 +74,15 @@ function makeDoc(overrides = {}) {
 }
 
 function makeVocab7(overrides = {}) {
-  return Array.from({ length: 7 }).map((_, i) => ({
+  return makeVocabN(7, overrides);
+}
+
+function makeItems7(overrides = {}) {
+  return makeItemsN(7, overrides);
+}
+
+function makeVocabN(count, overrides = {}) {
+  return Array.from({ length: count }).map((_, i) => ({
     word: `w${i}`,
     displayText: `Word ${i}`,
     target: `target_${i}`,
@@ -88,8 +96,8 @@ function makeVocab7(overrides = {}) {
   }));
 }
 
-function makeItems7(overrides = {}) {
-  return Array.from({ length: 7 }).map((_, i) => ({
+function makeItemsN(count, overrides = {}) {
+  return Array.from({ length: count }).map((_, i) => ({
     target: `target_${i}`,
     prompt: `Is this Word ${i}?`,
     questionText: `Is this Word ${i}?`,
@@ -188,32 +196,37 @@ describe('starCamMissionsAdmin.service', () => {
     expect(result).toMatchObject({ key: 'reading' });
   });
 
-  it('rejects publish if vocab/items are not exactly 7', async () => {
+  it('rejects publish if vocab count is outside 4-7 range', async () => {
     StarCamMission.findById.mockResolvedValue(makeDoc({ vocab: [], items: [] }));
+
+    await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringContaining('between 4 and 7'),
+    });
+  });
+
+  it('rejects publish when vocab has only 3 entries', async () => {
+    StarCamMission.findById.mockResolvedValue(
+      makeDoc({
+        vocab: makeVocabN(3),
+        items: makeItemsN(3),
+      })
+    );
 
     await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 400 });
   });
 
-  it('rejects publish when a scan item does not map to vocabulary audio', async () => {
+  it('rejects publish when fewer than 4 vocabulary entries are included', async () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
-        introText: 'Hello',
-        missionImage: 'mission-img',
-        introImage: 'intro-img',
-        rewardImage: 'reward-img',
-        rewardAudio: 'reward-aud',
-        rewardVideo: 'reward-vid',
-        missionShortVideo: 'short-vid',
-        category: 'cat-1',
-        videoEnabled: false,
-        vocab: makeVocab7(),
-        items: makeItems7((i) => (i === 0 ? { target: 'missing_target' } : {})),
+        vocab: makeVocabN(7, (i) => ({ isIncluded: i < 3 })),
+        items: makeItemsN(3),
       })
     );
 
     await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({
       statusCode: 400,
-      message: expect.stringContaining('target must match a vocabulary target'),
+      message: expect.stringContaining('between 4 and 7'),
     });
   });
 
@@ -321,6 +334,53 @@ describe('starCamMissionsAdmin.service', () => {
     const result = await publishMission({ id: 'mission-1', userId: 'u1' });
     expect(doc.status).toBe('published');
     expect(doc.save).toHaveBeenCalled();
+    expect(result).toMatchObject({ status: 'published' });
+  });
+
+  it('publishes mission with 4 vocabulary entries', async () => {
+    const vocab4 = makeVocabN(4);
+    const items4 = makeItemsN(4);
+    const doc = makeDoc({
+      introText: 'Hello',
+      missionImage: 'mission-img',
+      introImage: 'intro-img',
+      rewardImage: 'reward-img',
+      rewardAudio: 'reward-aud',
+      rewardVideo: 'reward-vid',
+      missionShortVideo: 'short-vid',
+      category: 'cat-1',
+      videoEnabled: false,
+      vocab: vocab4,
+      items: items4,
+    });
+    StarCamCategory.findById.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue({ _id: 'cat-1', isActive: true }),
+    });
+
+    StarCamMission.findById
+      .mockResolvedValueOnce(doc)
+      .mockReturnValueOnce({
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ missionId: 'nature_01', status: 'published' }),
+      });
+
+    Media.findOne
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' }))
+      .mockReturnValueOnce(mockMediaFindOneResult({ type: 'video' }));
+    for (let i = 0; i < 4; i += 1) {
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'image' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+      Media.findOne.mockReturnValueOnce(mockMediaFindOneResult({ type: 'audio' }));
+    }
+
+    const result = await publishMission({ id: 'mission-1', userId: 'u1' });
+    expect(doc.status).toBe('published');
     expect(result).toMatchObject({ status: 'published' });
   });
 
@@ -535,19 +595,7 @@ describe('starCamMissionsAdmin.service', () => {
     await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('rejects publish when sortOrder is not 0..6 unique', async () => {
-    const vocabBad = Array.from({ length: 7 }).map((_, i) => ({
-      word: `w${i}`,
-      displayText: `Word ${i}`,
-      target: `target_${i}`,
-      image: `img${i}`,
-      audio: `aud${i}`,
-      introAudio: null,
-      tryAgainAudio: `tryAud${i}`,
-      successAudio: `successAud${i}`,
-      sortOrder: i === 6 ? 5 : i,
-    }));
-    const items7 = makeItems7();
+  it('rejects publish when only 3 vocabulary entries are included', async () => {
     StarCamMission.findById.mockResolvedValue(
       makeDoc({
         introText: 'Hello',
@@ -559,30 +607,8 @@ describe('starCamMissionsAdmin.service', () => {
         missionShortVideo: 'short-vid',
         category: 'cat-1',
         videoEnabled: false,
-        vocab: vocabBad,
-        items: items7,
-      })
-    );
-
-    await expect(publishMission({ id: 'mission-1', userId: 'u1' })).rejects.toMatchObject({ statusCode: 400 });
-  });
-
-  it('rejects publish when items sortOrder is not 0..6 unique', async () => {
-    const vocab7 = makeVocab7();
-    const itemsBad = makeItems7((i) => ({ sortOrder: i === 0 ? 1 : i }));
-    StarCamMission.findById.mockResolvedValue(
-      makeDoc({
-        introText: 'Hello',
-        missionImage: 'mission-img',
-        introImage: 'intro-img',
-        rewardImage: 'reward-img',
-        rewardAudio: 'reward-aud',
-        rewardVideo: 'reward-vid',
-        missionShortVideo: 'short-vid',
-        category: 'cat-1',
-        videoEnabled: false,
-        vocab: vocab7,
-        items: itemsBad,
+        vocab: makeVocabN(7, (i) => ({ isIncluded: i < 3 })),
+        items: makeItemsN(3),
       })
     );
 

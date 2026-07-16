@@ -4,6 +4,8 @@ jest.mock('../models', () => ({
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
     create: jest.fn(),
+    updateMany: jest.fn(),
+    countDocuments: jest.fn(),
   },
 }));
 
@@ -15,6 +17,9 @@ const {
   getLabelBySearchKey,
   incrementUsageCount,
   rankSearchResults,
+  listLabelsForAdmin,
+  setLabelAvailability,
+  bulkSetLabelAvailability,
 } = require('../services/starCamVisionLabel.service');
 
 function mockFindOneChain(result) {
@@ -117,7 +122,60 @@ describe('starCamVisionLabel.service', () => {
     expect(result.labelId).toBe('custom:plush_bear');
     expect(result.source).toBe('custom');
     expect(result.defaultTerms).toEqual(expect.arrayContaining(['plush bear', 'teddy']));
-    expect(StarCamVisionLabel.create).toHaveBeenCalled();
+    expect(StarCamVisionLabel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isAvailableForMissions: true,
+      })
+    );
+  });
+
+  it('searchLabels filters to mission-available labels by default', async () => {
+    StarCamVisionLabel.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
+
+    await searchLabels({ query: 'book', limit: 10 });
+
+    expect(StarCamVisionLabel.find).toHaveBeenCalledWith(
+      expect.objectContaining({ isAvailableForMissions: true })
+    );
+  });
+
+  it('listLabelsForAdmin returns paginated labels', async () => {
+    StarCamVisionLabel.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          labelId: 'custom:book',
+          displayName: 'Book',
+          searchKey: 'book',
+          source: 'custom',
+          isAvailableForMissions: true,
+        },
+      ]),
+    });
+    StarCamVisionLabel.countDocuments.mockResolvedValue(1);
+
+    const result = await listLabelsForAdmin({ page: 1, limit: 25 });
+    expect(result.total).toBe(1);
+    expect(result.items[0].isAvailableForMissions).toBe(true);
+  });
+
+  it('bulkSetLabelAvailability updates many labels', async () => {
+    StarCamVisionLabel.updateMany.mockResolvedValue({ matchedCount: 2, modifiedCount: 2 });
+
+    const result = await bulkSetLabelAvailability({
+      labelIds: ['custom:book', 'custom:chair'],
+      isAvailableForMissions: true,
+    });
+
+    expect(result.modified).toBe(2);
+    expect(StarCamVisionLabel.updateMany).toHaveBeenCalled();
   });
 
   it('getLabelBySearchKey returns null for empty key', async () => {

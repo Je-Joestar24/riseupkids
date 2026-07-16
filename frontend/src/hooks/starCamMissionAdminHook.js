@@ -11,6 +11,7 @@ import {
   fetchStarCamMissions,
   addStarCamMissionVocabulary,
   updateStarCamMissionVocabulary,
+  updateStarCamMissionVocabularyInclusion,
   deleteStarCamMissionVocabulary,
   uploadStarCamMissionImage,
   uploadStarCamMissionMedia,
@@ -162,6 +163,16 @@ export const useStarCamMissionAdmin = () => {
     [runThunk]
   );
 
+  const toggleMissionVocabularyInclusion = useCallback(
+    (missionId, sortOrder, isIncluded) =>
+      runThunk(
+        updateStarCamMissionVocabularyInclusion({ missionId, sortOrder, isIncluded }),
+        'Failed to update object inclusion',
+        { enabled: false }
+      ),
+    [runThunk]
+  );
+
   const removeMissionVocabulary = useCallback(
     (missionId, sortOrder) =>
       runThunk(
@@ -239,6 +250,7 @@ export const useStarCamMissionAdmin = () => {
       uploadMissionImage,
       addMissionVocabulary,
       editMissionVocabulary,
+      toggleMissionVocabularyInclusion,
       removeMissionVocabulary,
       publishMission,
       unpublishMission,
@@ -264,6 +276,7 @@ export const useStarCamMissionAdmin = () => {
       uploadMissionImage,
       addMissionVocabulary,
       editMissionVocabulary,
+      toggleMissionVocabularyInclusion,
       removeMissionVocabulary,
       publishMission,
       unpublishMission,

@@ -1,4 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import {
+  STARCAM_MAX_OBJECTS,
+  STARCAM_MIN_OBJECTS,
+  canAddStarCamObject,
+  isStarCamObjectCountInRange,
+  countIncludedVocab,
+} from '../../../constants/starCamMissionObjects';
 import {
   Box,
   Button,
@@ -7,6 +14,7 @@ import {
   IconButton,
   Paper,
   Stack,
+  Switch,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -17,24 +25,75 @@ import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
 import StarCamCreateVocabularyModa from './StarCamCreateVocabularyModa';
 import StarCamCategoryChip from './StarCamCategoryChip';
 import { selectionsFromKeywordBucket } from '../../../utils/starCamVisionLabel.util';
+
+const MEDIA_CHECKS = [
+  { key: 'image', label: 'Image', icon: ImageRoundedIcon, ready: (v) => Boolean(v?.image) },
+  { key: 'audio', label: 'Main audio', icon: GraphicEqRoundedIcon, ready: (v) => Boolean(v?.audio) },
+  { key: 'introAudio', label: 'Question audio', icon: GraphicEqRoundedIcon, ready: (v) => Boolean(v?.introAudio) },
+  { key: 'tryAgainAudio', label: 'Retry audio', icon: GraphicEqRoundedIcon, ready: (v) => Boolean(v?.tryAgainAudio) },
+  { key: 'successAudio', label: 'Success audio', icon: GraphicEqRoundedIcon, ready: (v) => Boolean(v?.successAudio) },
+  { key: 'pronunciationVideo', label: 'Practice video', icon: VideocamRoundedIcon, ready: (v) => Boolean(v?.pronunciationVideo), optional: true },
+];
+
+function VocabMediaStatus({ vocab, theme }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35, flexWrap: 'wrap' }}>
+      {MEDIA_CHECKS.map(({ key, label, icon: Icon, ready, optional }) => {
+        const isReady = ready(vocab);
+        return (
+          <Tooltip key={key} title={`${label}${optional ? ' (optional)' : ''}: ${isReady ? 'ready' : 'missing'}`}>
+            <Box
+              aria-label={`${label} ${isReady ? 'ready' : 'missing'}`}
+              sx={{
+                width: 22,
+                height: 22,
+                borderRadius: '6px',
+                display: 'grid',
+                placeItems: 'center',
+                color: isReady
+                  ? theme.palette.success.main
+                  : alpha(theme.palette.text.secondary, optional ? 0.45 : 0.75),
+                backgroundColor: isReady
+                  ? alpha(theme.palette.success.main, 0.12)
+                  : alpha(theme.palette.text.secondary, 0.08),
+                border: `1px solid ${
+                  isReady
+                    ? alpha(theme.palette.success.main, 0.35)
+                    : alpha(theme.palette.text.secondary, 0.14)
+                }`,
+              }}
+            >
+              <Icon sx={{ fontSize: 13 }} />
+            </Box>
+          </Tooltip>
+        );
+      })}
+    </Box>
+  );
+}
 
 const StarCamRightPanelPreviewEdit = ({
   mission,
   loading = false,
   mutating = false,
+  inclusionTogglingSortOrder = null,
   newVocab,
   onVocabChange,
   onSubmitVocabulary,
   onEditVocabulary,
   onDeleteVocabulary,
+  onToggleVocabularyInclusion,
 }) => {
   const theme = useTheme();
   const [openAddVocabModal, setOpenAddVocabModal] = useState(false);
   const [openEditVocabModal, setOpenEditVocabModal] = useState(false);
   const [editingVocab, setEditingVocab] = useState(null);
+  const [pendingInclusion, setPendingInclusion] = useState(null);
   const [editVocabForm, setEditVocabForm] = useState({
     displayText: '',
     target: '',
@@ -49,34 +108,67 @@ const StarCamRightPanelPreviewEdit = ({
     successAudioFile: null,
     pronunciationVideoFile: null,
   });
-  const vocabList = Array.isArray(mission?.vocab) ? mission.vocab.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
-  const scanItems = Array.isArray(mission?.items) ? mission.items.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
-  const scanCount = Number(mission?.mediaCompleteness?.scanCount ?? scanItems.length ?? 0);
-  const getStatusChipSx = (isReady) => ({
-    fontWeight: 800,
-    borderRadius: '999px',
-    color: isReady
-      ? theme.palette.success.contrastText || theme.palette.common.white
-      : theme.palette.text.secondary,
-    backgroundColor: isReady
-      ? theme.palette.success.main
-      : alpha(theme.palette.text.secondary, 0.08),
-    border: `1px solid ${
-      isReady
-        ? alpha(theme.palette.success.dark || theme.palette.success.main, 0.35)
-        : alpha(theme.palette.text.secondary, 0.16)
-    }`,
-    '& .MuiChip-label': {
-      color: 'inherit',
-    },
-    '& .MuiChip-icon': {
-      color: 'inherit',
-    },
-  });
+
+  useEffect(() => {
+    if (inclusionTogglingSortOrder == null) {
+      setPendingInclusion(null);
+    }
+  }, [inclusionTogglingSortOrder, mission?.includedCount, mission?.mediaCompleteness?.includedCount]);
+
+  const vocabList = Array.isArray(mission?.vocab)
+    ? mission.vocab.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    : [];
+  const includedCount = Number(mission?.includedCount ?? mission?.mediaCompleteness?.includedCount ?? countIncludedVocab(vocabList));
+  const publishReady = isStarCamObjectCountInRange(includedCount) && Boolean(mission?.mediaCompleteness?.hasScanQuestionSet);
+
+  const resolveIncluded = (vocab, idx) => {
+    const sortOrder = vocab.sortOrder != null ? Number(vocab.sortOrder) : idx;
+    if (pendingInclusion && Number(pendingInclusion.sortOrder) === sortOrder) {
+      return pendingInclusion.isIncluded;
+    }
+    return vocab.isIncluded !== false;
+  };
+
+  const handleInclusionToggle = async (vocab, idx, nextIncluded) => {
+    const sortOrder = vocab.sortOrder != null ? Number(vocab.sortOrder) : idx;
+    setPendingInclusion({ sortOrder, isIncluded: nextIncluded });
+    try {
+      await onToggleVocabularyInclusion?.(sortOrder, nextIncluded);
+    } catch {
+      setPendingInclusion(null);
+    }
+  };
+
+  const openEditModal = (vocab) => {
+    setEditingVocab(vocab);
+    setEditVocabForm({
+      displayText: String(vocab?.displayText || vocab?.word || ''),
+      target: String(vocab?.target || ''),
+      labelId: vocab?.labelId || null,
+      labelSource: vocab?.labelSource || null,
+      targetLabels: selectionsFromKeywordBucket(vocab),
+      keywordBucket: vocab?.keywordBucket || null,
+      imageFile: null,
+      audioFile: null,
+      introAudioFile: null,
+      tryAgainAudioFile: null,
+      successAudioFile: null,
+      pronunciationVideoFile: null,
+    });
+    setOpenEditVocabModal(true);
+  };
 
   if (!mission) {
     return (
-      <Paper sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.border.main}`, minHeight: 420 }}>
+      <Paper
+        sx={{
+          p: 2,
+          borderRadius: '12px',
+          border: `1px solid ${theme.palette.border.main}`,
+          minHeight: 360,
+          height: '100%',
+        }}
+      >
         <Typography sx={{ fontWeight: 700 }}>Mission Preview & Edit</Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>
           Select a mission from the table to view details and manage vocabulary.
@@ -85,266 +177,217 @@ const StarCamRightPanelPreviewEdit = ({
     );
   }
 
+  const isArchived = mission.status === 'archived';
+
   return (
-    <Paper sx={{ p: 2.5, borderRadius: '12px', border: `1px solid ${theme.palette.border.main}`, minHeight: 420 }}>
-      <Stack spacing={2}>
-        <Box>
-          <Typography sx={{ fontWeight: 700 }}>Mission Preview & Edit</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {mission.title} ({mission.missionId})
-          </Typography>
-          <Box sx={{ mt: 1, display: 'flex', gap: 0.8, flexWrap: 'wrap' }}>
-            {mission.category ? <StarCamCategoryChip category={mission.category} /> : null}
-            <Chip size="small" label={`Status: ${mission.status || '-'}`} />
-            <Chip size="small" label={`Vocab: ${vocabList.length}/7`} />
-            <Chip size="small" color={scanCount === 7 ? 'success' : 'default'} label={`Scan: ${scanCount}/7`} />
-            <Chip
-              size="small"
-              color={mission.mediaCompleteness?.hasScanQuestionSet ? 'success' : 'default'}
-              label={mission.mediaCompleteness?.hasScanQuestionSet ? 'Scan Audio Ready' : 'Scan Audio Incomplete'}
-            />
-            <Chip size="small" color={mission.missionShortVideo ? 'success' : 'default'} label={mission.missionShortVideo ? 'Short Video Ready' : 'Short Video Missing'} />
-            <Chip size="small" color={mission.missionIntroAudio ? 'success' : 'default'} label={mission.missionIntroAudio ? 'Intro Audio Ready' : 'Intro Audio Missing'} />
-            <Chip size="small" color={mission.rewardAudio ? 'success' : 'default'} label={mission.rewardAudio ? 'Reward Audio Ready' : 'Reward Audio Missing'} />
+    <Paper
+      sx={{
+        p: { xs: 1.5, md: 2 },
+        borderRadius: '12px',
+        border: `1px solid ${theme.palette.border.main}`,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+      }}
+    >
+      <Box sx={{ mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: '1.05rem', lineHeight: 1.2 }} noWrap>
+              {mission.title}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" noWrap>
+              {mission.missionId}
+            </Typography>
           </Box>
+          {mission.status !== 'archived' ? (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={() => setOpenAddVocabModal(true)}
+              disabled={mutating || !canAddStarCamObject(vocabList.length)}
+              sx={{ flexShrink: 0 }}
+            >
+              Add
+            </Button>
+          ) : null}
         </Box>
 
-        {loading ? (
-          <Box sx={{ py: 4, textAlign: 'center' }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 1 }}>
-              <Typography sx={{ fontWeight: 700 }}>Vocabulary List</Typography>
-              {mission.status !== 'archived' ? (
-                <Button
-                  size="small"
-                  variant="contained"
-                  startIcon={<AddRoundedIcon />}
-                  onClick={() => setOpenAddVocabModal(true)}
-                  disabled={mutating || vocabList.length >= 7}
-                >
-                  Add Vocabulary
-                </Button>
-              ) : null}
-            </Box>
-            {vocabList.length === 0 ? (
-              <Typography color="text.secondary">No vocabulary yet.</Typography>
-            ) : (
-              <Stack
-                spacing={0}
+        <Stack direction="row" spacing={0.75} sx={{ mt: 1, flexWrap: 'wrap', gap: 0.75 }}>
+          {mission.category ? <StarCamCategoryChip category={mission.category} /> : null}
+          <Chip size="small" variant="outlined" label={mission.status || '-'} />
+          <Chip
+            size="small"
+            color={isStarCamObjectCountInRange(includedCount) ? 'success' : 'warning'}
+            label={`Hunt: ${includedCount} (${STARCAM_MIN_OBJECTS}-${STARCAM_MAX_OBJECTS})`}
+          />
+          <Chip size="small" variant="outlined" label={`Saved ${vocabList.length}/${STARCAM_MAX_OBJECTS}`} />
+          <Chip
+            size="small"
+            color={publishReady ? 'success' : 'default'}
+            label={publishReady ? 'Ready to publish' : 'Incomplete'}
+          />
+        </Stack>
+      </Box>
+
+      <Box sx={{ mb: 1 }}>
+        <Typography sx={{ fontWeight: 700, fontSize: '0.92rem' }}>Objects / Vocabulary</Typography>
+        <Typography variant="caption" color="text.secondary">
+          Toggle included objects for the child hunt. Edit and delete stay available while toggling.
+        </Typography>
+      </Box>
+
+      {loading ? (
+        <Box sx={{ py: 4, textAlign: 'center' }}>
+          <CircularProgress size={28} />
+        </Box>
+      ) : vocabList.length === 0 ? (
+        <Typography color="text.secondary">No vocabulary yet.</Typography>
+      ) : (
+        <Stack
+          spacing={0.75}
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            pr: 0.25,
+          }}
+        >
+          {vocabList.map((vocab, idx) => {
+            const rowNumber = vocab.sortOrder != null ? Number(vocab.sortOrder) + 1 : idx + 1;
+            const displayName = vocab.displayText || vocab.word || '-';
+            const sortOrder = vocab.sortOrder != null ? Number(vocab.sortOrder) : idx;
+            const isIncluded = resolveIncluded(vocab, idx);
+            const isToggling =
+              inclusionTogglingSortOrder != null &&
+              Number(inclusionTogglingSortOrder) === sortOrder;
+
+            return (
+              <Box
+                key={`${mission._id}-v-${sortOrder}`}
                 sx={{
-                  border: `1px solid ${theme.palette.border.main}`,
-                  borderRadius: '14px',
-                  backgroundColor: theme.palette.background.paper,
-                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  px: 1,
+                  py: 0.85,
+                  borderRadius: '12px',
+                  border: `1px solid ${
+                    isIncluded
+                      ? alpha(theme.palette.success.main, 0.28)
+                      : alpha(theme.palette.divider, 0.9)
+                  }`,
+                  backgroundColor: isIncluded
+                    ? alpha(theme.palette.success.main, 0.06)
+                    : alpha(theme.palette.text.secondary, 0.04),
+                  transition: 'border-color 160ms ease, background-color 160ms ease, opacity 160ms ease',
                 }}
               >
-                {vocabList.map((vocab, idx) => {
-                  const rowNumber = vocab.sortOrder != null ? Number(vocab.sortOrder) + 1 : idx + 1;
-                  const displayName = vocab.displayText || vocab.word || '-';
-                  const isArchived = mission.status === 'archived';
+                <Box
+                  aria-hidden="true"
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '8px',
+                    flexShrink: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: '0.72rem',
+                    fontWeight: 800,
+                    color: theme.palette.common.white,
+                    background: isIncluded
+                      ? `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.success.dark || theme.palette.success.main})`
+                      : alpha(theme.palette.text.secondary, 0.55),
+                  }}
+                >
+                  {rowNumber}
+                </Box>
 
-                  return (
-                    <Box
-                      key={`${mission._id}-v-${idx}`}
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: 'auto 1fr auto', lg: 'auto minmax(140px, 1fr) minmax(300px, 1.4fr) auto' },
-                        alignItems: 'center',
-                        gap: { xs: 1, lg: 1.25 },
-                        px: 1.25,
-                        py: 1,
-                        borderBottom: idx === vocabList.length - 1 ? 'none' : `1px solid ${theme.palette.border.main}`,
-                        backgroundColor: idx % 2 === 0
-                          ? theme.palette.background.paper
-                          : alpha(theme.palette.orange?.main || theme.palette.primary.main, 0.035),
-                        transition: 'background-color 160ms ease, box-shadow 160ms ease',
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.orange?.main || theme.palette.primary.main, 0.08),
-                        },
-                      }}
-                    >
-                      <Box
-                        aria-hidden="true"
-                        sx={{
-                          width: 30,
-                          height: 30,
-                          borderRadius: '50%',
-                          display: 'grid',
-                          placeItems: 'center',
-                          fontSize: '0.78rem',
-                          fontWeight: 800,
-                          color: theme.palette.textCustom?.inverse || theme.palette.common.white,
-                          background: `linear-gradient(135deg, ${theme.palette.orange?.main || theme.palette.primary.main} 0%, ${theme.palette.orange?.dark || theme.palette.primary.dark} 100%)`,
-                          boxShadow: `0 2px 8px ${alpha(theme.palette.orange?.main || theme.palette.primary.main, 0.28)}`,
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: '0.9rem',
+                      lineHeight: 1.15,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {displayName}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  >
+                    {vocab.target || '-'}
+                  </Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <VocabMediaStatus vocab={vocab} theme={theme} />
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                  <Tooltip title={isIncluded ? 'Included in hunt — click to exclude' : 'Excluded — click to include'}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.35, position: 'relative' }}>
+                      <Switch
+                        size="small"
+                        checked={isIncluded}
+                        disabled={isArchived || isToggling}
+                        onChange={(event) => {
+                          void handleInclusionToggle(vocab, idx, event.target.checked);
                         }}
-                      >
-                        {rowNumber}
-                      </Box>
-
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          sx={{
-                            fontWeight: 800,
-                            lineHeight: 1.15,
-                            color: theme.palette.text.primary,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {displayName}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: theme.palette.text.secondary,
-                            display: 'block',
-                            mt: 0.15,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Target: {vocab.target || '-'}
-                          {Array.isArray(vocab?.keywordBucket?.terms) && vocab.keywordBucket.terms.length > 1
-                            ? ` (+${vocab.keywordBucket.terms.length - 1} match words)`
-                            : ''}
-                          {vocab.labelSource === 'custom' ? (
-                            <Chip
-                              component="span"
-                              size="small"
-                              label="Custom"
-                              color="primary"
-                              variant="outlined"
-                              sx={{ ml: 0.75, height: 20, verticalAlign: 'middle' }}
-                              aria-label="Custom vision label"
-                            />
-                          ) : null}
-                        </Typography>
-                      </Box>
-
-                      <Box
-                        sx={{
-                          display: { xs: 'none', lg: 'flex' },
-                          alignItems: 'center',
-                          gap: 0.5,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <Tooltip title={vocab.image ? 'Image ready' : 'Image missing'}>
-                          <Chip
-                            size="small"
-                            icon={<ImageRoundedIcon />}
-                            color={vocab.image ? 'success' : 'default'}
-                            label="Image"
-                            sx={getStatusChipSx(Boolean(vocab.image))}
-                          />
-                        </Tooltip>
-                        <Tooltip title={vocab.audio ? 'Main audio ready' : 'Main audio missing'}>
-                          <Chip
-                            size="small"
-                            icon={<GraphicEqRoundedIcon />}
-                            color={vocab.audio ? 'success' : 'default'}
-                            label="Main"
-                            sx={getStatusChipSx(Boolean(vocab.audio))}
-                          />
-                        </Tooltip>
-                        <Chip
-                          size="small"
-                          color={vocab.introAudio ? 'success' : 'default'}
-                          label="Question"
-                          sx={getStatusChipSx(Boolean(vocab.introAudio))}
+                        inputProps={{ 'aria-label': `Include ${displayName} in mission` }}
+                      />
+                      {isToggling ? (
+                        <CircularProgress size={14} thickness={5} aria-label={`Updating ${displayName}`} />
+                      ) : isIncluded ? (
+                        <CheckCircleRoundedIcon sx={{ fontSize: 17, color: theme.palette.success.main }} aria-hidden />
+                      ) : (
+                        <RadioButtonUncheckedRoundedIcon
+                          sx={{ fontSize: 17, color: theme.palette.text.disabled }}
+                          aria-hidden
                         />
-                        <Chip
-                          size="small"
-                          color={vocab.tryAgainAudio ? 'success' : 'default'}
-                          label="Retry"
-                          sx={getStatusChipSx(Boolean(vocab.tryAgainAudio))}
-                        />
-                        <Chip
-                          size="small"
-                          color={vocab.successAudio ? 'success' : 'default'}
-                          label="Success"
-                          sx={getStatusChipSx(Boolean(vocab.successAudio))}
-                        />
-                        <Tooltip title={vocab.pronunciationVideo ? 'Practice video ready' : 'Practice video optional'}>
-                          <Chip
-                            size="small"
-                            icon={<VideocamRoundedIcon />}
-                            color={vocab.pronunciationVideo ? 'success' : 'default'}
-                            label="Video"
-                            sx={getStatusChipSx(Boolean(vocab.pronunciationVideo))}
-                          />
-                        </Tooltip>
-                      </Box>
-
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.35 }}>
-                        <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Edit vocabulary'}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setEditingVocab(vocab);
-                                setEditVocabForm({
-                                  displayText: String(vocab?.displayText || vocab?.word || ''),
-                                  target: String(vocab?.target || ''),
-                                  labelId: vocab?.labelId || null,
-                                  labelSource: vocab?.labelSource || null,
-                                  targetLabels: selectionsFromKeywordBucket(vocab),
-                                  keywordBucket: vocab?.keywordBucket || null,
-                                  imageFile: null,
-                                  audioFile: null,
-                                  introAudioFile: null,
-                                  tryAgainAudioFile: null,
-                                  successAudioFile: null,
-                                  pronunciationVideoFile: null,
-                                });
-                                setOpenEditVocabModal(true);
-                              }}
-                              disabled={mutating || isArchived}
-                              aria-label={`edit vocabulary ${displayName || idx + 1}`}
-                              sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                  color: theme.palette.orange?.dark || theme.palette.primary.dark,
-                                  backgroundColor: alpha(theme.palette.orange?.main || theme.palette.primary.main, 0.12),
-                                },
-                              }}
-                            >
-                              <EditOutlinedIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                        <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Delete vocabulary'}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => onDeleteVocabulary?.(vocab)}
-                              disabled={mutating || isArchived}
-                              aria-label={`delete vocabulary ${displayName || idx + 1}`}
-                              sx={{
-                                '&:hover': {
-                                  backgroundColor: alpha(theme.palette.error.main, 0.1),
-                                },
-                              }}
-                            >
-                              <DeleteOutlineIcon fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      </Box>
+                      )}
                     </Box>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        )}
-      </Stack>
+                  </Tooltip>
+
+                  <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Edit vocabulary'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={() => openEditModal(vocab)}
+                        disabled={mutating || isArchived}
+                        aria-label={`Edit vocabulary ${displayName}`}
+                      >
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+
+                  <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Delete vocabulary'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => onDeleteVocabulary?.(vocab)}
+                        disabled={mutating || isArchived}
+                        aria-label={`Delete vocabulary ${displayName}`}
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Box>
+            );
+          })}
+        </Stack>
+      )}
+
       <StarCamCreateVocabularyModa
         open={openAddVocabModal}
         onClose={() => setOpenAddVocabModal(false)}

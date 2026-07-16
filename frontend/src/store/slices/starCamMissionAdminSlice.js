@@ -1,5 +1,11 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import starCamMissionAdminServices from '../../services/starCamMissionAdminServices';
+import {
+  STARCAM_MAX_OBJECTS,
+  isStarCamObjectCountInRange,
+  countIncludedVocab,
+  isVocabIncluded,
+} from '../../constants/starCamMissionObjects';
 
 export const fetchStarCamCategories = createAsyncThunk(
   'starCamMissionAdmin/fetchCategories',
@@ -121,6 +127,18 @@ export const updateStarCamMissionVocabulary = createAsyncThunk(
   }
 );
 
+export const updateStarCamMissionVocabularyInclusion = createAsyncThunk(
+  'starCamMissionAdmin/updateMissionVocabularyInclusion',
+  async ({ missionId, sortOrder, isIncluded }, { rejectWithValue }) => {
+    try {
+      const response = await starCamMissionAdminServices.updateVocabularyInclusion(missionId, sortOrder, isIncluded);
+      return response;
+    } catch (error) {
+      return rejectWithValue(error || 'Failed to update vocabulary inclusion');
+    }
+  }
+);
+
 export const deleteStarCamMissionVocabulary = createAsyncThunk(
   'starCamMissionAdmin/deleteMissionVocabulary',
   async ({ missionId, sortOrder }, { rejectWithValue }) => {
@@ -222,6 +240,7 @@ const initialState = {
     missions: false,
     missionDetails: false,
     mutating: false,
+    inclusionTogglingSortOrder: null,
   },
   error: null,
   lastAction: null,
@@ -266,15 +285,20 @@ const normalizeMissionItem = (item = {}, vocab = []) => {
   };
 };
 
-const hasVocabScanAudioSet = (vocab = []) =>
-  Array.isArray(vocab) &&
-  vocab.length === 7 &&
-  vocab.every((entry) => Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio));
+const hasVocabScanAudioSet = (vocab = []) => {
+  const included = (vocab || []).filter((entry) => entry?.isIncluded !== false);
+  return (
+    Array.isArray(included) &&
+    isStarCamObjectCountInRange(included.length) &&
+    included.every((entry) => Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio))
+  );
+};
 
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
-  const vocabCount = Number(mission.vocabCount ?? mission.vocab?.length ?? 0);
   const vocab = Array.isArray(mission.vocab) ? mission.vocab : [];
+  const vocabCount = Number(mission.vocabCount ?? vocab.length ?? 0);
+  const includedCount = countIncludedVocab(vocab);
   const items = Array.isArray(mission.items)
     ? mission.items.map((item) => normalizeMissionItem(item, vocab))
     : mission.items;
@@ -284,15 +308,17 @@ const normalizeMission = (mission) => {
   const hasRewardVideo = Boolean(mission.rewardVideo?._id || mission.rewardVideo);
   const hasScanQuestionSet =
     (Array.isArray(items) &&
-      items.length === 7 &&
+      items.length === includedCount &&
+      isStarCamObjectCountInRange(includedCount) &&
       items.every((item) =>
         Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
       )) ||
     hasVocabScanAudioSet(vocab);
-  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : Math.min(vocabCount, 7);
+  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : includedCount;
   return {
     ...mission,
     items,
+    includedCount,
     vocabCount,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideoUrl || mission.missionShortVideo?.url || null,
@@ -304,9 +330,11 @@ const normalizeMission = (mission) => {
       hasMissionIntroAudio,
       hasRewardAudio,
       hasRewardVideo,
-      hasVocabSet: vocabCount === 7,
+      hasVocabSet: isStarCamObjectCountInRange(includedCount),
       hasScanQuestionSet,
       scanCount,
+      includedCount,
+      vocabCount,
     },
   };
 };
@@ -501,6 +529,24 @@ const starCamMissionAdminSlice = createSlice({
       })
       .addCase(updateStarCamMissionVocabulary.rejected, (state, action) => {
         state.loading.mutating = false;
+        setError(state, action);
+      })
+
+      .addCase(updateStarCamMissionVocabularyInclusion.pending, (state, action) => {
+        state.loading.inclusionTogglingSortOrder = action.meta?.arg?.sortOrder ?? null;
+        state.error = null;
+      })
+      .addCase(updateStarCamMissionVocabularyInclusion.fulfilled, (state, action) => {
+        state.loading.inclusionTogglingSortOrder = null;
+        const mission = normalizeMission(action.payload?.data);
+        if (mission) {
+          state.currentMission = mission;
+          upsertMission(state, mission);
+        }
+        state.lastAction = 'updateMissionVocabularyInclusion';
+      })
+      .addCase(updateStarCamMissionVocabularyInclusion.rejected, (state, action) => {
+        state.loading.inclusionTogglingSortOrder = null;
         setError(state, action);
       })
 

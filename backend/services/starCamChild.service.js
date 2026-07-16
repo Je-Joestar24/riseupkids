@@ -8,6 +8,12 @@ const {
   buildMissionMediaManifest,
 } = require('../utils/starCamMissionMediaManifest.util');
 const { isVisionConfigured } = require('./googleVision.service');
+const {
+  STARCAM_MIN_OBJECTS,
+  STARCAM_MAX_OBJECTS,
+  STARCAM_MAX_SORT_ORDER,
+} = require('../constants/starCamMissionObjects.constants');
+const { filterIncludedVocab, countIncludedVocab, sortVocabByOrder } = require('../utils/starCamVocabInclusion.util');
 
 const MEDIA_SELECT = 'url type duration updatedAt _id';
 
@@ -81,10 +87,7 @@ function publishedMissionLookupQuery(safeMissionId) {
 }
 
 function mapMissionVocabToPracticeItems(vocab = []) {
-  return (vocab || [])
-    .slice()
-    .sort((a, b) => asSafeNumber(a.order ?? a.sortOrder, 0) - asSafeNumber(b.order ?? b.sortOrder, 0))
-    .map((v, idx) => ({
+  return sortVocabByOrder(filterIncludedVocab(vocab)).map((v, idx) => ({
       order: idx + 1,
       displayText: v.displayText || v.word || '',
       target: v.target || '',
@@ -249,6 +252,7 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
   const featuredPracticeItem =
     practiceItems.length > 0 ? practiceItems[practiceItems.length - 1] : null;
 
+  const includedCount = countIncludedVocab(mission.vocab || []);
   const huntItems = (mission.items || [])
     .slice()
     .sort((a, b) => asSafeNumber(a.order ?? a.sortOrder, 0) - asSafeNumber(b.order ?? b.sortOrder, 0))
@@ -301,12 +305,15 @@ async function getMissionStartFlowForChild({ parentUserId, childId, missionId })
       },
       starCam: {
         promptTitle: 'Find the object',
+        objectCount: huntItems.length || includedCount,
+        minObjects: STARCAM_MIN_OBJECTS,
+        maxObjects: STARCAM_MAX_OBJECTS,
         aiDetection: {
           enabled: isVisionConfigured(),
           status: isVisionConfigured() ? 'live' : 'pending_integration',
           detectObjectPath: '/api/child/star-cam/child/:childId/missions/:missionId/detect-object',
           notes: isVisionConfigured()
-            ? 'POST multipart field "image"; query itemOrder (1-7) or sortOrder (0-6).'
+            ? `POST multipart field "image"; query itemOrder (1-${STARCAM_MAX_OBJECTS}) or sortOrder (0-${STARCAM_MAX_SORT_ORDER}).`
             : 'Set GOOGLE_VISION_ENABLED and GOOGLE_VISION_* credentials to enable detection.',
         },
         items: huntItems,

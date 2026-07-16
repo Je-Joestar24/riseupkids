@@ -10,6 +10,7 @@ import StarCamMissionCreateModal from '../../components/admin/starcammission/Sta
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
 import { showConfirmationDialog, showNotification } from '../../store/slices/uiSlice';
 import { sortStarCamCategoriesForAdminDisplay } from '../../utils/starCamCategoryDisplay';
+import { canAddStarCamObject } from '../../constants/starCamMissionObjects';
 
 const normalizeTarget = (value) => String(value || '').trim().toLowerCase();
 
@@ -66,6 +67,7 @@ const AdminStarCamMissions = () => {
     loadMissionById,
     addMissionVocabulary,
     editMissionVocabulary,
+    toggleMissionVocabularyInclusion,
     removeMissionVocabulary,
     editMissionScanItem,
     removeMissionItem,
@@ -129,7 +131,7 @@ const AdminStarCamMissions = () => {
   const handleSubmitVocabulary = async () => {
     if (!currentMission?._id) return;
     const existing = Array.isArray(currentMission.vocab) ? currentMission.vocab : [];
-    if (existing.length >= 7) return;
+    if (!canAddStarCamObject(existing.length)) return;
     const displayText = String(newVocab.displayText || '').trim();
     const target = String(newVocab.target || '').trim().toLowerCase();
     if (!displayText || !target || !newVocab.imageFile || !newVocab.audioFile || !newVocab.introAudioFile || !newVocab.tryAgainAudioFile || !newVocab.successAudioFile) {
@@ -183,6 +185,11 @@ const AdminStarCamMissions = () => {
     };
     await editMissionVocabulary(missionId, sortOrder, safePayload);
     await loadMissionById(missionId);
+  };
+
+  const handleToggleVocabularyInclusion = async (sortOrder, isIncluded) => {
+    if (!currentMission?._id || sortOrder == null) return;
+    await toggleMissionVocabularyInclusion(currentMission._id, sortOrder, isIncluded);
   };
 
   const handleDeleteVocabularyConfirm = (vocab) => {
@@ -408,8 +415,8 @@ const AdminStarCamMissions = () => {
           />
         </Box>
       ) : (
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={7}>
+        <Grid container spacing={2} sx={{ alignItems: 'stretch', minHeight: 'calc(100vh - 240px)' }}>
+          <Grid item xs={12} lg={6} sx={{ display: 'flex', flexDirection: 'column' }}>
             <StarCamMissionTable
               missions={missions}
               loading={loading.missions}
@@ -426,19 +433,18 @@ const AdminStarCamMissions = () => {
               onLimitChange={(limit) => updateFilters({ limit, page: 1 })}
             />
           </Grid>
-          <Grid item xs={12} md={5}>
+          <Grid item xs={12} lg={6} sx={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             <StarCamRightPanelPreviewEdit
               mission={currentMission}
-              loading={loading.missionDetails}
+              loading={loading.missionDetails && !currentMission?.vocab?.length}
               mutating={loading.mutating}
+              inclusionTogglingSortOrder={loading.inclusionTogglingSortOrder}
               newVocab={newVocab}
               onVocabChange={(field, value) => setNewVocab((prev) => ({ ...prev, [field]: value }))}
               onSubmitVocabulary={handleSubmitVocabulary}
               onEditVocabulary={handleEditVocabulary}
               onDeleteVocabulary={handleDeleteVocabularyConfirm}
-              onEditMissionItem={handleEditMissionItem}
-              onDeleteMissionItem={handleDeleteMissionItemConfirm}
-              onSyncScanItems={handleSyncScanItems}
+              onToggleVocabularyInclusion={handleToggleVocabularyInclusion}
             />
           </Grid>
         </Grid>

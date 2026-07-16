@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { StarCamMission } = require('../models');
 const { assertChildOwnership } = require('./starCamChild.service');
 const googleVisionService = require('./googleVision.service');
+const { STARCAM_MAX_OBJECTS, STARCAM_MAX_SORT_ORDER } = require('../constants/starCamMissionObjects.constants');
 
 function asTrimmed(value) {
   if (value == null) return null;
@@ -216,7 +217,9 @@ async function detectMissionObjectForChild({
 
   const huntItem = resolveHuntItem(mission.items, { itemOrder, sortOrder });
   if (!huntItem || !asTrimmed(huntItem.target)) {
-    const err = new Error('Invalid hunt step: provide itemOrder (1-7) or sortOrder (0-6)');
+    const err = new Error(
+      `Invalid hunt step: provide itemOrder (1-${STARCAM_MAX_OBJECTS}) or sortOrder (0-${STARCAM_MAX_SORT_ORDER})`
+    );
     err.statusCode = 400;
     err.code = 'STARCAM_INVALID_STEP';
     throw err;

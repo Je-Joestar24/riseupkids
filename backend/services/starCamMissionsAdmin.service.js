@@ -9,6 +9,21 @@ const { buildKeywordBucketFields } = require('../utils/starCamKeywordBucket.util
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
 const { buildStarCamMissionAssetS3Key } = require('../utils/starCamMissionMediaManifest.util');
+const {
+  STARCAM_MAX_OBJECTS,
+  STARCAM_MIN_OBJECTS,
+  assertStarCamObjectCountInRange,
+  isStarCamObjectCountInRange,
+  starCamObjectCountRangeLabel,
+} = require('../constants/starCamMissionObjects.constants');
+const {
+  assertIncludedVocabCountInRange,
+  canToggleVocabInclusion,
+  countIncludedVocab,
+  filterIncludedVocab,
+  isVocabIncluded,
+  sortVocabByOrder,
+} = require('../utils/starCamVocabInclusion.util');
 
 function uploadStarCamMissionAsset(file, missionId, assetKey) {
   const key = buildStarCamMissionAssetS3Key(missionId, assetKey, file?.originalname || 'file');
@@ -201,14 +216,16 @@ function getItemQuestionAudio(item, vocab) {
   return item?.questionAudio || vocab?.introAudio || vocab?.audio || null;
 }
 
-function buildDefaultIntroText({ title } = {}) {
+function buildDefaultIntroText({ title, objectCount } = {}) {
   const safeTitle = asTrimmedString(title) || 'this mission';
-  return `Welcome to ${safeTitle}. Find all 7 objects and complete your Star Cam challenge!`;
+  const count = isStarCamObjectCountInRange(objectCount) ? objectCount : STARCAM_MAX_OBJECTS;
+  return `Welcome to ${safeTitle}. Find all ${count} objects and complete your Star Cam challenge!`;
 }
 
 function applyPublishDefaults(doc) {
+  const objectCount = countIncludedVocab(doc.vocab);
   if (!asTrimmedString(doc.introText)) {
-    doc.introText = buildDefaultIntroText({ title: doc.title });
+    doc.introText = buildDefaultIntroText({ title: doc.title, objectCount });
   }
   // Match seeder behavior: reuse mission cover art when intro/reward images were not uploaded separately.
   if (!doc.introImage && doc.missionImage) {
@@ -220,7 +237,8 @@ function applyPublishDefaults(doc) {
 }
 
 function buildDefaultMissionItemsFromVocab(vocabList = []) {
-  return vocabList.map((vocab, index) => {
+  const included = sortVocabByOrder(filterIncludedVocab(vocabList));
+  return included.map((vocab, index) => {
     const target = asTrimmedString(vocab?.target)?.toLowerCase() || '';
     const label = asTrimmedString(vocab?.displayText) || asTrimmedString(vocab?.word) || target || `item ${index + 1}`;
     return buildMissionItemPayload(
@@ -236,6 +254,34 @@ function buildDefaultMissionItemsFromVocab(vocabList = []) {
         successText: `That's a ${label}, yeyy.`,
         successAudio: vocab?.successAudio || null,
         sortOrder: Number(vocab?.sortOrder ?? index),
+      },
+      index
+    );
+  });
+}
+
+function rebuildMissionItemsFromIncludedVocab(doc) {
+  const included = sortVocabByOrder(filterIncludedVocab(doc.vocab || []));
+  doc.items = included.map((vocab, index) => {
+    const existing = (doc.items || []).find((item) => findVocabForItem([vocab], item));
+    const label =
+      asTrimmedString(vocab?.displayText) ||
+      asTrimmedString(vocab?.word) ||
+      asTrimmedString(vocab?.target) ||
+      `item ${index + 1}`;
+    return buildMissionItemPayload(
+      {
+        target: asTrimmedString(vocab?.target),
+        labelId: asTrimmedString(vocab?.labelId) || null,
+        labelSource: vocab?.labelSource || null,
+        keywordBucket: vocab?.keywordBucket || existing?.keywordBucket,
+        questionText: existing?.questionText || existing?.prompt || `Is this a ${label}?`,
+        questionAudio: existing?.questionAudio || null,
+        tryAgainText: existing?.tryAgainText || existing?.fail || `Ow that's not a ${label}, let's try again.`,
+        tryAgainAudio: existing?.tryAgainAudio || null,
+        successText: existing?.successText || existing?.success || `That's a ${label}, yeyy.`,
+        successAudio: existing?.successAudio || null,
+        sortOrder: index,
       },
       index
     );
@@ -413,6 +459,7 @@ async function updateMission({ id, user, userId, patch } = {}) {
       word: asTrimmedString(v.word) || asTrimmedString(v.displayText),
       displayText: asTrimmedString(v.displayText) || asTrimmedString(v.word),
       target: asTrimmedString(v.target)?.toLowerCase() || asTrimmedString(v.word)?.toLowerCase(),
+      isIncluded: v.isIncluded === false ? false : true,
       image: ensureObjectId(v.image, 'vocab.image'),
       audio: ensureObjectId(v.audio, 'vocab.audio'),
       introAudio: ensureObjectId(v.introAudio, 'vocab.introAudio'),
@@ -520,7 +567,7 @@ async function deleteMissionItem({ id, user, userId, sortOrder } = {}) {
     throw err;
   }
   if (doc.status === 'published') {
-    const err = new Error('Published missions must keep exactly 7 items. Unpublish first.');
+    const err = new Error(`Published missions must keep ${starCamObjectCountRangeLabel()} items. Unpublish first.`);
     err.statusCode = 400;
     throw err;
   }
@@ -554,27 +601,22 @@ async function publishMission({ id, user, userId } = {}) {
     throw err;
   }
 
-  // Enforce the "7 entries" constraint and stable ordering
-  if (!Array.isArray(doc.vocab) || doc.vocab.length !== 7) {
-    const err = new Error('Mission must have exactly 7 vocabulary entries before publishing');
+  assertIncludedVocabCountInRange(doc.vocab, 'included vocabulary');
+
+  rebuildMissionItemsFromIncludedVocab(doc);
+
+  if (!Array.isArray(doc.items) || doc.items.length !== countIncludedVocab(doc.vocab)) {
+    const err = new Error(
+      `Mission must have ${starCamObjectCountRangeLabel()} scavenger hunt items matching included vocabulary before publishing`
+    );
     err.statusCode = 400;
     throw err;
   }
-  if (!Array.isArray(doc.items) || doc.items.length !== 7) {
-    // Backward compatibility: scan prompts/audio now come from vocab media.
-    // If items are missing, synthesize 7 scan items from vocab on publish.
-    if (Array.isArray(doc.vocab) && doc.vocab.length === 7 && (!Array.isArray(doc.items) || doc.items.length === 0)) {
-      doc.items = buildDefaultMissionItemsFromVocab(doc.vocab);
-    } else {
-      const err = new Error('Mission must have exactly 7 scavenger hunt items before publishing');
-      err.statusCode = 400;
-      throw err;
-    }
-  }
-  assertUniqueSortOrders(doc.vocab, 7, 'vocab');
-  assertUniqueSortOrders(doc.items, 7, 'items');
+  const includedCount = countIncludedVocab(doc.vocab);
+  assertUniqueSortOrders(doc.items, includedCount, 'items');
   for (let i = 0; i < doc.vocab.length; i += 1) {
     const v = doc.vocab[i];
+    if (!isVocabIncluded(v)) continue;
     const displayText = asTrimmedString(v.displayText || v.word);
     const target = asTrimmedString(v.target);
     if (!displayText) {
@@ -596,8 +638,8 @@ async function publishMission({ id, user, userId } = {}) {
       err.statusCode = 400;
       throw err;
     }
-    if (!matchingVocab) {
-      const err = new Error(`items[${i}].target must match a vocabulary target before publishing`);
+    if (!matchingVocab || !isVocabIncluded(matchingVocab)) {
+      const err = new Error(`items[${i}].target must match an included vocabulary target before publishing`);
       err.statusCode = 400;
       throw err;
     }
@@ -687,14 +729,14 @@ async function publishMission({ id, user, userId } = {}) {
     doc.rewardVideo ? assertMediaExists(doc.rewardVideo, { type: 'video', fieldName: 'rewardVideo' }) : Promise.resolve(),
     assertMediaExists(doc.missionShortVideo, { type: 'video', fieldName: 'missionShortVideo' }),
     doc.introVideo ? assertMediaExists(doc.introVideo, { type: 'video', fieldName: 'introVideo' }) : Promise.resolve(),
-    ...doc.vocab.flatMap((v, idx) => [
-      assertMediaExists(v.image, { type: 'image', fieldName: `vocab[${idx}].image` }),
-      assertMediaExists(v.audio, { type: 'audio', fieldName: `vocab[${idx}].audio` }),
-      v.introAudio ? assertMediaExists(v.introAudio, { type: 'audio', fieldName: `vocab[${idx}].introAudio` }) : Promise.resolve(),
-      assertMediaExists(v.tryAgainAudio, { type: 'audio', fieldName: `vocab[${idx}].tryAgainAudio` }),
-      assertMediaExists(v.successAudio, { type: 'audio', fieldName: `vocab[${idx}].successAudio` }),
+    ...filterIncludedVocab(doc.vocab).flatMap((v, idx) => [
+      assertMediaExists(v.image, { type: 'image', fieldName: `included vocab[${idx}].image` }),
+      assertMediaExists(v.audio, { type: 'audio', fieldName: `included vocab[${idx}].audio` }),
+      v.introAudio ? assertMediaExists(v.introAudio, { type: 'audio', fieldName: `included vocab[${idx}].introAudio` }) : Promise.resolve(),
+      assertMediaExists(v.tryAgainAudio, { type: 'audio', fieldName: `included vocab[${idx}].tryAgainAudio` }),
+      assertMediaExists(v.successAudio, { type: 'audio', fieldName: `included vocab[${idx}].successAudio` }),
       v.pronunciationVideo
-        ? assertMediaExists(v.pronunciationVideo, { type: 'video', fieldName: `vocab[${idx}].pronunciationVideo` })
+        ? assertMediaExists(v.pronunciationVideo, { type: 'video', fieldName: `included vocab[${idx}].pronunciationVideo` })
         : Promise.resolve(),
     ]),
     ...doc.items.flatMap((item, idx) => [
@@ -877,8 +919,8 @@ async function addMissionVocabularyEntry({
     err.statusCode = 400;
     throw err;
   }
-  if ((doc.vocab || []).length >= 7) {
-    const err = new Error('Mission already has 7 vocabulary entries');
+  if ((doc.vocab || []).length >= STARCAM_MAX_OBJECTS) {
+    const err = new Error(`Mission already has the maximum of ${STARCAM_MAX_OBJECTS} vocabulary entries`);
     err.statusCode = 400;
     throw err;
   }
@@ -998,10 +1040,12 @@ async function addMissionVocabularyEntry({
     tryAgainAudio: tryAgainAudioMedia._id,
     successAudio: successAudioMedia._id,
     pronunciationVideo: pronunciationVideoMedia?._id || null,
+    isIncluded: true,
     sortOrder: nextSort,
   };
   applyVocabLabelFields(vocabEntry, { target: safeTarget, labelId, labelSource, keywordBucket });
   doc.vocab.push(vocabEntry);
+  rebuildMissionItemsFromIncludedVocab(doc);
   doc.updatedBy = userId;
   await doc.save();
 
@@ -1022,6 +1066,42 @@ function getMissionVocabIndexBySortOrder(vocabList, sortOrder) {
     throw err;
   }
   return idx;
+}
+
+async function updateMissionVocabularyInclusion({ id, user, userId, sortOrder, isIncluded } = {}) {
+  const doc = await StarCamMission.findById(id);
+  if (!doc) {
+    const err = new Error('Mission not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  assertCreatorOwnsDocument(user, doc);
+
+  if (doc.status === 'archived') {
+    const err = new Error('Archived missions cannot be edited');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const toggle = canToggleVocabInclusion(doc.vocab, sortOrder, isIncluded);
+  if (!toggle.allowed) {
+    const err = new Error(toggle.reason || 'Cannot update vocabulary inclusion');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (toggle.noChange) {
+    return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
+  }
+
+  const idx = getMissionVocabIndexBySortOrder(doc.vocab, sortOrder);
+  doc.vocab[idx].isIncluded = Boolean(isIncluded);
+  rebuildMissionItemsFromIncludedVocab(doc);
+  doc.updatedBy = userId;
+  await doc.save();
+
+  return StarCamMission.findById(doc._id).populate(buildPopulate()).lean();
 }
 
 async function prepareAudioMulterFile(file) {
@@ -1219,6 +1299,7 @@ async function updateMissionVocabularyEntry({
     entry[key] = mediaId;
   });
 
+  rebuildMissionItemsFromIncludedVocab(doc);
   doc.updatedBy = userId;
   await doc.save();
 
@@ -1241,7 +1322,7 @@ async function deleteMissionVocabularyEntry({ id, user, userId, sortOrder } = {}
     throw err;
   }
   if (doc.status === 'published') {
-    const err = new Error('Published missions must keep exactly 7 vocabulary entries. Unpublish first.');
+    const err = new Error(`Published missions must keep ${starCamObjectCountRangeLabel()} vocabulary entries. Unpublish first.`);
     err.statusCode = 400;
     throw err;
   }
@@ -1258,9 +1339,11 @@ async function deleteMissionVocabularyEntry({ id, user, userId, sortOrder } = {}
     tryAgainAudio: entry.tryAgainAudio || null,
     successAudio: entry.successAudio || null,
     pronunciationVideo: entry.pronunciationVideo || null,
+    isIncluded: entry.isIncluded === false ? false : true,
     sortOrder: index,
   }));
 
+  rebuildMissionItemsFromIncludedVocab(doc);
   doc.updatedBy = userId;
   await doc.save();
 
@@ -1423,6 +1506,7 @@ module.exports = {
   deleteMissionItem,
   addMissionVocabularyEntry,
   updateMissionVocabularyEntry,
+  updateMissionVocabularyInclusion,
   deleteMissionVocabularyEntry,
   uploadMissionImage,
   uploadMissionMedia,

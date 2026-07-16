@@ -43,6 +43,7 @@ function toPublicLabel(doc) {
     searchKey: doc.searchKey,
     source: doc.source,
     isChildFriendly: Boolean(doc.isChildFriendly),
+    isAvailableForMissions: Boolean(doc.isAvailableForMissions),
     defaultTerms: Array.isArray(doc.defaultTerms) ? doc.defaultTerms : [],
     usageCount: typeof doc.usageCount === 'number' ? doc.usageCount : 0,
     updatedAt: doc.updatedAt || null,
@@ -78,9 +79,9 @@ function rankSearchResults(docs, query) {
 }
 
 /**
- * @param {{ query?: string, limit?: number, childFriendlyOnly?: boolean }} params
+ * @param {{ query?: string, limit?: number, childFriendlyOnly?: boolean, availableOnly?: boolean }} params
  */
-async function searchLabels({ query, limit, childFriendlyOnly = false } = {}) {
+async function searchLabels({ query, limit, childFriendlyOnly = false, availableOnly = true } = {}) {
   const safeQuery = normalizeSearchKey(query);
   const safeLimit = parseLimit(limit);
 
@@ -93,9 +94,10 @@ async function searchLabels({ query, limit, childFriendlyOnly = false } = {}) {
     searchKey: { $regex: escapeRegex(safeQuery), $options: 'i' },
   };
   if (childFriendlyOnly) filter.isChildFriendly = true;
+  if (availableOnly) filter.isAvailableForMissions = true;
 
   const docs = await StarCamVisionLabel.find(filter)
-    .select('labelId displayName searchKey source isChildFriendly defaultTerms usageCount updatedAt')
+    .select('labelId displayName searchKey source isChildFriendly isAvailableForMissions defaultTerms usageCount updatedAt')
     .limit(Math.min(200, safeLimit * 10))
     .lean();
 
@@ -107,12 +109,15 @@ async function searchLabels({ query, limit, childFriendlyOnly = false } = {}) {
 }
 
 /**
- * @param {{ limit?: number }} params
+ * @param {{ limit?: number, availableOnly?: boolean }} params
  */
-async function listRecentCustomLabels({ limit } = {}) {
+async function listRecentCustomLabels({ limit, availableOnly = true } = {}) {
   const safeLimit = parseLimit(limit);
-  const docs = await StarCamVisionLabel.find({ isActive: true, source: 'custom' })
-    .select('labelId displayName searchKey source isChildFriendly defaultTerms usageCount updatedAt')
+  const filter = { isActive: true, source: 'custom' };
+  if (availableOnly) filter.isAvailableForMissions = true;
+
+  const docs = await StarCamVisionLabel.find(filter)
+    .select('labelId displayName searchKey source isChildFriendly isAvailableForMissions defaultTerms usageCount updatedAt')
     .sort({ updatedAt: -1 })
     .limit(safeLimit)
     .lean();
@@ -181,6 +186,7 @@ async function createCustomLabel({ displayName, defaultTerms, createdBy } = {}) 
     source: 'custom',
     isChildFriendly: true,
     isActive: true,
+    isAvailableForMissions: true,
     defaultTerms: normalizeDefaultTerms(defaultTerms, safeDisplayName),
     usageCount: 0,
     createdBy: creatorId,
@@ -202,14 +208,129 @@ async function incrementUsageCount(labelId, amount = 1) {
   return toPublicLabel(doc);
 }
 
+function escapeAdminSearch(value) {
+  return escapeRegex(String(value || '').trim());
+}
+
+/**
+ * @param {{ page?: number, limit?: number, search?: string, availableOnly?: boolean }} params
+ */
+async function listLabelsForAdmin({ page = 1, limit = 25, search, availableOnly } = {}) {
+  const safePage = Math.max(1, Number.parseInt(String(page ?? ''), 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, Number.parseInt(String(limit ?? ''), 10) || 25));
+  const skip = (safePage - 1) * safeLimit;
+
+  const filter = { isActive: true };
+  const safeSearch = String(search || '').trim();
+  if (safeSearch.length >= 2) {
+    filter.searchKey = { $regex: escapeAdminSearch(safeSearch), $options: 'i' };
+  }
+  if (availableOnly === true) filter.isAvailableForMissions = true;
+  if (availableOnly === false) filter.isAvailableForMissions = false;
+
+  const [items, total] = await Promise.all([
+    StarCamVisionLabel.find(filter)
+      .select('labelId displayName searchKey source isChildFriendly isAvailableForMissions usageCount updatedAt')
+      .sort({ isAvailableForMissions: -1, updatedAt: -1, displayName: 1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .lean(),
+    StarCamVisionLabel.countDocuments(filter),
+  ]);
+
+  return {
+    page: safePage,
+    limit: safeLimit,
+    total,
+    items: items.map(toPublicLabel),
+  };
+}
+
+async function setLabelAvailability({ labelId, isAvailableForMissions, updatedBy } = {}) {
+  const safeId = asTrimmed(labelId);
+  if (!safeId) {
+    const err = new Error('labelId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const creatorId =
+    updatedBy && mongoose.Types.ObjectId.isValid(String(updatedBy)) ? String(updatedBy) : null;
+
+  const doc = await StarCamVisionLabel.findOneAndUpdate(
+    { labelId: safeId, isActive: true },
+    {
+      $set: {
+        isAvailableForMissions: Boolean(isAvailableForMissions),
+        ...(creatorId ? { updatedBy: creatorId } : {}),
+      },
+    },
+    { new: true }
+  ).lean();
+
+  if (!doc) {
+    const err = new Error('Label not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return toPublicLabel(doc);
+}
+
+/**
+ * @param {{ labelIds?: string[], isAvailableForMissions: boolean, selectAllMatching?: boolean, search?: string, updatedBy?: string }} params
+ */
+async function bulkSetLabelAvailability({
+  labelIds,
+  isAvailableForMissions,
+  selectAllMatching = false,
+  search,
+  updatedBy,
+} = {}) {
+  const creatorId =
+    updatedBy && mongoose.Types.ObjectId.isValid(String(updatedBy)) ? String(updatedBy) : null;
+
+  const filter = { isActive: true };
+  if (selectAllMatching) {
+    const safeSearch = String(search || '').trim();
+    if (safeSearch.length >= 2) {
+      filter.searchKey = { $regex: escapeAdminSearch(safeSearch), $options: 'i' };
+    }
+  } else {
+    const ids = Array.isArray(labelIds) ? labelIds.map((id) => asTrimmed(id)).filter(Boolean) : [];
+    if (!ids.length) {
+      const err = new Error('labelIds is required unless selectAllMatching is true');
+      err.statusCode = 400;
+      throw err;
+    }
+    filter.labelId = { $in: ids };
+  }
+
+  const result = await StarCamVisionLabel.updateMany(filter, {
+    $set: {
+      isAvailableForMissions: Boolean(isAvailableForMissions),
+      ...(creatorId ? { updatedBy: creatorId } : {}),
+    },
+  });
+
+  return {
+    matched: result.matchedCount || 0,
+    modified: result.modifiedCount || 0,
+    isAvailableForMissions: Boolean(isAvailableForMissions),
+  };
+}
+
 module.exports = {
   MIN_SEARCH_QUERY_LENGTH,
   searchLabels,
   listRecentCustomLabels,
+  listLabelsForAdmin,
   getLabelByLabelId,
   getLabelBySearchKey,
   createCustomLabel,
   incrementUsageCount,
+  setLabelAvailability,
+  bulkSetLabelAvailability,
   normalizeDefaultTerms,
   rankSearchResults,
   toPublicLabel,

@@ -39,6 +39,12 @@ const starCamVisionLabelSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
+    /** When true, label appears in admin autocomplete for new mission objects. */
+    isAvailableForMissions: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     defaultTerms: [
       {
         type: String,

@@ -11,6 +11,7 @@
     "seed:starcam-categories": "node scripts/seedStarCamCategories.js",
     "seed:starcam-missions": "node scripts/seedStarCamMissions.js",
     "seed:oid-labels": "node scripts/seedOidVisionLabels.js",
+    "migrate:starcam-vocab-inclusion": "node scripts/migrateStarCamVocabInclusion.js",
     "process:deletions": "node scripts/processDeletionRequests.js",
     "seed:paypal": "node scripts/createPayPalPlans.js",
     "test": "jest --runInBand",

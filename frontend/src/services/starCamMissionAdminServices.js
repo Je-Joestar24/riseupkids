@@ -1,4 +1,10 @@
 import api from '../api/axios';
+import {
+  STARCAM_MAX_OBJECTS,
+  isStarCamObjectCountInRange,
+  countIncludedVocab,
+  isVocabIncluded,
+} from '../constants/starCamMissionObjects';
 
 const BASE_PATH = '/admin/star-cam/missions';
 
@@ -40,10 +46,16 @@ const normalizeMissionItem = (item = {}, vocab = []) => {
   };
 };
 
-const hasVocabScanAudioSet = (vocab = []) =>
-  Array.isArray(vocab) &&
-  vocab.length === 7 &&
-  vocab.every((entry) => Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio));
+const hasVocabScanAudioSet = (vocab = []) => {
+  const included = vocab.filter(isVocabIncluded);
+  return (
+    Array.isArray(included) &&
+    isStarCamObjectCountInRange(included.length) &&
+    included.every((entry) =>
+      Boolean(entry?.target && (entry?.introAudio || entry?.audio) && entry?.tryAgainAudio && entry?.successAudio)
+    )
+  );
+};
 
 const normalizeMission = (mission) => {
   if (!mission || typeof mission !== 'object') return mission;
@@ -51,18 +63,22 @@ const normalizeMission = (mission) => {
   const items = Array.isArray(mission.items)
     ? mission.items.map((item) => normalizeMissionItem(item, vocab))
     : mission.items;
+  const vocabCount = vocab.length;
+  const includedCount = countIncludedVocab(vocab);
   const hasScanQuestionSet =
     (Array.isArray(items) &&
-      items.length === 7 &&
+      items.length === includedCount &&
+      isStarCamObjectCountInRange(includedCount) &&
       items.every((item) =>
         Boolean(item?.target && item?.questionText && item?.questionAudioUrl && item?.tryAgainText && item?.tryAgainAudioUrl && item?.successText && item?.successAudioUrl)
       )) ||
     hasVocabScanAudioSet(vocab);
-  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : Math.min(vocab.length, 7);
+  const scanCount = Array.isArray(items) && items.length > 0 ? items.length : includedCount;
 
   return {
     ...mission,
     items,
+    includedCount,
     missionImageUrl: mission.missionImageUrl || mission.missionImage?.url || null,
     missionShortVideoUrl: mission.missionShortVideo?.url || null,
     missionIntroAudioUrl: mission.missionIntroAudio?.url || null,
@@ -70,8 +86,11 @@ const normalizeMission = (mission) => {
     rewardVideoUrl: mission.rewardVideo?.url || null,
     mediaCompleteness: {
       ...mission.mediaCompleteness,
+      hasVocabSet: isStarCamObjectCountInRange(includedCount),
       hasScanQuestionSet,
       scanCount,
+      includedCount,
+      vocabCount,
     },
   };
 };
@@ -266,6 +285,18 @@ const starCamMissionAdminServices = {
       };
     } catch (error) {
       throw getErrorMessage(error, 'Failed to update vocabulary');
+    }
+  },
+
+  updateVocabularyInclusion: async (id, sortOrder, isIncluded) => {
+    try {
+      const response = await api.patch(`${BASE_PATH}/${id}/vocab/${sortOrder}/inclusion`, { isIncluded });
+      return {
+        ...response.data,
+        data: normalizeMission(response.data?.data),
+      };
+    } catch (error) {
+      throw getErrorMessage(error, 'Failed to update vocabulary inclusion');
     }
   },
 

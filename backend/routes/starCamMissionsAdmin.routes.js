@@ -15,6 +15,7 @@ const {
   archiveMission,
   addMissionVocabulary,
   updateMissionVocabulary,
+  updateMissionVocabularyInclusion,
   deleteMissionVocabulary,
   uploadMissionImage,
   uploadMissionMedia,
@@ -56,6 +57,7 @@ router.post('/:id/publish', publishMission);
 router.post('/:id/unpublish', unpublishMission);
 router.post('/:id/archive', archiveMission);
 router.post('/:id/vocab', uploadStarCamVocab, addMissionVocabulary);
+router.patch('/:id/vocab/:sortOrder/inclusion', updateMissionVocabularyInclusion);
 router.patch('/:id/vocab/:sortOrder', uploadStarCamVocab, updateMissionVocabulary);
 router.delete('/:id/vocab/:sortOrder', deleteMissionVocabulary);
 router.patch('/:id/items/:sortOrder', updateMissionItem);

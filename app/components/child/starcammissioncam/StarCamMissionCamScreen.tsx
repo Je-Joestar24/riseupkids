@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
 import { StarCamMissionNotifications } from '@/components/child/starcammissioncam/StarCamMissionNotifications';
 import { ThemedText } from '@/components/themed-text';
+import { STARCAM_MAX_OBJECTS } from '@/constants/starCamMissionObjects';
 
 const MAGNIFYING_GLASS = require('@/assets/images/magnifying_glass.png');
 const STAR_FILLED_COLOR = '#FFD84D';
@@ -43,7 +44,7 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   borderColor = '#85C2B9',
   accentColor = '#85C2B9',
   foundCount = 0,
-  totalStars = 7,
+  totalStars = STARCAM_MAX_OBJECTS,
   isLoadingCameraPermission,
   hasCameraPermission,
   isDetecting = false,

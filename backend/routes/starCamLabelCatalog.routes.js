@@ -6,6 +6,9 @@ const {
   searchLabelCatalog,
   listRecentCustomLabels,
   createCustomLabel,
+  listManagedLabels,
+  updateLabelAvailability,
+  bulkUpdateLabelAvailability,
 } = require('../controllers/starCamLabelCatalog.controller');
 
 /**
@@ -23,6 +26,9 @@ router.use(authorize('admin', 'teacher', 'content_creator'));
 
 router.get('/search', searchLabelCatalog);
 router.get('/recent-custom', listRecentCustomLabels);
+router.get('/labels', listManagedLabels);
 router.post('/custom', createCustomLabel);
+router.patch('/labels/:labelId/availability', updateLabelAvailability);
+router.post('/labels/bulk-availability', bulkUpdateLabelAvailability);
 
 module.exports = router;

@@ -22,6 +22,7 @@ async function upsertOidBatch(batch) {
         },
         $setOnInsert: {
           isChildFriendly: false,
+          isAvailableForMissions: false,
           defaultTerms: [],
           usageCount: 0,
           createdBy: null,

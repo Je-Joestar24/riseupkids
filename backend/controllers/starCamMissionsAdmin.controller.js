@@ -185,6 +185,26 @@ const updateMissionVocabulary = async (req, res) => {
   }
 };
 
+const updateMissionVocabularyInclusion = async (req, res) => {
+  try {
+    const { id, sortOrder } = req.params;
+    const { isIncluded } = req.body || {};
+    const data = await starCamMissionsAdminService.updateMissionVocabularyInclusion({
+      id,
+      user: req.user,
+      userId: req.user?._id,
+      sortOrder,
+      isIncluded,
+    });
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    return res.status(resolveStatusCode(error)).json({
+      success: false,
+      message: error.message || 'Failed to update vocabulary inclusion',
+    });
+  }
+};
+
 const deleteMissionVocabulary = async (req, res) => {
   try {
     const { id, sortOrder } = req.params;
@@ -281,6 +301,7 @@ module.exports = {
   archiveMission,
   addMissionVocabulary,
   updateMissionVocabulary,
+  updateMissionVocabularyInclusion,
   deleteMissionVocabulary,
   uploadMissionImage,
   uploadMissionMedia,

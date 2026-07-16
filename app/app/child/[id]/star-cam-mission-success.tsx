@@ -2,6 +2,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import React, { useEffect, useMemo } from 'react';
 
+import {
+  buildStarCamSuccessSubtitle,
+  resolveStarCamTotalObjects,
+} from '@/constants/starCamMissionObjects';
 import { StarCamMissionSuccessScreen } from '@/components/child/starcammissionsuccess';
 import { getStarCamCategoryPreset } from '@/components/child/starcamdynamicdisplay';
 import { BACKEND_ORIGIN } from '@/config';
@@ -40,7 +44,9 @@ export default function StarCamMissionSuccessRoute() {
 
   const completion = missionFlow?.flow?.completion;
   const missionTitle = completion?.title || missionFlow?.mission?.title || title || 'Mission Complete';
-  const subtitle = completion?.subtitle || 'You found all 7 objects!';
+  const huntItems = missionFlow?.flow?.starCam?.items ?? [];
+  const objectCount = resolveStarCamTotalObjects(huntItems, missionFlow?.flow?.starCam?.objectCount);
+  const subtitle = completion?.subtitle || buildStarCamSuccessSubtitle(objectCount);
   const rewardAudioUrl = resolveMediaUrl(completion?.rewardAudioUrl);
   const rewardVideoUrl = resolveMediaUrl(completion?.rewardVideoUrl);
 

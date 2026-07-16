@@ -1,4 +1,10 @@
 const mongoose = require('mongoose');
+const {
+  STARCAM_MAX_SORT_ORDER,
+  isStarCamObjectCountInRange,
+  starCamObjectCountRangeLabel,
+} = require('../constants/starCamMissionObjects.constants');
+const { countIncludedVocab } = require('../utils/starCamVocabInclusion.util');
 
 const STAR_CAM_MISSION_STATUS = ['draft', 'published', 'archived'];
 
@@ -27,7 +33,9 @@ const missionVocabSchema = new mongoose.Schema(
     successAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: [isPublishingRequired, 'Vocab successAudio is required'] },
     // Optional pronunciation video shown in child practice mode.
     pronunciationVideo: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
-    sortOrder: { type: Number, min: 0, max: 6, required: true },
+    /** When true, vocabulary is part of the child practice + hunt flow (4-7 included to publish). */
+    isIncluded: { type: Boolean, default: true },
+    sortOrder: { type: Number, min: 0, max: STARCAM_MAX_SORT_ORDER, required: true },
   },
   { _id: false }
 );
@@ -51,7 +59,7 @@ const missionItemSchema = new mongoose.Schema(
     tryAgainAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
     successText: { type: String, trim: true, default: null },
     successAudio: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', default: null },
-    sortOrder: { type: Number, min: 0, max: 6, required: true },
+    sortOrder: { type: Number, min: 0, max: STARCAM_MAX_SORT_ORDER, required: true },
   },
   { _id: false }
 );
@@ -107,11 +115,10 @@ const starCamMissionSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator(value) {
-          // Allow drafts to be incomplete; publishing checks happen elsewhere.
           if (this.status !== 'published') return true;
-          return Array.isArray(value) && value.length === 7;
+          return Array.isArray(value) && isStarCamObjectCountInRange(countIncludedVocab(value));
         },
-        message: 'Published missions must have exactly 7 vocabulary entries',
+        message: `Published missions must have ${starCamObjectCountRangeLabel()} included vocabulary entries`,
       },
     },
     items: {
@@ -120,9 +127,9 @@ const starCamMissionSchema = new mongoose.Schema(
       validate: {
         validator(value) {
           if (this.status !== 'published') return true;
-          return Array.isArray(value) && value.length === 7;
+          return Array.isArray(value) && isStarCamObjectCountInRange(value.length);
         },
-        message: 'Published missions must have exactly 7 scavenger hunt items',
+        message: `Published missions must have ${starCamObjectCountRangeLabel()} scavenger hunt items`,
       },
     },
 
