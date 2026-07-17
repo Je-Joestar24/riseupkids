@@ -32,6 +32,7 @@ import {
   normalizeReadingText,
   resolveAudioUrl,
   resolveContentReadingFontSizePx,
+  resolveCmsAbsoluteMediaUrl,
   resolveImageUrl,
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
@@ -230,6 +231,7 @@ export function CmsDemoPage({
 }) {
   const mediaUriMap = useCmsMediaUriMap();
   const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
+  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(resolveVideoUrl(page));
   const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
 
   if (__DEV__ && !videoUrl) {
@@ -254,10 +256,10 @@ export function CmsDemoPage({
             accessibilityRole="image"
           />
         ) : null}
-        {videoUrl ? (
+        {videoUrl || remoteVideoUrl ? (
           <CmsLoopingBackgroundVideo
-            uri={videoUrl}
-            posterUri={bgImage || undefined}
+            uri={videoUrl || remoteVideoUrl}
+            remoteUri={remoteVideoUrl}
             accessibilityLabel="Demo tutorial video"
           />
         ) : null}

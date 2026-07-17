@@ -149,6 +149,7 @@ describe('CMS built-in book preload E2E (app pack storage)', () => {
     expect(saved?.contentVersion).toBe(contentVersion);
     expect(saved?.assets['pages.cover-1.image'].localUri).toMatch(/^file:\/\//);
     expect(saved?.assets['pages.cover-1.image'].remoteUrl).toBe(sampleAssets[0].url);
+    expect(saved?.assets['pages.demo-1.video'].localUri).toMatch(/\.mp4$/);
 
     mockDownloadCalls.length = 0;
 

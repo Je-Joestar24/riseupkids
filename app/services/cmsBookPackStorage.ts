@@ -68,9 +68,20 @@ function sanitizeScope(value: string): string {
     .slice(0, 120);
 }
 
-function sanitizeAssetFileName(assetKey: string, remoteUrl: string): string {
-  const extMatch = remoteUrl.split('?')[0]?.match(/\.([a-z0-9]{1,8})$/i);
-  const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '.bin';
+function sanitizeAssetFileName(
+  assetKey: string,
+  remoteUrl: string,
+  kind?: string | null
+): string {
+  const path = remoteUrl.split('?')[0] ?? '';
+  const extMatch = path.match(/\.([a-z0-9]{1,8})$/i);
+  let ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
+  if (!ext) {
+    if (kind === 'video' || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(remoteUrl)) ext = '.mp4';
+    else if (kind === 'audio' || /\/audio/i.test(remoteUrl)) ext = '.mp3';
+    else if (kind === 'image' || /\/images?\//i.test(remoteUrl)) ext = '.jpg';
+    else ext = '.bin';
+  }
   const safeKey = String(assetKey || 'asset')
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
@@ -221,8 +232,13 @@ export async function loadBookPackForPreload(
   return { manifest, uriMap, fullyRestored: allPresent && Object.keys(uriMap).length > 0 };
 }
 
-export function getBookPackAssetPath(bookId: string, assetKey: string, remoteUrl: string): string {
-  return `${bookPackDir(bookId)}${sanitizeAssetFileName(assetKey, remoteUrl)}`;
+export function getBookPackAssetPath(
+  bookId: string,
+  assetKey: string,
+  remoteUrl: string,
+  kind?: string | null
+): string {
+  return `${bookPackDir(bookId)}${sanitizeAssetFileName(assetKey, remoteUrl, kind)}`;
 }
 
 /** Ensures the on-disk folder for a book pack exists before asset downloads. */

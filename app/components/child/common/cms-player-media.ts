@@ -238,20 +238,22 @@ export function resolvePlayableMediaUri(
   if (!isHttp(url)) return url;
 
   const fromMap = uriMap?.[url];
-  if (fromMap && isLocalMediaUri(fromMap)) {
-    if (/\.bin$/i.test(fromMap) && isLikelyVideoUrl(url)) {
-      return url;
-    }
+  if (fromMap) {
     return fromMap;
   }
 
   const memo = resolvedUriCache.get(url);
-  if (memo) {
-    if (/\.bin$/i.test(memo) && isLikelyVideoUrl(url)) return url;
-    return memo;
-  }
+  if (memo) return memo;
 
   return url;
+}
+
+/** Star Cam-style lookup: prefer cached local URI, else remote. */
+export function pickCmsPlayableMediaUri(
+  remoteUrl: string | null | undefined,
+  uriMap?: CmsMediaUriMap | null
+): string {
+  return resolvePlayableMediaUri(remoteUrl, uriMap);
 }
 
 function isImageUrl(url: string): boolean {
@@ -267,6 +269,12 @@ async function warmImageDecode(uri: string): Promise<void> {
   }
 }
 
+function isStreamOnlyVideoUrl(url: string): boolean {
+  if (looksLikeBunnyExploreEmbedUrl(url)) return true;
+  if (/mediadelivery\.net\/embed\//i.test(url)) return true;
+  return false;
+}
+
 async function preloadOneAsset(
   remoteUrl: string,
   uriMap: CmsMediaUriMap
@@ -277,8 +285,7 @@ async function preloadOneAsset(
     uriMap[normalized] = normalized;
     return true;
   }
-  /** Stream video over HTTP like web `<video src>` — avoids bad cached file:// copies. */
-  if (isLikelyVideoUrl(normalized)) {
+  if (isStreamOnlyVideoUrl(normalized)) {
     uriMap[normalized] = normalized;
     return true;
   }

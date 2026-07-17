@@ -17,7 +17,7 @@ import {
 import { Quicksand } from '@/constants/theme';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 
-import { resolveImageUrl, resolveRewardAudioUrl, resolveVideoUrl } from './cms-player-shared';
+import { resolveImageUrl, resolveRewardAudioUrl, resolveVideoUrl, resolveCmsAbsoluteMediaUrl } from './cms-player-shared';
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap } from './cms-player-media-context';
 import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
@@ -30,6 +30,7 @@ export interface CmsRewardStageProps {
 export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
   const mediaUriMap = useCmsMediaUriMap();
   const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
+  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(resolveVideoUrl(page));
   const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
   const rewardAudioUrl = resolvePlayableMediaUri(resolveRewardAudioUrl(page), mediaUriMap);
   const rewardSoundRef = useRef<Audio.Sound | null>(null);
@@ -93,10 +94,10 @@ export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
           />
         ) : null}
 
-        {videoUrl ? (
+        {videoUrl || remoteVideoUrl ? (
           <CmsLoopingBackgroundVideo
-            uri={videoUrl}
-            posterUri={bgImage || undefined}
+            uri={videoUrl || remoteVideoUrl}
+            remoteUri={remoteVideoUrl}
             accessibilityLabel={page.title || 'Reward video'}
           />
         ) : null}

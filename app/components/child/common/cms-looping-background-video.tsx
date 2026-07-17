@@ -1,96 +1,72 @@
 /**
  * Looping muted background video for CMS demo / reward pages.
- * Uses WebView + HTML5 `<video>` (same as web cmsTest) so overlays composited correctly on Android.
- * Bunny Stream embed URLs use the dedicated Bunny WebView player.
- *
- * Background image stays visible (poster + hidden layer) until the first video frame is ready.
+ * Uploaded MP4/file assets use expo-av (Star Cam parity). Bunny embeds use WebView.
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { ResizeMode, Video } from 'expo-av';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Platform, StyleSheet, View } from 'react-native';
 
+import { colors } from '@/config/theme/colors';
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 import { BunnyEmbedWebView } from './bunny-embed-webview';
-import { CMS_INLINE_WEBVIEW_PROPS } from './cms-inline-webview-props';
-import {
-  buildLoopingVideoHtml,
-  CMS_LOOPING_VIDEO_READY_MESSAGE,
-} from './cms-looping-video-html';
+import { isLocalMediaUri } from './cms-player-media';
 import { resolveCmsAbsoluteMediaUrl } from './cms-player-shared';
 
-const FADE_MS = 280;
+const FADE_MS = 220;
 
 export interface CmsLoopingBackgroundVideoProps {
   uri: string | null | undefined;
-  /** Optional still shown under / as poster until video frames are ready. */
-  posterUri?: string | null;
+  /** Remote https URL used when local file playback fails. */
+  remoteUri?: string | null;
   accessibilityLabel?: string;
 }
 
-function CmsHtml5BackgroundVideoWebView({
-  uri,
-  posterUri,
-  accessibilityLabel,
-  onReady,
-}: {
-  uri: string;
-  posterUri?: string | null;
-  accessibilityLabel: string;
-  onReady: () => void;
-}) {
-  const html = useMemo(() => buildLoopingVideoHtml(uri, posterUri), [uri, posterUri]);
-  const baseUrl = useMemo(() => {
-    if (uri.startsWith('file://')) {
-      const slash = uri.lastIndexOf('/');
-      return slash > 0 ? uri.slice(0, slash + 1) : undefined;
-    }
-    try {
-      return new URL(uri).origin;
-    } catch {
-      return undefined;
-    }
-  }, [uri]);
+function resolvePlaybackCandidates(
+  uri: string | null | undefined,
+  remoteUri?: string | null
+): { primary: string; remote: string | null; local: string | null } {
+  const primary = resolveCmsAbsoluteMediaUrl(uri);
+  const remote = resolveCmsAbsoluteMediaUrl(remoteUri) || (primary && /^https?:\/\//i.test(primary) ? primary : null);
+  const local =
+    primary && isLocalMediaUri(primary)
+      ? primary
+      : remoteUri && isLocalMediaUri(remoteUri)
+        ? resolveCmsAbsoluteMediaUrl(remoteUri)
+        : null;
 
-  const handleMessage = (event: WebViewMessageEvent) => {
-    if (event.nativeEvent.data === CMS_LOOPING_VIDEO_READY_MESSAGE) {
-      onReady();
-    }
-  };
-
-  return (
-    <WebView
-      {...CMS_INLINE_WEBVIEW_PROPS}
-      source={{ html, baseUrl }}
-      style={[StyleSheet.absoluteFillObject, styles.transparentWebView]}
-      scrollEnabled={false}
-      accessibilityLabel={accessibilityLabel}
-      onMessage={handleMessage}
-      onError={() => {
-        if (__DEV__) {
-          console.warn('[CmsLoopingBackgroundVideo] WebView failed to load', uri);
-        }
-      }}
-    />
-  );
+  return { primary: primary || '', remote, local };
 }
 
-export function CmsLoopingBackgroundVideo({
-  uri,
-  posterUri,
-  accessibilityLabel = 'Tutorial video',
-}: CmsLoopingBackgroundVideoProps) {
-  const playbackUri = resolveCmsAbsoluteMediaUrl(uri);
-  const resolvedPoster = resolveCmsAbsoluteMediaUrl(posterUri);
-  const isBunnyEmbed = looksLikeBunnyExploreEmbedUrl(playbackUri);
+function CmsNativeLoopingVideo({
+  localUri,
+  remoteUri,
+  accessibilityLabel,
+}: {
+  localUri: string | null;
+  remoteUri: string | null;
+  accessibilityLabel: string;
+}) {
+  const candidates = useMemo(() => {
+    const list: string[] = [];
+    if (localUri) list.push(localUri);
+    if (remoteUri && remoteUri !== localUri) list.push(remoteUri);
+    return list;
+  }, [localUri, remoteUri]);
+
+  const [candidateIndex, setCandidateIndex] = useState(0);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
+  const playbackUri = candidates[candidateIndex] ?? null;
 
   useEffect(() => {
+    setCandidateIndex(0);
     setReady(false);
+    setFailed(false);
     opacity.setValue(0);
-  }, [playbackUri, opacity]);
+  }, [localUri, remoteUri, opacity]);
 
   useEffect(() => {
     if (!ready) return;
@@ -101,33 +77,101 @@ export function CmsLoopingBackgroundVideo({
     }).start();
   }, [ready, opacity]);
 
-  const markReady = () => setReady(true);
+  const handleLoad = useCallback(() => {
+    setReady(true);
+    setFailed(false);
+  }, []);
+
+  const handleError = useCallback(() => {
+    if (candidateIndex + 1 < candidates.length) {
+      setCandidateIndex((index) => index + 1);
+      setReady(false);
+      return;
+    }
+    setFailed(true);
+    if (__DEV__) {
+      console.warn('[CmsLoopingBackgroundVideo] expo-av failed for all sources', candidates);
+    }
+  }, [candidateIndex, candidates]);
+
+  if (!playbackUri || failed) return null;
+
+  return (
+    <Animated.View style={[styles.videoLayer, { opacity: ready ? opacity : 0 }]}>
+      <Video
+        key={playbackUri}
+        source={{ uri: playbackUri }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode={ResizeMode.COVER}
+        shouldPlay
+        isMuted
+        isLooping
+        useNativeControls={false}
+        progressUpdateIntervalMillis={Platform.OS === 'android' ? 500 : 250}
+        onLoad={handleLoad}
+        onError={handleError}
+        accessibilityLabel={accessibilityLabel}
+      />
+      {!ready ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="small" color={colors.secondary} />
+        </View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+export function CmsLoopingBackgroundVideo({
+  uri,
+  remoteUri,
+  accessibilityLabel = 'Tutorial video',
+}: CmsLoopingBackgroundVideoProps) {
+  const playbackUri = resolveCmsAbsoluteMediaUrl(uri);
+  const isBunnyEmbed = looksLikeBunnyExploreEmbedUrl(playbackUri);
+  const [bunnyReady, setBunnyReady] = useState(false);
+  const bunnyOpacity = useRef(new Animated.Value(0)).current;
+
+  const { local, remote } = useMemo(
+    () => resolvePlaybackCandidates(uri, remoteUri ?? uri),
+    [uri, remoteUri]
+  );
+
+  useEffect(() => {
+    setBunnyReady(false);
+    bunnyOpacity.setValue(0);
+  }, [playbackUri, bunnyOpacity]);
+
+  useEffect(() => {
+    if (!bunnyReady) return;
+    Animated.timing(bunnyOpacity, {
+      toValue: 1,
+      duration: FADE_MS,
+      useNativeDriver: true,
+    }).start();
+  }, [bunnyReady, bunnyOpacity]);
 
   if (!playbackUri) return null;
 
   if (isBunnyEmbed) {
     return (
-      <Animated.View style={[styles.videoLayer, { opacity }]} accessibilityLabel={accessibilityLabel}>
+      <Animated.View style={[styles.videoLayer, { opacity: bunnyReady ? bunnyOpacity : 0 }]}>
         <BunnyEmbedWebView
           embedUrl={playbackUri}
           allowNativeFullscreen={false}
           showLoadingOverlay={false}
           style={styles.transparentFill}
-          onLoadEnd={markReady}
+          onLoadEnd={() => setBunnyReady(true)}
         />
       </Animated.View>
     );
   }
 
   return (
-    <Animated.View style={[styles.videoLayer, { opacity }]} accessibilityLabel={accessibilityLabel}>
-      <CmsHtml5BackgroundVideoWebView
-        uri={playbackUri}
-        posterUri={resolvedPoster || undefined}
-        accessibilityLabel={accessibilityLabel}
-        onReady={markReady}
-      />
-    </Animated.View>
+    <CmsNativeLoopingVideo
+      localUri={local}
+      remoteUri={remote}
+      accessibilityLabel={accessibilityLabel}
+    />
   );
 }
 
@@ -136,11 +180,15 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 1,
     backgroundColor: 'transparent',
-  },
-  transparentWebView: {
-    backgroundColor: 'transparent',
+    overflow: 'hidden',
   },
   transparentFill: {
+    backgroundColor: 'transparent',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: 'transparent',
   },
 });

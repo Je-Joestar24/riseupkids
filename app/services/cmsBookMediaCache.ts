@@ -162,10 +162,14 @@ async function preloadPackAsset(
     return false;
   }
 
-  const dest = getBookPackAssetPath(bookId, asset.key, normalized);
+  const dest = getBookPackAssetPath(bookId, asset.key, normalized, asset.kind);
   const localUri = needsDownload ? await downloadToPath(normalized, dest) : uriMap[normalized] || null;
 
   if (localUri && isLocalMediaUri(localUri)) {
+    if (!(await fileExists(localUri))) {
+      uriMap[normalized] = normalized;
+      return false;
+    }
     uriMap[normalized] = localUri;
     if (isImageUrl(normalized)) {
       await warmImageDecode(localUri);
