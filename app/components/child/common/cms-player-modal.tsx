@@ -27,6 +27,7 @@ import {
   preloadCmsBookPackAssets,
   type PreloadCmsBookPackResult,
 } from '@/services/cmsBookMediaCache';
+import { loadBookPackForPreload } from '@/services/cmsBookPackStorage';
 import {
   resolveCmsBookMediaManifest,
   type CmsBookMediaManifest,
@@ -167,13 +168,27 @@ export function CmsPlayerModal({
     }
 
     preloadCancelled.current = false;
-    setMediaReady(false);
-    setMediaUriMap({});
     setInternalProgress(0);
     setInternalSummary(null);
 
     const runPreload = async () => {
       if (book?.id && bookManifest?.assets?.length) {
+        const packState = await loadBookPackForPreload(
+          book.id,
+          bookManifest.contentVersion ?? null
+        );
+        if (preloadCancelled.current) return;
+
+        if (packState.fullyRestored) {
+          setMediaUriMap(packState.uriMap);
+          setInternalProgress(100);
+          setMediaReady(true);
+          return;
+        }
+
+        setMediaReady(false);
+        setMediaUriMap({});
+
         const result: PreloadCmsBookPackResult = await preloadCmsBookPackAssets({
           bookId: book.id,
           contentVersion: bookManifest.contentVersion ?? null,
@@ -198,6 +213,9 @@ export function CmsPlayerModal({
         setMediaReady(true);
         return;
       }
+
+      setMediaReady(false);
+      setMediaUriMap({});
 
       const summary = await preloadCmsPlayerAssets(urls, (pct) => {
         if (!preloadCancelled.current) setInternalProgress(pct);

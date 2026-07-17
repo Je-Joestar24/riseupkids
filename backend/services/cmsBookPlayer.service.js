@@ -8,6 +8,7 @@ const {
 const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
 const { getCoverPage, resolveCmsBookTitle } = require('../utils/cmsBookTitle.util');
 const { buildCmsBookMediaManifest } = require('../utils/cmsBookMediaManifest.util');
+const { resolveMediaDocumentUrl } = require('../utils/resolveMediaDeliveryUrl.util');
 
 /**
  * Parent/teacher player for CmsBook (built-in book builder).
@@ -91,7 +92,7 @@ function toMediaView(media) {
   return {
     id: String(media._id),
     type: media.type || null,
-    url: media.url || media.cloudUrl || null,
+    url: resolveMediaDocumentUrl(media),
     mimeType: media.mimeType || null,
     updatedAt: media.updatedAt || null,
   };

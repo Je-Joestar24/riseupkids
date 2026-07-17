@@ -1,3 +1,5 @@
+const { resolveMediaDocumentUrl } = require('./resolveMediaDeliveryUrl.util');
+
 function asIsoDate(value) {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value);
@@ -10,11 +12,12 @@ function pushAsset(list, asset) {
 }
 
 function mediaAsset(key, mediaView, kind = null) {
-  if (!mediaView?.url) return null;
+  const url = resolveMediaDocumentUrl(mediaView);
+  if (!url) return null;
   return {
     key,
     mediaId: mediaView.id ? String(mediaView.id) : null,
-    url: mediaView.url,
+    url,
     updatedAt: asIsoDate(mediaView.updatedAt),
     kind: kind || mediaView.type || null,
   };
@@ -88,7 +91,8 @@ function buildCmsBookMediaManifest(book, mediaDocs = []) {
       {
         id: String(item._id),
         type: item.type || null,
-        url: item.url || item.cloudUrl || null,
+        url: resolveMediaDocumentUrl(item),
+        cloudUrl: item.cloudUrl || null,
         updatedAt: item.updatedAt,
       },
     ])

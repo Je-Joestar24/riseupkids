@@ -5,8 +5,10 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 
+import { resolveCmsAbsoluteMediaUrl } from '@/components/child/common/cms-player-shared';
 import { isLocalMediaUri } from '@/components/child/common/cms-player-media';
 import type { CmsBookMediaAssetRef, CmsBookMediaManifest } from '@/services/cmsBookMediaManifest';
+import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 const PACK_ROOT = 'cms-book-packs/';
 const PACK_INDEX_FILE = 'pack-index.json';
@@ -44,6 +46,23 @@ export interface CmsBookPackManifest {
 }
 
 let fileSystemUsable: boolean | null = null;
+
+function normalizeRemoteUrl(raw: string | null | undefined): string {
+  return resolveCmsAbsoluteMediaUrl(raw) || String(raw || '').trim();
+}
+
+function isLikelyVideoUrl(url: string): boolean {
+  if (!url) return false;
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)) return true;
+  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/i.test(url)) return true;
+  return false;
+}
+
+function isStreamingAsset(url: string, kind?: string | null): boolean {
+  if (kind === 'video') return true;
+  if (looksLikeBunnyExploreEmbedUrl(url)) return true;
+  return isLikelyVideoUrl(url);
+}
 
 function sanitizeScope(value: string): string {
   return String(value || '')
@@ -148,8 +167,9 @@ export function manifestAssetsToUriMap(
   if (!manifest?.assets) return {};
   const map: Record<string, string> = {};
   Object.values(manifest.assets).forEach((entry) => {
-    if (entry.remoteUrl && entry.localUri) {
-      map[entry.remoteUrl] = entry.localUri;
+    const remote = normalizeRemoteUrl(entry.remoteUrl);
+    if (remote && entry.localUri) {
+      map[remote] = entry.localUri;
     }
   });
   return map;
@@ -176,10 +196,16 @@ export async function loadBookPackForPreload(
   let allPresent = Object.keys(manifest.assets || {}).length > 0;
 
   for (const entry of Object.values(manifest.assets || {})) {
-    if (!entry.remoteUrl) continue;
+    const remote = normalizeRemoteUrl(entry.remoteUrl);
+    if (!remote) continue;
+
+    if (isStreamingAsset(remote)) {
+      uriMap[remote] = remote;
+      continue;
+    }
 
     if (!isLocalMediaUri(entry.localUri)) {
-      uriMap[entry.remoteUrl] = entry.remoteUrl;
+      allPresent = false;
       continue;
     }
 
@@ -189,7 +215,7 @@ export async function loadBookPackForPreload(
         allPresent = false;
         continue;
       }
-      uriMap[entry.remoteUrl] = entry.localUri;
+      uriMap[remote] = entry.localUri;
     } catch {
       allPresent = false;
     }
@@ -207,11 +233,14 @@ export function assetNeedsDownload(
   existing: CmsBookPackManifest | null | undefined,
   uriMap: Record<string, string>
 ): boolean {
-  const remote = asset.url;
+  const remote = normalizeRemoteUrl(asset.url);
   if (!remote || !/^https?:\/\//i.test(remote)) return false;
+  if (isStreamingAsset(remote, asset.kind)) return false;
 
   const saved = existing?.assets?.[asset.key];
-  if (saved?.localUri && uriMap[remote]) {
+  const mapped = uriMap[remote];
+
+  if (saved?.localUri && isLocalMediaUri(saved.localUri) && mapped && isLocalMediaUri(mapped)) {
     if (asset.mediaId && saved.mediaId !== asset.mediaId) return true;
     if (asset.updatedAt && saved.mediaUpdatedAt !== asset.updatedAt) return true;
     return false;
@@ -236,9 +265,9 @@ export async function saveBookPack(input: SaveBookPackInput): Promise<CmsBookPac
   let totalBytes = 0;
 
   for (const asset of input.assets) {
-    const remote = asset.url;
+    const remote = normalizeRemoteUrl(asset.url);
     if (!remote) continue;
-    const localUri = input.uriMap[remote] || remote;
+    const localUri = input.uriMap[remote] || input.uriMap[asset.url] || remote;
     const bytes = isLocalMediaUri(localUri) ? await fileSize(localUri) : 0;
     totalBytes += bytes;
     assetEntries[asset.key] = {

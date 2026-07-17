@@ -68,4 +68,52 @@ describe('cmsBookMediaManifest.util', () => {
     expect(manifest.assets).toHaveLength(1);
     expect(manifest.assets[0].key).toBe('pages.p1.audio');
   });
+
+  it('buildCmsBookMediaManifest resolves relative uploads to absolute CDN URLs', () => {
+    process.env.AWS_S3_BASE_URL = 'https://cdn.example.com';
+
+    const manifest = buildCmsBookMediaManifest(
+      {
+        _id: 'book-2',
+        version: 1,
+        updatedAt: '2026-07-08T10:00:00.000Z',
+        pages: [{ pageId: 'p1', order: 1, media: { imageMediaId: 'img-1' } }],
+      },
+      [
+        {
+          _id: 'img-1',
+          type: 'image',
+          url: '/uploads/media/images/cover.png',
+          cloudUrl: null,
+          updatedAt: '2026-07-08T09:00:00.000Z',
+        },
+      ]
+    );
+
+    expect(manifest.assets[0].url).toBe('https://cdn.example.com/uploads/media/images/cover.png');
+
+    delete process.env.AWS_S3_BASE_URL;
+  });
+
+  it('buildCmsBookMediaManifest prefers cloudUrl over relative url', () => {
+    const manifest = buildCmsBookMediaManifest(
+      {
+        _id: 'book-3',
+        version: 1,
+        updatedAt: '2026-07-08T10:00:00.000Z',
+        pages: [{ pageId: 'p1', order: 1, media: { audioMediaId: 'a1' } }],
+      },
+      [
+        {
+          _id: 'a1',
+          type: 'audio',
+          url: '/uploads/media/audio/narration.mp3',
+          cloudUrl: 'https://cdn.example.com/media/audio/narration.mp3',
+          updatedAt: '2026-07-08T08:00:00.000Z',
+        },
+      ]
+    );
+
+    expect(manifest.assets[0].url).toBe('https://cdn.example.com/media/audio/narration.mp3');
+  });
 });
