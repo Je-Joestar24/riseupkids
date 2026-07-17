@@ -89,8 +89,8 @@ async function canUseFileSystem(): Promise<boolean> {
     return false;
   }
   try {
-    await FileSystem.getInfoAsync(root);
-    fileSystemUsable = true;
+    const info = await FileSystem.getInfoAsync(root);
+    fileSystemUsable = Boolean(info.exists);
   } catch {
     fileSystemUsable = false;
   }
@@ -228,6 +228,11 @@ export function getBookPackAssetPath(bookId: string, assetKey: string, remoteUrl
   return `${bookPackDir(bookId)}${sanitizeAssetFileName(assetKey, remoteUrl)}`;
 }
 
+/** Ensures the on-disk folder for a book pack exists before asset downloads. */
+export async function ensureBookPackDir(bookId: string): Promise<boolean> {
+  return ensureDir(bookPackDir(bookId));
+}
+
 export function assetNeedsDownload(
   asset: CmsBookMediaAssetRef,
   existing: CmsBookPackManifest | null | undefined,
@@ -341,4 +346,9 @@ export function packMatchesManifest(
 ): boolean {
   if (!saved || !manifest) return false;
   return saved.contentVersion === manifest.contentVersion;
+}
+
+/** @internal Resets cached FileSystem probe between tests. */
+export function __resetCmsBookPackStorageForTests(): void {
+  fileSystemUsable = null;
 }

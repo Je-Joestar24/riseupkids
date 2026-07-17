@@ -14,6 +14,7 @@ import { resolveCmsAbsoluteMediaUrl } from '@/components/child/common/cms-player
 import type { CmsBookMediaAssetRef } from '@/services/cmsBookMediaManifest';
 import {
   assetNeedsDownload,
+  ensureBookPackDir,
   getBookPackAssetPath,
   loadBookPackForPreload,
   saveBookPack,
@@ -21,6 +22,8 @@ import {
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 const inflight = new Map<string, Promise<string>>();
+
+let fileSystemUsable: boolean | null = null;
 
 function isHttp(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
@@ -40,14 +43,63 @@ function isImageUrl(url: string): boolean {
 }
 
 async function canUseFileSystem(): Promise<boolean> {
+  if (fileSystemUsable !== null) return fileSystemUsable;
   const root = FileSystem.documentDirectory || FileSystem.cacheDirectory;
-  if (!root) return false;
+  if (!root) {
+    fileSystemUsable = false;
+    return false;
+  }
   try {
-    await FileSystem.getInfoAsync(root);
-    return true;
+    const info = await FileSystem.getInfoAsync(root);
+    fileSystemUsable = Boolean(info.exists);
+  } catch {
+    fileSystemUsable = false;
+  }
+  return fileSystemUsable;
+}
+
+async function fileExists(uri: string): Promise<boolean> {
+  if (!(await canUseFileSystem())) return false;
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    return Boolean(info.exists);
   } catch {
     return false;
   }
+}
+
+async function ensureParentDirForPath(dest: string): Promise<boolean> {
+  if (!(await canUseFileSystem())) return false;
+  const slash = dest.lastIndexOf('/');
+  if (slash <= 0) return false;
+  const parentDir = `${dest.slice(0, slash + 1)}`;
+  try {
+    const info = await FileSystem.getInfoAsync(parentDir);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(parentDir, { intermediates: true });
+    }
+    return true;
+  } catch {
+    fileSystemUsable = false;
+    return false;
+  }
+}
+
+async function downloadWithRetry(remoteUrl: string, dest: string, retries = 2): Promise<string | null> {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const result = await FileSystem.downloadAsync(remoteUrl, dest);
+      if (result.status === 200 && result.uri && (await fileExists(result.uri))) {
+        return result.uri;
+      }
+    } catch {
+      // retry
+    }
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
+  }
+  return null;
 }
 
 async function downloadToPath(remoteUrl: string, dest: string): Promise<string | null> {
@@ -55,15 +107,15 @@ async function downloadToPath(remoteUrl: string, dest: string): Promise<string |
   if (existing) return existing;
 
   const task = (async () => {
+    if (!(await ensureParentDirForPath(dest))) return null;
+
     try {
-      const info = await FileSystem.getInfoAsync(dest);
-      if (info.exists) return dest;
-      const result = await FileSystem.downloadAsync(remoteUrl, dest);
-      if (result.status === 200 && result.uri) return result.uri;
+      if (await fileExists(dest)) return dest;
+      return await downloadWithRetry(remoteUrl, dest);
     } catch {
-      // fall through
+      fileSystemUsable = false;
+      return null;
     }
-    return null;
   })();
 
   inflight.set(`${dest}::${remoteUrl}`, task);
@@ -136,6 +188,7 @@ export interface PreloadCmsBookPackOptions {
 
 export interface PreloadCmsBookPackResult extends PreloadSummary {
   restoredFromPack: boolean;
+  usedDiskCache: boolean;
 }
 
 export async function preloadCmsBookPackAssets(
@@ -144,20 +197,35 @@ export async function preloadCmsBookPackAssets(
   const { bookId, contentVersion, assets, onProgress, concurrency = 4 } = options;
   const failed: string[] = [];
   const uriMap: CmsMediaUriMap = {};
+  const diskOk = await canUseFileSystem();
 
   const packState = await loadBookPackForPreload(bookId, contentVersion);
   Object.assign(uriMap, packState.uriMap);
 
   if (packState.fullyRestored) {
     onProgress?.(100);
-    return { failed, uriMap, restoredFromPack: true };
+    return { failed, uriMap, restoredFromPack: true, usedDiskCache: diskOk };
   }
 
   const queue = assets.filter((asset) => Boolean(asset?.url && asset?.key));
   if (!queue.length) {
     onProgress?.(100);
-    return { failed, uriMap, restoredFromPack: false };
+    return { failed, uriMap, restoredFromPack: false, usedDiskCache: diskOk };
   }
+
+  if (!diskOk) {
+    queue.forEach((asset) => {
+      const remote = resolveCmsAbsoluteMediaUrl(asset.url);
+      if (remote) {
+        uriMap[remote] = remote;
+        failed.push(remote);
+      }
+    });
+    onProgress?.(100);
+    return { failed, uriMap, restoredFromPack: false, usedDiskCache: false };
+  }
+
+  await ensureBookPackDir(bookId);
 
   let completed = 0;
   const report = () => {
@@ -187,5 +255,11 @@ export async function preloadCmsBookPackAssets(
     uriMap,
   });
 
-  return { failed, uriMap, restoredFromPack: false };
+  return { failed, uriMap, restoredFromPack: false, usedDiskCache: true };
+}
+
+/** @internal Resets cached FileSystem probe between tests. */
+export function __resetCmsBookMediaCacheForTests(): void {
+  fileSystemUsable = null;
+  inflight.clear();
 }
