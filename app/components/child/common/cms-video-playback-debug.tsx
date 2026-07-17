@@ -1,6 +1,6 @@
 /**
  * On-screen CMS video playback debugger for APK/device diagnosis.
- * Enable with EXPO_PUBLIC_CMS_VIDEO_DEBUG=true (also auto-shows after errors / stuck load).
+ * Shown only when EXPO_PUBLIC_CMS_VIDEO_DEBUG=true is set at build time.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
@@ -23,12 +23,12 @@ import { Quicksand } from '@/constants/theme';
 
 export const CMS_VIDEO_DEBUG_ENABLED = process.env.EXPO_PUBLIC_CMS_VIDEO_DEBUG === 'true';
 
-export function shouldShowCmsVideoDebugPanel(options: {
+/** Visible only when EXPO_PUBLIC_CMS_VIDEO_DEBUG=true (e.g. in .env or eas.json env). */
+export function shouldShowCmsVideoDebugPanel(_options?: {
   failed?: boolean;
   stuckLoading?: boolean;
 }): boolean {
-  if (CMS_VIDEO_DEBUG_ENABLED || __DEV__) return true;
-  return Boolean(options.failed || options.stuckLoading);
+  return CMS_VIDEO_DEBUG_ENABLED;
 }
 
 export interface CmsVideoPlaybackDebugContext {
