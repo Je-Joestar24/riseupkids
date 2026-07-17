@@ -13,4 +13,24 @@ export const CMS_INLINE_WEBVIEW_PROPS = {
   allowsFullscreenVideo: Platform.OS === 'android',
   bounces: false,
   scrollEnabled: false,
+  ...(Platform.OS === 'android'
+    ? {
+        allowFileAccess: true,
+        allowFileAccessFromFileURLs: true,
+        allowUniversalAccessFromFileURLs: true,
+      }
+    : {}),
 };
+
+/** WebView base URL / iOS read access for local `file://` video assets. */
+export function resolveCmsInlineWebViewLocalAccess(uri: string): {
+  baseUrl?: string;
+  allowingReadAccessToURL?: string;
+} {
+  if (!uri.startsWith('file://')) return {};
+  const directory = uri.slice(0, uri.lastIndexOf('/') + 1);
+  return {
+    baseUrl: directory,
+    ...(Platform.OS === 'ios' ? { allowingReadAccessToURL: directory } : {}),
+  };
+}

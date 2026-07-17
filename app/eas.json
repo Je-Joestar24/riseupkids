@@ -14,13 +14,15 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
+        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api",
+        "EXPO_PUBLIC_CMS_VIDEO_DEBUG": "true"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
+        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api",
+        "EXPO_PUBLIC_CMS_VIDEO_DEBUG": "true"
       }
     }
   },

@@ -220,19 +220,22 @@ export function CmsIntroPage({
 
 export function CmsDemoPage({
   page,
+  bookId = null,
   hasNext,
   isPreloading,
   onNext,
 }: {
   page: CmsPlayablePage;
+  bookId?: string | null;
   hasNext: boolean;
   isPreloading: boolean;
   onNext: () => void;
 }) {
   const mediaUriMap = useCmsMediaUriMap();
   const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
-  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(resolveVideoUrl(page));
-  const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
+  const pageVideoRaw = resolveVideoUrl(page);
+  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(pageVideoRaw);
+  const videoUrl = resolvePlayableMediaUri(pageVideoRaw, mediaUriMap);
 
   if (__DEV__ && !videoUrl) {
     const media = page.media as { videoMediaId?: string | null; videoMedia?: { url?: string | null } | null };
@@ -261,6 +264,15 @@ export function CmsDemoPage({
             uri={videoUrl || remoteVideoUrl}
             remoteUri={remoteVideoUrl}
             accessibilityLabel="Demo tutorial video"
+            debug={{
+              scene: 'demo',
+              pageId: page.pageId,
+              pageType: page.type,
+              bookId,
+              pageVideoUrl: pageVideoRaw,
+              uriMapRemote: remoteVideoUrl,
+              uriMapResolved: remoteVideoUrl ? mediaUriMap[remoteVideoUrl] ?? null : null,
+            }}
           />
         ) : null}
       </View>

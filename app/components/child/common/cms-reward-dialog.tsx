@@ -27,11 +27,16 @@ export interface CmsRewardStageProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
+export function CmsRewardStage({
+  page,
+  bookId = null,
+  style,
+}: CmsRewardStageProps & { bookId?: string | null }) {
   const mediaUriMap = useCmsMediaUriMap();
   const bgImage = resolvePlayableMediaUri(resolveImageUrl(page), mediaUriMap);
-  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(resolveVideoUrl(page));
-  const videoUrl = resolvePlayableMediaUri(resolveVideoUrl(page), mediaUriMap);
+  const pageVideoRaw = resolveVideoUrl(page);
+  const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(pageVideoRaw);
+  const videoUrl = resolvePlayableMediaUri(pageVideoRaw, mediaUriMap);
   const rewardAudioUrl = resolvePlayableMediaUri(resolveRewardAudioUrl(page), mediaUriMap);
   const rewardSoundRef = useRef<Audio.Sound | null>(null);
 
@@ -99,6 +104,15 @@ export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
             uri={videoUrl || remoteVideoUrl}
             remoteUri={remoteVideoUrl}
             accessibilityLabel={page.title || 'Reward video'}
+            debug={{
+              scene: 'reward',
+              pageId: page.pageId,
+              pageType: page.type,
+              bookId,
+              pageVideoUrl: pageVideoRaw,
+              uriMapRemote: remoteVideoUrl,
+              uriMapResolved: remoteVideoUrl ? mediaUriMap[remoteVideoUrl] ?? null : null,
+            }}
           />
         ) : null}
       </View>

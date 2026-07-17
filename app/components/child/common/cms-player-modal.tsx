@@ -410,6 +410,7 @@ export function CmsPlayerModal({
       return (
         <CmsDemoPage
           page={currentPage}
+          bookId={book?.id ?? null}
           hasNext={hasNext}
           isPreloading={isPreloading}
           onNext={goNext}
@@ -428,7 +429,7 @@ export function CmsPlayerModal({
       );
     }
     if (pageType === 'reward') {
-      return <CmsRewardStage page={currentPage} />;
+      return <CmsRewardStage page={currentPage} bookId={book?.id ?? null} />;
     }
     return renderEmpty();
   };

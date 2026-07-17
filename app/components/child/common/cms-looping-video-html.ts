@@ -1,6 +1,7 @@
 /** Inline HTML5 looping video document for CMS demo/reward WebView backgrounds. */
 
 export const CMS_LOOPING_VIDEO_READY_MESSAGE = 'cms-video-ready';
+export const CMS_LOOPING_VIDEO_ERROR_PREFIX = 'cms-video-error:';
 
 export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | null): string {
   const src = JSON.stringify(videoUrl);
@@ -34,6 +35,12 @@ export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | nul
       };
       video.addEventListener('loadeddata', notifyReady);
       video.addEventListener('canplay', notifyReady);
+      video.addEventListener('error', function () {
+        var code = video.error ? String(video.error.code) : 'unknown';
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage('${CMS_LOOPING_VIDEO_ERROR_PREFIX}' + code);
+        }
+      });
       var play = function () {
         var p = video.play();
         if (p && typeof p.catch === 'function') p.catch(function () {});
