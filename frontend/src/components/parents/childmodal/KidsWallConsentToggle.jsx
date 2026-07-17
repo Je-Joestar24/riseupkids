@@ -1,30 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Box, Switch, Typography, CircularProgress } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import { KIDS_WALL_CONSENT_COPY } from '../../../constants/kidsWallConsent';
-import KidsWallConsentModal from './KidsWallConsentModal';
 
 /**
- * Per-child Kids Wall toggle with consent modal when enabling.
+ * Per-child Kids Wall toggle. Allowed by default; parents can block sharing.
  */
 const KidsWallConsentToggle = ({ child, consentLoading, onUpdateConsent }) => {
-  const [consentOpen, setConsentOpen] = useState(false);
-  const enabled = child?.kidsWallEnabled === true;
+  const enabled = child?.kidsWallEnabled !== false;
 
   const handleToggle = async (event) => {
-    const nextEnabled = event.target.checked;
-
-    if (nextEnabled) {
-      setConsentOpen(true);
-      return;
-    }
-
-    await onUpdateConsent(false);
-  };
-
-  const handleConfirmEnable = async () => {
-    await onUpdateConsent(true);
-    setConsentOpen(false);
+    await onUpdateConsent(event.target.checked);
   };
 
   return (
@@ -72,7 +58,7 @@ const KidsWallConsentToggle = ({ child, consentLoading, onUpdateConsent }) => {
                 mt: 0.5,
               }}
             >
-              Consent recorded: {new Date(child.kidsWallConsentAt).toLocaleString()}
+              Allowed since: {new Date(child.kidsWallConsentAt).toLocaleString()}
             </Typography>
           )}
         </Box>
@@ -89,14 +75,6 @@ const KidsWallConsentToggle = ({ child, consentLoading, onUpdateConsent }) => {
           />
         )}
       </Box>
-
-      <KidsWallConsentModal
-        open={consentOpen}
-        childName={child?.displayName || child?.name}
-        loading={consentLoading}
-        onConfirm={handleConfirmEnable}
-        onCancel={() => setConsentOpen(false)}
-      />
     </Box>
   );
 };

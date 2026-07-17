@@ -1,6 +1,6 @@
 /** Parent dashboard consent modal + toggle copy. */
 export const KIDS_WALL_CONSENT_COPY = {
-  title: 'Enable Kids Wall',
+  title: 'Allow Kids Wall',
   intro:
     "Kids Wall is a shared space where your child can post photos for other Rise Up Kids families.",
   moderation:
@@ -9,20 +9,20 @@ export const KIDS_WALL_CONSENT_COPY = {
     "Approved posts show your child's nickname and age only — not their full name or contact details.",
   checkbox:
     'I understand how Kids Wall works and I consent to my child using this feature.',
-  enableButton: 'Enable Kids Wall',
-  disableButton: 'Turn off Kids Wall',
+  enableButton: 'Allow Kids Wall',
+  disableButton: 'Block Kids Wall',
   toggleLabel: 'Kids Wall',
-  toggleHintOff: 'Off by default. Enable to let this child post photos.',
-  toggleHintOn: 'Enabled. Your child can share photos after team review.',
+  toggleHintOff: 'Blocked. Your child cannot post photos to Kids Wall.',
+  toggleHintOn: 'Allowed by default. Turn off to block photo sharing for this child.',
 };
 
-/** Shown when a child can browse Kids Wall but parent has not enabled posting. */
-export const KIDS_WALL_UPLOAD_DISABLED_TITLE = 'Sharing is turned off';
+/** Shown when a child can browse Kids Wall but parent has blocked posting. */
+export const KIDS_WALL_UPLOAD_DISABLED_TITLE = 'Sharing is blocked';
 
 export const KIDS_WALL_UPLOAD_DISABLED_MESSAGE =
-  'Ask a grown-up to enable Kids Wall in account settings.';
+  'Ask a grown-up to allow Kids Wall in account settings.';
 
 export const KIDS_WALL_UPLOAD_DISABLED_BUTTON = 'Sharing unavailable';
 
 export const KIDS_WALL_UPLOAD_DISABLED_SUBTITLE =
-  'A grown-up needs to turn on Kids Wall before you can share.';
+  'A grown-up blocked Kids Wall sharing for this child.';

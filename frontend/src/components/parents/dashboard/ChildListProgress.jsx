@@ -100,7 +100,6 @@ const ChildListProgress = ({ children: childrenProp, loading: loadingProp, onSel
     try {
       const response = await childrenService.updateKidsWallConsent(editChildId, {
         enabled,
-        consentAcknowledged: enabled ? true : undefined,
       });
       setEditChild((prev) => (prev ? { ...prev, ...response.data } : prev));
       await fetchChildren({ isActive: true });

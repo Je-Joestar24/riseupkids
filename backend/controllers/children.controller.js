@@ -216,7 +216,7 @@ const getChildProfile = async (req, res) => {
  * @access  Private (Parent only)
  *
  * Request body:
- * { "enabled": true, "consentAcknowledged": true }
+ * { "enabled": true }
  */
 const updateKidsWallConsent = async (req, res) => {
   try {

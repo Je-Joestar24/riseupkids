@@ -159,8 +159,8 @@ const createChild = async (parentId, childData) => {
       theme: preferences?.theme || 'light',
       soundEnabled: preferences?.soundEnabled !== undefined ? preferences.soundEnabled : true,
     },
-    kidsWallEnabled: false,
-    kidsWallConsentAt: null,
+    kidsWallEnabled: true,
+    kidsWallConsentAt: new Date(),
     isActive: true,
   });
 

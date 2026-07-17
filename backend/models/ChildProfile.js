@@ -50,7 +50,7 @@ const childProfileSchema = new mongoose.Schema(
     },
     kidsWallEnabled: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     kidsWallConsentAt: {
       type: Date,

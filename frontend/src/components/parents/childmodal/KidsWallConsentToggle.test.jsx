@@ -2,20 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import KidsWallConsentToggle from './KidsWallConsentToggle';
 
-vi.mock('./KidsWallConsentModal', () => ({
-  default: ({ open, onConfirm, onCancel }) =>
-    open ? (
-      <div data-testid="consent-modal">
-        <button type="button" onClick={onConfirm}>
-          confirm-enable
-        </button>
-        <button type="button" onClick={onCancel}>
-          cancel-enable
-        </button>
-      </div>
-    ) : null,
-}));
-
 describe('KidsWallConsentToggle', () => {
   const child = {
     _id: 'child1',
@@ -27,19 +13,20 @@ describe('KidsWallConsentToggle', () => {
     vi.clearAllMocks();
   });
 
-  it('opens consent modal when toggling on', () => {
+  it('calls onUpdateConsent(true) when toggling on', async () => {
+    const onUpdateConsent = vi.fn().mockResolvedValue(undefined);
+
     render(
       <KidsWallConsentToggle
         child={child}
         consentLoading={false}
-        onUpdateConsent={vi.fn()}
+        onUpdateConsent={onUpdateConsent}
       />
     );
 
-    const toggle = screen.getByRole('checkbox');
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('checkbox'));
 
-    expect(screen.getByTestId('consent-modal')).toBeInTheDocument();
+    expect(onUpdateConsent).toHaveBeenCalledWith(true);
   });
 
   it('calls onUpdateConsent(false) when toggling off', async () => {
@@ -56,5 +43,17 @@ describe('KidsWallConsentToggle', () => {
     fireEvent.click(screen.getByRole('checkbox'));
 
     expect(onUpdateConsent).toHaveBeenCalledWith(false);
+  });
+
+  it('treats missing kidsWallEnabled as allowed', () => {
+    render(
+      <KidsWallConsentToggle
+        child={{ ...child, kidsWallEnabled: undefined }}
+        consentLoading={false}
+        onUpdateConsent={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('checkbox')).toBeChecked();
   });
 });

@@ -55,7 +55,7 @@ export function useChildProfile(childId) {
     loading,
     error,
     refresh,
-    kidsWallEnabled: profile?.kidsWallEnabled === true,
+    kidsWallEnabled: profile?.kidsWallEnabled !== false,
   };
 }
 

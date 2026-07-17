@@ -10,7 +10,6 @@ const {
   isKidsWallEnabled,
   assertKidsWallEnabled,
   updateKidsWallConsent,
-  CONSENT_REQUIRED_ERROR,
   NOT_ENABLED_ERROR,
 } = require('../services/kidsWallConsent.service');
 
@@ -19,14 +18,14 @@ function mockChild(overrides = {}) {
     _id: 'child1',
     parent: 'parent1',
     displayName: 'Alex',
-    kidsWallEnabled: false,
-    kidsWallConsentAt: null,
+    kidsWallEnabled: true,
+    kidsWallConsentAt: new Date(),
     save: jest.fn().mockResolvedValue(undefined),
     toObject: jest.fn().mockReturnValue({
       _id: 'child1',
       displayName: 'Alex',
-      kidsWallEnabled: false,
-      kidsWallConsentAt: null,
+      kidsWallEnabled: true,
+      kidsWallConsentAt: new Date(),
     }),
     ...overrides,
   };
@@ -38,10 +37,11 @@ describe('kidsWallConsent.service', () => {
   });
 
   describe('isKidsWallEnabled', () => {
-    it('returns true only when kidsWallEnabled is true', () => {
+    it('returns true by default and only blocks when explicitly false', () => {
       expect(isKidsWallEnabled({ kidsWallEnabled: true })).toBe(true);
+      expect(isKidsWallEnabled({ kidsWallEnabled: undefined })).toBe(true);
+      expect(isKidsWallEnabled({})).toBe(true);
       expect(isKidsWallEnabled({ kidsWallEnabled: false })).toBe(false);
-      expect(isKidsWallEnabled({})).toBe(false);
     });
   });
 
@@ -59,7 +59,7 @@ describe('kidsWallConsent.service', () => {
       expect(child.displayName).toBe('Alex');
     });
 
-    it('throws when Kids Wall is disabled', async () => {
+    it('throws when Kids Wall is blocked', async () => {
       ChildProfile.findById.mockReturnValue({
         select: jest.fn().mockResolvedValue({
           kidsWallEnabled: false,
@@ -73,13 +73,12 @@ describe('kidsWallConsent.service', () => {
   });
 
   describe('updateKidsWallConsent', () => {
-    it('enables Kids Wall and stores consent timestamp', async () => {
-      const child = mockChild();
+    it('allows Kids Wall and stores consent timestamp', async () => {
+      const child = mockChild({ kidsWallEnabled: false, kidsWallConsentAt: null });
       ChildProfile.findOne.mockResolvedValue(child);
 
       const result = await updateKidsWallConsent('child1', 'parent1', {
         enabled: true,
-        consentAcknowledged: true,
       });
 
       expect(child.kidsWallEnabled).toBe(true);
@@ -88,18 +87,7 @@ describe('kidsWallConsent.service', () => {
       expect(result.kidsWallEnabled).toBe(true);
     });
 
-    it('requires consent acknowledgment when enabling', async () => {
-      ChildProfile.findOne.mockResolvedValue(mockChild());
-
-      await expect(
-        updateKidsWallConsent('child1', 'parent1', {
-          enabled: true,
-          consentAcknowledged: false,
-        })
-      ).rejects.toThrow(CONSENT_REQUIRED_ERROR);
-    });
-
-    it('disables Kids Wall without consent acknowledgment', async () => {
+    it('blocks Kids Wall without extra acknowledgment', async () => {
       const child = mockChild({ kidsWallEnabled: true, kidsWallConsentAt: new Date() });
       child.toObject.mockReturnValue({
         _id: 'child1',

@@ -3,7 +3,7 @@ const { ChildProfile } = require('../models');
 const CONSENT_REQUIRED_ERROR =
   'Parent consent acknowledgment is required to enable Kids Wall';
 const NOT_ENABLED_ERROR =
-  'Kids Wall is not enabled for this child. A parent must enable it in account settings.';
+  'Kids Wall sharing is blocked for this child. A parent can allow it in account settings.';
 
 async function getChildForParent(childId, parentId) {
   const child = await ChildProfile.findOne({ _id: childId, parent: parentId });
@@ -14,7 +14,7 @@ async function getChildForParent(childId, parentId) {
 }
 
 function isKidsWallEnabled(child) {
-  return child?.kidsWallEnabled === true;
+  return child?.kidsWallEnabled !== false;
 }
 
 async function assertKidsWallEnabled(childId) {
@@ -34,10 +34,10 @@ async function assertKidsWallEnabled(childId) {
 }
 
 /**
- * Enable or disable Kids Wall for a child (parent only).
- * Enabling requires consentAcknowledged: true and stores kidsWallConsentAt.
+ * Allow or block Kids Wall posting for a child (parent only).
+ * Kids Wall is allowed by default; parents can block sharing per child.
  */
-async function updateKidsWallConsent(childId, parentId, { enabled, consentAcknowledged }) {
+async function updateKidsWallConsent(childId, parentId, { enabled }) {
   if (typeof enabled !== 'boolean') {
     throw new Error('enabled must be true or false');
   }
@@ -45,9 +45,6 @@ async function updateKidsWallConsent(childId, parentId, { enabled, consentAcknow
   const child = await getChildForParent(childId, parentId);
 
   if (enabled) {
-    if (consentAcknowledged !== true) {
-      throw new Error(CONSENT_REQUIRED_ERROR);
-    }
     child.kidsWallEnabled = true;
     child.kidsWallConsentAt = new Date();
   } else {
