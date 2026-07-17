@@ -96,6 +96,7 @@ export function CmsRewardStage({ page, style }: CmsRewardStageProps) {
         {videoUrl ? (
           <CmsLoopingBackgroundVideo
             uri={videoUrl}
+            posterUri={bgImage || undefined}
             accessibilityLabel={page.title || 'Reward video'}
           />
         ) : null}

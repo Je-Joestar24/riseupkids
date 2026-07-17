@@ -112,7 +112,7 @@ describe('CMS built-in book preload E2E (app pack storage)', () => {
     });
 
     expect(result.usedDiskCache).toBe(true);
-    expect(mockDownloadCalls.length).toBe(2);
+    expect(mockDownloadCalls.length).toBe(3);
     expect(mockDownloadCalls.every(({ dest }) => dest.startsWith('file:///mock-doc/cms-book-packs/'))).toBe(
       true
     );

@@ -257,6 +257,7 @@ export function CmsDemoPage({
         {videoUrl ? (
           <CmsLoopingBackgroundVideo
             uri={videoUrl}
+            posterUri={bgImage || undefined}
             accessibilityLabel="Demo tutorial video"
           />
         ) : null}

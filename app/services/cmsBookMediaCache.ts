@@ -29,10 +29,9 @@ function isHttp(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
-function isLikelyVideoUrl(url: string): boolean {
-  if (!url) return false;
-  if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)) return true;
-  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/i.test(url)) return true;
+function isStreamOnlyVideoUrl(url: string): boolean {
+  if (looksLikeBunnyExploreEmbedUrl(url)) return true;
+  if (/mediadelivery\.net\/embed\//i.test(url)) return true;
   return false;
 }
 
@@ -144,7 +143,7 @@ async function preloadPackAsset(
   const normalized = resolveCmsAbsoluteMediaUrl(asset.url);
   if (!normalized) return true;
 
-  if (looksLikeBunnyExploreEmbedUrl(normalized) || isLikelyVideoUrl(normalized)) {
+  if (looksLikeBunnyExploreEmbedUrl(normalized) || isStreamOnlyVideoUrl(normalized)) {
     uriMap[normalized] = normalized;
     return true;
   }

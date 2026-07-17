@@ -51,17 +51,14 @@ function normalizeRemoteUrl(raw: string | null | undefined): string {
   return resolveCmsAbsoluteMediaUrl(raw) || String(raw || '').trim();
 }
 
-function isLikelyVideoUrl(url: string): boolean {
-  if (!url) return false;
-  if (/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url)) return true;
-  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/i.test(url)) return true;
+function isStreamOnlyVideoUrl(url: string): boolean {
+  if (looksLikeBunnyExploreEmbedUrl(url)) return true;
+  if (/mediadelivery\.net\/embed\//i.test(url)) return true;
   return false;
 }
 
-function isStreamingAsset(url: string, kind?: string | null): boolean {
-  if (kind === 'video') return true;
-  if (looksLikeBunnyExploreEmbedUrl(url)) return true;
-  return isLikelyVideoUrl(url);
+function isStreamingAsset(url: string, _kind?: string | null): boolean {
+  return isStreamOnlyVideoUrl(url);
 }
 
 function sanitizeScope(value: string): string {
