@@ -22,11 +22,9 @@ const ANALYSIS_SAMPLE_RATE = 44100;
 
 function readTrimConfig() {
   const thresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_THRESHOLD_DB);
-  const speechThresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB);
   const trailingThresholdRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB);
   const minSilenceRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC);
   const minTrailingSilenceRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC);
-  const minSpeechRaw = Number.parseFloat(process.env.AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC);
   const padRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_PAD_MS, 10);
   const trailingPadRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_TRAILING_PAD_MS, 10);
   const highpassRaw = Number.parseInt(process.env.AUDIO_SILENCE_TRIM_HIGHPASS_HZ, 10);
@@ -36,10 +34,8 @@ function readTrimConfig() {
 
   return {
     enabled: process.env.AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-    /** Quiet/noise band — below this counts as silence at the leading edge. */
+    /** Below this counts as silence; anything above is treated as audio/speech. */
     thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -36,
-    /** Louder band — sustained windows above this count as speech (ignores quiet hiss). */
-    speechThresholdDb: Number.isFinite(speechThresholdRaw) ? speechThresholdRaw : -28,
     /**
      * Trailing edge only — more lenient than thresholdDb so quiet word endings
      * (e.g. "book" in "notebook") are not treated as silence.
@@ -48,8 +44,6 @@ function readTrimConfig() {
     minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : 0.12,
     /** Minimum sustained silence required at the file end before trimming. */
     minTrailingSilenceSec: Number.isFinite(minTrailingSilenceRaw) ? minTrailingSilenceRaw : 0.25,
-    /** Minimum sustained speech before leading trim point is set. */
-    minSpeechSec: Number.isFinite(minSpeechRaw) ? minSpeechRaw : 0.15,
     /** Padding kept before speech after a leading trim. */
     padMs,
     /** Extra padding kept after speech when trimming trailing silence. */
@@ -159,43 +153,31 @@ function getWindowPeak(samples, start, end) {
 function findLeadingTrimSample(samples, sampleRate, config) {
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
   const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
   const silenceThreshold = dbToLinear(config.thresholdDb);
-  const speechThreshold = dbToLinear(config.speechThresholdDb);
+  const audioThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
+  let pastLeadingSilence = false;
 
   for (let start = 0; start < samples.length; start += windowSize) {
     const end = Math.min(samples.length, start + windowSize);
     const peak = getWindowPeak(samples, start, end);
 
-    if (peak < silenceThreshold) {
-      silentRun += 1;
-      continue;
-    }
+    if (!pastLeadingSilence) {
+      if (peak < silenceThreshold) {
+        silentRun += 1;
+        if (silentRun >= minSilentWindows) {
+          pastLeadingSilence = true;
+        }
+        continue;
+      }
 
-    if (silentRun < minSilentWindows) {
       return 0;
     }
 
-    let speechRun = 0;
-    for (let s = start; s < samples.length; s += windowSize) {
-      const e = Math.min(samples.length, s + windowSize);
-      const pk = getWindowPeak(samples, s, e);
-
-      if (pk >= speechThreshold) {
-        speechRun += 1;
-        if (speechRun >= minSpeechWindows) {
-          return Math.max(0, s - (minSpeechWindows - 1) * windowSize);
-        }
-      } else if (pk < silenceThreshold) {
-        speechRun = 0;
-      } else {
-        speechRun = 0;
-      }
+    if (peak >= audioThreshold) {
+      return Math.max(0, start);
     }
-
-    return Math.min(samples.length, silentRun * windowSize);
   }
 
   return 0;

@@ -76,6 +76,7 @@ const InteractiveTest = ({
   const stageRef = useRef(null);
   const dropZoneRefs = useRef({});
   const optionRefs = useRef({});
+  const dragStateRef = useRef(null);
   const [playingOptionId, setPlayingOptionId] = useState('');
   const [playingAnswerId, setPlayingAnswerId] = useState('');
   const [optionPositions, setOptionPositions] = useState({});
@@ -131,6 +132,7 @@ const InteractiveTest = ({
     }
     setDragState(null);
     setDragLayer(null);
+    dragStateRef.current = null;
     setPlacedByZone({});
     setPlacedByOption({});
     setDropResult('');
@@ -283,6 +285,7 @@ const InteractiveTest = ({
     stopFeedbackAudio();
     setDragState(null);
     setDragLayer(null);
+    dragStateRef.current = null;
     setPlacedByZone({});
     setPlacedByOption({});
     setDropResult('');
@@ -474,6 +477,113 @@ const InteractiveTest = ({
     setPlayingAnswerId(zone.id);
   };
 
+  const placedByZoneRef = useRef(placedByZone);
+  const placedByOptionRef = useRef(placedByOption);
+
+  useEffect(() => {
+    placedByZoneRef.current = placedByZone;
+  }, [placedByZone]);
+
+  useEffect(() => {
+    placedByOptionRef.current = placedByOption;
+  }, [placedByOption]);
+
+  const snapOptionHome = (optionId, startPosition) => {
+    setOptionPositions((prev) => ({
+      ...prev,
+      [optionId]: startPosition,
+    }));
+    setDropResult('');
+  };
+
+  const clearDrag = () => {
+    dragStateRef.current = null;
+    setDragState(null);
+    setDragLayer(null);
+  };
+
+  const finishDrag = (event) => {
+    const activeDrag = dragStateRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId || !stageRef.current) return;
+
+    activeDrag.captureTarget?.releasePointerCapture?.(event.pointerId);
+
+    const stageRect = stageRef.current.getBoundingClientRect();
+    const finalX = event.clientX - stageRect.left - activeDrag.offsetX;
+    const finalY = event.clientY - stageRect.top - activeDrag.offsetY;
+    const dragRect = {
+      left: stageRect.left + finalX,
+      top: stageRect.top + finalY,
+      right: stageRect.left + finalX + activeDrag.width,
+      bottom: stageRect.top + finalY + activeDrag.height,
+    };
+
+    if (!activeDrag.moved) {
+      playOptionAudio(activeDrag.option);
+      clearDrag();
+      return;
+    }
+
+    const targetZone = dropZoneItems.find((zone) => {
+      const zoneRect = dropZoneRefs.current[zone.id]?.getBoundingClientRect();
+      if (!zoneRect) return false;
+      return dragRect.right > zoneRect.left
+        && dragRect.left < zoneRect.right
+        && dragRect.bottom > zoneRect.top
+        && dragRect.top < zoneRect.bottom;
+    });
+
+    if (targetZone) {
+      const zoneRect = dropZoneRefs.current[targetZone.id]?.getBoundingClientRect();
+      if (!zoneRect) {
+        snapOptionHome(activeDrag.id, activeDrag.startPosition);
+        clearDrag();
+        return;
+      }
+      const occupyingOptionId = placedByZoneRef.current[targetZone.id];
+      if (occupyingOptionId && occupyingOptionId !== activeDrag.id) {
+        snapOptionHome(activeDrag.id, activeDrag.startPosition);
+        clearDrag();
+        return;
+      }
+      const centeredX = (zoneRect.left - stageRect.left) + ((zoneRect.width - activeDrag.width) / 2);
+      const centeredY = (zoneRect.top - stageRect.top) + ((zoneRect.height - activeDrag.height) / 2);
+      const snapY = useCustomLayout
+        ? centeredY
+        : (isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY);
+      setOptionPositions((prev) => ({
+        ...prev,
+        [activeDrag.id]: { x: centeredX, y: snapY },
+      }));
+      const nextPlacedByZone = { ...placedByZoneRef.current, [targetZone.id]: activeDrag.id };
+      const nextPlacedByOption = { ...placedByOptionRef.current, [activeDrag.id]: targetZone.id };
+      setPlacedByZone(nextPlacedByZone);
+      setPlacedByOption(nextPlacedByOption);
+
+      if (!isParallelInteraction) {
+        setDropResult(activeDrag.id === targetZone.correctOptionId ? 'correct' : 'wrong');
+      } else if (Object.keys(nextPlacedByZone).length >= requiredPlacements) {
+        const isAllCorrect = dropZoneItems.every((zone) => nextPlacedByZone[zone.id] === zone.correctOptionId);
+        setDropResult(isAllCorrect ? 'correct' : 'wrong');
+      } else {
+        setDropResult('');
+      }
+    } else {
+      snapOptionHome(activeDrag.id, activeDrag.startPosition);
+    }
+
+    clearDrag();
+  };
+
+  const cancelDrag = (event) => {
+    const activeDrag = dragStateRef.current;
+    if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+
+    activeDrag.captureTarget?.releasePointerCapture?.(event.pointerId);
+    snapOptionHome(activeDrag.id, activeDrag.startPosition);
+    clearDrag();
+  };
+
   const handlePointerDown = (event, option) => {
     if (isPreloading || !stageRef.current) return;
     if (isInteractionLocked) return;
@@ -493,8 +603,9 @@ const InteractiveTest = ({
       y: optionRect.top - stageRect.top,
     };
 
+    event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    setDragState({
+    const nextDragState = {
       id: option.id,
       pointerId: event.pointerId,
       offsetX,
@@ -506,7 +617,10 @@ const InteractiveTest = ({
       width: optionRect.width,
       height: optionRect.height,
       option,
-    });
+      captureTarget: event.currentTarget,
+    };
+    dragStateRef.current = nextDragState;
+    setDragState(nextDragState);
     setDragLayer({
       id: option.id,
       x: startPosition.x,
@@ -517,100 +631,43 @@ const InteractiveTest = ({
     });
   };
 
-  const handlePointerMove = (event) => {
-    if (!dragState || dragState.pointerId !== event.pointerId || !stageRef.current) return;
-    const stageRect = stageRef.current.getBoundingClientRect();
-    const nextX = event.clientX - stageRect.left - dragState.offsetX;
-    const nextY = event.clientY - stageRect.top - dragState.offsetY;
-    const movedDistance = Math.hypot(
-      (event.clientX - stageRect.left) - dragState.pointerStartX,
-      (event.clientY - stageRect.top) - dragState.pointerStartY
-    );
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
 
-    setDragState((prev) => (prev ? { ...prev, moved: prev.moved || movedDistance > 8 } : prev));
-    setDragLayer((prev) => (prev ? { ...prev, x: nextX, y: nextY } : prev));
-  };
+  useEffect(() => {
+    if (!dragState) return undefined;
 
-  const handlePointerEnd = (event) => {
-    if (!dragState || dragState.pointerId !== event.pointerId || !stageRef.current) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const stageRect = stageRef.current.getBoundingClientRect();
-    const finalX = event.clientX - stageRect.left - dragState.offsetX;
-    const finalY = event.clientY - stageRect.top - dragState.offsetY;
-    const dragRect = {
-      left: stageRect.left + finalX,
-      top: stageRect.top + finalY,
-      right: stageRect.left + finalX + dragState.width,
-      bottom: stageRect.top + finalY + dragState.height,
+    const handlePointerMove = (event) => {
+      const activeDrag = dragStateRef.current;
+      if (!activeDrag || activeDrag.pointerId !== event.pointerId || !stageRef.current) return;
+
+      const stageRect = stageRef.current.getBoundingClientRect();
+      const nextX = event.clientX - stageRect.left - activeDrag.offsetX;
+      const nextY = event.clientY - stageRect.top - activeDrag.offsetY;
+      const movedDistance = Math.hypot(
+        (event.clientX - stageRect.left) - activeDrag.pointerStartX,
+        (event.clientY - stageRect.top) - activeDrag.pointerStartY
+      );
+
+      if (movedDistance > 8 && !activeDrag.moved) {
+        const nextState = { ...activeDrag, moved: true };
+        dragStateRef.current = nextState;
+        setDragState(nextState);
+      }
+      setDragLayer((prev) => (prev ? { ...prev, x: nextX, y: nextY } : prev));
     };
 
-    if (!dragState.moved) {
-      playOptionAudio(dragState.option);
-      setDragState(null);
-      setDragLayer(null);
-      return;
-    }
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', finishDrag);
+    window.addEventListener('pointercancel', cancelDrag);
 
-    const targetZone = dropZoneItems.find((zone) => {
-      const zoneRect = dropZoneRefs.current[zone.id]?.getBoundingClientRect();
-      if (!zoneRect) return false;
-      return dragRect.right > zoneRect.left
-        && dragRect.left < zoneRect.right
-        && dragRect.bottom > zoneRect.top
-        && dragRect.top < zoneRect.bottom;
-    });
-
-    if (targetZone) {
-      const zoneRect = dropZoneRefs.current[targetZone.id]?.getBoundingClientRect();
-      if (!zoneRect) {
-        setDragState(null);
-        setDragLayer(null);
-        return;
-      }
-      const occupyingOptionId = placedByZone[targetZone.id];
-      if (occupyingOptionId && occupyingOptionId !== dragState.id) {
-        setOptionPositions((prev) => ({
-          ...prev,
-          [dragState.id]: dragState.startPosition,
-        }));
-        setDropResult('');
-        setDragState(null);
-        setDragLayer(null);
-        return;
-      }
-      const centeredX = (zoneRect.left - stageRect.left) + ((zoneRect.width - dragState.width) / 2);
-      const centeredY = (zoneRect.top - stageRect.top) + ((zoneRect.height - dragState.height) / 2);
-      const snapY = useCustomLayout
-        ? centeredY
-        : (isSingleLayout ? centeredY - stageMetrics.dropSnapOffset : centeredY);
-      setOptionPositions((prev) => ({
-        ...prev,
-        [dragState.id]: { x: centeredX, y: snapY },
-      }));
-      const nextPlacedByZone = { ...placedByZone, [targetZone.id]: dragState.id };
-      const nextPlacedByOption = { ...placedByOption, [dragState.id]: targetZone.id };
-      setPlacedByZone(nextPlacedByZone);
-      setPlacedByOption(nextPlacedByOption);
-
-      if (!isParallelInteraction) {
-        setDropResult(dragState.id === targetZone.correctOptionId ? 'correct' : 'wrong');
-      } else if (Object.keys(nextPlacedByZone).length >= requiredPlacements) {
-        const isAllCorrect = dropZoneItems.every((zone) => nextPlacedByZone[zone.id] === zone.correctOptionId);
-        setDropResult(isAllCorrect ? 'correct' : 'wrong');
-      } else {
-        setDropResult('');
-      }
-    } else {
-      setOptionPositions((prev) => ({
-        ...prev,
-        [dragState.id]: dragState.startPosition,
-      }));
-      setDropResult('');
-    }
-
-    setDragState(null);
-    setDragLayer(null);
-  };
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', finishDrag);
+      window.removeEventListener('pointercancel', cancelDrag);
+    };
+  }, [dragState, dropZoneItems, isParallelInteraction, isSingleLayout, requiredPlacements, stageMetrics.dropSnapOffset, useCustomLayout]);
 
   return (
     <Box ref={stageRef} sx={pageFrameSx}>
@@ -693,9 +750,6 @@ const InteractiveTest = ({
               aria-label={`Choose ${option.label}`}
               ref={(element) => { optionRefs.current[option.id] = element; }}
               onPointerDown={(event) => handlePointerDown(event, option)}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerEnd}
-              onPointerCancel={handlePointerEnd}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();

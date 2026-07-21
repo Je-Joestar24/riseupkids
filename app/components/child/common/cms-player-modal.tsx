@@ -34,10 +34,11 @@ import {
 } from '@/services/cmsBookMediaManifest';
 import type { CmsPlayableBookDetail } from '@/services/cmsBooksPlayerService';
 import {
-  CMS_PLAYER_MODAL_ORIENTATIONS,
+  CMS_BOOK_PLAYER_MODAL_ORIENTATIONS,
   prepareCmsPlayerOrientation,
   restoreAppPortraitOrientation,
 } from '@/utils/cmsPlayerOrientation';
+import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 
 import {
   collectCmsPlayerMediaUrls,
@@ -142,7 +143,10 @@ export function CmsPlayerModal({
       return;
     }
 
-    void prepareCmsPlayerOrientation();
+    void (async () => {
+      await prepareCmsPlayerOrientation();
+      await ensureCmsPlaybackAudioMode();
+    })();
 
     return () => {
       void restoreAppPortraitOrientation();
@@ -465,7 +469,7 @@ export function CmsPlayerModal({
       animationType="fade"
       presentationStyle="fullScreen"
       supportedOrientations={
-        Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
+        Platform.OS === 'ios' ? [...CMS_BOOK_PLAYER_MODAL_ORIENTATIONS] : undefined
       }
       onRequestClose={handleClose}
     >

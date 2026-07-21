@@ -21,6 +21,7 @@ import { resolveImageUrl, resolveRewardAudioUrl, resolveVideoUrl, resolveCmsAbso
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap } from './cms-player-media-context';
 import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
+import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 
 export interface CmsRewardStageProps {
   page: CmsPlayablePage;
@@ -63,6 +64,7 @@ export function CmsRewardStage({
       if (!rewardAudioUrl || !active) return;
       await stopRewardAudio();
       try {
+        await ensureCmsPlaybackAudioMode();
         const { sound } = await Audio.Sound.createAsync(
           { uri: rewardAudioUrl },
           { shouldPlay: true, isLooping: false }

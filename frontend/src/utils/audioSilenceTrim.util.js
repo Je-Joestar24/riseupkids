@@ -1,11 +1,12 @@
 const DEFAULT_CONFIG = {
   enabled: import.meta.env.VITE_AUDIO_SILENCE_TRIM_ENABLED !== 'false',
   thresholdDb: -36,
-  speechThresholdDb: -28,
+  trailingThresholdDb: -42,
   minSilenceSec: 0.12,
-  minSpeechSec: 0.15,
+  minTrailingSilenceSec: 0.25,
   /** Edge padding kept after trim (0.2s). */
   padMs: 200,
+  trailingPadMs: 400,
   /** High-pass cutoff (Hz) — ignore low-frequency hum/rumble during speech detection. */
   highpassHz: 400,
   windowSec: 0.01,
@@ -15,19 +16,27 @@ const dbToLinear = (db) => 10 ** (db / 20);
 
 const readConfig = () => {
   const thresholdRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_THRESHOLD_DB);
-  const speechThresholdRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_SPEECH_THRESHOLD_DB);
+  const trailingThresholdRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB);
   const minSilenceRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_MIN_SILENCE_SEC);
-  const minSpeechRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_MIN_SPEECH_SEC);
+  const minTrailingSilenceRaw = Number.parseFloat(import.meta.env.VITE_AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC);
   const padRaw = Number.parseInt(import.meta.env.VITE_AUDIO_SILENCE_TRIM_PAD_MS, 10);
+  const trailingPadRaw = Number.parseInt(import.meta.env.VITE_AUDIO_SILENCE_TRIM_TRAILING_PAD_MS, 10);
   const highpassRaw = Number.parseInt(import.meta.env.VITE_AUDIO_SILENCE_TRIM_HIGHPASS_HZ, 10);
 
   return {
     enabled: DEFAULT_CONFIG.enabled,
     thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : DEFAULT_CONFIG.thresholdDb,
-    speechThresholdDb: Number.isFinite(speechThresholdRaw) ? speechThresholdRaw : DEFAULT_CONFIG.speechThresholdDb,
+    trailingThresholdDb: Number.isFinite(trailingThresholdRaw)
+      ? trailingThresholdRaw
+      : DEFAULT_CONFIG.trailingThresholdDb,
     minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : DEFAULT_CONFIG.minSilenceSec,
-    minSpeechSec: Number.isFinite(minSpeechRaw) ? minSpeechRaw : DEFAULT_CONFIG.minSpeechSec,
+    minTrailingSilenceSec: Number.isFinite(minTrailingSilenceRaw)
+      ? minTrailingSilenceRaw
+      : DEFAULT_CONFIG.minTrailingSilenceSec,
     padMs: Number.isFinite(padRaw) && padRaw >= 0 ? padRaw : DEFAULT_CONFIG.padMs,
+    trailingPadMs: Number.isFinite(trailingPadRaw) && trailingPadRaw >= 0
+      ? trailingPadRaw
+      : DEFAULT_CONFIG.trailingPadMs,
     highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : DEFAULT_CONFIG.highpassHz,
     windowSec: DEFAULT_CONFIG.windowSec,
   };
@@ -76,43 +85,31 @@ const findSpeechStartSample = (analysisBuffer, config) => {
   const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
   const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
   const silenceThreshold = dbToLinear(config.thresholdDb);
-  const speechThreshold = dbToLinear(config.speechThresholdDb);
+  const audioThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
+  let pastLeadingSilence = false;
 
   for (let start = 0; start < analysisBuffer.length; start += windowSize) {
     const end = Math.min(analysisBuffer.length, start + windowSize);
     const peak = getWindowPeak(analysisBuffer, start, end);
 
-    if (peak < silenceThreshold) {
-      silentRun += 1;
-      continue;
-    }
+    if (!pastLeadingSilence) {
+      if (peak < silenceThreshold) {
+        silentRun += 1;
+        if (silentRun >= minSilentWindows) {
+          pastLeadingSilence = true;
+        }
+        continue;
+      }
 
-    if (silentRun < minSilentWindows) {
       return 0;
     }
 
-    let speechRun = 0;
-    for (let s = start; s < analysisBuffer.length; s += windowSize) {
-      const e = Math.min(analysisBuffer.length, s + windowSize);
-      const pk = getWindowPeak(analysisBuffer, s, e);
-
-      if (pk >= speechThreshold) {
-        speechRun += 1;
-        if (speechRun >= minSpeechWindows) {
-          return Math.max(0, s - (minSpeechWindows - 1) * windowSize);
-        }
-      } else if (pk < silenceThreshold) {
-        speechRun = 0;
-      } else {
-        speechRun = 0;
-      }
+    if (peak >= audioThreshold) {
+      return Math.max(0, start);
     }
-
-    return Math.min(analysisBuffer.length, silentRun * windowSize);
   }
 
   return 0;
@@ -122,10 +119,9 @@ const findSpeechStartSample = (analysisBuffer, config) => {
 const findSpeechEndSample = (analysisBuffer, config) => {
   const sampleRate = analysisBuffer.sampleRate;
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
-  const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
-  const minSpeechWindows = Math.max(1, Math.ceil(config.minSpeechSec / config.windowSec));
-  const silenceThreshold = dbToLinear(config.thresholdDb);
-  const speechThreshold = dbToLinear(config.speechThresholdDb);
+  const minTrailingSilenceSec = config.minTrailingSilenceSec ?? config.minSilenceSec;
+  const minSilentWindows = Math.max(1, Math.ceil(minTrailingSilenceSec / config.windowSec));
+  const trailingThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
 
@@ -133,32 +129,15 @@ const findSpeechEndSample = (analysisBuffer, config) => {
     const start = Math.max(0, end - windowSize);
     const peak = getWindowPeak(analysisBuffer, start, end);
 
-    if (peak < silenceThreshold) {
+    if (peak < trailingThreshold) {
       silentRun += 1;
       continue;
     }
 
-    if (silentRun < minSilentWindows) {
-      return analysisBuffer.length;
-    }
+    break;
+  }
 
-    let speechRun = 0;
-    for (let e = end; e > 0; e -= windowSize) {
-      const s = Math.max(0, e - windowSize);
-      const pk = getWindowPeak(analysisBuffer, s, e);
-
-      if (pk >= speechThreshold) {
-        speechRun += 1;
-        if (speechRun >= minSpeechWindows) {
-          return Math.min(analysisBuffer.length, e + (minSpeechWindows - 1) * windowSize);
-        }
-      } else if (pk < silenceThreshold) {
-        speechRun = 0;
-      } else {
-        speechRun = 0;
-      }
-    }
-
+  if (silentRun >= minSilentWindows) {
     return Math.max(0, analysisBuffer.length - silentRun * windowSize);
   }
 
@@ -290,9 +269,12 @@ export const trimLeadingTrailingSilenceFromFile = async (file) => {
     const analysisBuffer = await applyHighpassForAnalysis(decoded, config.highpassHz);
     const speechStartSample = findSpeechStartSample(analysisBuffer, config);
     const speechEndSample = findSpeechEndSample(analysisBuffer, config);
-    const padSamples = Math.floor((decoded.sampleRate * config.padMs) / 1000);
-    const startSample = Math.max(0, speechStartSample - padSamples);
-    const endSample = Math.min(decoded.length, speechEndSample + padSamples);
+    const leadingPadSamples = Math.floor((decoded.sampleRate * config.padMs) / 1000);
+    const trailingPadSamples = Math.floor(
+      (decoded.sampleRate * (config.trailingPadMs ?? config.padMs)) / 1000
+    );
+    const startSample = Math.max(0, speechStartSample - leadingPadSamples);
+    const endSample = Math.min(decoded.length, speechEndSample + trailingPadSamples);
 
     if (endSample <= startSample + Math.floor(decoded.sampleRate * 0.05)) {
       const dataUrl = await blobToDataUrl(file);

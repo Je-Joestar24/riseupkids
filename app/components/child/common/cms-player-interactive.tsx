@@ -21,6 +21,7 @@ import {
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '@/utils/cmsInteractiveLayout';
+import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 import {
   CMS_GOOD_JOB_ADVANCE_DELAY_MS,
   CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
@@ -461,6 +462,7 @@ export function CmsInteractivePage({
           : cmsInteractiveFeedbackAudio.tryAgain;
 
       try {
+        await ensureCmsPlaybackAudioMode();
         const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true });
         if (!active) {
           await sound.unloadAsync().catch(() => {});
@@ -512,6 +514,7 @@ export function CmsInteractivePage({
       if (requestId !== audioRequestIdRef.current) return;
 
       try {
+        await ensureCmsPlaybackAudioMode();
         const { sound } = await Audio.Sound.createAsync({ uri: option.audio }, { shouldPlay: true });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
@@ -546,6 +549,7 @@ export function CmsInteractivePage({
       if (requestId !== audioRequestIdRef.current) return;
 
       try {
+        await ensureCmsPlaybackAudioMode();
         const { sound } = await Audio.Sound.createAsync({ uri: zone.audio }, { shouldPlay: true });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});

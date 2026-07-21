@@ -18,6 +18,10 @@ import {
 import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
+import {
+  ensureCmsPlaybackAudioMode,
+  shouldShowCmsContentKaraokeLine,
+} from '@/utils/cmsPlaybackAudio';
 
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap, useCmsPlayableMediaUri } from './cms-player-media-context';
@@ -37,8 +41,6 @@ import {
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
 } from './cms-player-shared';
-
-let cmsIntroAudioModeReady = false;
 
 const DOT_COUNT = 14;
 
@@ -147,18 +149,7 @@ export function CmsIntroPage({
 
     (async () => {
       try {
-        if (!cmsIntroAudioModeReady) {
-          try {
-            await Audio.setAudioModeAsync({
-              playsInSilentModeIOS: true,
-              shouldDuckAndroid: true,
-              staysActiveInBackground: false,
-            });
-          } catch {
-            // Audio mode can fail on some runtimes; still attempt playback.
-          }
-          cmsIntroAudioModeReady = true;
-        }
+        await ensureCmsPlaybackAudioMode();
 
         const uri = backgroundMusicUrl;
         if (!uri || cancelled) return;
@@ -376,7 +367,7 @@ export function CmsContentPage({
     setKaraokeReady(false);
 
     if (!audioUrl) {
-      setKaraokeReady(words.length === 0);
+      setKaraokeReady(true);
       return () => {
         cancelled = true;
       };
@@ -384,6 +375,8 @@ export function CmsContentPage({
 
     (async () => {
       try {
+        await ensureCmsPlaybackAudioMode();
+
         const { sound: s } = await Audio.Sound.createAsync(
           { uri: audioUrl },
           { shouldPlay: false, positionMillis: 0 }
@@ -413,7 +406,8 @@ export function CmsContentPage({
         }
       } catch {
         if (!cancelled) {
-          setKaraokeReady(words.length === 0);
+          // Audio failed — still show static reading text instead of a blank panel.
+          setKaraokeReady(true);
         }
       }
     })();
@@ -425,6 +419,13 @@ export function CmsContentPage({
     };
   }, [page.pageId, audioUrl, wordTimingFingerprint, words.length]);
 
+  const staticReadingLabel = readingText || page.subtitle || 'Subtitle';
+  const showKaraokeLine = shouldShowCmsContentKaraokeLine(
+    karaokeReady,
+    words.length,
+    visibleLineWords.length
+  );
+
   return (
     <View style={styles.fill}>
       <View style={styles.contentGrid}>
@@ -435,7 +436,7 @@ export function CmsContentPage({
             ))}
           </View>
           <View style={styles.readingBlock}>
-            {words.length ? (
+            {showKaraokeLine ? (
               <Animated.View
                 style={[styles.readingTextRow, { opacity }]}
                 accessibilityRole="text"
@@ -460,7 +461,7 @@ export function CmsContentPage({
                 accessibilityRole="text"
                 accessibilityLabel="Reading text"
               >
-                {readingText || page.subtitle || 'Subtitle'}
+                {staticReadingLabel}
               </Text>
             )}
           </View>
