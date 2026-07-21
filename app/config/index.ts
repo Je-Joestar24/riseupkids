@@ -6,7 +6,7 @@ export * from './theme';
 
 // API base URL - same backend as web frontend (from .env or EAS build env)
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5000/api';
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://api.riseup.kids/api';
 
 if (__DEV__ || process.env.EXPO_PUBLIC_LOG_API_URL === 'true') {
   console.log('[RiseUpKids] API_BASE_URL:', API_BASE_URL);

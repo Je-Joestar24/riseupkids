@@ -14,13 +14,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://dp6jg4onafzr1.cloudfront.net/api"
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
       }
     }
   },
