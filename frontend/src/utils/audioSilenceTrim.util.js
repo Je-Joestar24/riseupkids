@@ -1,14 +1,14 @@
 const DEFAULT_CONFIG = {
   enabled: import.meta.env.VITE_AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-  thresholdDb: -36,
-  trailingThresholdDb: -42,
+  thresholdDb: -96,
+  trailingThresholdDb: -96,
   minSilenceSec: 0.12,
   minTrailingSilenceSec: 0.25,
   /** Edge padding kept after trim (0.2s). */
   padMs: 200,
   trailingPadMs: 400,
-  /** High-pass cutoff (Hz) — ignore low-frequency hum/rumble during speech detection. */
-  highpassHz: 400,
+  /** 0 = analyze full-band audio; only literal near-zero silence is trimmed. */
+  highpassHz: 0,
   windowSec: 0.01,
 };
 
@@ -37,7 +37,7 @@ const readConfig = () => {
     trailingPadMs: Number.isFinite(trailingPadRaw) && trailingPadRaw >= 0
       ? trailingPadRaw
       : DEFAULT_CONFIG.trailingPadMs,
-    highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : DEFAULT_CONFIG.highpassHz,
+    highpassHz: Number.isFinite(highpassRaw) && highpassRaw >= 0 ? highpassRaw : DEFAULT_CONFIG.highpassHz,
     windowSec: DEFAULT_CONFIG.windowSec,
   };
 };
@@ -64,6 +64,8 @@ const getWindowPeak = (buffer, start, end) => {
  * High-pass filter for analysis only — speech band, not rumble/hum (slice uses original buffer).
  */
 const applyHighpassForAnalysis = async (buffer, cutoffHz) => {
+  if (!cutoffHz || cutoffHz <= 0) return buffer;
+
   const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!OfflineCtx) return buffer;
 
@@ -86,30 +88,23 @@ const findSpeechStartSample = (analysisBuffer, config) => {
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
   const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
   const silenceThreshold = dbToLinear(config.thresholdDb);
-  const audioThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
-  let pastLeadingSilence = false;
 
   for (let start = 0; start < analysisBuffer.length; start += windowSize) {
     const end = Math.min(analysisBuffer.length, start + windowSize);
     const peak = getWindowPeak(analysisBuffer, start, end);
 
-    if (!pastLeadingSilence) {
-      if (peak < silenceThreshold) {
-        silentRun += 1;
-        if (silentRun >= minSilentWindows) {
-          pastLeadingSilence = true;
-        }
-        continue;
-      }
+    if (peak < silenceThreshold) {
+      silentRun += 1;
+      continue;
+    }
 
+    if (silentRun < minSilentWindows) {
       return 0;
     }
 
-    if (peak >= audioThreshold) {
-      return Math.max(0, start);
-    }
+    return Math.max(0, start);
   }
 
   return 0;

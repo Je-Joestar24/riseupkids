@@ -34,13 +34,10 @@ function readTrimConfig() {
 
   return {
     enabled: process.env.AUDIO_SILENCE_TRIM_ENABLED !== 'false',
-    /** Below this counts as silence; anything above is treated as audio/speech. */
-    thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -36,
-    /**
-     * Trailing edge only — more lenient than thresholdDb so quiet word endings
-     * (e.g. "book" in "notebook") are not treated as silence.
-     */
-    trailingThresholdDb: Number.isFinite(trailingThresholdRaw) ? trailingThresholdRaw : -42,
+    /** Only near-zero samples count as silence; any audible content is kept. */
+    thresholdDb: Number.isFinite(thresholdRaw) ? thresholdRaw : -96,
+    /** Trailing edge uses the same rule — trim only literal silence at the file end. */
+    trailingThresholdDb: Number.isFinite(trailingThresholdRaw) ? trailingThresholdRaw : -96,
     minSilenceSec: Number.isFinite(minSilenceRaw) ? minSilenceRaw : 0.12,
     /** Minimum sustained silence required at the file end before trimming. */
     minTrailingSilenceSec: Number.isFinite(minTrailingSilenceRaw) ? minTrailingSilenceRaw : 0.25,
@@ -48,8 +45,8 @@ function readTrimConfig() {
     padMs,
     /** Extra padding kept after speech when trimming trailing silence. */
     trailingPadMs,
-    /** High-pass cutoff (Hz) for speech detection — ignores low-frequency hum. */
-    highpassHz: Number.isFinite(highpassRaw) && highpassRaw > 0 ? highpassRaw : 400,
+    /** High-pass for analysis only; 0 = disabled (use full-band audio detection). */
+    highpassHz: Number.isFinite(highpassRaw) && highpassRaw >= 0 ? highpassRaw : 0,
     windowSec: 0.01,
   };
 }
@@ -154,30 +151,23 @@ function findLeadingTrimSample(samples, sampleRate, config) {
   const windowSize = Math.max(1, Math.floor(sampleRate * config.windowSec));
   const minSilentWindows = Math.max(1, Math.ceil(config.minSilenceSec / config.windowSec));
   const silenceThreshold = dbToLinear(config.thresholdDb);
-  const audioThreshold = dbToLinear(config.trailingThresholdDb ?? config.thresholdDb);
 
   let silentRun = 0;
-  let pastLeadingSilence = false;
 
   for (let start = 0; start < samples.length; start += windowSize) {
     const end = Math.min(samples.length, start + windowSize);
     const peak = getWindowPeak(samples, start, end);
 
-    if (!pastLeadingSilence) {
-      if (peak < silenceThreshold) {
-        silentRun += 1;
-        if (silentRun >= minSilentWindows) {
-          pastLeadingSilence = true;
-        }
-        continue;
-      }
+    if (peak < silenceThreshold) {
+      silentRun += 1;
+      continue;
+    }
 
+    if (silentRun < minSilentWindows) {
       return 0;
     }
 
-    if (peak >= audioThreshold) {
-      return Math.max(0, start);
-    }
+    return Math.max(0, start);
   }
 
   return 0;
@@ -223,21 +213,27 @@ function findSpeechBounds(samples, sampleRate, config) {
 }
 
 async function decodeMonoPcmForAnalysis(filePath, config) {
-  const highpassHz = config.highpassHz || 400;
-  const pcmBuffer = await runProcessBuffer(ffmpegPath, [
+  const ffmpegArgs = [
     '-hide_banner',
     '-i',
     filePath,
-    '-af',
-    `highpass=f=${highpassHz}`,
+  ];
+
+  if (config.highpassHz > 0) {
+    ffmpegArgs.push('-af', `highpass=f=${config.highpassHz}`);
+  }
+
+  ffmpegArgs.push(
     '-ac',
     '1',
     '-ar',
     String(ANALYSIS_SAMPLE_RATE),
     '-f',
     'f32le',
-    'pipe:1',
-  ]);
+    'pipe:1'
+  );
+
+  const pcmBuffer = await runProcessBuffer(ffmpegPath, ffmpegArgs);
 
   if (!pcmBuffer || pcmBuffer.length < 4) {
     return null;

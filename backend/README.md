@@ -90,8 +90,9 @@ CMS book and Star Cam admin audio uploads trim **leading and trailing silence** 
 
 - Enabled by default (`AUDIO_SILENCE_TRIM_ENABLED=true`). Set to `false` to disable.
 - Uses FFmpeg via `@ffmpeg-installer/ffmpeg` (installed with `npm install`). No separate system install is required on most hosts.
-- Leading edge: anything above `AUDIO_SILENCE_TRIM_THRESHOLD_DB` is treated as audio (quiet first syllables are kept).
-- Trailing edge is conservative: only sustained silence at the file end is removed (`AUDIO_SILENCE_TRIM_TRAILING_THRESHOLD_DB`, `AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC`, `AUDIO_SILENCE_TRIM_TRAILING_PAD_MS`) so quiet syllables are preserved.
+- Only literal near-zero silence is trimmed (`AUDIO_SILENCE_TRIM_THRESHOLD_DB`, default `-96`). Any audible content is kept.
+- Trailing edge uses the same rule; sustained silence at the file end only (`AUDIO_SILENCE_TRIM_MIN_TRAILING_SILENCE_SEC`, `AUDIO_SILENCE_TRIM_TRAILING_PAD_MS`).
+- High-pass is off by default (`AUDIO_SILENCE_TRIM_HIGHPASS_HZ=0`) so quiet low-frequency speech is not mistaken for silence.
 - Tunables: see `.env.example`.
 - API response includes `duration` (seconds after trim) and `trimMeta` for the book builder to keep reading word highlights aligned.
 
