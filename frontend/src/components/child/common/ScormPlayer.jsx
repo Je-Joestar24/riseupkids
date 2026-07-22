@@ -24,7 +24,7 @@ import { useParams } from 'react-router-dom';
 import axios from '../../../api/axios';
 import ScormCompletionDialog from './ScormCompletionDialog';
 import { useDispatch } from 'react-redux';
-import { updateChildStats } from '../../../store/slices/userSlice';
+import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
 
 // Confirmation Dialog Component
 const ConfirmCloseDialog = ({ open, onConfirm, onCancel, title, isCompleted }) => (
@@ -264,70 +264,6 @@ const ScormPlayer = ({
     } catch (error) {
       console.error('Error fetching book reading progress:', error);
       // Don't show error, just use defaults
-    }
-  };
-
-  /**
-   * Update child stats in sessionStorage and Redux
-   * This ensures the header and other components show updated stars immediately
-   * @param {Number} totalStars - New total stars value
-   */
-  const updateChildStatsInStorage = (totalStars) => {
-    if (!childId || totalStars === undefined || totalStars === null) {
-      console.warn('[SCORM] Cannot update child stats: missing childId or totalStars');
-      return;
-    }
-
-    try {
-      console.log(`[SCORM] Updating child stats for ${childId} with totalStars: ${totalStars}`);
-      
-      // Update childProfiles in sessionStorage
-      const childProfilesStr = sessionStorage.getItem('childProfiles');
-      if (childProfilesStr) {
-        const childProfiles = JSON.parse(childProfilesStr);
-        const childIndex = childProfiles.findIndex(
-          (child) => child._id === childId || child._id?.toString() === childId.toString()
-        );
-        
-        if (childIndex !== -1) {
-          // Update the child's stats
-          if (!childProfiles[childIndex].stats) {
-            childProfiles[childIndex].stats = {};
-          }
-          childProfiles[childIndex].stats.totalStars = totalStars;
-          
-          // Save back to sessionStorage
-          sessionStorage.setItem('childProfiles', JSON.stringify(childProfiles));
-          console.log(`[SCORM] Updated childProfiles in sessionStorage`);
-        }
-      }
-      
-      // Update selectedChild in sessionStorage
-      const selectedChildStr = sessionStorage.getItem('selectedChild');
-      if (selectedChildStr) {
-        const selectedChild = JSON.parse(selectedChildStr);
-        if (selectedChild._id === childId || selectedChild._id?.toString() === childId.toString()) {
-          if (!selectedChild.stats) {
-            selectedChild.stats = {};
-          }
-          selectedChild.stats.totalStars = totalStars;
-          sessionStorage.setItem('selectedChild', JSON.stringify(selectedChild));
-          console.log(`[SCORM] Updated selectedChild in sessionStorage`);
-        }
-      }
-      
-      // Update Redux store
-      dispatch(updateChildStats({
-        childId,
-        stats: { totalStars },
-      }));
-      console.log(`[SCORM] Updated Redux store with new totalStars`);
-      
-      // Dispatch event to notify components (like ChilHeader) to refresh
-      window.dispatchEvent(new Event('childStatsUpdated'));
-      console.log(`[SCORM] Dispatched childStatsUpdated event`);
-    } catch (error) {
-      console.error('[SCORM] Error updating child stats in storage:', error);
     }
   };
 
@@ -605,28 +541,27 @@ const ScormPlayer = ({
         // Completion validated - show success dialog
         setIsCompleted(true);
         
-        // Store completion data for dialog
+        const syncedTotalStars = applyStarRewardFromCompletion({
+          childId,
+          starsToAward: data.data.starsToAward,
+          totalStars: data.data.totalStars,
+          dispatch,
+        });
+
         const completionDataToStore = {
           starsAwarded: data.data.starsAwarded || false,
           starsToAward: data.data.starsToAward || 0,
-          totalStars: data.data.totalStars || 0,
+          totalStars: syncedTotalStars ?? data.data.totalStars ?? 0,
           readingCount: data.data.readingCount || 0,
           requiredReadingCount: data.data.requiredReadingCount || 5,
           requirementMet: data.data.requirementMet || false,
         };
         setCompletionData(completionDataToStore);
-        
-        // Update reading progress for header display
+
         setReadingProgress({
           readingCount: data.data.readingCount || 0,
           requiredReadingCount: data.data.requiredReadingCount || 5,
         });
-        
-        // Update child stats in sessionStorage and Redux if stars were awarded or totalStars is provided
-        // This ensures the header updates immediately without page reload
-        if (data.data.totalStars !== undefined && data.data.totalStars !== null) {
-          updateChildStatsInStorage(data.data.totalStars);
-        }
         
         // Show completion dialog
         setShowCompletionDialog(true);

@@ -1,4 +1,5 @@
 const courseProgressService = require('../services/courseProgress.services');
+const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 const { ChildProfile, Book, BookReading, ChildStats, StarEarning, CourseProgress, Course } = require('../models');
 
 /**
@@ -511,31 +512,21 @@ const submitBookCompletion = async (req, res) => {
 
     // Get child stats
     const childStats = await ChildStats.getOrCreate(childId);
-    const starsToAward = book.totalStarsAwarded || 50; // Total stars when requirement is met
+    const totalStarsAwarded = book.totalStarsAwarded || 50;
 
     console.log(`[Book Completion] Request ${requestId} - Book requirements:`, {
       requiredReadingCount,
-      starsToAward,
+      totalStarsAwarded,
       currentTotalStars: childStats.totalStars,
     });
 
-    // Check if stars have already been awarded
-    const existingEarning = await StarEarning.findOne({
-      child: childId,
-      'source.type': 'book',
-      'source.contentId': bookId,
-    });
-
-    const starsAlreadyAwarded = !!existingEarning;
-    console.log(`[Book Completion] Request ${requestId} - Stars already awarded:`, starsAlreadyAwarded);
-
     // Create BookReading record with duplicate prevention (time-based, not flag-based)
-    // Similar to videos: check if a reading was created in the last few seconds to prevent rapid duplicates
     console.log(`[Book Completion] Request ${requestId} - 📖 Creating BookReading record...`);
     let readingCount = 0;
-    
+    let newReadingRecord = null;
+    let isDuplicateSubmission = false;
+
     try {
-      // Check for recent duplicate readings (within last 5 seconds) to prevent rapid duplicate submissions
       const fiveSecondsAgo = new Date(Date.now() - 5000);
       const recentReading = await BookReading.findOne({
         child: childId,
@@ -545,36 +536,27 @@ const submitBookCompletion = async (req, res) => {
       });
 
       if (recentReading) {
-        // A reading was created very recently - likely a duplicate submission
         console.log(`[Book Completion] Request ${requestId} - ⚠️ DUPLICATE DETECTED - Recent reading found (within 5 seconds)`);
-        console.log(`[Book Completion] Request ${requestId} - Recent reading ID:`, recentReading._id.toString());
-        console.log(`[Book Completion] Request ${requestId} - Skipping BookReading creation to prevent duplicates`);
+        isDuplicateSubmission = true;
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
-        console.log(`[Book Completion] Request ${requestId} - Using existing reading count:`, readingCount);
       } else {
-        // No recent reading found - safe to create new BookReading record
         console.log(`[Book Completion] Request ${requestId} - ✅ No recent duplicate found - creating new BookReading`);
 
-        // Create the BookReading record
-        const newReading = await BookReading.create({
+        newReadingRecord = await BookReading.create({
           child: childId,
           book: bookId,
           status: 'completed',
           progressPercentage: parsedProgress,
           timeSpent: parsedTimeSpent,
           completedAt: new Date(),
-          starsEarned: 0, // Stars are awarded when requirement is met, not per reading
+          starsEarned: 0,
         });
-
-        console.log(`[Book Completion] Request ${requestId} - ✅ BookReading created:`, newReading._id.toString());
 
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
         console.log(`[Book Completion] Request ${requestId} - ✅ New reading count:`, readingCount);
       }
     } catch (bookReadingError) {
       console.error(`[Book Completion] Request ${requestId} - ❌ Error creating BookReading:`, bookReadingError);
-      console.error(`[Book Completion] Request ${requestId} - Error stack:`, bookReadingError.stack);
-      // Continue even if BookReading creation fails
       try {
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
       } catch (err) {
@@ -582,93 +564,118 @@ const submitBookCompletion = async (req, res) => {
       }
     }
 
-    // Check if requirement is met and award stars (only once)
-    const requirementMet = readingCount >= requiredReadingCount;
+    let starsForThisReading = 0;
     let starsAwardedThisRequest = false;
 
-    if (requirementMet && !starsAlreadyAwarded) {
-      console.log(`[Book Completion] Request ${requestId} - ✅ Requirement met (${readingCount}/${requiredReadingCount}) - Awarding stars...`);
-      
-      try {
-        const starEarning = await StarEarning.create({
+    if (newReadingRecord && !isDuplicateSubmission && readingCount <= requiredReadingCount) {
+      const legacyLumpSum = await StarEarning.findOne({
+        child: childId,
+        'source.type': 'book',
+        'source.contentId': bookId,
+        'source.metadata.readingNumber': { $exists: false },
+      });
+
+      if (!legacyLumpSum) {
+        const existingForSession = await StarEarning.findOne({
           child: childId,
-          stars: starsToAward,
-          source: {
-            type: 'book',
-            contentId: bookId,
-            contentType: 'Book',
-            metadata: {
-              bookTitle: book.title,
-              requiredReadingCount,
-              readingCount,
-            },
-          },
-          description: `Earned ${starsToAward} stars for completing "${book.title}" ${requiredReadingCount} times`,
+          'source.type': 'book',
+          'source.contentId': bookId,
+          'source.metadata.readingNumber': readingCount,
         });
 
-        console.log(`[Book Completion] Request ${requestId} - ✅ StarEarning created:`, starEarning._id.toString());
+        if (!existingForSession) {
+          starsForThisReading = getStarsForSession(
+            readingCount,
+            totalStarsAwarded,
+            requiredReadingCount
+          );
 
-        // Update ChildStats
-        const starsBefore = childStats.totalStars;
-        await childStats.addStars(starsToAward);
-        await childStats.save();
+          if (starsForThisReading > 0) {
+            try {
+              newReadingRecord.starsEarned = starsForThisReading;
+              await newReadingRecord.save();
 
-        // Refresh to get latest totalStars
-        const updatedChildStats = await ChildStats.findById(childStats._id);
+              await StarEarning.create({
+                child: childId,
+                stars: starsForThisReading,
+                source: {
+                  type: 'book',
+                  contentId: bookId,
+                  contentType: 'Book',
+                  metadata: {
+                    bookTitle: book.title,
+                    requiredReadingCount,
+                    readingNumber: readingCount,
+                    totalStarsAwarded,
+                  },
+                },
+                description: `Earned ${starsForThisReading} stars for reading "${book.title}" (reading ${readingCount} of ${requiredReadingCount})`,
+              });
 
-        console.log(`[Book Completion] Request ${requestId} - ✅ Stars updated:`, {
-          before: starsBefore,
-          added: starsToAward,
-          after: updatedChildStats.totalStars,
-        });
+              const starsBefore = childStats.totalStars;
+              await childStats.addStars(starsForThisReading);
+              await childStats.save();
 
-        // Check for badges after awarding stars
-        try {
-          const badgeCheck = require('../services/badgeCheck.service');
-          await badgeCheck.updateBadges(childId, { silent: false });
-        } catch (badgeError) {
-          console.error(`[Book Completion] Error checking badges after star award:`, badgeError);
-          // Don't throw - badge checking failure shouldn't block book completion
-        }
+              const updatedChildStats = await ChildStats.findById(childStats._id);
+              childStats.totalStars = updatedChildStats.totalStars;
 
-        // Mark stars as awarded in CourseProgress
-        const finalProgress = await CourseProgress.findOne({
-          child: childId,
-          course: courseId,
-        });
-        const finalContentProgressItem = finalProgress?.contentProgress.find(
-          item => item.contentId.toString() === bookId.toString() &&
-                  item.contentType === 'book'
-        );
+              console.log(`[Book Completion] Request ${requestId} - ✅ Per-reading stars awarded:`, {
+                readingNumber: readingCount,
+                starsForThisReading,
+                before: starsBefore,
+                after: updatedChildStats.totalStars,
+              });
 
-        if (finalContentProgressItem) {
-          if (!finalContentProgressItem.scormProgress.completion) {
-            finalContentProgressItem.scormProgress.completion = {};
+              try {
+                const badgeCheck = require('../services/badgeCheck.service');
+                await badgeCheck.updateBadges(childId, { silent: false });
+              } catch (badgeError) {
+                console.error(`[Book Completion] Error checking badges after star award:`, badgeError);
+              }
+
+              starsAwardedThisRequest = true;
+            } catch (starError) {
+              console.error(`[Book Completion] Request ${requestId} - ❌ Error awarding per-reading stars:`, starError);
+            }
           }
-          finalContentProgressItem.scormProgress.completion.starsAwarded = true;
-          finalContentProgressItem.scormProgress.completion.starsAwardedAt = new Date();
-          await finalProgress.save();
-          console.log(`[Book Completion] Request ${requestId} - ✅ Stars awarded flag saved to CourseProgress`);
         }
-
-        starsAwardedThisRequest = true;
-        childStats.totalStars = updatedChildStats.totalStars;
-      } catch (starError) {
-        console.error(`[Book Completion] Request ${requestId} - ❌ Error awarding stars:`, starError);
-        // Continue even if star awarding fails
       }
-    } else if (requirementMet && starsAlreadyAwarded) {
-      console.log(`[Book Completion] Request ${requestId} - Requirement met but stars already awarded`);
+    }
+
+    const requirementMet = readingCount >= requiredReadingCount;
+
+    if (requirementMet) {
+      const finalProgress = await CourseProgress.findOne({
+        child: childId,
+        course: courseId,
+      });
+      const finalContentProgressItem = finalProgress?.contentProgress.find(
+        (item) => item.contentId.toString() === bookId.toString()
+          && item.contentType === 'book'
+      );
+
+      if (finalContentProgressItem) {
+        if (!finalContentProgressItem.scormProgress.completion) {
+          finalContentProgressItem.scormProgress.completion = {};
+        }
+        finalContentProgressItem.scormProgress.completion.starsAwarded = true;
+        finalContentProgressItem.scormProgress.completion.starsAwardedAt = new Date();
+        await finalProgress.save();
+        console.log(`[Book Completion] Request ${requestId} - ✅ Requirement met - completion flag saved`);
+      }
     } else {
       console.log(`[Book Completion] Request ${requestId} - Requirement not yet met (${readingCount}/${requiredReadingCount})`);
     }
 
-    // Refresh child stats for response
     const updatedChildStats = await ChildStats.findById(childStats._id);
+    const nextReadingNumber = Math.min(readingCount + 1, requiredReadingCount);
+    const starsForNextReading = readingCount < requiredReadingCount
+      ? getStarsForSession(nextReadingNumber, totalStarsAwarded, requiredReadingCount)
+      : 0;
 
     console.log(`\n========== [Book Completion] Request ${requestId} - ✅ COMPLETION RECORDED SUCCESSFULLY ==========`);
     console.log(`[Book Completion] Request ${requestId} - Final reading count:`, readingCount);
-    console.log(`[Book Completion] Request ${requestId} - Stars awarded:`, starsAwardedThisRequest);
+    console.log(`[Book Completion] Request ${requestId} - Stars awarded this reading:`, starsForThisReading);
     console.log(`[Book Completion] Request ${requestId} - Total stars:`, updatedChildStats.totalStars);
     console.log(`[Book Completion] Request ${requestId} - ============================================\n`);
 
@@ -680,7 +687,9 @@ const submitBookCompletion = async (req, res) => {
         readingCount,
         requiredReadingCount,
         starsAwarded: starsAwardedThisRequest,
-        starsToAward: starsAwardedThisRequest ? starsToAward : 0,
+        starsToAward: starsForThisReading,
+        starsForNextReading,
+        totalStarsAvailable: totalStarsAwarded,
         totalStars: updatedChildStats.totalStars,
         requirementMet,
       },

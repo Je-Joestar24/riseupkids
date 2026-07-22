@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import exploreVideoWatchService from '../services/exploreVideoWatchService';
 import { useDispatch } from 'react-redux';
-import { updateChildStats } from '../store/slices/userSlice';
+import { applyStarRewardFromCompletion } from '../utils/childStatsSync';
 
 /**
  * Custom hook for explore video watch management
@@ -15,95 +15,6 @@ export const useExploreVideoWatch = (childId) => {
   const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-
-  /**
-   * Update child stats in sessionStorage and Redux
-   * This ensures the header and other components show updated stars immediately
-   * @param {Number} totalStars - New total stars value
-   */
-  const updateChildStatsInStorage = useCallback((totalStars) => {
-    if (!childId || totalStars === undefined || totalStars === null) {
-      console.warn('[ExploreVideoWatch] Cannot update child stats: missing childId or totalStars');
-      return;
-    }
-
-    try {
-      console.log(`[ExploreVideoWatch] Updating child stats for ${childId} with totalStars: ${totalStars}`);
-      
-      // Update childProfiles in sessionStorage
-      const childProfilesStr = sessionStorage.getItem('childProfiles');
-      if (childProfilesStr) {
-        const childProfiles = JSON.parse(childProfilesStr);
-        const childIndex = childProfiles.findIndex(
-          (child) => child._id === childId || child._id?.toString() === childId.toString()
-        );
-        
-        if (childIndex !== -1) {
-          // Update the child's stats
-          if (!childProfiles[childIndex].stats) {
-            childProfiles[childIndex].stats = {};
-          }
-          childProfiles[childIndex].stats.totalStars = totalStars;
-          
-          // Save back to sessionStorage
-          sessionStorage.setItem('childProfiles', JSON.stringify(childProfiles));
-          console.log(`[ExploreVideoWatch] Updated childProfiles in sessionStorage`);
-        }
-      }
-      
-      // Update selectedChild in sessionStorage
-      const selectedChildStr = sessionStorage.getItem('selectedChild');
-      if (selectedChildStr) {
-        const selectedChild = JSON.parse(selectedChildStr);
-        if (selectedChild._id === childId || selectedChild._id?.toString() === childId.toString()) {
-          if (!selectedChild.stats) {
-            selectedChild.stats = {};
-          }
-          selectedChild.stats.totalStars = totalStars;
-          sessionStorage.setItem('selectedChild', JSON.stringify(selectedChild));
-          console.log(`[ExploreVideoWatch] Updated selectedChild in sessionStorage`);
-        }
-      }
-      
-      // Update Redux store
-      dispatch(updateChildStats({
-        childId,
-        stats: { totalStars },
-      }));
-      console.log(`[ExploreVideoWatch] Updated Redux store with new totalStars`);
-      
-      // Dispatch event to notify components (like ChildHeader) to refresh
-      window.dispatchEvent(new Event('childStatsUpdated'));
-      console.log(`[ExploreVideoWatch] Dispatched childStatsUpdated event`);
-    } catch (error) {
-      console.error('[ExploreVideoWatch] Error updating child stats in storage:', error);
-    }
-  }, [childId, dispatch]);
-
-  /**
-   * Get current totalStars from sessionStorage
-   * @returns {Number} Current totalStars or 0
-   */
-  const getCurrentTotalStars = useCallback(() => {
-    try {
-      const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
-      const child = childProfiles.find(c => c._id === childId || c._id?.toString() === childId.toString());
-      
-      if (child && child.stats) {
-        return child.stats.totalStars || 0;
-      }
-      
-      // Fallback: try selectedChild
-      const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
-      if (selectedChild.stats) {
-        return selectedChild.stats.totalStars || 0;
-      }
-      
-      return 0;
-    } catch (error) {
-      return 0;
-    }
-  }, [childId]);
 
   /**
    * Mark explore video as watched (completed)
@@ -143,10 +54,11 @@ export const useExploreVideoWatch = (childId) => {
         // This ensures the header updates immediately without page reload
         // Note: Notifications are handled by VideoPlayerModal, not here
         if (starsJustAwarded && !isReplay) {
-          // Stars were just awarded - update stats
-          const currentTotalStars = getCurrentTotalStars();
-          const newTotalStars = currentTotalStars + starsToAward;
-          updateChildStatsInStorage(newTotalStars);
+          applyStarRewardFromCompletion({
+            childId,
+            starsToAward,
+            dispatch,
+          });
         }
         
         return response.data;
@@ -161,7 +73,7 @@ export const useExploreVideoWatch = (childId) => {
     } finally {
       setLoading(false);
     }
-  }, [childId, dispatch, getCurrentTotalStars, updateChildStatsInStorage]);
+  }, [childId, dispatch]);
 
   /**
    * Get explore video watch status for a child

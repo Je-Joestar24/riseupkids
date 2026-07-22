@@ -238,24 +238,21 @@ export function VideoPlayerModal({
         starsToAward?: number;
       } | null;
       const before = watchStatusBefore;
-      const starsWereAlreadyAwarded = before?.starsAwarded ?? false;
-      const watchCountAfter = result?.videoWatch?.watchCount ?? 0;
-      const required = result?.requiredWatchCount ?? before?.requiredWatchCount ?? 5;
-      const starsJustAwarded =
-        Boolean(result?.starsAwarded) &&
-        !starsWereAlreadyAwarded &&
-        watchCountAfter >= required;
+      const wasFullyCompleteBefore = before?.starsAwarded ?? false;
+      const isFullyCompleteNow = Boolean(result?.videoWatch?.starsAwarded ?? result?.allStarsAwarded);
+      const starsJustAwarded = (result?.starsToAward ?? result?.starsEarnedThisSession ?? 0) > 0;
 
       const nextWatchResult: VideoCompletionResult = {
         ...result,
         starsJustAwarded,
-        starsWereAlreadyAwarded,
+        starsWereAlreadyAwarded: wasFullyCompleteBefore && !starsJustAwarded,
+        allStarsAwarded: isFullyCompleteNow,
         starsToAward: result?.starsToAward,
       };
 
       setWatchResult(nextWatchResult);
 
-      if (courseId && starsJustAwarded) {
+      if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
         await moduleService.updateContentProgress(
           courseId,
           childId,

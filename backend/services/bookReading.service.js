@@ -1,4 +1,5 @@
 const { BookReading, Book } = require('../models');
+const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 
 /**
  * Get all book reading statuses for a child
@@ -66,6 +67,11 @@ const getBookReadingStatus = async (childId, bookId) => {
   // Get reading count
   const readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
   const requiredReadingCount = book.requiredReadingCount || 5;
+  const totalStarsAvailable = book.totalStarsAwarded || 50;
+  const nextReadingNumber = Math.min(readingCount + 1, requiredReadingCount);
+  const starsForNextReading = readingCount < requiredReadingCount
+    ? getStarsForSession(nextReadingNumber, totalStarsAvailable, requiredReadingCount)
+    : 0;
   const starsAwarded = readingCount >= requiredReadingCount;
 
   return {
@@ -74,6 +80,9 @@ const getBookReadingStatus = async (childId, bookId) => {
     requiredReadingCount,
     currentReadingCount: readingCount,
     starsAwarded,
+    allStarsAwarded: starsAwarded,
+    starsForNextReading,
+    totalStarsAvailable,
   };
 };
 

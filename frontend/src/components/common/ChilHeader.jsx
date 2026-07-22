@@ -1,74 +1,77 @@
 import React from 'react';
+import { useSelector } from 'react-redux';
 import { AppBar, Box, Toolbar, IconButton, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
-import StarIcon from '@mui/icons-material/Star';
 import CloudIcon from '@mui/icons-material/Cloud';
 import smallLogo from '../../assets/images/small-logo.png';
 import { themeColors } from '../../config/themeColors';
+import {
+  CHILD_STATS_UPDATED_EVENT,
+  getChildTotalStars,
+} from '../../utils/childStatsSync';
 
 /**
  * ChildHeader Component
- * 
+ *
  * Sticky header for child interface
  * Shows logo centered and points/star button on the right
  */
 const ChildHeader = ({ childId }) => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const childProfiles = useSelector((state) => state.user.childProfiles);
   const [totalStars, setTotalStars] = React.useState(0);
 
-  // Get total stars from child profile stats
-  const getTotalStars = React.useCallback(() => {
-    try {
-      const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
-      const child = childProfiles.find(c => c._id === childId);
-      
-      if (child && child.stats) {
-        return child.stats.totalStars || 0;
-      }
-      
-      // Fallback: try selectedChild
-      const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
-      if (selectedChild.stats) {
-        return selectedChild.stats.totalStars || 0;
-      }
-      
-      return 0;
-    } catch (error) {
-      return 0;
+  const readTotalStars = React.useCallback(() => {
+    const id = childId != null ? String(childId) : '';
+    if (!id) return 0;
+
+    const profileFromStore = Array.isArray(childProfiles)
+      ? childProfiles.find((profile) => String(profile._id) === id)
+      : null;
+
+    if (profileFromStore?.stats?.totalStars != null) {
+      return Number(profileFromStore.stats.totalStars) || 0;
     }
-  }, [childId]);
 
-  // Update stars when component mounts or childId changes
-  React.useEffect(() => {
-    setTotalStars(getTotalStars());
-  }, [getTotalStars, childId]);
+    return getChildTotalStars(childId);
+  }, [childId, childProfiles]);
 
-  // Listen for child stats updates
   React.useEffect(() => {
-    const handleStatsUpdate = () => {
-      console.log('[ChilHeader] Child stats updated event received, refreshing stars...');
-      const newStars = getTotalStars();
-      console.log('[ChilHeader] New total stars:', newStars);
-      setTotalStars(newStars);
+    setTotalStars(readTotalStars());
+  }, [readTotalStars]);
+
+  React.useEffect(() => {
+    const handleStatsUpdate = (event) => {
+      const eventChildId = event?.detail?.childId;
+      const eventTotalStars = event?.detail?.totalStars;
+
+      if (eventChildId && String(eventChildId) !== String(childId)) {
+        return;
+      }
+
+      if (eventTotalStars != null) {
+        setTotalStars(Number(eventTotalStars) || 0);
+        return;
+      }
+
+      setTotalStars(readTotalStars());
     };
-    
-    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+
+    window.addEventListener(CHILD_STATS_UPDATED_EVENT, handleStatsUpdate);
     return () => {
-      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+      window.removeEventListener(CHILD_STATS_UPDATED_EVENT, handleStatsUpdate);
     };
-  }, [getTotalStars]);
+  }, [childId, readTotalStars]);
 
   const handlePointsClick = () => {
-    // Navigate to child profile page
     if (childId) {
       navigate(`/child/${childId}/profile`);
     }
   };
 
   const handleCloudClick = () => {
-    // TODO: Implement cloud/sync functionality
     console.log('Cloud clicked');
   };
 
@@ -81,7 +84,7 @@ const ChildHeader = ({ childId }) => {
         zIndex: (theme) => theme.zIndex.drawer + 1,
         borderRadius: '0px',
         minHeight: '140px',
-        display: 'flex'
+        display: 'flex',
       }}
     >
       <Toolbar
@@ -97,7 +100,6 @@ const ChildHeader = ({ childId }) => {
           gap: 2,
         }}
       >
-        {/* Logo — centered in the left area (up to the star points button) */}
         <Box
           sx={{
             flex: 1,
@@ -120,7 +122,6 @@ const ChildHeader = ({ childId }) => {
           />
         </Box>
 
-        {/* Star points — fixed width on the right */}
         <Box
           sx={{
             flexShrink: 0,
@@ -129,11 +130,10 @@ const ChildHeader = ({ childId }) => {
             gap: 1,
           }}
         >
-          {/* Points/Star Button */}
           <IconButton
             onClick={handlePointsClick}
             sx={{
-              backgroundColor: themeColors.orange, // #e98a68
+              backgroundColor: themeColors.orange,
               color: 'white',
               padding: '16px 32px',
               borderRadius: '0px',
@@ -162,7 +162,6 @@ const ChildHeader = ({ childId }) => {
             </Typography>
           </IconButton>
 
-          {/* Cloud Button (Optional - can be hidden if not needed) */}
           <IconButton
             onClick={handleCloudClick}
             sx={{

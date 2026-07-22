@@ -18,7 +18,7 @@ import { completeHtml5Book } from './html5CompletionHandler';
 import ScormCompletionDialog from './ScormCompletionDialog';
 import { ConfirmCloseDialog, TryAgainDialog } from './html5DialogBoxHandler';
 import { useDispatch } from 'react-redux';
-import { updateChildStats } from '../../../store/slices/userSlice';
+import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
 import axios from '../../../api/axios';
 
 /**
@@ -54,40 +54,6 @@ const Html5Player = ({
   const [completionData, setCompletionData] = useState(null);
 
   const canLoad = useMemo(() => !!html5PackageId && !!bookId, [html5PackageId, bookId]);
-
-  const updateChildStatsInStorage = useCallback(
-    (totalStars) => {
-      if (!childId || totalStars === undefined || totalStars === null) return;
-      try {
-        const childProfilesStr = sessionStorage.getItem('childProfiles');
-        if (childProfilesStr) {
-          const childProfiles = JSON.parse(childProfilesStr);
-          const idx = childProfiles.findIndex((c) => c._id === childId || c._id?.toString() === childId.toString());
-          if (idx !== -1) {
-            childProfiles[idx].stats = childProfiles[idx].stats || {};
-            childProfiles[idx].stats.totalStars = totalStars;
-            sessionStorage.setItem('childProfiles', JSON.stringify(childProfiles));
-          }
-        }
-
-        const selectedChildStr = sessionStorage.getItem('selectedChild');
-        if (selectedChildStr) {
-          const selectedChild = JSON.parse(selectedChildStr);
-          if (selectedChild._id === childId || selectedChild._id?.toString() === childId.toString()) {
-            selectedChild.stats = selectedChild.stats || {};
-            selectedChild.stats.totalStars = totalStars;
-            sessionStorage.setItem('selectedChild', JSON.stringify(selectedChild));
-          }
-        }
-
-        dispatch(updateChildStats({ childId, stats: { totalStars } }));
-        window.dispatchEvent(new Event('childStatsUpdated'));
-      } catch (e) {
-        // best-effort
-      }
-    },
-    [childId, dispatch]
-  );
 
   const cleanup = useCallback(() => {
     setLaunchUrl(null);
@@ -241,19 +207,22 @@ const Html5Player = ({
         setIsCompleted(true);
 
         const data = result?.data || {};
+        const syncedTotalStars = applyStarRewardFromCompletion({
+          childId,
+          starsToAward: data.starsToAward,
+          totalStars: data.totalStars,
+          dispatch,
+        });
+
         const completionDataToStore = {
           starsAwarded: data.starsAwarded || false,
           starsToAward: data.starsToAward || 0,
-          totalStars: data.totalStars || 0,
+          totalStars: syncedTotalStars ?? data.totalStars ?? 0,
           readingCount: data.readingCount || 0,
           requiredReadingCount: data.requiredReadingCount || 5,
           requirementMet: data.requirementMet || false,
         };
         setCompletionData(completionDataToStore);
-
-        if (data.totalStars !== undefined && data.totalStars !== null) {
-          updateChildStatsInStorage(data.totalStars);
-        }
 
         setShowCompletionDialog(true);
 
@@ -280,7 +249,7 @@ const Html5Player = ({
     childId,
     bookId,
     onComplete,
-    updateChildStatsInStorage,
+    dispatch,
     requestHtml5ScoreFromIframe,
   ]);
 

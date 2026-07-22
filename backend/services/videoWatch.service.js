@@ -1,9 +1,95 @@
 const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
+const { getStarsForSession } = require('../utils/contentStarDistribution.util');
+
+/**
+ * Award stars for a single watch session when not already recorded.
+ */
+async function awardStarsForWatchSession({
+  childId,
+  videoId,
+  video,
+  watchNumber,
+  requiredWatchCount,
+  totalStarsAvailable,
+}) {
+  if (watchNumber < 1 || watchNumber > requiredWatchCount) {
+    return 0;
+  }
+
+  const legacyLumpSum = await StarEarning.findOne({
+    child: childId,
+    'source.type': 'video',
+    'source.contentId': videoId,
+    'source.metadata.watchNumber': { $exists: false },
+  });
+
+  if (legacyLumpSum) {
+    return 0;
+  }
+
+  const existingForSession = await StarEarning.findOne({
+    child: childId,
+    'source.type': 'video',
+    'source.contentId': videoId,
+    'source.metadata.watchNumber': watchNumber,
+  });
+
+  if (existingForSession) {
+    return 0;
+  }
+
+  const starsForSession = getStarsForSession(
+    watchNumber,
+    totalStarsAvailable,
+    requiredWatchCount
+  );
+
+  if (starsForSession <= 0) {
+    return 0;
+  }
+
+  await StarEarning.create({
+    child: childId,
+    stars: starsForSession,
+    source: {
+      type: 'video',
+      contentId: videoId,
+      contentType: 'Media',
+      metadata: {
+        videoTitle: video.title,
+        watchNumber,
+        requiredWatchCount,
+        totalStarsAvailable,
+      },
+    },
+    description: `Earned ${starsForSession} stars for watching "${video.title}" (watch ${watchNumber} of ${requiredWatchCount})`,
+  });
+
+  const childStats = await ChildStats.getOrCreate(childId);
+  const previousTotalStars = childStats.totalStars || 0;
+  await childStats.addStars(starsForSession);
+  await childStats.save();
+
+  const updatedStats = await ChildStats.findById(childStats._id);
+  if (updatedStats.totalStars !== previousTotalStars + starsForSession) {
+    updatedStats.totalStars = previousTotalStars + starsForSession;
+    await updatedStats.save();
+  }
+
+  try {
+    const badgeCheck = require('./badgeCheck.service');
+    await badgeCheck.updateBadges(childId, { silent: false });
+  } catch (badgeError) {
+    console.error('[VideoWatch] Error checking badges after star award:', badgeError);
+  }
+
+  return starsForSession;
+}
 
 /**
  * Mark video as watched (completed)
- * Increments watch count and awards stars when required count is reached
- * 
+ * Increments watch count and awards stars per watch session
+ *
  * @param {String} childId - Child's MongoDB ID
  * @param {String} videoId - Video's MongoDB ID (Media ID)
  * @param {Number} [completionPercentage] - Optional completion percentage (0-100, default: 100)
@@ -11,13 +97,11 @@ const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('..
  * @throws {Error} If video or child not found, or if video is not a video type
  */
 const markVideoWatched = async (childId, videoId, completionPercentage = 100) => {
-  // Verify child exists
   const child = await ChildProfile.findById(childId);
   if (!child) {
     throw new Error('Child not found');
   }
 
-  // Verify video exists and is a video type
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
@@ -27,7 +111,6 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
     throw new Error('Video not found');
   }
 
-  // Get or create VideoWatch record
   let videoWatch = await VideoWatch.findOne({
     child: childId,
     video: videoId,
@@ -42,126 +125,84 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
     });
   }
 
-  // Prevent duplicate watch recording within a short time window (5 seconds)
-  // This prevents multiple API calls from incrementing the count multiple times
   const now = new Date();
-  const recentWatchThreshold = 5000; // 5 seconds in milliseconds
-  const lastWatchTime = videoWatch.watchHistory.length > 0 
+  const recentWatchThreshold = 5000;
+  const lastWatchTime = videoWatch.watchHistory.length > 0
     ? new Date(videoWatch.watchHistory[videoWatch.watchHistory.length - 1].watchedAt)
     : null;
-  
-  const timeSinceLastWatch = lastWatchTime 
+
+  const timeSinceLastWatch = lastWatchTime
     ? (now.getTime() - lastWatchTime.getTime())
     : Infinity;
 
   let isDuplicateWatch = false;
-  
-  // Only increment if enough time has passed since last watch (or no previous watch)
+  let starsEarnedThisSession = 0;
+  const requiredWatchCount = video.requiredWatchCount || 5;
+  const totalStarsAvailable = video.starsAwarded || 10;
+
   if (timeSinceLastWatch >= recentWatchThreshold) {
-    // Increment watch count
     videoWatch.watchCount += 1;
 
-    // Add to watch history
     videoWatch.watchHistory.push({
       watchedAt: now,
       completionPercentage: Math.max(0, Math.min(100, completionPercentage)),
     });
-  } else {
-    // Duplicate watch detected - log but don't increment
-    console.log(`[VideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`);
-    isDuplicateWatch = true;
-    // Continue with existing watch count (don't increment)
-    // Still need to check for star awards with current watch count
-  }
 
-  // Get required watch count (default to 5 if not specified)
-  const requiredWatchCount = video.requiredWatchCount || 5;
-
-  // Check if we've reached the required watch count and stars haven't been awarded yet
-  // Only award stars if this is NOT a duplicate watch (to prevent duplicate star awards)
-  if (!isDuplicateWatch && videoWatch.watchCount >= requiredWatchCount && !videoWatch.starsAwarded) {
-    // Award stars
-    const starsToAward = video.starsAwarded || 10;
-
-    try {
-      // Create StarEarning record
-      await StarEarning.create({
-        child: childId,
-        stars: starsToAward,
-        source: {
-          type: 'video',
-          contentId: videoId,
-          contentType: 'Media',
-          metadata: {
-            videoTitle: video.title,
-            watchCount: videoWatch.watchCount,
-            requiredWatchCount,
-          },
-        },
-        description: `Earned ${starsToAward} stars for watching "${video.title}" ${requiredWatchCount} times`,
+    if (videoWatch.watchCount <= requiredWatchCount) {
+      starsEarnedThisSession = await awardStarsForWatchSession({
+        childId,
+        videoId,
+        video,
+        watchNumber: videoWatch.watchCount,
+        requiredWatchCount,
+        totalStarsAvailable,
       });
-
-      // Update ChildStats to accumulate total stars
-      const childStats = await ChildStats.getOrCreate(childId);
-      const previousTotalStars = childStats.totalStars || 0;
-      await childStats.addStars(starsToAward);
-      
-      // Verify the stars were actually added
-      await childStats.save(); // Explicit save to ensure persistence
-      const updatedStats = await ChildStats.findById(childStats._id);
-      
-      if (updatedStats.totalStars !== previousTotalStars + starsToAward) {
-        console.error(`[VideoWatch] Stars not properly added! Expected: ${previousTotalStars + starsToAward}, Got: ${updatedStats.totalStars}`);
-        // Try to fix it manually
-        updatedStats.totalStars = previousTotalStars + starsToAward;
-        await updatedStats.save();
-      }
-      
-      console.log(`[VideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId}. Total stars: ${previousTotalStars} -> ${updatedStats.totalStars}`);
-
-      // Check for badges after awarding stars
-      try {
-        const badgeCheck = require('./badgeCheck.service');
-        await badgeCheck.updateBadges(childId, { silent: false });
-      } catch (badgeError) {
-        console.error(`[VideoWatch] Error checking badges after star award:`, badgeError);
-        // Don't throw - badge checking failure shouldn't block video watch
-      }
-
-      // Update VideoWatch record
-      videoWatch.starsAwarded = true;
-      videoWatch.starsAwardedAt = new Date();
-    } catch (error) {
-      console.error(`[VideoWatch] Error awarding stars for video ${videoId}, child ${childId}:`, error);
-      // Don't throw - allow the watch to be recorded even if star awarding fails
-      // This prevents blocking video watch tracking if there's a stats issue
     }
+
+    if (videoWatch.watchCount >= requiredWatchCount) {
+      videoWatch.starsAwarded = true;
+      if (!videoWatch.starsAwardedAt) {
+        videoWatch.starsAwardedAt = new Date();
+      }
+    }
+  } else {
+    console.log(
+      `[VideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`
+    );
+    isDuplicateWatch = true;
   }
 
   await videoWatch.save();
-
-  // Populate video info
   await videoWatch.populate('video', 'title starsAwarded requiredWatchCount');
+
+  const nextWatchNumber = Math.min(videoWatch.watchCount + 1, requiredWatchCount);
+  const starsForNextSession = videoWatch.watchCount < requiredWatchCount
+    ? getStarsForSession(nextWatchNumber, totalStarsAvailable, requiredWatchCount)
+    : 0;
 
   return {
     videoWatch: videoWatch.toObject(),
     requiredWatchCount,
-    starsAwarded: videoWatch.starsAwarded,
+    starsAwarded: starsEarnedThisSession > 0,
+    allStarsAwarded: videoWatch.starsAwarded,
     starsAwardedAt: videoWatch.starsAwardedAt,
-    starsToAward: video.starsAwarded || 10,
+    starsToAward: starsEarnedThisSession,
+    starsEarnedThisSession,
+    starsForNextSession,
+    totalStarsAvailable,
+    isDuplicateWatch,
   };
 };
 
 /**
  * Get video watch status for a child
- * 
+ *
  * @param {String} childId - Child's MongoDB ID
  * @param {String} videoId - Video's MongoDB ID
  * @returns {Object} VideoWatch status with watch count and required count
  * @throws {Error} If video not found
  */
 const getVideoWatchStatus = async (childId, videoId) => {
-  // Verify video exists
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
@@ -171,7 +212,6 @@ const getVideoWatchStatus = async (childId, videoId) => {
     throw new Error('Video not found');
   }
 
-  // Get VideoWatch record
   const videoWatch = await VideoWatch.findOne({
     child: childId,
     video: videoId,
@@ -179,23 +219,31 @@ const getVideoWatchStatus = async (childId, videoId) => {
 
   const requiredWatchCount = video.requiredWatchCount || 5;
   const currentWatchCount = videoWatch ? videoWatch.watchCount : 0;
-  const starsAwarded = videoWatch ? videoWatch.starsAwarded : false;
+  const allStarsAwarded = videoWatch ? videoWatch.starsAwarded : false;
+  const totalStarsAvailable = video.starsAwarded || 10;
+  const nextWatchNumber = Math.min(currentWatchCount + 1, requiredWatchCount);
+  const starsForNextSession = currentWatchCount < requiredWatchCount
+    ? getStarsForSession(nextWatchNumber, totalStarsAvailable, requiredWatchCount)
+    : 0;
 
   return {
     videoId,
     videoTitle: video.title,
     currentWatchCount,
     requiredWatchCount,
-    starsAwarded,
+    starsAwarded: allStarsAwarded,
+    allStarsAwarded,
     starsAwardedAt: videoWatch?.starsAwardedAt || null,
-    starsToAward: video.starsAwarded || 10,
+    starsToAward: starsForNextSession,
+    starsForNextSession,
+    totalStarsAvailable,
     watchHistory: videoWatch?.watchHistory || [],
   };
 };
 
 /**
  * Get all video watch statuses for a child
- * 
+ *
  * @param {String} childId - Child's MongoDB ID
  * @returns {Array} Array of video watch statuses
  */
@@ -208,6 +256,11 @@ const getChildVideoWatches = async (childId) => {
   return videoWatches.map((watch) => {
     const video = watch.video;
     const requiredWatchCount = video?.requiredWatchCount || 5;
+    const totalStarsAvailable = video?.starsAwarded || 10;
+    const nextWatchNumber = Math.min(watch.watchCount + 1, requiredWatchCount);
+    const starsForNextSession = watch.watchCount < requiredWatchCount
+      ? getStarsForSession(nextWatchNumber, totalStarsAvailable, requiredWatchCount)
+      : 0;
 
     return {
       videoId: watch.video._id,
@@ -215,8 +268,11 @@ const getChildVideoWatches = async (childId) => {
       currentWatchCount: watch.watchCount,
       requiredWatchCount,
       starsAwarded: watch.starsAwarded,
+      allStarsAwarded: watch.starsAwarded,
       starsAwardedAt: watch.starsAwardedAt,
-      starsToAward: video?.starsAwarded || 10,
+      starsToAward: starsForNextSession,
+      starsForNextSession,
+      totalStarsAvailable,
       watchHistory: watch.watchHistory || [],
       lastWatchedAt: watch.updatedAt,
     };
@@ -225,20 +281,18 @@ const getChildVideoWatches = async (childId) => {
 
 /**
  * Reset video watch count for a child (admin/parent action)
- * 
+ *
  * @param {String} childId - Child's MongoDB ID
  * @param {String} videoId - Video's MongoDB ID
  * @returns {Object} Reset VideoWatch record
  * @throws {Error} If video or child not found
  */
 const resetVideoWatch = async (childId, videoId) => {
-  // Verify child exists
   const child = await ChildProfile.findById(childId);
   if (!child) {
     throw new Error('Child not found');
   }
 
-  // Verify video exists
   const video = await Media.findOne({
     _id: videoId,
     type: 'video',
@@ -248,7 +302,6 @@ const resetVideoWatch = async (childId, videoId) => {
     throw new Error('Video not found');
   }
 
-  // Get or create VideoWatch record
   let videoWatch = await VideoWatch.findOne({
     child: childId,
     video: videoId,
@@ -261,7 +314,6 @@ const resetVideoWatch = async (childId, videoId) => {
     });
   }
 
-  // Reset watch count and stars awarded
   videoWatch.watchCount = 0;
   videoWatch.starsAwarded = false;
   videoWatch.starsAwardedAt = null;
@@ -277,4 +329,5 @@ module.exports = {
   getVideoWatchStatus,
   getChildVideoWatches,
   resetVideoWatch,
+  awardStarsForWatchSession,
 };

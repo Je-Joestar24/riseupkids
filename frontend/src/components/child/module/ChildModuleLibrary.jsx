@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Typography } from '@mui/material';
+import { useDispatch } from 'react-redux';
 import { themeColors } from '../../../config/themeColors';
 import ChildModuleCards from './ChildModuleCards';
 import { useCourseProgress } from '../../../hooks/courseProgressHook';
@@ -9,6 +10,7 @@ import CmsPlayer from '../common/cmsPLayer';
 import CmsCompletionDialog from '../common/cmsCompletionDialog';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import { completeHtml5Book } from '../common/html5CompletionHandler';
+import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
 
 /**
  * ChildModuleLibrary Component
@@ -17,6 +19,7 @@ import { completeHtml5Book } from '../common/html5CompletionHandler';
  */
 const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) => {
   const { id: childId, courseId } = useParams();
+  const dispatch = useDispatch();
   const { getChildBookReadings } = useCourseProgress(childId);
   const [bookReadings, setBookReadings] = useState({}); // Map of bookId -> reading status
   const [loadingReadings, setLoadingReadings] = useState(false);
@@ -148,12 +151,21 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
         fetchBookReadings();
       }
 
+      const completionData = completionResponse?.data || {};
+      const syncedTotalStars = applyStarRewardFromCompletion({
+        childId,
+        starsToAward: completionData.starsToAward,
+        totalStars: completionData.totalStars,
+        dispatch,
+      });
+
       if (trigger === 'home') {
         setCmsCompletionData({
           score,
           maxScore,
           attemptCount,
-          ...(completionResponse?.data || {}),
+          ...completionData,
+          totalStars: syncedTotalStars ?? completionData.totalStars ?? 0,
         });
         setCmsCompletionOpen(true);
       }
@@ -165,7 +177,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
         trigger,
       });
     },
-    [childId, courseId, selectedCmsBook, sessionStartedAt]
+    [childId, courseId, selectedCmsBook, sessionStartedAt, dispatch]
   );
 
   // Fetch book reading statuses for all books

@@ -20,7 +20,7 @@ import useCourseProgress from '../../../hooks/courseProgressHook';
 import useExploreVideoWatch from '../../../hooks/exploreVideoWatchHook';
 import ChildDialogBox from '../../common/ChildDialogBox';
 import { useDispatch } from 'react-redux';
-import { updateChildStats } from '../../../store/slices/userSlice';
+import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
 import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
 import html5Service from '../../../services/html5Service';
@@ -222,95 +222,6 @@ const VideoPlayerModal = ({
     linkedCmsBook.pages.length > 0
   );
   const hasFollowUpContent = hasScorm || hasHtml5FollowUp || hasCmsBookFollowUp;
-
-  /**
-   * Update child stats in sessionStorage and Redux
-   * This ensures the header and other components show updated stars immediately
-   * @param {Number} totalStars - New total stars value
-   */
-  const updateChildStatsInStorage = (totalStars) => {
-    if (!childId || totalStars === undefined || totalStars === null) {
-      console.warn('[VideoPlayer] Cannot update child stats: missing childId or totalStars');
-      return;
-    }
-
-    try {
-      console.log(`[VideoPlayer] Updating child stats for ${childId} with totalStars: ${totalStars}`);
-
-      // Update childProfiles in sessionStorage
-      const childProfilesStr = sessionStorage.getItem('childProfiles');
-      if (childProfilesStr) {
-        const childProfiles = JSON.parse(childProfilesStr);
-        const childIndex = childProfiles.findIndex(
-          (child) => child._id === childId || child._id?.toString() === childId.toString()
-        );
-
-        if (childIndex !== -1) {
-          // Update the child's stats
-          if (!childProfiles[childIndex].stats) {
-            childProfiles[childIndex].stats = {};
-          }
-          childProfiles[childIndex].stats.totalStars = totalStars;
-
-          // Save back to sessionStorage
-          sessionStorage.setItem('childProfiles', JSON.stringify(childProfiles));
-          console.log(`[VideoPlayer] Updated childProfiles in sessionStorage`);
-        }
-      }
-
-      // Update selectedChild in sessionStorage
-      const selectedChildStr = sessionStorage.getItem('selectedChild');
-      if (selectedChildStr) {
-        const selectedChild = JSON.parse(selectedChildStr);
-        if (selectedChild._id === childId || selectedChild._id?.toString() === childId.toString()) {
-          if (!selectedChild.stats) {
-            selectedChild.stats = {};
-          }
-          selectedChild.stats.totalStars = totalStars;
-          sessionStorage.setItem('selectedChild', JSON.stringify(selectedChild));
-          console.log(`[VideoPlayer] Updated selectedChild in sessionStorage`);
-        }
-      }
-
-      // Update Redux store
-      dispatch(updateChildStats({
-        childId,
-        stats: { totalStars },
-      }));
-      console.log(`[VideoPlayer] Updated Redux store with new totalStars`);
-
-      // Dispatch event to notify components (like ChilHeader) to refresh
-      window.dispatchEvent(new Event('childStatsUpdated'));
-      console.log(`[VideoPlayer] Dispatched childStatsUpdated event`);
-    } catch (error) {
-      console.error('[VideoPlayer] Error updating child stats in storage:', error);
-    }
-  };
-
-  /**
-   * Get current totalStars from sessionStorage
-   * @returns {Number} Current totalStars or 0
-   */
-  const getCurrentTotalStars = () => {
-    try {
-      const childProfiles = JSON.parse(sessionStorage.getItem('childProfiles') || '[]');
-      const child = childProfiles.find(c => c._id === childId || c._id?.toString() === childId.toString());
-
-      if (child && child.stats) {
-        return child.stats.totalStars || 0;
-      }
-
-      // Fallback: try selectedChild
-      const selectedChild = JSON.parse(sessionStorage.getItem('selectedChild') || '{}');
-      if (selectedChild.stats) {
-        return selectedChild.stats.totalStars || 0;
-      }
-
-      return 0;
-    } catch (error) {
-      return 0;
-    }
-  };
 
   // Check video watch status when video opens
   // Use checkbox logic: if watch count >= required count, stars were already awarded
@@ -524,45 +435,29 @@ const VideoPlayerModal = ({
             throw new Error('Video ID not found');
           }
 
-          // Check if stars were already awarded BEFORE this watch
-          const starsWereAlreadyAwarded = watchStatusBefore?.starsAwarded || false;
-          const watchCountBefore = watchStatusBefore?.currentWatchCount || 0;
-          const requiredWatchCount = watchStatusBefore?.requiredWatchCount || 5;
-
           // Mark video as watched (100% completion)
           result = await markVideoWatched(videoId, 100);
 
-          // Determine if stars were JUST awarded in this watch
-          // Stars were just awarded if:
-          // 1. They weren't awarded before this watch
-          // 2. The watch count after is >= required count
-          // 3. The result says stars were awarded
-          const watchCountAfter = result?.videoWatch?.watchCount || 0;
-          const starsJustAwarded = result?.starsAwarded && result?.starsAwardedAt &&
-            !starsWereAlreadyAwarded &&
-            watchCountAfter >= requiredWatchCount;
+          const wasFullyCompleteBefore = watchStatusBefore?.starsAwarded || false;
+          const isFullyCompleteNow = result?.videoWatch?.starsAwarded || result?.allStarsAwarded || false;
+          const starsJustAwarded = (result?.starsToAward ?? result?.starsEarnedThisSession ?? 0) > 0;
 
-          // Update result to reflect if stars were just awarded or already earned
+          applyStarRewardFromCompletion({
+            childId,
+            starsToAward: result?.starsToAward ?? result?.starsEarnedThisSession ?? 0,
+            dispatch,
+          });
+
           const updatedResult = {
             ...result,
-            starsJustAwarded, // New flag to indicate stars were just awarded
-            starsWereAlreadyAwarded, // Flag to indicate stars were already earned
+            starsJustAwarded,
+            starsWereAlreadyAwarded: wasFullyCompleteBefore && !starsJustAwarded,
+            allStarsAwarded: isFullyCompleteNow,
           };
 
           setWatchResult(updatedResult);
 
-          // Update child stats in sessionStorage and Redux if stars were JUST awarded
-          // This ensures the header updates immediately without page reload
-          if (starsJustAwarded && result.starsToAward) {
-            const currentTotalStars = getCurrentTotalStars();
-            const newTotalStars = currentTotalStars + result.starsToAward;
-            updateChildStatsInStorage(newTotalStars);
-          }
-
-          // Only update course progress if stars were JUST awarded (not already earned)
-          // This ensures videos are only marked as completed in course progress when fully watched
-          // Use service directly to avoid unnecessary refreshes (updateProgress hook calls fetchChildCourses)
-          if (courseId && starsJustAwarded) {
+          if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
             try {
               await courseProgressService.updateContentProgress(courseId, childId, videoId, 'video');
               console.log('[VideoPlayer] Course progress updated silently after video completion (stars awarded)');
@@ -1588,7 +1483,7 @@ const VideoPlayerModal = ({
                     fontWeight: 600,
                   }}
                 >
-                  Watch {watchResult.requiredWatchCount - (watchResult.videoWatch?.watchCount || 0)} more time{watchResult.requiredWatchCount - (watchResult.videoWatch?.watchCount || 0) > 1 ? 's' : ''} to earn {watchResult.starsToAward} stars!
+                  Watch {watchResult.requiredWatchCount - (watchResult.videoWatch?.watchCount || 0)} more time{watchResult.requiredWatchCount - (watchResult.videoWatch?.watchCount || 0) > 1 ? 's' : ''} to earn up to {watchResult.starsForNextSession ?? watchResult.starsToAward ?? 0} stars next!
                 </Typography>
               )}
             </Box>
