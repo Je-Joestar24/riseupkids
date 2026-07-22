@@ -27,6 +27,7 @@ import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { moduleService } from '@/services/moduleService';
+import { useExploreStore } from '@/store/exploreStore';
 import { useUiStore } from '@/store/uiStore';
 
 /** Pass threshold: score / maxScore >= 75% */
@@ -72,6 +73,7 @@ export interface BookCompletionData {
     requiredReadingCount: number;
     starsAwarded: boolean;
     starsToAward: number;
+    totalStars?: number;
     requirementMet?: boolean;
     alreadyCompleted?: boolean;
 }
@@ -131,6 +133,7 @@ export function Html5Modal({
     const scoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const closeConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showDialog = useUiStore((s) => s.showDialog);
+    const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
 
     const handleWebViewMessage = useCallback(
         (event: { nativeEvent: { data: string } }) => {
@@ -188,8 +191,13 @@ export function Html5Modal({
                 progress: result.progress ?? 100,
             })
             .then((res) => {
-                const payload = res?.data as { data?: BookCompletionData } | undefined;
-                const bookReading = payload?.data ?? null;
+                const bookReading = (res?.data ?? null) as BookCompletionData | null;
+                if (childId && bookReading) {
+                    applyChildStarReward(childId, {
+                        starsToAward: bookReading.starsToAward,
+                        totalStars: bookReading.totalStars,
+                    });
+                }
                 setResult((prev) => (prev ? { ...prev, bookReading } : prev));
                 onAfterComplete?.();
             })
@@ -198,7 +206,7 @@ export function Html5Modal({
                 setSubmitting(false);
                 setSubmitOnResult(false);
             });
-    }, [submitOnResult, result, courseId, childId, bookId, submitting, onAfterComplete]);
+    }, [submitOnResult, result, courseId, childId, bookId, submitting, onAfterComplete, applyChildStarReward]);
 
     const PORTRAIT = ScreenOrientation.OrientationLock.PORTRAIT_UP;
     const LANDSCAPE = ScreenOrientation.OrientationLock.LANDSCAPE;

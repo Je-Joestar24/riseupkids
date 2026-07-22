@@ -26,6 +26,7 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
+import { useExploreStore } from '@/store/exploreStore';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import { isInstructionVideoBunnyEmbed, resolveInstructionVideoPlayback } from '@/utils/instructionVideoPlayback';
@@ -190,6 +191,7 @@ export function ChantModal({
   const isPhone = windowWidth < 600;
   const chantId = String(chant?._id ?? chant?._contentId ?? chant?.contentId ?? chant?.id ?? '');
   const showDialog = useUiStore((s) => s.showDialog);
+  const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
 
   const {
     startChant,
@@ -298,6 +300,10 @@ export function ChantModal({
       const result = (await completeChant(chantId, fd)) as { starsEarned?: number } | null;
       const starsEarned = result?.starsEarned ?? progress?.starsEarned ?? 0;
 
+      if (childId && starsEarned > 0) {
+        applyChildStarReward(childId, { starsToAward: starsEarned });
+      }
+
       if (courseId) {
         await updateCourseContentProgress(chantId, 'chant');
       }
@@ -333,6 +339,7 @@ export function ChantModal({
     courseId,
     updateCourseContentProgress,
     showDialog,
+    applyChildStarReward,
     onAfterComplete,
     onClose,
   ]);

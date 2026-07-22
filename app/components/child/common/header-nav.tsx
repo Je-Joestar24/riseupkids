@@ -1,7 +1,8 @@
 /**
  * Child Header Navigation
  * Two columns: (1) flex area with logo centered in the left side, (2) points button sized to content
- * Total stars are read from the explore store (single source of truth); store updates when stars are awarded.
+ * Total stars are read from exploreStore (single source of truth).
+ * Initial load fetches once; subsequent rewards update locally via applyChildStarReward.
  */
 
 import { useRouter } from 'expo-router';

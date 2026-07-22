@@ -32,6 +32,7 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { moduleService } from '@/services/moduleService';
+import { useExploreStore } from '@/store/exploreStore';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { useUiStore } from '@/store/uiStore';
 import type { PopulatedContentItem } from '@/services/moduleService';
@@ -99,6 +100,7 @@ export function VideoPlayerModal({
 }: VideoPlayerModalProps) {
   const videoId = String(video?._id ?? (video as { _contentId?: string })?._contentId ?? (video as { contentId?: string })?.contentId ?? (video as { id?: string })?.id ?? '');
   const showDialog = useUiStore((s) => s.showDialog);
+  const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
 
   const {
     markVideoWatched,
@@ -252,6 +254,12 @@ export function VideoPlayerModal({
 
       setWatchResult(nextWatchResult);
 
+      if (childId && starsJustAwarded) {
+        applyChildStarReward(childId, {
+          starsToAward: result?.starsToAward ?? result?.starsEarnedThisSession ?? 0,
+        });
+      }
+
       if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
         await moduleService.updateContentProgress(
           courseId,
@@ -304,6 +312,7 @@ export function VideoPlayerModal({
     showDialog,
     onClose,
     onVideoComplete,
+    applyChildStarReward,
   ]);
 
   const handlePlaybackStatusUpdate = useCallback(

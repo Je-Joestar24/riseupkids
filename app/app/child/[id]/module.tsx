@@ -56,6 +56,7 @@ import { spacing } from '@/config/theme/spacing';
 import { useCmsBookPlayer } from '@/hooks/cmsBookPlayerHook';
 import { useJourney } from '@/hooks/journeyHook';
 import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
+import { useExploreStore } from '@/store/exploreStore';
 import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
 import type { BuiltInBookCompletionPayload } from '@/services/cmsBooksPlayerService';
@@ -82,6 +83,7 @@ export default function ChildModuleScreen() {
   const [videoCompletionOpen, setVideoCompletionOpen] = useState(false);
   const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
   const [cmsCompletionData, setCmsCompletionData] = useState<CmsCompletionDialogData | null>(null);
+  const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
 
   const {
     open: html5Open,
@@ -193,21 +195,45 @@ export default function ChildModuleScreen() {
           raw && typeof raw === 'object' && !Array.isArray(raw)
             ? (raw as Record<string, unknown>)
             : {};
+        const starsToAward = Number(apiData.starsToAward) || 0;
+        const syncedTotalStars = childId
+          ? applyChildStarReward(childId, {
+              starsToAward,
+              totalStars:
+                apiData.totalStars !== undefined && apiData.totalStars !== null
+                  ? Number(apiData.totalStars)
+                  : undefined,
+            })
+          : undefined;
         setCmsCompletionData({
           score,
           maxScore,
           attemptCount: payload.attemptCount,
           starsAwarded: Boolean(apiData.starsAwarded),
-          starsToAward: Number(apiData.starsToAward) || 0,
-          totalStars:
+          starsToAward,
+          totalStars: syncedTotalStars ?? (
             apiData.totalStars !== undefined && apiData.totalStars !== null
               ? Number(apiData.totalStars)
-              : undefined,
+              : undefined
+          ),
           readingCount: Number(apiData.readingCount) || 0,
           requiredReadingCount: Number(apiData.requiredReadingCount) || 5,
           requirementMet: Boolean(apiData.requirementMet),
         });
         setCmsCompletionOpen(true);
+      } else if (childId && completionRes?.success) {
+        const raw = completionRes?.data;
+        const apiData =
+          raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? (raw as Record<string, unknown>)
+            : {};
+        applyChildStarReward(childId, {
+          starsToAward: Number(apiData.starsToAward) || 0,
+          totalStars:
+            apiData.totalStars !== undefined && apiData.totalStars !== null
+              ? Number(apiData.totalStars)
+              : undefined,
+        });
       }
     },
     [
@@ -219,6 +245,7 @@ export default function ChildModuleScreen() {
       submitBuiltinBookScore,
       updateContentProgress,
       fetchModuleDetails,
+      applyChildStarReward,
     ]
   );
 

@@ -10,6 +10,7 @@ import { create } from 'zustand';
 
 import { exploreService } from '@/services/exploreService';
 import { homeService } from '@/services/homeService';
+import { resolveNextChildTotalStars, type StarRewardInput } from '@/utils/childStatsSync';
 import type {
   ExploreContentItem,
   ExploreListParams,
@@ -117,6 +118,8 @@ export interface ExploreActions {
   clearErrorWatch: () => void;
   /** Fetch and store child overall total stars (used by header); returns current value. */
   fetchChildTotalStars: (childId: string) => Promise<number>;
+  /** Update header stars locally after a reward — no API refetch. */
+  applyChildStarReward: (childId: string, input: StarRewardInput) => number;
 }
 
 const initialState: ExploreState = {
@@ -276,7 +279,9 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
         });
       }
       if (starsAwarded && childId) {
-        get().fetchChildTotalStars(childId);
+        get().applyChildStarReward(childId, {
+          starsToAward: Number(data?.starsToAward) || 0,
+        });
       }
       return data;
     } catch (err) {
@@ -363,5 +368,19 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
     } catch {
       return get().childTotalStars[childId] ?? 0;
     }
+  },
+
+  applyChildStarReward: (childId, input) => {
+    if (!childId) return 0;
+    const current = get().childTotalStars[childId] ?? 0;
+    const nextTotal = resolveNextChildTotalStars(current, input);
+    if (nextTotal === null) {
+      return current;
+    }
+    set((s) => ({
+      childTotalStars: { ...s.childTotalStars, [childId]: nextTotal },
+      lastExploreStarsAwardedAt: Date.now(),
+    }));
+    return nextTotal;
   },
 }));
