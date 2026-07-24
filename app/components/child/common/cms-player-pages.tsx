@@ -103,16 +103,20 @@ export function CmsIntroPage({
   page,
   hasNext,
   isPreloading,
+  isNextDisabled,
   onNext,
 }: {
   page: CmsPlayablePage;
   hasNext: boolean;
   isPreloading: boolean;
+  /** When true, Next/Play is locked (initial preload or next-page media not ready). */
+  isNextDisabled?: boolean;
   onNext: () => void;
 }) {
   const bg = useCmsPlayableMediaUri(resolveImageUrl(page));
   const backgroundMusicUrl = useCmsPlayableMediaUri(resolveIntroBackgroundMusicUrl(page));
   const soundRef = useRef<Audio.Sound | null>(null);
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
 
   const stopBackgroundMusic = useCallback(async () => {
     const active = soundRef.current;
@@ -131,10 +135,11 @@ export function CmsIntroPage({
   }, []);
 
   const handleNext = useCallback(() => {
+    if (nextLocked || !hasNext) return;
     void stopBackgroundMusic().finally(() => {
       onNext();
     });
-  }, [onNext, stopBackgroundMusic]);
+  }, [onNext, stopBackgroundMusic, nextLocked, hasNext]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,14 +194,14 @@ export function CmsIntroPage({
       ) : null}
       <Pressable
         onPress={handleNext}
-        disabled={isPreloading || !hasNext}
+        disabled={nextLocked || !hasNext}
         style={({ pressed }) => [
           styles.introPlay,
-          (pressed || isPreloading || !hasNext) && styles.pressed,
+          (pressed || nextLocked || !hasNext) && styles.pressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Play intro and continue"
-        accessibilityState={{ disabled: isPreloading || !hasNext }}
+        accessibilityLabel={nextLocked ? 'Next, loading' : 'Play intro and continue'}
+        accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.introPlayButton}
@@ -214,12 +219,14 @@ export function CmsDemoPage({
   bookId = null,
   hasNext,
   isPreloading,
+  isNextDisabled,
   onNext,
 }: {
   page: CmsPlayablePage;
   bookId?: string | null;
   hasNext: boolean;
   isPreloading: boolean;
+  isNextDisabled?: boolean;
   onNext: () => void;
 }) {
   const mediaUriMap = useCmsMediaUriMap();
@@ -227,6 +234,7 @@ export function CmsDemoPage({
   const pageVideoRaw = resolveVideoUrl(page);
   const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(pageVideoRaw);
   const videoUrl = resolvePlayableMediaUri(pageVideoRaw, mediaUriMap);
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
 
   if (__DEV__ && !videoUrl) {
     const media = page.media as { videoMediaId?: string | null; videoMedia?: { url?: string | null } | null };
@@ -276,14 +284,14 @@ export function CmsDemoPage({
       ) : null}
       <Pressable
         onPress={onNext}
-        disabled={isPreloading || !hasNext}
+        disabled={nextLocked || !hasNext}
         style={({ pressed }) => [
           styles.demoPlay,
-          (pressed || isPreloading || !hasNext) && styles.pressed,
+          (pressed || nextLocked || !hasNext) && styles.pressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Play demo and continue to interactive"
-        accessibilityState={{ disabled: isPreloading || !hasNext }}
+        accessibilityLabel={nextLocked ? 'Next, loading' : 'Play demo and continue to interactive'}
+        accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.demoPlayButton}
@@ -301,6 +309,7 @@ export function CmsContentPage({
   hasPrev,
   hasNext,
   isPreloading,
+  isNextDisabled,
   onPrev,
   onNext,
 }: {
@@ -308,6 +317,7 @@ export function CmsContentPage({
   hasPrev: boolean;
   hasNext: boolean;
   isPreloading: boolean;
+  isNextDisabled?: boolean;
   onPrev: () => void;
   onNext: () => void;
 }) {
@@ -317,6 +327,7 @@ export function CmsContentPage({
   const [currentTime, setCurrentTime] = useState(0);
   /** Karaoke highlight only after audio is loaded and playback has started (sync with word coloring). */
   const [karaokeReady, setKaraokeReady] = useState(false);
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
 
   const readingText = useMemo(
     () =>
@@ -499,14 +510,14 @@ export function CmsContentPage({
       </Pressable>
       <Pressable
         onPress={onNext}
-        disabled={isPreloading || !hasNext}
+        disabled={nextLocked || !hasNext}
         style={({ pressed }) => [
           styles.contentNext,
-          (pressed || isPreloading || !hasNext) && styles.pressed,
+          (pressed || nextLocked || !hasNext) && styles.pressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel="Go to next page"
-        accessibilityState={{ disabled: isPreloading || !hasNext }}
+        accessibilityLabel={nextLocked ? 'Next, loading' : 'Go to next page'}
+        accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.contentNextButton}

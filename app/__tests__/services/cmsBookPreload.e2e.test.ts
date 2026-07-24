@@ -239,4 +239,72 @@ describe('CMS built-in book preload E2E (app pack storage)', () => {
     expect(result.failed.length).toBe(3);
     expect(result.restoredFromPack).toBe(false);
   });
+
+  it('progressive mode: onPlayable fires after cover media before demo video finishes', async () => {
+    const FileSystem = require('expo-file-system/legacy');
+    const events: string[] = [];
+
+    FileSystem.downloadAsync.mockImplementation(async (remoteUrl: string, dest: string) => {
+      mockDownloadCalls.push({ remoteUrl, dest });
+      if (String(remoteUrl).includes('demo.mp4')) {
+        events.push('video-start');
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        events.push('video-done');
+      } else {
+        events.push(`asset:${remoteUrl.includes('.png') ? 'image' : 'audio'}`);
+      }
+      mockFiles.set(dest, { exists: true, size: 1024 });
+      return { status: 200, uri: dest };
+    });
+
+    const pages = [
+      {
+        pageId: 'cover-1',
+        type: 'cover',
+        order: 1,
+        title: 'Cover',
+        media: {
+          imageMedia: { url: sampleAssets[0].url },
+          audioMedia: { url: sampleAssets[1].url },
+        },
+      },
+      {
+        pageId: 'demo-1',
+        type: 'demo',
+        order: 2,
+        title: 'Demo',
+        media: {
+          videoMedia: { url: sampleAssets[2].url },
+        },
+      },
+    ];
+
+    const playablePromise = new Promise<void>((resolve) => {
+      void preloadCmsBookPackAssets({
+        bookId: 'book-e2e-progressive',
+        contentVersion: '1:2026-07-08T10:00:00.000Z',
+        assets: sampleAssets,
+        pages: pages as never,
+        mode: 'progressive',
+        concurrency: { imageAudio: 2, video: 1 },
+        onPlayable: () => {
+          events.push('playable');
+          resolve();
+        },
+      }).then(() => {
+        events.push('all-done');
+      });
+    });
+
+    await playablePromise;
+    expect(events).toContain('playable');
+    expect(events.indexOf('playable')).toBeLessThan(events.indexOf('video-done') === -1
+      ? events.length
+      : events.indexOf('video-done'));
+
+    // Allow remaining downloads to finish
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(events).toContain('all-done');
+    expect(events.indexOf('playable')).toBeLessThan(events.indexOf('all-done'));
+  });
 });

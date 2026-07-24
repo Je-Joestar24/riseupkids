@@ -1,5 +1,6 @@
 /**
  * CMS built-in book media downloads into durable documentDirectory packs.
+ * Supports progressive mode: unlock play after page 0, keep downloading, iOS + Android.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
@@ -12,6 +13,7 @@ import {
 } from '@/components/child/common/cms-player-media';
 import { resolveCmsAbsoluteMediaUrl } from '@/components/child/common/cms-player-shared';
 import type { CmsBookMediaAssetRef } from '@/services/cmsBookMediaManifest';
+import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import {
   assetNeedsDownload,
   ensureBookPackDir,
@@ -19,6 +21,11 @@ import {
   loadBookPackForPreload,
   saveBookPack,
 } from '@/services/cmsBookPackStorage';
+import {
+  collectRequiredCmsPageMediaUrls,
+  isCmsPageMediaReady,
+  prioritizeCmsBookAssetsForProgressivePreload,
+} from '@/utils/cmsBookPageMediaReady';
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 const inflight = new Map<string, Promise<string>>();
@@ -39,6 +46,11 @@ const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
 
 function isImageUrl(url: string): boolean {
   return IMAGE_EXT.test(url);
+}
+
+function isVideoAsset(asset: CmsBookMediaAssetRef, remoteUrl: string): boolean {
+  if (String(asset.kind || '').toLowerCase() === 'video') return true;
+  return /\.(mp4|webm|mov|m4v)(\?|$)/i.test(remoteUrl) || /\/videos?\//i.test(remoteUrl);
 }
 
 async function canUseFileSystem(): Promise<boolean> {
@@ -125,13 +137,10 @@ async function downloadToPath(remoteUrl: string, dest: string): Promise<string |
   }
 }
 
-async function warmImageDecode(uri: string): Promise<void> {
+/** Decode warm must never block the download critical path (iOS + Android). */
+function warmImageDecode(uri: string): void {
   if (!uri) return;
-  try {
-    await RNImage.prefetch(uri);
-  } catch {
-    // best effort
-  }
+  void RNImage.prefetch(uri).catch(() => undefined);
 }
 
 async function preloadPackAsset(
@@ -172,7 +181,7 @@ async function preloadPackAsset(
     }
     uriMap[normalized] = localUri;
     if (isImageUrl(normalized)) {
-      await warmImageDecode(localUri);
+      warmImageDecode(localUri);
     }
     return true;
   }
@@ -181,12 +190,31 @@ async function preloadPackAsset(
   return false;
 }
 
+export interface PreloadCmsBookPackConcurrency {
+  imageAudio?: number;
+  video?: number;
+}
+
 export interface PreloadCmsBookPackOptions {
   bookId: string;
   contentVersion: string | null;
   assets: CmsBookMediaAssetRef[];
+  /** Playable pages — enables progressive priority + early unlock. */
+  pages?: CmsPlayablePage[];
+  focusPageIndex?: number;
+  /**
+   * `progressive` — unlock via onPlayable after first page ready, continue in background.
+   * `all` — wait for every asset (admin / tests).
+   */
+  mode?: 'progressive' | 'all';
   onProgress?: (percent: number) => void;
-  concurrency?: number;
+  /** Fires once when page 0 (start gate) media is ready — safe to dismiss full-screen loader. */
+  onPlayable?: (uriMap: CmsMediaUriMap) => void;
+  /** Fires after each asset so the Next gate can unlock mid-download. */
+  onUriMapUpdate?: (uriMap: CmsMediaUriMap) => void;
+  concurrency?: number | PreloadCmsBookPackConcurrency;
+  /** Abort check — return true to stop workers early. */
+  shouldCancel?: () => boolean;
 }
 
 export interface PreloadCmsBookPackResult extends PreloadSummary {
@@ -194,25 +222,78 @@ export interface PreloadCmsBookPackResult extends PreloadSummary {
   usedDiskCache: boolean;
 }
 
+function resolveConcurrency(
+  concurrency: number | PreloadCmsBookPackConcurrency | undefined
+): { imageAudio: number; video: number } {
+  if (typeof concurrency === 'number') {
+    return { imageAudio: concurrency, video: Math.min(2, concurrency) };
+  }
+  return {
+    imageAudio: concurrency?.imageAudio ?? 6,
+    video: concurrency?.video ?? 1,
+  };
+}
+
+function snapshotUriMap(uriMap: CmsMediaUriMap): CmsMediaUriMap {
+  return { ...uriMap };
+}
+
 export async function preloadCmsBookPackAssets(
   options: PreloadCmsBookPackOptions
 ): Promise<PreloadCmsBookPackResult> {
-  const { bookId, contentVersion, assets, onProgress, concurrency = 4 } = options;
+  const {
+    bookId,
+    contentVersion,
+    assets,
+    pages = [],
+    focusPageIndex = 0,
+    mode = pages.length ? 'progressive' : 'all',
+    onProgress,
+    onPlayable,
+    onUriMapUpdate,
+    concurrency,
+    shouldCancel,
+  } = options;
+
+  const limits = resolveConcurrency(concurrency);
   const failed: string[] = [];
   const uriMap: CmsMediaUriMap = {};
   const diskOk = await canUseFileSystem();
+  let playableNotified = false;
+
+  const notifyPlayableIfReady = () => {
+    if (playableNotified || mode !== 'progressive') return;
+    const startPage = pages[0];
+    if (!startPage) {
+      playableNotified = true;
+      onPlayable?.(snapshotUriMap(uriMap));
+      return;
+    }
+    if (isCmsPageMediaReady(startPage, uriMap)) {
+      playableNotified = true;
+      onPlayable?.(snapshotUriMap(uriMap));
+    }
+  };
 
   const packState = await loadBookPackForPreload(bookId, contentVersion);
   Object.assign(uriMap, packState.uriMap);
 
   if (packState.fullyRestored) {
     onProgress?.(100);
+    onUriMapUpdate?.(snapshotUriMap(uriMap));
+    onPlayable?.(snapshotUriMap(uriMap));
     return { failed, uriMap, restoredFromPack: true, usedDiskCache: diskOk };
   }
 
-  const queue = assets.filter((asset) => Boolean(asset?.url && asset?.key));
+  const ordered =
+    mode === 'progressive' && pages.length
+      ? prioritizeCmsBookAssetsForProgressivePreload(assets, pages, focusPageIndex)
+      : assets.filter((asset) => Boolean(asset?.url && asset?.key));
+
+  const queue = ordered.filter((asset) => Boolean(asset?.url && asset?.key));
   if (!queue.length) {
     onProgress?.(100);
+    onPlayable?.(snapshotUriMap(uriMap));
     return { failed, uriMap, restoredFromPack: false, usedDiskCache: diskOk };
   }
 
@@ -225,38 +306,76 @@ export async function preloadCmsBookPackAssets(
       }
     });
     onProgress?.(100);
+    onUriMapUpdate?.(snapshotUriMap(uriMap));
+    onPlayable?.(snapshotUriMap(uriMap));
     return { failed, uriMap, restoredFromPack: false, usedDiskCache: false };
   }
 
   await ensureBookPackDir(bookId);
 
+  // If pack already has page-0 media, unlock immediately before network work.
+  notifyPlayableIfReady();
+  onUriMapUpdate?.(snapshotUriMap(uriMap));
+
   let completed = 0;
+  const total = queue.length;
   const report = () => {
-    onProgress?.(Math.round((completed / queue.length) * 100));
+    onProgress?.(Math.round((completed / total) * 100));
   };
 
-  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
-    while (queue.length) {
-      const asset = queue.shift();
-      if (!asset) break;
-      const remote = resolveCmsAbsoluteMediaUrl(asset.url);
-      const needsDownload = assetNeedsDownload(asset, packState.manifest, uriMap);
-      const ok = await preloadPackAsset(asset, bookId, uriMap, needsDownload);
-      if (!ok && remote && isHttp(remote)) failed.push(remote);
-      completed += 1;
-      report();
-    }
+  const imageAudioQueue: CmsBookMediaAssetRef[] = [];
+  const videoQueue: CmsBookMediaAssetRef[] = [];
+  queue.forEach((asset) => {
+    const remote = resolveCmsAbsoluteMediaUrl(asset.url) || asset.url;
+    if (isVideoAsset(asset, remote)) videoQueue.push(asset);
+    else imageAudioQueue.push(asset);
   });
 
-  await Promise.all(workers);
+  const runQueue = async (workQueue: CmsBookMediaAssetRef[], workerCount: number) => {
+    if (!workQueue.length) return;
+    const workers = Array.from(
+      { length: Math.min(Math.max(1, workerCount), workQueue.length) },
+      async () => {
+        while (workQueue.length) {
+          if (shouldCancel?.()) return;
+          const asset = workQueue.shift();
+          if (!asset) break;
+          const remote = resolveCmsAbsoluteMediaUrl(asset.url);
+          const needsDownload = assetNeedsDownload(asset, packState.manifest, uriMap);
+          const ok = await preloadPackAsset(asset, bookId, uriMap, needsDownload);
+          if (!ok && remote && isHttp(remote)) failed.push(remote);
+          completed += 1;
+          report();
+          onUriMapUpdate?.(snapshotUriMap(uriMap));
+          notifyPlayableIfReady();
+        }
+      }
+    );
+    await Promise.all(workers);
+  };
+
+  // Prefer images/audio first so page 1 unlocks before heavy videos saturate the pipe.
+  await runQueue(imageAudioQueue, limits.imageAudio);
+  if (!shouldCancel?.()) {
+    await runQueue(videoQueue, limits.video);
+  }
+
+  if (!playableNotified) {
+    // Start page had no assets or only failed ones — still allow play.
+    playableNotified = true;
+    onPlayable?.(snapshotUriMap(uriMap));
+  }
+
   onProgress?.(100);
 
-  await saveBookPack({
-    bookId,
-    contentVersion,
-    assets,
-    uriMap,
-  });
+  if (!shouldCancel?.()) {
+    await saveBookPack({
+      bookId,
+      contentVersion,
+      assets,
+      uriMap,
+    });
+  }
 
   return { failed, uriMap, restoredFromPack: false, usedDiskCache: true };
 }
@@ -266,3 +385,5 @@ export function __resetCmsBookMediaCacheForTests(): void {
   fileSystemUsable = null;
   inflight.clear();
 }
+
+export { collectRequiredCmsPageMediaUrls, isCmsPageMediaReady };

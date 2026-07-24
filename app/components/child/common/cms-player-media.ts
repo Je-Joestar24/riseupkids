@@ -263,6 +263,7 @@ function isImageUrl(url: string): boolean {
 async function warmImageDecode(uri: string): Promise<void> {
   if (!uri) return;
   try {
+    // Fire-and-forget from callers; kept async for compatibility.
     await RNImage.prefetch(uri);
   } catch {
     // Decode warm is best-effort; file on disk is still usable.
@@ -299,7 +300,8 @@ async function preloadOneAsset(
     uriMap[normalized] = localUri;
 
     if (isImageUrl(normalized)) {
-      await warmImageDecode(isLocalMediaUri(localUri) ? localUri : normalized);
+      // Do not await — decode warm must not block preload (iOS + Android).
+      void warmImageDecode(isLocalMediaUri(localUri) ? localUri : normalized);
     }
 
     return isLocalMediaUri(localUri);
@@ -331,7 +333,7 @@ export function isLocalMediaUri(uri: string | null | undefined): boolean {
 export async function preloadMediaAssetsToCache(
   urls: string[],
   onProgress?: (percent: number) => void,
-  concurrency = 4
+  concurrency = 6
 ): Promise<PreloadSummary> {
   const unique = Array.from(new Set(urls.filter(Boolean)));
   const failed: string[] = [];
@@ -363,12 +365,94 @@ export async function preloadMediaAssetsToCache(
   return { failed, uriMap };
 }
 
+export interface PreloadCmsPlayerAssetsOptions {
+  onProgress?: (percent: number) => void;
+  concurrency?: number;
+  /** Prefer these URLs first (start gate / next page). */
+  priorityUrls?: string[];
+  onUriMapUpdate?: (uriMap: CmsMediaUriMap) => void;
+  /** Called once when every priority URL is local or stream-only (or priority list empty). */
+  onPlayable?: (uriMap: CmsMediaUriMap) => void;
+  shouldCancel?: () => boolean;
+}
+
 export async function preloadCmsPlayerAssets(
   urls: string[],
-  onProgress?: (percent: number) => void,
-  concurrency = 4
+  onProgressOrOptions?: ((percent: number) => void) | PreloadCmsPlayerAssetsOptions,
+  concurrencyArg = 6
 ): Promise<PreloadSummary> {
-  return preloadMediaAssetsToCache(urls, onProgress, concurrency);
+  const options: PreloadCmsPlayerAssetsOptions =
+    typeof onProgressOrOptions === 'function'
+      ? { onProgress: onProgressOrOptions, concurrency: concurrencyArg }
+      : onProgressOrOptions || {};
+
+  const {
+    onProgress,
+    concurrency = 6,
+    priorityUrls = [],
+    onUriMapUpdate,
+    onPlayable,
+    shouldCancel,
+  } = options;
+
+  const unique = Array.from(new Set(urls.filter(Boolean)));
+  const prioritySet = new Set(
+    priorityUrls.map((u) => resolveCmsAbsoluteMediaUrl(u) || u).filter(Boolean)
+  );
+  const ordered = [
+    ...unique.filter((u) => prioritySet.has(resolveCmsAbsoluteMediaUrl(u) || u)),
+    ...unique.filter((u) => !prioritySet.has(resolveCmsAbsoluteMediaUrl(u) || u)),
+  ];
+
+  const failed: string[] = [];
+  const uriMap: CmsMediaUriMap = {};
+  if (!ordered.length) {
+    onProgress?.(100);
+    onPlayable?.(uriMap);
+    return { failed, uriMap };
+  }
+
+  let completed = 0;
+  let playableNotified = false;
+  const report = () => {
+    onProgress?.(Math.round((completed / ordered.length) * 100));
+  };
+
+  const maybePlayable = () => {
+    if (playableNotified) return;
+    const priorities = Array.from(prioritySet);
+    const ready =
+      !priorities.length ||
+      priorities.every((url) => {
+        if (isStreamOnlyVideoUrl(url)) return true;
+        const mapped = uriMap[url];
+        return Boolean(mapped && (isLocalMediaUri(mapped) || !isHttp(mapped)));
+      });
+    if (ready) {
+      playableNotified = true;
+      onPlayable?.({ ...uriMap });
+    }
+  };
+
+  const queue = [...ordered];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length) {
+      if (shouldCancel?.()) return;
+      const next = queue.shift();
+      if (!next) break;
+      const ok = await preloadOneAsset(next, uriMap);
+      if (!ok && isHttp(next)) failed.push(next);
+      completed += 1;
+      report();
+      onUriMapUpdate?.({ ...uriMap });
+      maybePlayable();
+    }
+  });
+
+  await Promise.all(workers);
+  if (!playableNotified) onPlayable?.({ ...uriMap });
+  onProgress?.(100);
+  return { failed, uriMap };
 }
 
 export function clearCmsPlayerResolvedUriCache(): void {

@@ -56,6 +56,11 @@ import {
   resolvePageType,
 } from './cms-player-shared';
 import { CmsRewardStage } from './cms-reward-dialog';
+import {
+  collectCmsStartGateMediaUrls,
+  getCmsNextGateTimeoutMs,
+  isCmsPageMediaReady,
+} from '@/utils/cmsBookPageMediaReady';
 
 /** Right rail for close; stage uses remaining width + full window height. */
 const CLOSE_RAIL = 44;
@@ -126,6 +131,8 @@ export function CmsPlayerModal({
   const [internalSummary, setInternalSummary] = useState<{ failed: string[] } | null>(null);
   const [mediaUriMap, setMediaUriMap] = useState<CmsMediaUriMap>({});
   const [mediaReady, setMediaReady] = useState(false);
+  /** After timeout, allow advancing onto next page using remote stream (anti-stuck). */
+  const [allowNextRemoteStream, setAllowNextRemoteStream] = useState(false);
 
   const isControlledPreload = controlledPreloading !== undefined;
   const usesInternalPreload = open && autoPreload && !isControlledPreload;
@@ -136,6 +143,21 @@ export function CmsPlayerModal({
   const preloadSummary = isControlledPreload ? controlledSummary : internalSummary;
 
   const preloadCancelled = useRef(false);
+  const pendingAdvanceRef = useRef(false);
+  const mediaUriMapRef = useRef<CmsMediaUriMap>({});
+
+  useEffect(() => {
+    mediaUriMapRef.current = mediaUriMap;
+  }, [mediaUriMap]);
+
+  const mergeUriMap = useCallback((next: CmsMediaUriMap) => {
+    setMediaUriMap((prev) => {
+      const merged = { ...prev, ...next };
+      mediaUriMapRef.current = merged;
+      return merged;
+    });
+  }, []);
+
 
   useEffect(() => {
     if (!open) {
@@ -167,6 +189,8 @@ export function CmsPlayerModal({
       if (!open) {
         setMediaReady(false);
         setMediaUriMap({});
+        mediaUriMapRef.current = {};
+        setAllowNextRemoteStream(false);
       }
       return;
     }
@@ -174,6 +198,8 @@ export function CmsPlayerModal({
     preloadCancelled.current = false;
     setInternalProgress(0);
     setInternalSummary(null);
+    setAllowNextRemoteStream(false);
+    pendingAdvanceRef.current = false;
 
     const runPreload = async () => {
       if (book?.id && bookManifest?.assets?.length) {
@@ -185,26 +211,40 @@ export function CmsPlayerModal({
 
         if (packState.fullyRestored) {
           setMediaUriMap(packState.uriMap);
+          mediaUriMapRef.current = packState.uriMap;
           setInternalProgress(100);
           setMediaReady(true);
           return;
         }
 
         setMediaReady(false);
-        setMediaUriMap({});
+        setMediaUriMap(packState.uriMap || {});
+        mediaUriMapRef.current = packState.uriMap || {};
 
         const result: PreloadCmsBookPackResult = await preloadCmsBookPackAssets({
           bookId: book.id,
           contentVersion: bookManifest.contentVersion ?? null,
           assets: bookManifest.assets,
+          pages: playablePages,
+          focusPageIndex: 0,
+          mode: 'progressive',
+          concurrency: { imageAudio: 6, video: 1 },
+          shouldCancel: () => preloadCancelled.current,
           onProgress: (pct) => {
             if (!preloadCancelled.current) setInternalProgress(pct);
           },
-          concurrency: 4,
+          onUriMapUpdate: (map) => {
+            if (!preloadCancelled.current) mergeUriMap(map);
+          },
+          onPlayable: (map) => {
+            if (preloadCancelled.current) return;
+            mergeUriMap(map);
+            setMediaReady(true);
+          },
         });
         if (preloadCancelled.current) return;
         setInternalSummary({ failed: result.failed });
-        setMediaUriMap(result.uriMap);
+        mergeUriMap(result.uriMap);
         setInternalProgress(100);
         setMediaReady(true);
         return;
@@ -220,13 +260,28 @@ export function CmsPlayerModal({
 
       setMediaReady(false);
       setMediaUriMap({});
+      mediaUriMapRef.current = {};
 
-      const summary = await preloadCmsPlayerAssets(urls, (pct) => {
-        if (!preloadCancelled.current) setInternalProgress(pct);
+      const priorityUrls = collectCmsStartGateMediaUrls(playablePages, 1);
+      const summary = await preloadCmsPlayerAssets(urls, {
+        priorityUrls,
+        concurrency: 6,
+        shouldCancel: () => preloadCancelled.current,
+        onProgress: (pct) => {
+          if (!preloadCancelled.current) setInternalProgress(pct);
+        },
+        onUriMapUpdate: (map) => {
+          if (!preloadCancelled.current) mergeUriMap(map);
+        },
+        onPlayable: (map) => {
+          if (preloadCancelled.current) return;
+          mergeUriMap(map);
+          setMediaReady(true);
+        },
       });
       if (preloadCancelled.current) return;
       setInternalSummary({ failed: summary.failed });
-      setMediaUriMap(summary.uriMap);
+      mergeUriMap(summary.uriMap);
       setInternalProgress(100);
       setMediaReady(true);
     };
@@ -236,7 +291,7 @@ export function CmsPlayerModal({
     return () => {
       preloadCancelled.current = true;
     };
-  }, [open, usesInternalPreload, bookPreloadKey, playablePages, book?.id, bookManifest]);
+  }, [open, usesInternalPreload, bookPreloadKey, playablePages, book?.id, bookManifest, mergeUriMap]);
 
   useEffect(() => {
     if (!open) {
@@ -248,12 +303,42 @@ export function CmsPlayerModal({
       setFinalizingTrigger(null);
       setMediaReady(false);
       setMediaUriMap({});
+      mediaUriMapRef.current = {};
+      setAllowNextRemoteStream(false);
+      pendingAdvanceRef.current = false;
     }
   }, [open, signature]);
 
   const currentPage = playablePages[currentIndex] || null;
+  const nextPage = playablePages[currentIndex + 1] || null;
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < playablePages.length - 1;
+
+  const nextPageReady = useMemo(() => {
+    if (!hasNext) return true;
+    return isCmsPageMediaReady(nextPage, mediaUriMap, {
+      allowRemoteStream: allowNextRemoteStream,
+    });
+  }, [hasNext, nextPage, mediaUriMap, allowNextRemoteStream]);
+
+  const isNextBlocked = hasNext && !nextPageReady;
+  const isNextDisabled = isPreloading || isNextBlocked;
+
+  // Anti-stuck: after timeout, allow remote stream so Next unlocks on slow networks.
+  useEffect(() => {
+    if (!open || isPreloading || !hasNext || nextPageReady) {
+      return undefined;
+    }
+    const timeoutMs = getCmsNextGateTimeoutMs(nextPage);
+    const timer = setTimeout(() => {
+      setAllowNextRemoteStream(true);
+    }, timeoutMs);
+    return () => clearTimeout(timer);
+  }, [open, isPreloading, hasNext, nextPageReady, nextPage, currentIndex]);
+
+  useEffect(() => {
+    setAllowNextRemoteStream(false);
+  }, [currentIndex]);
 
   const goToIndex = useCallback((nextIndex: number) => {
     setCurrentIndex(nextIndex);
@@ -261,13 +346,27 @@ export function CmsPlayerModal({
 
   const goNext = useCallback(() => {
     if (isPreloading || !hasNext) return;
+    if (!nextPageReady) {
+      pendingAdvanceRef.current = true;
+      return;
+    }
+    pendingAdvanceRef.current = false;
     goToIndex(currentIndex + 1);
-  }, [isPreloading, hasNext, currentIndex, goToIndex]);
+  }, [isPreloading, hasNext, nextPageReady, currentIndex, goToIndex]);
 
   const goPrev = useCallback(() => {
     if (isPreloading || !hasPrev) return;
+    pendingAdvanceRef.current = false;
     goToIndex(currentIndex - 1);
   }, [isPreloading, hasPrev, currentIndex, goToIndex]);
+
+  // Auto-advance when Next was requested while media was still loading (interactive correct, etc.).
+  useEffect(() => {
+    if (!pendingAdvanceRef.current) return;
+    if (isPreloading || !hasNext || !nextPageReady) return;
+    pendingAdvanceRef.current = false;
+    goToIndex(currentIndex + 1);
+  }, [isPreloading, hasNext, nextPageReady, currentIndex, goToIndex]);
 
   const markPageScored = useCallback((page: CmsPlayablePage) => {
     const pageId = page?.pageId;
@@ -350,9 +449,9 @@ export function CmsPlayerModal({
           accessibilityRole="progressbar"
           accessibilityLabel="Loading all media assets for smooth playback"
         >
-          <Text style={styles.preloadTitle}>Loading all content...</Text>
+          <Text style={styles.preloadTitle}>Getting ready...</Text>
           <Text style={styles.preloadSubtitle}>
-            Preparing media for smooth playback. Please wait.
+            Preparing the first pages so you can start playing soon.
           </Text>
           <View style={styles.progressTrack} accessibilityLabel="Media preload progress">
             <View
@@ -394,6 +493,7 @@ export function CmsPlayerModal({
           hasPrev={hasPrev}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          isNextDisabled={isNextDisabled}
           onPrev={goPrev}
           onNext={goNext}
         />
@@ -406,6 +506,7 @@ export function CmsPlayerModal({
           page={currentPage}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          isNextDisabled={isNextDisabled}
           onNext={goNext}
         />
       );
@@ -417,6 +518,7 @@ export function CmsPlayerModal({
           bookId={book?.id ?? null}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          isNextDisabled={isNextDisabled}
           onNext={goNext}
         />
       );
