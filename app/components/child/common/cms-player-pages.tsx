@@ -41,6 +41,11 @@ import {
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
 } from './cms-player-shared';
+import {
+  CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS,
+  resolveCmsContentAudioDurationSec,
+  shouldUnlockCmsContentNextFromAudio,
+} from '@/utils/cmsContentAudioNextUnlock';
 
 const DOT_COUNT = 14;
 
@@ -310,6 +315,8 @@ export function CmsContentPage({
   hasNext,
   isPreloading,
   isNextDisabled,
+  audioAlreadyHeard = false,
+  onAudioHeard,
   onPrev,
   onNext,
 }: {
@@ -317,17 +324,24 @@ export function CmsContentPage({
   hasPrev: boolean;
   hasNext: boolean;
   isPreloading: boolean;
+  /** Media preload / next-page gate from the modal. */
   isNextDisabled?: boolean;
+  /** True when this page’s reading audio was already completed in this book session. */
+  audioAlreadyHeard?: boolean;
+  onAudioHeard?: () => void;
   onPrev: () => void;
   onNext: () => void;
 }) {
   const bgImage = useCmsPlayableMediaUri(resolveImageUrl(page));
   const audioUrl = useCmsPlayableMediaUri(resolveAudioUrl(page));
   const soundRef = useRef<Audio.Sound | null>(null);
+  const heardNotifiedRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [playerDurationSec, setPlayerDurationSec] = useState<number | null>(null);
+  const [didJustFinish, setDidJustFinish] = useState(false);
+  const [audioFailedOrSkipped, setAudioFailedOrSkipped] = useState(false);
   /** Karaoke highlight only after audio is loaded and playback has started (sync with word coloring). */
   const [karaokeReady, setKaraokeReady] = useState(false);
-  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
 
   const readingText = useMemo(
     () =>
@@ -349,6 +363,47 @@ export function CmsContentPage({
     () => words.map((w) => `${w.start}:${w.end}:${w.w}:${w.lineIndex ?? 0}`).join('|'),
     [words]
   );
+
+  const durationSec = useMemo(
+    () =>
+      resolveCmsContentAudioDurationSec({
+        playerDurationSec,
+        wordEndSecHints: words.map((w) => w.end),
+      }),
+    [playerDurationSec, words]
+  );
+
+  const audioUnlocked = shouldUnlockCmsContentNextFromAudio({
+    hasAudioUrl: Boolean(audioUrl),
+    alreadyHeard: audioAlreadyHeard,
+    audioFailedOrSkipped,
+    positionSec: currentTime,
+    durationSec,
+    didJustFinish,
+  });
+
+  const waitingOnAudio = Boolean(audioUrl) && !audioAlreadyHeard && !audioUnlocked;
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading) || waitingOnAudio;
+
+  useEffect(() => {
+    heardNotifiedRef.current = false;
+  }, [page.pageId]);
+
+  useEffect(() => {
+    if (!audioUnlocked || heardNotifiedRef.current) return;
+    if (audioAlreadyHeard) return;
+    heardNotifiedRef.current = true;
+    onAudioHeard?.();
+  }, [audioUnlocked, audioAlreadyHeard, onAudioHeard]);
+
+  // Safety: never leave Next stuck if audio stalls / never reports duration.
+  useEffect(() => {
+    if (!audioUrl || audioAlreadyHeard || audioUnlocked || audioFailedOrSkipped) return undefined;
+    const timer = setTimeout(() => {
+      setAudioFailedOrSkipped(true);
+    }, CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS);
+    return () => clearTimeout(timer);
+  }, [audioUrl, audioAlreadyHeard, audioUnlocked, audioFailedOrSkipped, page.pageId]);
 
   const activeLineIndex = useMemo(() => {
     if (!karaokeReady) return -1;
@@ -375,9 +430,14 @@ export function CmsContentPage({
     soundRef.current?.unloadAsync().catch(() => {});
     soundRef.current = null;
     setCurrentTime(0);
+    setPlayerDurationSec(null);
+    setDidJustFinish(false);
+    setAudioFailedOrSkipped(false);
     setKaraokeReady(false);
 
     if (!audioUrl) {
+      // No reading audio — do not block Next.
+      setAudioFailedOrSkipped(true);
       setKaraokeReady(true);
       return () => {
         cancelled = true;
@@ -404,11 +464,17 @@ export function CmsContentPage({
         soundRef.current = s;
         s.setOnPlaybackStatusUpdate((status) => {
           if (!status.isLoaded) return;
+          if (status.durationMillis != null && status.durationMillis > 0) {
+            setPlayerDurationSec(status.durationMillis / 1000);
+          }
           if (status.positionMillis != null) {
             setCurrentTime(status.positionMillis / 1000);
           }
-          if (status.didJustFinish && status.durationMillis != null) {
-            setCurrentTime(status.durationMillis / 1000);
+          if (status.didJustFinish) {
+            setDidJustFinish(true);
+            if (status.durationMillis != null) {
+              setCurrentTime(status.durationMillis / 1000);
+            }
           }
         });
         await s.playAsync();
@@ -417,7 +483,8 @@ export function CmsContentPage({
         }
       } catch {
         if (!cancelled) {
-          // Audio failed — still show static reading text instead of a blank panel.
+          // Audio failed — unlock Next and still show static reading text.
+          setAudioFailedOrSkipped(true);
           setKaraokeReady(true);
         }
       }
@@ -436,6 +503,14 @@ export function CmsContentPage({
     words.length,
     visibleLineWords.length
   );
+
+  const nextAccessibilityLabel = !hasNext
+    ? 'Go to next page'
+    : waitingOnAudio
+      ? 'Next, listening'
+      : Boolean(isNextDisabled ?? isPreloading)
+        ? 'Next, loading'
+        : 'Go to next page';
 
   return (
     <View style={styles.fill}>
@@ -514,14 +589,15 @@ export function CmsContentPage({
         style={({ pressed }) => [
           styles.contentNext,
           (pressed || nextLocked || !hasNext) && styles.pressed,
+          waitingOnAudio && styles.nextWaiting,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={nextLocked ? 'Next, loading' : 'Go to next page'}
+        accessibilityLabel={nextAccessibilityLabel}
         accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.contentNextButton}
-          style={styles.btnImg}
+          style={[styles.btnImg, waitingOnAudio && styles.nextWaitingImg]}
           resizeMode="contain"
           accessibilityLabel="Next"
         />
@@ -548,6 +624,8 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   pressed: { opacity: 0.88 },
+  nextWaiting: { opacity: 0.55 },
+  nextWaitingImg: { opacity: 0.9 },
   btnImg: { width: '100%', height: '100%' },
   introPlay: {
     position: 'absolute',

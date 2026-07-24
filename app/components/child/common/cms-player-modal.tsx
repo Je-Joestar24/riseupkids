@@ -133,6 +133,9 @@ export function CmsPlayerModal({
   const [mediaReady, setMediaReady] = useState(false);
   /** After timeout, allow advancing onto next page using remote stream (anti-stuck). */
   const [allowNextRemoteStream, setAllowNextRemoteStream] = useState(false);
+  /** Page IDs whose reading audio was completed (or skipped safely) this book session. */
+  const [heardAudioPageIds, setHeardAudioPageIds] = useState<Record<string, true>>({});
+
 
   const isControlledPreload = controlledPreloading !== undefined;
   const usesInternalPreload = open && autoPreload && !isControlledPreload;
@@ -306,6 +309,7 @@ export function CmsPlayerModal({
       mediaUriMapRef.current = {};
       setAllowNextRemoteStream(false);
       pendingAdvanceRef.current = false;
+      setHeardAudioPageIds({});
     }
   }, [open, signature]);
 
@@ -339,6 +343,11 @@ export function CmsPlayerModal({
   useEffect(() => {
     setAllowNextRemoteStream(false);
   }, [currentIndex]);
+
+  const markContentAudioHeard = useCallback((pageId: string | undefined) => {
+    if (!pageId) return;
+    setHeardAudioPageIds((prev) => (prev[pageId] ? prev : { ...prev, [pageId]: true }));
+  }, []);
 
   const goToIndex = useCallback((nextIndex: number) => {
     setCurrentIndex(nextIndex);
@@ -487,6 +496,7 @@ export function CmsPlayerModal({
     const pageType = resolvePageType(currentPage.type);
 
     if (pageType === 'content') {
+      const pageId = currentPage.pageId || `content-${currentIndex}`;
       return (
         <CmsContentPage
           page={currentPage}
@@ -494,6 +504,8 @@ export function CmsPlayerModal({
           hasNext={hasNext}
           isPreloading={isPreloading}
           isNextDisabled={isNextDisabled}
+          audioAlreadyHeard={Boolean(heardAudioPageIds[pageId])}
+          onAudioHeard={() => markContentAudioHeard(pageId)}
           onPrev={goPrev}
           onNext={goNext}
         />
