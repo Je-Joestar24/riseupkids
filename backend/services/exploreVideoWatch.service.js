@@ -1,4 +1,5 @@
 const { VideoWatch, ExploreContent, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
+const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
 
 /**
  * Mark explore video as watched (completed)
@@ -134,29 +135,13 @@ const markExploreVideoWatched = async (childId, exploreContentId, completionPerc
       // Update ChildStats to accumulate total stars
       const childStats = await ChildStats.getOrCreate(childId);
       const previousTotalStars = childStats.totalStars || 0;
+      // addStars() persists totalStars; skip redundant save/findById on the hot path
       await childStats.addStars(starsToAward);
-      
-      // Verify the stars were actually added
-      await childStats.save();
-      const updatedStats = await ChildStats.findById(childStats._id);
-      
-      if (updatedStats.totalStars !== previousTotalStars + starsToAward) {
-        console.error(`[ExploreVideoWatch] Stars not properly added! Expected: ${previousTotalStars + starsToAward}, Got: ${updatedStats.totalStars}`);
-        // Try to fix it manually
-        updatedStats.totalStars = previousTotalStars + starsToAward;
-        await updatedStats.save();
-      }
-      
-      console.log(`[ExploreVideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId} for explore video ${exploreContentId}. Total stars: ${previousTotalStars} -> ${updatedStats.totalStars}`);
 
-      // Check for badges after awarding stars (especially content-type badges)
-      try {
-        const badgeCheck = require('./badgeCheck.service');
-        await badgeCheck.updateBadges(childId, { silent: false });
-      } catch (badgeError) {
-        console.error(`[ExploreVideoWatch] Error checking badges after star award:`, badgeError);
-        // Don't throw - badge checking failure shouldn't block video watch
-      }
+      console.log(`[ExploreVideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId} for explore video ${exploreContentId}. Total stars: ${previousTotalStars} -> ${childStats.totalStars}`);
+
+      // Badges must not delay the star-reward response
+      scheduleBadgeUpdate(childId);
 
       // Update VideoWatch record
       videoWatch.starsAwarded = true;

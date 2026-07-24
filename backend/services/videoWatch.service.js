@@ -1,5 +1,6 @@
 const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
+const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
 
 /**
  * Award stars for a single watch session when not already recorded.
@@ -66,22 +67,11 @@ async function awardStarsForWatchSession({
   });
 
   const childStats = await ChildStats.getOrCreate(childId);
-  const previousTotalStars = childStats.totalStars || 0;
+  // addStars() persists totalStars; skip redundant save/findById on the hot path
   await childStats.addStars(starsForSession);
-  await childStats.save();
 
-  const updatedStats = await ChildStats.findById(childStats._id);
-  if (updatedStats.totalStars !== previousTotalStars + starsForSession) {
-    updatedStats.totalStars = previousTotalStars + starsForSession;
-    await updatedStats.save();
-  }
-
-  try {
-    const badgeCheck = require('./badgeCheck.service');
-    await badgeCheck.updateBadges(childId, { silent: false });
-  } catch (badgeError) {
-    console.error('[VideoWatch] Error checking badges after star award:', badgeError);
-  }
+  // Badges must not delay the star-reward response
+  scheduleBadgeUpdate(childId);
 
   return starsForSession;
 }

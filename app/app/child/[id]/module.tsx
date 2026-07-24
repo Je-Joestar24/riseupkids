@@ -61,6 +61,10 @@ import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
 import type { BuiltInBookCompletionPayload } from '@/services/cmsBooksPlayerService';
 import type { PopulatedContentItem } from '@/services/moduleService';
+import {
+  parseBookCompletionStarPayload,
+  runBackgroundAfterStarReward,
+} from '@/utils/bookCompletionStarReward';
 
 function getContentId(item: PopulatedContentItem): string {
   return String(item._contentId ?? item._id ?? '');
@@ -184,57 +188,42 @@ export default function ChildModuleScreen() {
 
       const body = mapCmsSessionToCompletion(payload);
       const completionRes = await submitBuiltinBookScore(libraryBookId, body);
-      if (completionRes?.success) {
-        await updateContentProgress(courseId, childId, libraryBookId, 'book');
-      }
-      await fetchModuleDetails(courseId, childId);
+      const parsed = parseBookCompletionStarPayload(completionRes?.data);
 
+      // Apply stars + open reward UI before module refresh (perceived speed)
       if (payload.trigger === 'home') {
-        const raw = completionRes?.data;
-        const apiData =
-          raw && typeof raw === 'object' && !Array.isArray(raw)
-            ? (raw as Record<string, unknown>)
-            : {};
-        const starsToAward = Number(apiData.starsToAward) || 0;
         const syncedTotalStars = childId
           ? applyChildStarReward(childId, {
-              starsToAward,
-              totalStars:
-                apiData.totalStars !== undefined && apiData.totalStars !== null
-                  ? Number(apiData.totalStars)
-                  : undefined,
+              starsToAward: parsed.starsToAward,
+              totalStars: parsed.totalStars,
             })
           : undefined;
         setCmsCompletionData({
           score,
           maxScore,
           attemptCount: payload.attemptCount,
-          starsAwarded: Boolean(apiData.starsAwarded),
-          starsToAward,
-          totalStars: syncedTotalStars ?? (
-            apiData.totalStars !== undefined && apiData.totalStars !== null
-              ? Number(apiData.totalStars)
-              : undefined
-          ),
-          readingCount: Number(apiData.readingCount) || 0,
-          requiredReadingCount: Number(apiData.requiredReadingCount) || 5,
-          requirementMet: Boolean(apiData.requirementMet),
+          starsAwarded: parsed.starsAwarded,
+          starsToAward: parsed.starsToAward,
+          totalStars: syncedTotalStars ?? parsed.totalStars,
+          readingCount: parsed.readingCount,
+          requiredReadingCount: parsed.requiredReadingCount,
+          requirementMet: parsed.requirementMet,
         });
         setCmsCompletionOpen(true);
       } else if (childId && completionRes?.success) {
-        const raw = completionRes?.data;
-        const apiData =
-          raw && typeof raw === 'object' && !Array.isArray(raw)
-            ? (raw as Record<string, unknown>)
-            : {};
         applyChildStarReward(childId, {
-          starsToAward: Number(apiData.starsToAward) || 0,
-          totalStars:
-            apiData.totalStars !== undefined && apiData.totalStars !== null
-              ? Number(apiData.totalStars)
-              : undefined,
+          starsToAward: parsed.starsToAward,
+          totalStars: parsed.totalStars,
         });
       }
+
+      // Background refresh — never block the star reward UI
+      runBackgroundAfterStarReward(async () => {
+        if (completionRes?.success) {
+          await updateContentProgress(courseId, childId, libraryBookId, 'book');
+        }
+        await fetchModuleDetails(courseId, childId);
+      }, 'CMS');
     },
     [
       cmsModalBook,

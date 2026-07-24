@@ -1,5 +1,6 @@
 const courseProgressService = require('../services/courseProgress.services');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
+const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
 const { ChildProfile, Book, BookReading, ChildStats, StarEarning, CourseProgress, Course } = require('../models');
 
 /**
@@ -613,25 +614,18 @@ const submitBookCompletion = async (req, res) => {
               });
 
               const starsBefore = childStats.totalStars;
+              // addStars() persists totalStars; avoid extra save/findById round-trips on the hot path
               await childStats.addStars(starsForThisReading);
-              await childStats.save();
-
-              const updatedChildStats = await ChildStats.findById(childStats._id);
-              childStats.totalStars = updatedChildStats.totalStars;
 
               console.log(`[Book Completion] Request ${requestId} - ✅ Per-reading stars awarded:`, {
                 readingNumber: readingCount,
                 starsForThisReading,
                 before: starsBefore,
-                after: updatedChildStats.totalStars,
+                after: childStats.totalStars,
               });
 
-              try {
-                const badgeCheck = require('../services/badgeCheck.service');
-                await badgeCheck.updateBadges(childId, { silent: false });
-              } catch (badgeError) {
-                console.error(`[Book Completion] Error checking badges after star award:`, badgeError);
-              }
+              // Badges must not delay the star-reward response
+              scheduleBadgeUpdate(childId);
 
               starsAwardedThisRequest = true;
             } catch (starError) {
@@ -667,7 +661,6 @@ const submitBookCompletion = async (req, res) => {
       console.log(`[Book Completion] Request ${requestId} - Requirement not yet met (${readingCount}/${requiredReadingCount})`);
     }
 
-    const updatedChildStats = await ChildStats.findById(childStats._id);
     const nextReadingNumber = Math.min(readingCount + 1, requiredReadingCount);
     const starsForNextReading = readingCount < requiredReadingCount
       ? getStarsForSession(nextReadingNumber, totalStarsAwarded, requiredReadingCount)
@@ -676,7 +669,7 @@ const submitBookCompletion = async (req, res) => {
     console.log(`\n========== [Book Completion] Request ${requestId} - ✅ COMPLETION RECORDED SUCCESSFULLY ==========`);
     console.log(`[Book Completion] Request ${requestId} - Final reading count:`, readingCount);
     console.log(`[Book Completion] Request ${requestId} - Stars awarded this reading:`, starsForThisReading);
-    console.log(`[Book Completion] Request ${requestId} - Total stars:`, updatedChildStats.totalStars);
+    console.log(`[Book Completion] Request ${requestId} - Total stars:`, childStats.totalStars);
     console.log(`[Book Completion] Request ${requestId} - ============================================\n`);
 
     return res.json({
@@ -690,7 +683,7 @@ const submitBookCompletion = async (req, res) => {
         starsToAward: starsForThisReading,
         starsForNextReading,
         totalStarsAvailable: totalStarsAwarded,
-        totalStars: updatedChildStats.totalStars,
+        totalStars: childStats.totalStars,
         requirementMet,
       },
     });

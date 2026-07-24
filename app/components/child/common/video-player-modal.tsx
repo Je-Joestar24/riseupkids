@@ -260,19 +260,11 @@ export function VideoPlayerModal({
         });
       }
 
-      if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
-        await moduleService.updateContentProgress(
-          courseId,
-          childId,
-          videoId,
-          'video'
-        );
-      }
-      await refreshVideoWatches();
-
       const completedVideo = video;
       const hasFollowUp = isHtml5VideoFollowUp(completedVideo as ModuleVideoContentLike | null)
         || isBuiltinCmsVideoFollowUp(completedVideo as ModuleVideoContentLike | null);
+
+      // Show reward UI immediately; refresh module state in the background
       if (hasFollowUp && completedVideo) {
         setShowCompletionDialog(false);
         onClose();
@@ -282,10 +274,25 @@ export function VideoPlayerModal({
             watchResult: nextWatchResult,
           });
         }, 180);
-        return;
+      } else {
+        setShowCompletionDialog(true);
       }
 
-      setShowCompletionDialog(true);
+      void (async () => {
+        try {
+          if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
+            await moduleService.updateContentProgress(
+              courseId,
+              childId,
+              videoId,
+              'video'
+            );
+          }
+          await refreshVideoWatches();
+        } catch (refreshError) {
+          console.error('[Video] Background refresh after star reward failed:', refreshError);
+        }
+      })();
     } catch (e) {
       showDialog({
         message: (e as Error)?.message ?? 'Failed to record video watch',

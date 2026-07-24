@@ -145,29 +145,31 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
           timeSpent: timeSpentSeconds,
           progress: 100,
         });
+
+        // Apply stars + open reward UI before any module refresh work
+        const completionData = completionResponse?.data || {};
+        const syncedTotalStars = applyStarRewardFromCompletion({
+          childId,
+          starsToAward: completionData.starsToAward,
+          totalStars: completionData.totalStars,
+          dispatch,
+        });
+
+        if (trigger === 'home') {
+          setCmsCompletionData({
+            score,
+            maxScore,
+            attemptCount,
+            ...completionData,
+            totalStars: syncedTotalStars ?? completionData.totalStars ?? 0,
+          });
+          setCmsCompletionOpen(true);
+        }
       } catch (error) {
         console.error('Error saving CMS book completion:', error);
       } finally {
-        fetchBookReadings();
-      }
-
-      const completionData = completionResponse?.data || {};
-      const syncedTotalStars = applyStarRewardFromCompletion({
-        childId,
-        starsToAward: completionData.starsToAward,
-        totalStars: completionData.totalStars,
-        dispatch,
-      });
-
-      if (trigger === 'home') {
-        setCmsCompletionData({
-          score,
-          maxScore,
-          attemptCount,
-          ...completionData,
-          totalStars: syncedTotalStars ?? completionData.totalStars ?? 0,
-        });
-        setCmsCompletionOpen(true);
+        // Non-blocking library refresh
+        void fetchBookReadings();
       }
 
       console.log('[CMS Player Result]', {

@@ -74,22 +74,23 @@ function createMutableVideoWatch(overrides = {}) {
 }
 
 function createMutableChildStats(initialStars = 0) {
-  let totalStars = initialStars;
-  return {
+  const stats = {
     _id: 'stats1',
-    totalStars,
-    addStars: jest.fn(async (amount) => {
-      totalStars += amount;
-    }),
+    totalStars: initialStars,
     save: jest.fn().mockResolvedValue(true),
-    get totalStarsValue() {
-      return totalStars;
-    },
   };
+  stats.addStars = jest.fn(async (amount) => {
+    stats.totalStars += amount;
+    return stats;
+  });
+  return stats;
 }
 
 describe('module content star distribution — end-to-end flows', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Drain async badge schedules from prior cases so they don't fire after teardown
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     jest.clearAllMocks();
     jest.spyOn(console, 'log').mockImplementation(() => {});
     jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -109,7 +110,9 @@ describe('module content star distribution — end-to-end flows', () => {
     }));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
     jest.restoreAllMocks();
   });
 
@@ -128,11 +131,6 @@ describe('module content star distribution — end-to-end flows', () => {
 
       const childStats = createMutableChildStats(100);
       models.ChildStats.getOrCreate.mockResolvedValue(childStats);
-      models.ChildStats.findById.mockImplementation(async () => ({
-        _id: 'stats1',
-        totalStars: childStats.totalStarsValue,
-        save: jest.fn().mockResolvedValue(true),
-      }));
 
       let cumulativeStars = 100;
       const sessionAwards = [];
@@ -168,6 +166,7 @@ describe('module content star distribution — end-to-end flows', () => {
       expect(sessionAwards).toEqual([10, 10, 10, 10, 13]);
       expect(sessionAwards.reduce((sum, value) => sum + value, 0)).toBe(53);
       expect(cumulativeStars).toBe(153);
+      expect(childStats.totalStars).toBe(153);
       expect(models.StarEarning.create).toHaveBeenCalledTimes(5);
     });
 
@@ -230,16 +229,12 @@ describe('module content star distribution — end-to-end flows', () => {
 
       const childStats = createMutableChildStats(0);
       models.ChildStats.getOrCreate.mockResolvedValue(childStats);
-      models.ChildStats.findById.mockImplementation(async () => ({
-        _id: 'stats1',
-        totalStars: childStats.totalStarsValue,
-      }));
 
       return { readingRecord, childStats };
     }
 
     it('awards 10 stars on the first reading of a 50-star / 5-reading book', async () => {
-      stubBookFlow({ readingCountAfterCreate: 1 });
+      const { childStats } = stubBookFlow({ readingCountAfterCreate: 1 });
 
       const req = {
         params: { courseId: 'course1', childId: 'child1', bookId: 'book1' },
@@ -259,10 +254,12 @@ describe('module content star distribution — end-to-end flows', () => {
             starsAwarded: true,
             starsToAward: 10,
             starsForNextReading: 10,
+            totalStars: 10,
             requirementMet: false,
           }),
         })
       );
+      expect(childStats.addStars).toHaveBeenCalledWith(10);
       expect(models.StarEarning.create).toHaveBeenCalledWith(
         expect.objectContaining({
           stars: 10,

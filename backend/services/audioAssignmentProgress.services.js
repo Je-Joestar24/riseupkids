@@ -11,6 +11,7 @@ const {
 
 const s3Service = require('./s3.service');
 const { INSTRUCTION_VIDEO_POPULATE_SELECT } = require('../utils/instructionVideoMedia.util');
+const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
 
 const getOrCreateProgress = async ({ childId, audioAssignmentId }) => {
   const progress = await AudioAssignmentProgress.findOne({
@@ -246,14 +247,8 @@ const reviewAudioAssignmentSubmission = async ({
       stats.totalAudioAssignmentsCompleted = (stats.totalAudioAssignmentsCompleted || 0) + 1;
       await stats.addStars(starsToAward);
 
-      // Check for badges after awarding stars
-      try {
-        const badgeCheck = require('./badgeCheck.service');
-        await badgeCheck.updateBadges(childId, { silent: false });
-      } catch (badgeError) {
-        console.error(`[AudioAssignmentProgress] Error checking badges after star award:`, badgeError);
-        // Don't throw - badge checking failure shouldn't block audio assignment completion
-      }
+      // Badges must not delay the star-reward response
+      scheduleBadgeUpdate(childId);
 
       progress.starsEarned = starsToAward;
       progress.starsAwarded = true;
