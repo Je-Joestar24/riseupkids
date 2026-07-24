@@ -6,7 +6,7 @@ const {
 } = require('../utils/starCamCategoryQuery');
 const { trimLeadingTrailingSilence } = require('../utils/audioSilenceTrim.util');
 const { buildKeywordBucketFields } = require('../utils/starCamKeywordBucket.util');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
 const { buildStarCamMissionAssetS3Key } = require('../utils/starCamMissionMediaManifest.util');
 const {
@@ -316,17 +316,20 @@ async function listMissions({ user, page = 1, limit = 20, status, search, catego
   const safeLimit = Math.min(parsePositiveInt(limit, 20), 100);
   const skip = (safePage - 1) * safeLimit;
 
-  const query = applyCreatorOwnershipFilter(user, {});
-  if (status && ['draft', 'published', 'archived'].includes(String(status))) query.status = String(status);
+  const baseQuery = {};
+  if (status && ['draft', 'published', 'archived'].includes(String(status))) baseQuery.status = String(status);
   const cId = ensureObjectId(categoryId, 'categoryId');
   if (cId) {
-    query.category = cId;
+    baseQuery.category = cId;
   }
 
   const safeSearch = asTrimmedString(search);
   if (safeSearch) {
-    query.$or = [{ title: { $regex: safeSearch, $options: 'i' } }, { missionId: { $regex: safeSearch, $options: 'i' } }];
+    baseQuery.$or = [{ title: { $regex: safeSearch, $options: 'i' } }, { missionId: { $regex: safeSearch, $options: 'i' } }];
   }
+
+  // Creators see own missions + other creators' published missions (view/test only).
+  const query = applyCreatorSharedReadFilter(user, baseQuery);
 
   const [total, items] = await Promise.all([
     StarCamMission.countDocuments(query),
@@ -334,7 +337,7 @@ async function listMissions({ user, page = 1, limit = 20, status, search, catego
       .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(safeLimit)
-      .select('missionId title status category missionImage vocab publishedAt updatedAt createdAt')
+      .select('missionId title status category missionImage vocab publishedAt updatedAt createdAt createdBy')
       .populate({ path: 'category', select: 'key name sortOrder isActive' })
       .populate({ path: 'missionImage', select: 'url type width height' })
       .lean(),
@@ -395,7 +398,7 @@ async function getMissionById({ id, user } = {}) {
     err.statusCode = 404;
     throw err;
   }
-  assertCreatorOwnsDocument(user, doc);
+  assertCreatorCanReadDocument(user, doc);
   return doc;
 }
 

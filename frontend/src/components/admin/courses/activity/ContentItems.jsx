@@ -26,6 +26,8 @@ import {
   PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import useContent from '../../../../hooks/contentHook';
+import { useAuth } from '../../../../hooks/userHook';
+import { canManageContent } from '../../../../utils/contentOwnership';
 import { BOOK_PACKAGE_TYPES, CONTENT_TYPES } from '../../../../services/contentService';
 import { BACKEND_BASE_URL } from '../../../../config/constants';
 import ContentEditModal from './ContentEditModl';
@@ -46,6 +48,7 @@ import cmsBookAdminService from '../../../../services/cmsBookAdminService';
 const ContentItems = ({ loading, onRefresh }) => {
   const theme = useTheme();
   const dispatch = useDispatch();
+  const { user } = useAuth();
   const {
     contentItems,
     archiveContentData,
@@ -803,16 +806,18 @@ const ContentItems = ({ loading, onRefresh }) => {
             Test HTML5
           </MenuItem>
         )}
-        <MenuItem
-          onClick={handleEdit}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-          }}
-        >
-          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Edit
-        </MenuItem>
-        {selectedItem && supportsArchive(resolvedMenuType) ? (
+        {canManageContent(selectedItem, user) ? (
+          <MenuItem
+            onClick={handleEdit}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Edit
+          </MenuItem>
+        ) : null}
+        {canManageContent(selectedItem, user) && selectedItem && supportsArchive(resolvedMenuType) ? (
           selectedItem?.isArchived ? (
             <>
               <MenuItem
@@ -848,7 +853,7 @@ const ContentItems = ({ loading, onRefresh }) => {
               Archive
             </MenuItem>
           )
-        ) : (
+        ) : canManageContent(selectedItem, user) ? (
           <MenuItem
             onClick={handleDeleteWithConfirm}
             sx={{
@@ -859,7 +864,7 @@ const ContentItems = ({ loading, onRefresh }) => {
             <DeleteForeverIcon sx={{ marginRight: 1, fontSize: 20 }} />
             Delete Permanently
           </MenuItem>
-        )}
+        ) : null}
       </Menu>
 
       {/* Unified Edit Modal */}

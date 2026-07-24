@@ -1,6 +1,8 @@
 import React from 'react';
 import { Box, CircularProgress, Grid, Paper, Typography } from '@mui/material';
 import BooksBuilderCard from './BooksBuilderCard';
+import { useAuth } from '../../../hooks/userHook';
+import { canManageContent } from '../../../utils/contentOwnership';
 
 const BooksBuilderBooksCards = ({
   books = [],
@@ -12,6 +14,8 @@ const BooksBuilderBooksCards = ({
   editingBookId = '',
   deletingBookId = '',
 }) => {
+  const { user } = useAuth();
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
@@ -42,6 +46,7 @@ const BooksBuilderBooksCards = ({
             onTest={onTestBook}
             onEdit={onEditBook}
             onDelete={onDeleteBook}
+            canManage={canManageContent(book, user)}
             isTesting={Boolean(testingBookId && (book?._id === testingBookId || book?.id === testingBookId))}
             isEditing={Boolean(editingBookId && (book?._id === editingBookId || book?.id === editingBookId))}
             isDeleting={Boolean(deletingBookId && (book?._id === deletingBookId || book?.id === deletingBookId))}

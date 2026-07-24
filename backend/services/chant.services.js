@@ -2,7 +2,7 @@ const { Chant, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const {
   INSTRUCTION_VIDEO_POPULATE_SELECT,
   resolveInstructionVideoMedia,
@@ -180,8 +180,8 @@ const getAllChants = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query
-  const query = applyCreatorOwnershipFilter(user, {});
+  // Build query — creators see own + other creators' published chants
+  let query = {};
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -194,6 +194,11 @@ const getAllChants = async (queryParams = {}) => {
       { instructions: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyCreatorSharedReadFilter(user, query, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -248,7 +253,10 @@ const getChantById = async (chantId, user = null) => {
     throw new Error('Chant not found');
   }
 
-  assertCreatorOwnsDocument(user, chant);
+  assertCreatorCanReadDocument(user, chant, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   return chant;
 };

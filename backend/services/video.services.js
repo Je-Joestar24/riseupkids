@@ -3,22 +3,34 @@ const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const html5handlerService = require('./html5handler.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const { COURSE_VIDEO_MEDIA_TAG } = require('../constants/courseVideoMedia');
 const { isCourseVideoMedia } = require('../utils/courseVideoMedia.util');
 
-const applyVideoOwnershipFilter = (user, baseQuery = {}) => {
-  const ownerFilter = applyCreatorOwnershipFilter(user, baseQuery);
-  if (isContentCreator(user)) {
-    ownerFilter.uploadedBy = ownerFilter.createdBy;
-    delete ownerFilter.createdBy;
-  }
-  return ownerFilter;
-};
+const applyVideoSharedReadFilter = (user, baseQuery = {}) =>
+  applyCreatorSharedReadFilter(user, baseQuery, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+    ownerField: 'uploadedBy',
+  });
 
 const assertVideoOwnership = (user, video, message) => {
   assertCreatorOwnsDocument(user, { ...video, createdBy: video?.uploadedBy ?? video?.createdBy }, message);
 };
+
+const assertVideoCanRead = (user, video, message) => {
+  assertCreatorCanReadDocument(
+    user,
+    video,
+    {
+      publishedField: 'isPublished',
+      publishedValue: true,
+      ownerField: 'uploadedBy',
+    },
+    message
+  );
+};
+
 
 const assertCourseVideo = (video) => {
   if (!isCourseVideoMedia(video)) {
@@ -269,10 +281,11 @@ const getAllVideos = async (queryParams = {}) => {
   } = queryParams;
 
   // Only list Media explicitly created for the course Videos content type.
-  const query = applyVideoOwnershipFilter(user, {
+  // Creators see own videos + other creators' published videos.
+  let query = {
     type: 'video',
     tags: COURSE_VIDEO_MEDIA_TAG,
-  });
+  };
 
   // Support both isActive and isPublished filters
   if (isActive !== undefined) {
@@ -292,6 +305,8 @@ const getAllVideos = async (queryParams = {}) => {
       { description: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyVideoSharedReadFilter(user, query);
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -348,7 +363,7 @@ const getVideoById = async (videoId, user = null) => {
   }
 
   assertCourseVideo(video);
-  assertVideoOwnership(user, video);
+  assertVideoCanRead(user, video);
 
   return video;
 };

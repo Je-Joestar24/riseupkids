@@ -61,6 +61,7 @@ const BooksBuilderCard = ({
   onTest,
   onEdit,
   onDelete,
+  canManage = true,
   isTesting = false,
   isEditing = false,
   isDeleting = false,
@@ -203,13 +204,15 @@ const BooksBuilderCard = ({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <MenuItem
-          disabled={isEditing}
-          onClick={() => handleAction(onEdit)}
-          aria-label={`Edit ${book?.title || 'book'}`}
-        >
-          {isEditing ? 'Opening...' : 'Edit'}
-        </MenuItem>
+        {canManage ? (
+          <MenuItem
+            disabled={isEditing}
+            onClick={() => handleAction(onEdit)}
+            aria-label={`Edit ${book?.title || 'book'}`}
+          >
+            {isEditing ? 'Opening...' : 'Edit'}
+          </MenuItem>
+        ) : null}
         <MenuItem
           disabled={isTesting}
           onClick={() => handleAction(onTest)}
@@ -217,14 +220,16 @@ const BooksBuilderCard = ({
         >
           {isTesting ? 'Loading...' : 'Test'}
         </MenuItem>
-        <MenuItem
-          disabled={isDeleting}
-          onClick={() => handleAction(onDelete)}
-          aria-label={`Delete ${book?.title || 'book'}`}
-          sx={{ color: 'error.main' }}
-        >
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </MenuItem>
+        {canManage ? (
+          <MenuItem
+            disabled={isDeleting}
+            onClick={() => handleAction(onDelete)}
+            aria-label={`Delete ${book?.title || 'book'}`}
+            sx={{ color: 'error.main' }}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </MenuItem>
+        ) : null}
       </Menu>
     </Card>
   );

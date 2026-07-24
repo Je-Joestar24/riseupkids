@@ -2,7 +2,7 @@ const { ExploreContent, Media } = require('../models');
 const fs = require('fs');
 const s3Service = require('./s3.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const { EXPLORE_VIDEO_MEDIA_TAG } = require('../constants/exploreVideoTypes');
 
 /** Fields returned on populated explore `videoFile` (upload + Bunny embed). */
@@ -221,8 +221,8 @@ const getAllExploreContent = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query
-  const query = applyCreatorOwnershipFilter(user, {});
+  // Build query — creators see own + other creators' published explore items
+  let query = {};
 
   if (type) {
     query.type = type;
@@ -251,6 +251,11 @@ const getAllExploreContent = async (queryParams = {}) => {
       { category: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyCreatorSharedReadFilter(user, query, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -311,7 +316,10 @@ const getExploreContentById = async (contentId, user = null) => {
     throw new Error('Explore content not found');
   }
 
-  assertCreatorOwnsDocument(user, content);
+  assertCreatorCanReadDocument(user, content, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   return content;
 };

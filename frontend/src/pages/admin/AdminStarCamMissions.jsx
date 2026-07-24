@@ -8,6 +8,8 @@ import StarCamMissionTablePaginations from '../../components/admin/starcammissio
 import StarCamRightPanelPreviewEdit from '../../components/admin/starcammission/StarCamRightPanelPreviewEdit';
 import StarCamMissionCreateModal from '../../components/admin/starcammission/StarCamMissionCreateModal';
 import useStarCamMissionAdmin from '../../hooks/starCamMissionAdminHook';
+import { useAuth } from '../../hooks/userHook';
+import { canManageContent } from '../../utils/contentOwnership';
 import { showConfirmationDialog, showNotification } from '../../store/slices/uiSlice';
 import { sortStarCamCategoriesForAdminDisplay } from '../../utils/starCamCategoryDisplay';
 import { canAddStarCamObject } from '../../constants/starCamMissionObjects';
@@ -54,6 +56,7 @@ const toMissionItemPatch = (item) => ({
 
 const AdminStarCamMissions = () => {
   const dispatch = useDispatch();
+  const { user } = useAuth();
   const {
     categories,
     missions,
@@ -81,6 +84,7 @@ const AdminStarCamMissions = () => {
     updateFilters,
     clearCurrentMission,
   } = useStarCamMissionAdmin();
+  const canManageCurrentMission = canManageContent(currentMission, user);
   const [newVocab, setNewVocab] = React.useState({
     displayText: '',
     target: '',
@@ -355,6 +359,15 @@ const AdminStarCamMissions = () => {
 
   const handleOpenEditMissionModal = async (mission) => {
     if (!mission?._id) return;
+    if (!canManageContent(mission, user)) {
+      dispatch(
+        showNotification({
+          message: 'You can only edit missions you created. Shared missions are view-only.',
+          type: 'warning',
+        })
+      );
+      return;
+    }
     await loadCategories().catch(() => {
       /* runThunk already surfaces errors */
     });
@@ -402,6 +415,7 @@ const AdminStarCamMissions = () => {
             missions={missions}
             loading={loading.missions}
             selectedMissionId={currentMission?._id || null}
+            currentUser={user}
             onToggleMission={handleToggleMission}
             onEditMission={handleOpenEditMissionModal}
             onPublishMission={handlePublishMission}
@@ -421,6 +435,7 @@ const AdminStarCamMissions = () => {
               missions={missions}
               loading={loading.missions}
               selectedMissionId={currentMission?._id || null}
+              currentUser={user}
               onToggleMission={handleToggleMission}
               onEditMission={handleOpenEditMissionModal}
               onPublishMission={handlePublishMission}
@@ -439,6 +454,7 @@ const AdminStarCamMissions = () => {
               loading={loading.missionDetails && !currentMission?.vocab?.length}
               mutating={loading.mutating}
               inclusionTogglingSortOrder={loading.inclusionTogglingSortOrder}
+              readOnly={!canManageCurrentMission}
               newVocab={newVocab}
               onVocabChange={(field, value) => setNewVocab((prev) => ({ ...prev, [field]: value }))}
               onSubmitVocabulary={handleSubmitVocabulary}

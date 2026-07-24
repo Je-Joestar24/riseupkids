@@ -21,6 +21,7 @@ import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import UnpublishedRoundedIcon from '@mui/icons-material/UnpublishedRounded';
 import ArchiveRoundedIcon from '@mui/icons-material/ArchiveRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import { canManageContent } from '../../../utils/contentOwnership';
 
 const statusColor = {
   draft: 'warning',
@@ -32,6 +33,7 @@ const StarCamMissionTable = ({
   missions = [],
   loading = false,
   selectedMissionId = null,
+  currentUser = null,
   onToggleMission,
   onEditMission,
   onPublishMission,
@@ -84,6 +86,7 @@ const StarCamMissionTable = ({
           ) : (
             missions.map((mission) => {
               const isSelected = selectedMissionId === mission._id;
+              const canManage = canManageContent(mission, currentUser);
               return (
                 <TableRow
                   key={mission._id}
@@ -115,84 +118,76 @@ const StarCamMissionTable = ({
                       />
                     </TableCell>
                     <TableCell>{mission.title}</TableCell>
-                    {/* <TableCell>
-                      <Box sx={{ display: 'inline-flex', gap: 0.6, flexWrap: 'wrap' }}>
-                        <Chip
-                          size="small"
-                          color={mission.mediaCompleteness?.hasMissionShortVideo ? 'success' : 'default'}
-                          label={mission.mediaCompleteness?.hasMissionShortVideo ? 'Short Video' : 'No Short Video'}
-                        />
-                        <Chip
-                          size="small"
-                          color={mission.mediaCompleteness?.hasRewardAudio ? 'success' : 'default'}
-                          label={mission.mediaCompleteness?.hasRewardAudio ? 'Reward Audio' : 'No Reward Audio'}
-                        />
-                      </Box>
-                    </TableCell> */}
                     <TableCell>
                       <Chip size="small" label={mission.status} color={statusColor[mission.status] || 'default'} />
                     </TableCell>
                     <TableCell align="right">
-                      <Box sx={{ display: 'inline-flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <Tooltip title="Edit mission">
-                          <IconButton
-                            color="primary"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditMission(mission);
-                            }}
-                            aria-label={`edit mission ${mission.missionId}`}
-                            sx={{ p: 0.7 }}
-                          >
-                            <EditRoundedIcon sx={{ fontSize: 24 }} />
-                          </IconButton>
-                        </Tooltip>
-                        {mission.status !== 'published' && mission.status !== 'archived' ? (
-                          <Tooltip title="Publish mission">
+                      {canManage ? (
+                        <Box sx={{ display: 'inline-flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <Tooltip title="Edit mission">
                             <IconButton
-                              color="success"
+                              color="primary"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onPublishMission(mission._id);
+                                onEditMission(mission);
                               }}
-                              aria-label={`publish mission ${mission.missionId}`}
+                              aria-label={`edit mission ${mission.missionId}`}
                               sx={{ p: 0.7 }}
                             >
-                              <PublishRoundedIcon sx={{ fontSize: 24 }} />
+                              <EditRoundedIcon sx={{ fontSize: 24 }} />
                             </IconButton>
                           </Tooltip>
-                        ) : null}
-                        {mission.status === 'published' ? (
-                          <Tooltip title="Unpublish mission">
-                            <IconButton
-                              color="warning"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onUnpublishMission(mission._id);
-                              }}
-                              aria-label={`unpublish mission ${mission.missionId}`}
-                              sx={{ p: 0.7 }}
-                            >
-                              <UnpublishedRoundedIcon sx={{ fontSize: 24 }} />
-                            </IconButton>
-                          </Tooltip>
-                        ) : null}
-                        {mission.status !== 'archived' ? (
-                          <Tooltip title="Archive mission">
-                            <IconButton
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onArchiveMission(mission._id);
-                              }}
-                              aria-label={`archive mission ${mission.missionId}`}
-                              sx={{ p: 0.7 }}
-                            >
-                              <ArchiveRoundedIcon sx={{ fontSize: 24 }} />
-                            </IconButton>
-                          </Tooltip>
-                        ) : null}
-                      </Box>
+                          {mission.status !== 'published' && mission.status !== 'archived' ? (
+                            <Tooltip title="Publish mission">
+                              <IconButton
+                                color="success"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onPublishMission(mission._id);
+                                }}
+                                aria-label={`publish mission ${mission.missionId}`}
+                                sx={{ p: 0.7 }}
+                              >
+                                <PublishRoundedIcon sx={{ fontSize: 24 }} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                          {mission.status === 'published' ? (
+                            <Tooltip title="Unpublish mission">
+                              <IconButton
+                                color="warning"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUnpublishMission(mission._id);
+                                }}
+                                aria-label={`unpublish mission ${mission.missionId}`}
+                                sx={{ p: 0.7 }}
+                              >
+                                <UnpublishedRoundedIcon sx={{ fontSize: 24 }} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                          {mission.status !== 'archived' ? (
+                            <Tooltip title="Archive mission">
+                              <IconButton
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onArchiveMission(mission._id);
+                                }}
+                                aria-label={`archive mission ${mission.missionId}`}
+                                sx={{ p: 0.7 }}
+                              >
+                                <ArchiveRoundedIcon sx={{ fontSize: 24 }} />
+                              </IconButton>
+                            </Tooltip>
+                          ) : null}
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          View only
+                        </Typography>
+                      )}
                     </TableCell>
                   </TableRow>
               );

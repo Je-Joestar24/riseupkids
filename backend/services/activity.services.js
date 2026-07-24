@@ -2,7 +2,7 @@ const { Activity, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Activity Service
@@ -135,8 +135,8 @@ const getAllActivities = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query
-  let query = applyCreatorOwnershipFilter(user, {});
+  // Build query — creators see own + other creators' published activities
+  let query = {};
 
   // Note: type filter removed since activities are now SCORM-based only
   // Filter by archived status (default: show only non-archived)
@@ -156,6 +156,11 @@ const getAllActivities = async (queryParams = {}) => {
       { description: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyCreatorSharedReadFilter(user, query, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -206,7 +211,10 @@ const getActivityById = async (activityId, user) => {
     throw new Error('Activity not found');
   }
 
-  assertCreatorOwnsDocument(user, activity);
+  assertCreatorCanReadDocument(user, activity, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   return activity;
 };

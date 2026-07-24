@@ -7,7 +7,11 @@ const {
   buildWeightedWords,
   normalizeReadingWordsForOutput,
 } = require('../utils/cmsReadingWords.util');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const {
+  applyCreatorSharedReadFilter,
+  assertCreatorOwnsDocument,
+  assertCreatorCanReadDocument,
+} = require('../utils/contentOwnership');
 const {
   getCoverPage,
   syncCmsBookTitleFromCoverPage,
@@ -351,16 +355,18 @@ async function listCmsBooks({ user, page = 1, limit = 10, search = '', status, l
   const skip = (safePage - 1) * safeLimit;
   const safeSearch = normalizeSearch(search);
 
-  const query = applyCreatorOwnershipFilter(user, {});
-  if (!includeArchived) query.isArchived = false;
-  if (status) query.status = status;
-  if (language) query.language = language;
+  const baseQuery = {};
+  if (!includeArchived) baseQuery.isArchived = false;
+  if (status) baseQuery.status = status;
+  if (language) baseQuery.language = language;
   if (safeSearch) {
-    query.$or = [
+    baseQuery.$or = [
       { title: { $regex: safeSearch, $options: 'i' } },
       { description: { $regex: safeSearch, $options: 'i' } },
     ];
   }
+  // Creators see own books + other creators' published books (view/test only; mutations stay owner-gated).
+  const query = applyCreatorSharedReadFilter(user, baseQuery);
 
   const total = await CmsBook.countDocuments(query);
   const items = await CmsBook.find(query)
@@ -386,11 +392,12 @@ async function listCmsBooks({ user, page = 1, limit = 10, search = '', status, l
 async function getCmsBookById({ user, bookId, includeArchived = true }) {
   if (!bookId) throw createHttpError('bookId is required', 400);
 
-  const query = applyCreatorOwnershipFilter(user, { _id: bookId });
+  const query = { _id: bookId };
   if (!includeArchived) query.isArchived = false;
 
   const book = await CmsBook.findOne(query).lean();
   if (!book) throw createHttpError('Book not found', 404);
+  assertCreatorCanReadDocument(user, book);
   return enrichBookWithCoverPageMedia(book);
 }
 

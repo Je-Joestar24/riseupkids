@@ -1,7 +1,7 @@
 const { AudioAssignment, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const {
   INSTRUCTION_VIDEO_POPULATE_SELECT,
   resolveInstructionVideoMedia,
@@ -148,8 +148,8 @@ const getAllAudioAssignments = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query
-  const query = applyCreatorOwnershipFilter(user, {});
+  // Build query — creators see own + other creators' published audio assignments
+  let query = {};
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -166,6 +166,11 @@ const getAllAudioAssignments = async (queryParams = {}) => {
       { instructions: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyCreatorSharedReadFilter(user, query, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -218,7 +223,10 @@ const getAudioAssignmentById = async (assignmentId, user = null) => {
     throw new Error('Audio assignment not found');
   }
 
-  assertCreatorOwnsDocument(user, audioAssignment);
+  assertCreatorCanReadDocument(user, audioAssignment, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   return audioAssignment;
 };

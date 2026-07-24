@@ -6,7 +6,7 @@ const html5handlerService = require('./html5handler.service');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const cloudfrontService = require('./cloudfront.service');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument } = require('../utils/contentOwnership');
+const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 
 /**
  * Create Book Service
@@ -210,8 +210,8 @@ const getAllBooks = async (queryParams = {}) => {
     limit = 10,
   } = queryParams;
 
-  // Build query
-  const query = applyCreatorOwnershipFilter(user, {});
+  // Build query — creators see own + other creators' published books
+  let query = {};
 
   if (isPublished !== undefined) {
     query.isPublished = isPublished === 'true' || isPublished === true;
@@ -237,6 +237,11 @@ const getAllBooks = async (queryParams = {}) => {
       { description: { $regex: search, $options: 'i' } },
     ];
   }
+
+  query = applyCreatorSharedReadFilter(user, query, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   // Pagination
   const pageNum = parseInt(page, 10) || 1;
@@ -289,7 +294,10 @@ const getBookById = async (bookId, user = null) => {
     throw new Error('Book not found');
   }
 
-  assertCreatorOwnsDocument(user, book);
+  assertCreatorCanReadDocument(user, book, {
+    publishedField: 'isPublished',
+    publishedValue: true,
+  });
 
   return book;
 };

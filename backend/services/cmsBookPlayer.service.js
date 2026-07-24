@@ -5,7 +5,10 @@ const {
   buildWeightedWords,
   normalizeReadingWordsForOutput,
 } = require('../utils/cmsReadingWords.util');
-const { applyCreatorOwnershipFilter, assertCreatorOwnsDocument, isContentCreator } = require('../utils/contentOwnership');
+const {
+  creatorOwnsDocument,
+  isContentCreator,
+} = require('../utils/contentOwnership');
 const { getCoverPage, resolveCmsBookTitle } = require('../utils/cmsBookTitle.util');
 const { buildCmsBookMediaManifest } = require('../utils/cmsBookMediaManifest.util');
 const { resolveMediaDocumentUrl } = require('../utils/resolveMediaDeliveryUrl.util');
@@ -187,7 +190,8 @@ async function listPlayableCmsBooksForParent({
   const skip = (safePage - 1) * safeLimit;
   const safeSearch = String(search || '').trim();
 
-  let query = applyCreatorOwnershipFilter(user, { status: 'published', isArchived: false });
+  // Published catalog is shared across creators for view/test; ownership is not required to list.
+  const query = { status: 'published', isArchived: false };
   if (language) query.language = language;
   if (safeSearch) {
     query.$or = [
@@ -237,17 +241,20 @@ async function getPlayableCmsBookForParent({ user, userRole, bookId }) {
   ensurePlayerAccess(userRole);
   if (!bookId) throw createHttpError('bookId is required', 400);
 
-  const query = applyCreatorOwnershipFilter(user, {
+  const query = {
     _id: bookId,
     isArchived: false,
+    // Parents/teachers/admins only play published books. Creators may also test their own drafts.
     ...(isContentCreator(user) ? {} : { status: 'published' }),
-  });
+  };
 
   const book = await CmsBook.findOne(query).lean();
-
   if (!book) throw createHttpError('Playable book not found', 404);
 
-  assertCreatorOwnsDocument(user, book);
+  // Creators may test own drafts/published books, and other creators' published books only.
+  if (isContentCreator(user) && !creatorOwnsDocument(user, book) && book.status !== 'published') {
+    throw createHttpError('Playable book not found', 404);
+  }
 
   const orderedPages = [...(book.pages || [])].sort((a, b) => a.order - b.order);
   const mediaIds = collectMediaIdsFromPages(orderedPages);

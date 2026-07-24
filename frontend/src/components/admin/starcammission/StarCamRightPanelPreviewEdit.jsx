@@ -82,6 +82,7 @@ const StarCamRightPanelPreviewEdit = ({
   loading = false,
   mutating = false,
   inclusionTogglingSortOrder = null,
+  readOnly = false,
   newVocab,
   onVocabChange,
   onSubmitVocabulary,
@@ -178,6 +179,10 @@ const StarCamRightPanelPreviewEdit = ({
   }
 
   const isArchived = mission.status === 'archived';
+  const isReadOnly = Boolean(readOnly) || isArchived;
+  const readOnlyReason = readOnly
+    ? 'Shared missions from other creators are view-only'
+    : 'Archived missions are read-only';
 
   return (
     <Paper
@@ -201,7 +206,7 @@ const StarCamRightPanelPreviewEdit = ({
               {mission.missionId}
             </Typography>
           </Box>
-          {mission.status !== 'archived' ? (
+          {!isReadOnly ? (
             <Button
               size="small"
               variant="contained"
@@ -336,7 +341,7 @@ const StarCamRightPanelPreviewEdit = ({
                       <Switch
                         size="small"
                         checked={isIncluded}
-                        disabled={isArchived || isToggling}
+                        disabled={isReadOnly || isToggling}
                         onChange={(event) => {
                           void handleInclusionToggle(vocab, idx, event.target.checked);
                         }}
@@ -355,12 +360,12 @@ const StarCamRightPanelPreviewEdit = ({
                     </Box>
                   </Tooltip>
 
-                  <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Edit vocabulary'}>
+                  <Tooltip title={isReadOnly ? readOnlyReason : 'Edit vocabulary'}>
                     <span>
                       <IconButton
                         size="small"
                         onClick={() => openEditModal(vocab)}
-                        disabled={mutating || isArchived}
+                        disabled={mutating || isReadOnly}
                         aria-label={`Edit vocabulary ${displayName}`}
                       >
                         <EditOutlinedIcon fontSize="small" />
@@ -368,13 +373,13 @@ const StarCamRightPanelPreviewEdit = ({
                     </span>
                   </Tooltip>
 
-                  <Tooltip title={isArchived ? 'Archived missions are read-only' : 'Delete vocabulary'}>
+                  <Tooltip title={isReadOnly ? readOnlyReason : 'Delete vocabulary'}>
                     <span>
                       <IconButton
                         size="small"
                         color="error"
                         onClick={() => onDeleteVocabulary?.(vocab)}
-                        disabled={mutating || isArchived}
+                        disabled={mutating || isReadOnly}
                         aria-label={`Delete vocabulary ${displayName}`}
                       >
                         <DeleteOutlineIcon fontSize="small" />

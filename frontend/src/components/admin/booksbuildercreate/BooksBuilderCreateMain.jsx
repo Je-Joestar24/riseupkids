@@ -2,9 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Button } from '@mui/material';
 import { AddCircleOutline } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import useContentBasePath from '../../../hooks/useContentBasePath';
 import useCmsBookAdmin from '../../../hooks/cmsBookAdminHook';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
+import { useAuth } from '../../../hooks/userHook';
+import { canManageContent } from '../../../utils/contentOwnership';
+import { showNotification } from '../../../store/slices/uiSlice';
 import CmsBooksModalTest from '../common/CmsBooksModalTest';
 import BooksBuilderCreateHeader from './BooksBuilderCreateHeader';
 import BooksBuilderCreateActions from './BooksBuilderCreateActions';
@@ -35,10 +39,12 @@ import {
 } from '../../../utils/cmsInteractiveLayout';
 
 const BooksBuilderCreateMain = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const basePath = useContentBasePath();
   const { bookId } = useParams();
   const isEditMode = Boolean(bookId);
+  const { user } = useAuth();
   const {
     currentBook,
     createBookAsDraft,
@@ -80,6 +86,17 @@ const BooksBuilderCreateMain = () => {
         const adminBook = adminResponse?.data || null;
         if (!adminBook) return;
 
+        if (!canManageContent(adminBook, user)) {
+          dispatch(
+            showNotification({
+              message: 'You can only edit books you created. Use Test to preview shared books.',
+              type: 'warning',
+            })
+          );
+          navigate(`${basePath}/built-in-books`);
+          return;
+        }
+
         let playableBook = null;
         try {
           const playableResponse = await loadPlayableBookByIdSilent(bookId);
@@ -109,7 +126,7 @@ const BooksBuilderCreateMain = () => {
     };
 
     initEditDraft();
-  }, [bookId, isEditMode, loadBookById, loadPlayableBookByIdSilent, setBuilderPages]);
+  }, [bookId, isEditMode, loadBookById, loadPlayableBookByIdSilent, setBuilderPages, user, dispatch, navigate, basePath]);
 
   useEffect(() => {
     if (!isEditMode || !bookId || !currentBook) return;

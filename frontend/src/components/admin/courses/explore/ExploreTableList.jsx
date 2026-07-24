@@ -32,6 +32,8 @@ import {
 } from '@mui/icons-material';
 import { useSearchParams } from 'react-router-dom';
 import { useExplore } from '../../../../hooks/exploreHook';
+import { useAuth } from '../../../../hooks/userHook';
+import { canManageContent } from '../../../../utils/contentOwnership';
 import { buildExploreAdminSearchParams } from '../../../../utils/exploreAdminUrl';
 import ExploreEditModal from './ExploreEditModa';
 import ExploreVideoTestPlayerModal from './ExploreVideoTestPlayerModal';
@@ -44,6 +46,7 @@ import ExploreVideoTestPlayerModal from './ExploreVideoTestPlayerModal';
 const ExploreTableList = () => {
   const theme = useTheme();
   const [, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
   const {
     exploreContent,
     loading,
@@ -555,25 +558,29 @@ const ExploreTableList = () => {
           <PlayArrowIcon sx={{ marginRight: 1, fontSize: 20 }} aria-hidden />
           Test playback
         </MenuItem>
-        <MenuItem
-          onClick={handleEdit}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-          }}
-        >
-          <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Edit
-        </MenuItem>
-        <MenuItem
-          onClick={handleDeleteClick}
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            color: theme.palette.error.main,
-          }}
-        >
-          <DeleteIcon sx={{ marginRight: 1, fontSize: 20 }} />
-          Delete
-        </MenuItem>
+        {canManageContent(selectedContent, user) ? (
+          <MenuItem
+            onClick={handleEdit}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+            }}
+          >
+            <EditIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Edit
+          </MenuItem>
+        ) : null}
+        {canManageContent(selectedContent, user) ? (
+          <MenuItem
+            onClick={handleDeleteClick}
+            sx={{
+              fontFamily: 'Quicksand, sans-serif',
+              color: theme.palette.error.main,
+            }}
+          >
+            <DeleteIcon sx={{ marginRight: 1, fontSize: 20 }} />
+            Delete
+          </MenuItem>
+        ) : null}
       </Menu>
 
       {/* Delete Confirmation Dialog */}
