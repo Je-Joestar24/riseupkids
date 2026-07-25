@@ -13,7 +13,7 @@ const {
   completeChantForChild,
 } = require('../controllers/chantProgress.controller');
 const { protect, authorize } = require('../middleware/auth');
-const { uploadChant, uploadChantUpdate, uploadRecordedAudio } = require('../middleware/upload');
+const { uploadChant, uploadChantUpdate, uploadRecordedAudioIfMultipart } = require('../middleware/upload');
 
 /**
  * Chant Routes
@@ -47,7 +47,7 @@ router.get('/:id/child/:childId/progress', authorize('parent', 'admin', 'teacher
 router.post(
   '/:id/child/:childId/complete',
   authorize('parent', 'admin'),
-  uploadRecordedAudio,
+  uploadRecordedAudioIfMultipart,
   completeChantForChild
 );
 

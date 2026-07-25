@@ -582,6 +582,18 @@ const uploadChantUpdate = multer({
 // Field name: recordedAudio
 const uploadRecordedAudio = upload.single('recordedAudio');
 
+/**
+ * Only run multer when the request is multipart.
+ * Watch-only chant completion sends JSON and must not go through multer.
+ */
+const uploadRecordedAudioIfMultipart = (req, res, next) => {
+  const contentType = String(req.headers['content-type'] || '');
+  if (contentType.includes('multipart/form-data')) {
+    return uploadRecordedAudio(req, res, next);
+  }
+  return next();
+};
+
 // Middleware for explore content uploads (video file + cover photo for all video types)
 // Disk storage: large videos stream to S3 from disk (see s3.service uploadFileFromMulter).
 const uploadExplore = multer({
@@ -802,6 +814,7 @@ module.exports = {
   uploadChant,
   uploadChantUpdate,
   uploadRecordedAudio,
+  uploadRecordedAudioIfMultipart,
   uploadCourse,
   uploadExplore,
   uploadExploreUpdate,

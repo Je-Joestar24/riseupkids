@@ -69,6 +69,12 @@ export interface ContentProgressActions {
     childId: string,
     formData: FormData
   ) => Promise<ChantProgress | null>;
+  /** Watch-only completion (JSON) — preferred for finish buttons without recording. */
+  completeChantWatch: (
+    chantId: string,
+    childId: string,
+    payload?: { timeSpent?: number; metadata?: Record<string, unknown> }
+  ) => Promise<ChantProgress | null>;
 
   // ----- Audio Assignment -----
   startAudioAssignment: (
@@ -199,7 +205,33 @@ export const useContentProgressStore = create<
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       set({ isLoadingChant: false, error: msg });
-      return null;
+      throw err instanceof Error ? err : new Error(msg);
+    }
+  },
+
+  completeChantWatch: async (chantId, childId, payload = {}) => {
+    set({ isLoadingChant: true, error: null });
+    try {
+      const res = await chantService.completeWatch(chantId, childId, payload);
+      const progress = res?.success ? res.data ?? null : null;
+      if (progress) {
+        const key = normalizeId(chantId);
+        set((s) => ({
+          chantProgressByChantId: { ...s.chantProgressByChantId, [key]: progress },
+          isLoadingChant: false,
+          error: null,
+        }));
+      } else {
+        set({
+          isLoadingChant: false,
+          error: res?.message ?? 'Failed to complete chant',
+        });
+      }
+      return progress ?? null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      set({ isLoadingChant: false, error: msg });
+      throw err instanceof Error ? err : new Error(msg);
     }
   },
 

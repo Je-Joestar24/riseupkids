@@ -196,7 +196,7 @@ export function ChantModal({
   const {
     startChant,
     getChantProgress,
-    completeChant,
+    completeChantWatch,
     getChantProgressCached,
     updateCourseContentProgress,
     clearError,
@@ -205,6 +205,8 @@ export function ChantModal({
   } = useContentProgress({ childId, courseId });
 
   const [submitting, setSubmitting] = useState(false);
+  /** Local flag so the finish button hides immediately after a successful complete. */
+  const [completedLocally, setCompletedLocally] = useState(false);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
 
   const progress = useMemo(() => {
@@ -262,17 +264,19 @@ export function ChantModal({
   const isBunnyEmbed = isInstructionVideoBunnyEmbed(instructionVideoMedia);
 
   const status = (progress?.status ?? 'not_started') as string;
-  const isCompleted = status === 'completed';
+  const isCompleted = completedLocally || status === 'completed';
 
   useEffect(() => {
     if (!open || !chantId || chantId === 'undefined' || !childId) return;
     clearError();
+    setCompletedLocally(false);
     startChant(chantId).then(() => getChantProgress(chantId));
   }, [open, chantId, childId, clearError, startChant, getChantProgress]);
 
   useEffect(() => {
     if (!open) {
       setShowConfirmClose(false);
+      setCompletedLocally(false);
     }
   }, [open]);
 
@@ -292,20 +296,27 @@ export function ChantModal({
   const handleFinishedWatching = useCallback(async () => {
     if (!chantId || chantId === 'undefined' || !childId || isCompleted || submitting) return;
     setSubmitting(true);
+    clearError();
     try {
-      const fd = new FormData();
-      fd.append('timeSpent', '0');
-      fd.append('metadata', JSON.stringify({ completionType: 'watch' }));
+      const result = (await completeChantWatch(chantId, {
+        timeSpent: 0,
+        metadata: { completionType: 'watch' },
+      })) as { starsEarned?: number; status?: string } | null;
 
-      const result = (await completeChant(chantId, fd)) as { starsEarned?: number } | null;
-      const starsEarned = result?.starsEarned ?? progress?.starsEarned ?? 0;
+      if (!result) {
+        throw new Error('Failed to complete chant');
+      }
+
+      setCompletedLocally(true);
+      const starsEarned = Number(result.starsEarned ?? progress?.starsEarned ?? 0) || 0;
 
       if (childId && starsEarned > 0) {
         applyChildStarReward(childId, { starsToAward: starsEarned });
       }
 
       if (courseId) {
-        await updateCourseContentProgress(chantId, 'chant');
+        // Non-blocking: chant is already saved even if course progress sync fails
+        void updateCourseContentProgress(chantId, 'chant');
       }
 
       showDialog({
@@ -334,7 +345,7 @@ export function ChantModal({
     childId,
     isCompleted,
     submitting,
-    completeChant,
+    completeChantWatch,
     progress?.starsEarned,
     courseId,
     updateCourseContentProgress,
@@ -342,6 +353,7 @@ export function ChantModal({
     applyChildStarReward,
     onAfterComplete,
     onClose,
+    clearError,
   ]);
 
   if (!open) return null;

@@ -410,15 +410,27 @@ const ChantRecordingModal = ({ open, onClose, chant, childId, courseId, onAfterC
     setError(null);
 
     try {
-      const fd = new FormData();
-      fd.append('timeSpent', '0');
-      fd.append('metadata', JSON.stringify({ completionType: 'watch' }));
+      const completeResult = await chantProgressService.completeWatch(chantId, childId, {
+        timeSpent: 0,
+        metadata: { completionType: 'watch' },
+      });
 
-      const completeResult = await chantProgressService.complete(chantId, childId, fd);
+      if (!completeResult?.success) {
+        throw new Error(completeResult?.message || 'Failed to complete chant');
+      }
+
+      // Optimistically mark completed so the finish button disappears immediately
+      setProgress((prev) => ({
+        ...(prev || {}),
+        ...(completeResult.data || {}),
+        status: 'completed',
+      }));
+
       await fetchProgress();
 
       if (courseId) {
-        await courseProgressService.updateContentProgress(courseId, childId, chantId, 'chant');
+        // Non-blocking: chant is already saved even if course progress sync fails
+        void courseProgressService.updateContentProgress(courseId, childId, chantId, 'chant');
       }
 
       const starsEarned = completeResult?.data?.starsEarned ?? 0;

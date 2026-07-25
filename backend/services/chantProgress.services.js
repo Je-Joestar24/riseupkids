@@ -103,6 +103,30 @@ const completeChant = async ({
 
   const progress = await getOrCreateProgress({ childId, chantId });
 
+  const populateCompletedProgress = async (progressId) =>
+    ChantProgress.findById(progressId)
+      .populate('recordedAudio', 'type title url mimeType size duration')
+      .populate({
+        path: 'chant',
+        select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo audio',
+        populate: [
+          {
+            path: 'instructionVideo',
+            select: INSTRUCTION_VIDEO_POPULATE_SELECT,
+          },
+          {
+            path: 'audio',
+            select: 'type title url mimeType size duration',
+          },
+        ],
+      })
+      .lean();
+
+  // Already finished + no new recording: return existing progress (idempotent, no error).
+  if (progress.status === 'completed' && !recordedAudioFile) {
+    return populateCompletedProgress(progress._id);
+  }
+
   if (recordedAudioFile) {
     const { url: audioUrl, s3Key } = await s3Service.uploadFileFromMulter(recordedAudioFile, 'scorm/chants');
     const recordedAudioMedia = await Media.create({
@@ -170,23 +194,7 @@ const completeChant = async ({
     console.warn('[ChantProgress] Badge award skipped:', e.message);
   }
 
-  return await ChantProgress.findById(progress._id)
-    .populate('recordedAudio', 'type title url mimeType size duration')
-    .populate({
-      path: 'chant',
-      select: 'title instructions coverImage starsAwarded badgeAwarded instructionVideo audio',
-      populate: [
-        {
-          path: 'instructionVideo',
-          select: INSTRUCTION_VIDEO_POPULATE_SELECT,
-        },
-        {
-          path: 'audio',
-          select: 'type title url mimeType size duration',
-        },
-      ],
-    })
-    .lean();
+  return populateCompletedProgress(progress._id);
 };
 
 module.exports = {

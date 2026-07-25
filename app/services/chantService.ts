@@ -4,9 +4,7 @@
  * API client for chant progress operations.
  * - Start chant for a child (creates progress)
  * - Get chant progress
- * - Complete chant with recorded audio (multipart/form-data)
- *
- * Mirrors frontend chantProgressService and backend /api/chants/:id/child/:childId/*
+ * - Complete chant (JSON watch-only, or multipart with recorded audio)
  */
 
 import { api } from './api';
@@ -32,6 +30,11 @@ export interface ChantProgress {
   timeSpent?: number;
   completedAt?: string;
   [key: string]: unknown;
+}
+
+export interface CompleteChantWatchPayload {
+  timeSpent?: number;
+  metadata?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -68,9 +71,27 @@ const chantService = {
   },
 
   /**
-   * Complete chant with child's recorded audio
+   * Watch-only completion (no recording). Uses JSON to avoid RN multipart boundary bugs.
    * POST /api/chants/:chantId/child/:childId/complete
-   * multipart/form-data: recordedAudio, timeSpent, metadata (JSON string)
+   */
+  completeWatch: async (
+    chantId: string,
+    childId: string,
+    payload: CompleteChantWatchPayload = {}
+  ): Promise<ApiResponse<ChantProgress>> => {
+    const res = await api.post<ApiResponse<ChantProgress>>(
+      `/chants/${chantId}/child/${childId}/complete`,
+      {
+        timeSpent: payload.timeSpent ?? 0,
+        metadata: payload.metadata ?? { completionType: 'watch' },
+      }
+    );
+    return res as ApiResponse<ChantProgress>;
+  },
+
+  /**
+   * Complete chant with child's recorded audio (multipart).
+   * Do NOT set Content-Type manually — the client must add the multipart boundary.
    */
   complete: async (
     chantId: string,
@@ -79,12 +100,7 @@ const chantService = {
   ): Promise<ApiResponse<ChantProgress>> => {
     const res = await api.post<ApiResponse<ChantProgress>>(
       `/chants/${chantId}/child/${childId}/complete`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     );
     return res as ApiResponse<ChantProgress>;
   },

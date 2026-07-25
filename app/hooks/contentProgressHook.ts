@@ -49,6 +49,10 @@ export interface UseContentProgressReturn {
   startChant: (chantId: string) => Promise<unknown>;
   getChantProgress: (chantId: string) => Promise<unknown>;
   completeChant: (chantId: string, formData: FormData) => Promise<unknown>;
+  completeChantWatch: (
+    chantId: string,
+    payload?: { timeSpent?: number; metadata?: Record<string, unknown> }
+  ) => Promise<unknown>;
   getChantProgressCached: (chantId: string) => unknown;
 
   // ----- Audio Assignment -----
@@ -105,6 +109,7 @@ export function useContentProgress({
   const startChantAction = useContentProgressStore((s) => s.startChant);
   const getChantProgressAction = useContentProgressStore((s) => s.getChantProgress);
   const completeChantAction = useContentProgressStore((s) => s.completeChant);
+  const completeChantWatchAction = useContentProgressStore((s) => s.completeChantWatch);
 
   const startAudioAction = useContentProgressStore(
     (s) => s.startAudioAssignment
@@ -153,6 +158,17 @@ export function useContentProgress({
       return completeChantAction(chantId, childId, formData);
     },
     [childId, completeChantAction]
+  );
+
+  const completeChantWatch = useCallback(
+    (
+      chantId: string,
+      payload?: { timeSpent?: number; metadata?: Record<string, unknown> }
+    ) => {
+      if (!childId) return Promise.resolve(null);
+      return completeChantWatchAction(chantId, childId, payload);
+    },
+    [childId, completeChantWatchAction]
   );
 
   const getChantProgressCached = useCallback(
@@ -261,6 +277,7 @@ export function useContentProgress({
       startChant,
       getChantProgress,
       completeChant,
+      completeChantWatch,
       getChantProgressCached,
       startAudioAssignment,
       getAudioProgress,
@@ -285,6 +302,7 @@ export function useContentProgress({
       startChant,
       getChantProgress,
       completeChant,
+      completeChantWatch,
       getChantProgressCached,
       startAudioAssignment,
       getAudioProgress,
