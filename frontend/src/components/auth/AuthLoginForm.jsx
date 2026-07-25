@@ -13,18 +13,21 @@ import {
 import LockIcon from '@mui/icons-material/Lock';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/userHook';
 import { RISEUP_CHECKOUT_URL } from '../../config/constants';
 
 /**
  * AuthLoginForm Component
- * 
+ *
  * Login form with email and password fields
  * Connected to authentication service via useAuth hook
+ * Admin users are redirected to OTP verification after password success
  */
 const AuthLoginForm = () => {
+  const navigate = useNavigate();
   const { login, loading, isAuthenticated, user } = useAuth();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -47,36 +50,44 @@ const AuthLoginForm = () => {
 
   const validateForm = () => {
     const errors = {};
-    
+
     if (!email) {
       errors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(email)) {
       errors.email = 'Email is invalid';
     }
-    
+
     if (!password) {
       errors.password = 'Password is required';
     } else if (password.length < 6) {
       errors.password = 'Password must be at least 6 characters';
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Clear previous errors
+
     setFormErrors({});
-    
-    // Validate form
+
     if (!validateForm()) {
       return;
     }
-    
+
     try {
       const result = await login(email, password);
+
+      // Admin: password OK → enter 6-digit email OTP before session is created
+      if (result?.requiresOtp) {
+        navigate('/login/verify-otp', {
+          replace: true,
+          state: { email: result.email || email.trim() },
+        });
+        return;
+      }
+
       // Intentionally do a full reload after login so all user-dependent UI hydrates reliably.
       const role = result?.user?.role || result?.data?.user?.role || user?.role;
       window.location.assign(getRoleRedirectPath(role));

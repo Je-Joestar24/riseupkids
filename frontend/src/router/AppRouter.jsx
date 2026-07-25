@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, useParams, Navigate } from 'react-router-dom';
 import AuthLogin from '../pages/auth/AuthLogin';
+import AdminLoginOtp from '../pages/auth/AdminLoginOtp';
 import ForgetPassword from '../pages/auth/ForgetPassword';
 import SendCode from '../pages/auth/SendCode';
 import ResetPassword from '../pages/auth/ResetPassword';
@@ -72,6 +73,14 @@ const AppRouter = () => {
           element={
             <UnAuthed>
               <AuthLogin />
+            </UnAuthed>
+          }
+        />
+        <Route
+          path="/login/verify-otp"
+          element={
+            <UnAuthed>
+              <AdminLoginOtp />
             </UnAuthed>
           }
         />

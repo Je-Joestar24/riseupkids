@@ -5,6 +5,8 @@ const {
   registerUser,
   subscribeFlodesk,
   login,
+  verifyLoginOtp,
+  resendLoginOtp,
   getMe,
   logout,
   updateProfile,
@@ -18,12 +20,14 @@ const { protect } = require('../middleware/auth');
 
 /**
  * Authentication Routes
- * 
+ *
  * Base path: /api/auth
- * 
+ *
  * Public routes:
  * - POST /register - Register new user
- * - POST /login - Login user
+ * - POST /login - Login user (admins get requiresOtp challenge)
+ * - POST /verify-login-otp - Complete admin login with 6-digit OTP
+ * - POST /resend-login-otp - Resend admin login OTP
  * - POST /forgot-password - Request reset code by email
  * - POST /reset-password - Reset password with email + code + newPassword
  *
@@ -38,6 +42,8 @@ const { protect } = require('../middleware/auth');
 router.post('/register', registerUser);
 router.post('/subscribe-flodesk', subscribeFlodesk);
 router.post('/login', login);
+router.post('/verify-login-otp', verifyLoginOtp);
+router.post('/resend-login-otp', resendLoginOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/terms', getTerms);

@@ -22,6 +22,7 @@ jest.mock('../models', () => ({
   StarCamEvent: { deleteMany: jest.fn() },
   ContactSupport: { deleteMany: jest.fn() },
   PasswordResetToken: { deleteMany: jest.fn() },
+  LoginOtpToken: { deleteMany: jest.fn() },
   Media: { find: jest.fn(), deleteMany: jest.fn() },
   GoogleIntegration: { deleteMany: jest.fn() },
 }));
@@ -65,6 +66,7 @@ const {
   StarCamEvent,
   ContactSupport,
   PasswordResetToken,
+  LoginOtpToken,
   GoogleIntegration,
 } = require('../models');
 const AccountDeletionRequest = require('../models/AccountDeletionRequest');
@@ -129,6 +131,7 @@ describe('accountDeletion.service', () => {
     });
     ContactSupport.deleteMany.mockResolvedValue({});
     PasswordResetToken.deleteMany.mockResolvedValue({});
+    LoginOtpToken.deleteMany.mockResolvedValue({});
     StarCamEvent.deleteMany.mockResolvedValue({});
     GoogleIntegration.deleteMany.mockResolvedValue({});
     AccountDeletionRequest.updateMany.mockResolvedValue({ modifiedCount: 0 });

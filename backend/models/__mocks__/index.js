@@ -23,9 +23,19 @@ function chainableUserResult() {
 
 const User = {
   findOne: jest.fn().mockImplementation(() => chainableUserResult()),
+  findById: jest.fn().mockImplementation(() => ({
+    select: jest.fn().mockResolvedValue(getMockUserResult()),
+  })),
 };
 
 const PasswordResetToken = {
+  deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+  create: jest.fn().mockResolvedValue({}),
+  findOne: jest.fn().mockResolvedValue(null),
+  deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
+};
+
+const LoginOtpToken = {
   deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
   create: jest.fn().mockResolvedValue({}),
   findOne: jest.fn().mockResolvedValue(null),
@@ -37,6 +47,7 @@ const stub = { findOne: jest.fn(), find: jest.fn(), findById: jest.fn() };
 module.exports = {
   User,
   PasswordResetToken,
+  LoginOtpToken,
   ChildProfile: stub,
   ChildStats: stub,
   Journey: stub,

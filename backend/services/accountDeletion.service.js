@@ -14,6 +14,7 @@ const {
   StarCamEvent,
   ContactSupport,
   PasswordResetToken,
+  LoginOtpToken,
   Media,
   GoogleIntegration,
 } = require('../models');
@@ -267,6 +268,7 @@ async function purgeParentAccount(userId, requestId) {
   await Promise.all([
     ContactSupport.deleteMany({ user: userId }),
     PasswordResetToken.deleteMany({ userId }),
+    LoginOtpToken.deleteMany({ userId }),
     StarCamEvent.deleteMany({ parent: userId }),
     GoogleIntegration.deleteMany({ user: userId }),
   ]);

@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
   loginUser,
+  verifyLoginOtpUser,
   registerUser,
   getCurrentUser,
   logoutUser,
@@ -11,6 +12,7 @@ import {
   clearError,
 } from '../store/slices/userSlice';
 import { showNotification } from '../store/slices/uiSlice';
+import authService from '../services/authService';
 
 /**
  * Custom hook for user authentication
@@ -44,15 +46,15 @@ export const useAuth = () => {
    * Login user
    * @param {String} email - User email
    * @param {String} password - User password
-   * @returns {Promise} Login result
+   * @returns {Promise} Login result (may include requiresOtp for admins)
    */
   const login = async (email, password) => {
     try {
       const result = await dispatch(loginUser({ email, password })).unwrap();
-      
+
       // Don't show success notification - user will be redirected immediately
       // Navigation is handled by the component
-      
+
       return result;
     } catch (error) {
       // Show error notification
@@ -60,7 +62,50 @@ export const useAuth = () => {
         message: error || 'Login failed. Please check your credentials.',
         type: 'error',
       }));
-      
+
+      throw error;
+    }
+  };
+
+  /**
+   * Verify admin login OTP and establish session
+   * @param {String} email
+   * @param {String} code
+   * @returns {Promise} Session result
+   */
+  const verifyLoginOtp = async (email, code) => {
+    try {
+      const result = await dispatch(verifyLoginOtpUser({ email, code })).unwrap();
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Invalid or expired verification code',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Resend admin login OTP
+   * @param {String} email
+   * @returns {Promise}
+   */
+  const resendLoginOtp = async (email) => {
+    try {
+      const result = await authService.resendLoginOtp(email);
+      dispatch(showNotification({
+        message: result?.message || 'A new verification code has been sent to your email.',
+        type: 'success',
+      }));
+      return result;
+    } catch (error) {
+      const message =
+        error?.message || (typeof error === 'string' ? error : 'Unable to resend verification code');
+      dispatch(showNotification({
+        message,
+        type: 'error',
+      }));
       throw error;
     }
   };
@@ -207,6 +252,8 @@ export const useAuth = () => {
     parent,
     // Methods
     login,
+    verifyLoginOtp,
+    resendLoginOtp,
     register,
     logout,
     fetchCurrentUser,

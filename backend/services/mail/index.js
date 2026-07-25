@@ -3,6 +3,7 @@
  */
 const mailConfig = require('../../config/mail');
 const { renderResetCode } = require('../../templates/email/resetCode');
+const { renderLoginOtpCode } = require('../../templates/email/loginOtpCode');
 const {
   renderDeletionRequested,
   renderDeletionCompleted,
@@ -66,6 +67,28 @@ async function sendResetCode(options) {
 }
 
 /**
+ * Send the admin login OTP email (same 6-digit pattern as password reset).
+ * @param {{ to: string, code: string }} options
+ */
+async function sendLoginOtpCode(options) {
+  const { to, code } = options || {};
+  if (!to || !code) {
+    throw new Error('sendLoginOtpCode requires to and code');
+  }
+  const { html, text, attachments } = renderLoginOtpCode({
+    code: String(code).slice(0, 6),
+    forEmail: true,
+  });
+  return send({
+    to,
+    subject: 'Your Rise Up Kids admin login code',
+    html,
+    text,
+    attachments: attachments || undefined,
+  });
+}
+
+/**
  * @param {{ to: string, type: 'parent_account'|'child_profile', childDisplayName?: string, estimatedDays: number }} options
  */
 async function sendDeletionRequested(options) {
@@ -96,6 +119,7 @@ async function sendDeletionCompleted(options) {
 module.exports = {
   send,
   sendResetCode,
+  sendLoginOtpCode,
   sendDeletionRequested,
   sendDeletionCompleted,
   getDriver,

@@ -107,21 +107,16 @@ const subscribeFlodesk = async (req, res) => {
  * @desc    Login user
  * @route   POST /api/auth/login
  * @access  Public
- * 
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * 
- * Request body:
- * {
- *   "email": "john@example.com",
- *   "password": "password123"
- * }
+ *
+ * Admin users receive { requiresOtp: true, email } and must call verify-login-otp.
+ * Other roles receive { user, token, ... } immediately.
+ *
+ * Request body: { "email": "...", "password": "..." }
  */
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -129,8 +124,18 @@ const login = async (req, res) => {
       });
     }
 
-    // Call service
     const result = await authService.login(email, password);
+
+    if (result.requiresOtp) {
+      return res.status(200).json({
+        success: true,
+        message: result.message || 'A verification code has been sent to your email.',
+        data: {
+          requiresOtp: true,
+          email: result.email,
+        },
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -141,6 +146,68 @@ const login = async (req, res) => {
     res.status(401).json({
       success: false,
       message: error.message || 'Login failed',
+    });
+  }
+};
+
+/**
+ * @desc    Verify admin login OTP and issue JWT
+ * @route   POST /api/auth/verify-login-otp
+ * @access  Public
+ * Body: { "email": "...", "code": "123456" }
+ */
+const verifyLoginOtp = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and verification code',
+      });
+    }
+
+    const result = await authService.verifyLoginOtp(email, code);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: result,
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: error.message || 'Invalid or expired verification code',
+    });
+  }
+};
+
+/**
+ * @desc    Resend admin login OTP
+ * @route   POST /api/auth/resend-login-otp
+ * @access  Public
+ * Body: { "email": "..." }
+ */
+const resendLoginOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address',
+      });
+    }
+
+    const result = await authService.resendLoginOtp(email.trim());
+
+    res.status(200).json({
+      success: true,
+      message: 'A new verification code has been sent to your email.',
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Unable to resend verification code',
     });
   }
 };
@@ -448,6 +515,8 @@ module.exports = {
   registerUser,
   subscribeFlodesk,
   login,
+  verifyLoginOtp,
+  resendLoginOtp,
   getMe,
   logout,
   updateProfile,

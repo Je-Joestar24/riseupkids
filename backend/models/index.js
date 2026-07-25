@@ -28,6 +28,7 @@ const GoogleIntegration = require('./GoogleIntegration');
 const Meeting = require('./Meeting');
 const YouTubeLive = require('./YouTubeLive');
 const PasswordResetToken = require('./PasswordResetToken');
+const LoginOtpToken = require('./LoginOtpToken');
 const Lead = require('./Leads');
 const StarCamEvent = require('./StarCamEvent');
 const StarCamMission = require('./StarCamMission');
@@ -67,6 +68,7 @@ module.exports = {
   Meeting,
   YouTubeLive,
   PasswordResetToken,
+  LoginOtpToken,
   Lead,
   StarCamEvent,
   StarCamMission,

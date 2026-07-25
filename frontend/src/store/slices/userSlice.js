@@ -9,11 +9,28 @@ export const loginUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await authService.login(email, password);
-      // API returns { success, message, data: { user, token, childProfiles } }
-      return response.data?.data ?? response;
+      // API returns { success, message, data: { user, token, ... } | { requiresOtp, email } }
+      return response.data ?? response;
     } catch (error) {
       const message = error?.message || error?.response?.data?.message || 'Login failed';
       return rejectWithValue(typeof message === 'string' ? message : 'Login failed');
+    }
+  }
+);
+
+/**
+ * Async thunk for verifying admin login OTP
+ */
+export const verifyLoginOtpUser = createAsyncThunk(
+  'user/verifyLoginOtp',
+  async ({ email, code }, { rejectWithValue }) => {
+    try {
+      const response = await authService.verifyLoginOtp(email, code);
+      return response.data ?? response;
+    } catch (error) {
+      const message =
+        error?.message || error?.response?.data?.message || 'Invalid or expired verification code';
+      return rejectWithValue(typeof message === 'string' ? message : 'Invalid or expired verification code');
     }
   }
 );
@@ -172,15 +189,49 @@ const userSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.loading = false;
+        state.error = null;
+
+        // Admin OTP challenge – credentials OK but no session yet
+        if (action.payload?.requiresOtp) {
+          state.user = null;
+          state.token = null;
+          state.childProfiles = null;
+          state.childProfile = null;
+          state.parent = null;
+          state.isAuthenticated = false;
+          return;
+        }
+
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.childProfiles = action.payload.childProfiles || null;
         state.childProfile = action.payload.childProfile || null;
         state.parent = action.payload.parent || null;
-        state.isAuthenticated = true;
-        state.error = null;
+        state.isAuthenticated = !!action.payload.token;
       })
       .addCase(loginUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        state.isAuthenticated = false;
+      });
+
+    // Admin login OTP verify
+    builder
+      .addCase(verifyLoginOtpUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyLoginOtpUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.childProfiles = action.payload.childProfiles || null;
+        state.childProfile = action.payload.childProfile || null;
+        state.parent = action.payload.parent || null;
+        state.isAuthenticated = !!action.payload.token;
+        state.error = null;
+      })
+      .addCase(verifyLoginOtpUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         state.isAuthenticated = false;

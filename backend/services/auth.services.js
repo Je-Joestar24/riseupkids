@@ -1,9 +1,94 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { User, PasswordResetToken } = require('../models');
+const { User, PasswordResetToken, LoginOtpToken } = require('../models');
 const { ChildProfile, ChildStats } = require('../models');
 const mailService = require('./mail');
 const legalContent = require('./legalContent.service');
+
+/** Expiry for admin login OTP codes (10 minutes) */
+const LOGIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
+
+/** Expiry for password-reset OTP codes (16 minutes) */
+const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;
+
+/**
+ * Normalize a 6-digit OTP from user input (strips non-digits).
+ * @param {unknown} code
+ * @returns {string}
+ */
+const normalizeOtpCode = (code) =>
+  (code || '').toString().trim().replace(/\D/g, '').slice(0, 6);
+
+/**
+ * Create a fresh 6-digit login OTP for an admin and email it.
+ * @param {import('mongoose').Document} user
+ * @returns {Promise<string>} The generated code (for tests / logging only)
+ */
+const issueAdminLoginOtp = async (user) => {
+  const code = String(crypto.randomInt(100000, 1000000));
+  const expiresAt = new Date(Date.now() + LOGIN_OTP_EXPIRY_MS);
+
+  await LoginOtpToken.deleteMany({ userId: user._id });
+  await LoginOtpToken.create({
+    userId: user._id,
+    code,
+    expiresAt,
+  });
+
+  try {
+    await mailService.sendLoginOtpCode({ to: user.email, code });
+  } catch (error) {
+    console.error(
+      `[Auth:loginOtp] Failed to send login OTP email to ${user.email}: ${error.message}`
+    );
+    throw error;
+  }
+
+  console.log(`[Auth:loginOtp] Admin login OTP email sent to ${user.email}`);
+  return code;
+};
+
+/**
+ * Build the standard post-auth payload (user + JWT + role extras).
+ * @param {import('mongoose').Document} user - User document (password may be selected)
+ * @returns {Promise<{ user: object, token: string, childProfiles?: object[] }>}
+ */
+const buildAuthenticatedSession = async (user) => {
+  const userData = await User.findById(user._id).select('-password');
+  let additionalData = {};
+
+  if (user.role === 'parent') {
+    const childProfiles = await ChildProfile.find({ parent: user._id, isActive: true }).lean();
+
+    const childProfilesWithStats = await Promise.all(
+      childProfiles.map(async (child) => {
+        const stats = await ChildStats.findOne({ child: child._id })
+          .select('totalStars currentStreak totalBadges badges')
+          .lean();
+
+        return {
+          ...child,
+          stats: stats || {
+            totalStars: 0,
+            currentStreak: 0,
+            totalBadges: 0,
+            badges: [],
+          },
+        };
+      })
+    );
+
+    additionalData.childProfiles = childProfilesWithStats;
+  }
+
+  const token = generateToken(user._id);
+
+  return {
+    user: userData,
+    token,
+    ...additionalData,
+  };
+};
 
 /**
  * Generate JWT Token
@@ -74,87 +159,121 @@ const register = async (userData) => {
 
 /**
  * Login Service
- * 
- * Authenticates user and returns token
- * 
+ *
+ * Authenticates user and returns token.
+ * Admin users must complete a 6-digit email OTP before a JWT is issued.
+ *
  * @param {String} email - User's email
  * @param {String} password - User's password
- * @returns {Object} User object with token and additional data
+ * @returns {Object} Session payload, or { requiresOtp: true, email } for admins
  * @throws {Error} If credentials are invalid
  */
 const login = async (email, password) => {
-  // Validate input
   if (!email || !password) {
     throw new Error('Please provide email and password');
   }
 
-  // Find user and include password for comparison
   const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
 
   if (!user) {
     throw new Error('Invalid credentials');
   }
 
-  // Check if user is active
   if (!user.isActive) {
     throw new Error('Account is inactive. Please contact administrator.');
   }
 
-  // Check password
   const isMatch = await user.matchPassword(password);
   if (!isMatch) {
     throw new Error('Invalid credentials');
   }
 
-  // Update last login
-  user.lastLogin = new Date();
-  await user.save();
-
-  // Children don't have User accounts
   if (user.role === 'child') {
     throw new Error('Children do not have login accounts. Please login as a parent and select a child profile.');
   }
 
-  // Get user data (exclude password)
-  const userData = await User.findById(user._id).select('-password');
-
-  // Get additional data based on role
-  let additionalData = {};
-
-  // If parent, get child profiles with stats
-  if (user.role === 'parent') {
-    const childProfiles = await ChildProfile.find({ parent: user._id, isActive: true }).lean();
-    
-    // Populate stats for each child
-    const childProfilesWithStats = await Promise.all(
-      childProfiles.map(async (child) => {
-        const stats = await ChildStats.findOne({ child: child._id })
-          .select('totalStars currentStreak totalBadges badges')
-          .lean();
-        
-        return {
-          ...child,
-          stats: stats || {
-            totalStars: 0,
-            currentStreak: 0,
-            totalBadges: 0,
-            badges: [],
-          },
-        };
-      })
-    );
-    
-    additionalData.childProfiles = childProfilesWithStats;
+  // Admins: password OK → send OTP, do not issue JWT yet
+  if (user.role === 'admin') {
+    await issueAdminLoginOtp(user);
+    return {
+      requiresOtp: true,
+      email: user.email,
+      message: 'A verification code has been sent to your email.',
+    };
   }
 
-  // Generate token
-  const token = generateToken(user._id);
+  user.lastLogin = new Date();
+  await user.save();
 
-  return {
-    user: userData,
-    token,
-    ...additionalData,
-  };
+  return buildAuthenticatedSession(user);
+};
+
+/**
+ * Verify admin login OTP and issue JWT session.
+ * @param {string} email
+ * @param {string} code - 6-digit code
+ * @returns {Promise<{ user: object, token: string }>}
+ */
+const verifyLoginOtp = async (email, code) => {
+  const normalized = (email || '').toString().trim().toLowerCase();
+  const codeStr = normalizeOtpCode(code);
+
+  if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+    throw new Error('Please provide a valid email address');
+  }
+  if (codeStr.length !== 6) {
+    throw new Error('Invalid or expired verification code');
+  }
+
+  const user = await User.findOne({ email: normalized });
+  if (!user || user.role !== 'admin' || !user.isActive) {
+    throw new Error('Invalid or expired verification code');
+  }
+
+  const token = await LoginOtpToken.findOne({
+    userId: user._id,
+    code: codeStr,
+    expiresAt: { $gt: new Date() },
+  });
+  if (!token) {
+    throw new Error('Invalid or expired verification code');
+  }
+
+  await LoginOtpToken.deleteOne({ _id: token._id });
+
+  user.lastLogin = new Date();
+  await user.save();
+
+  return buildAuthenticatedSession(user);
+};
+
+/**
+ * Resend admin login OTP (user must already have passed password check recently
+ * by having an existing or freshly replaced challenge). Requires email only after
+ * a prior successful password login that created a challenge — we allow resend
+ * when an active admin account exists (same email enumeration tradeoff as forgot-password).
+ * @param {string} email
+ * @returns {Promise<{ sent: boolean, email: string }>}
+ */
+const resendLoginOtp = async (email) => {
+  const normalized = (email || '').toString().trim().toLowerCase();
+  if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+    throw new Error('Please provide a valid email address');
+  }
+
+  const user = await User.findOne({ email: normalized });
+  if (!user || user.role !== 'admin' || !user.isActive) {
+    throw new Error('Unable to resend verification code');
+  }
+
+  // Require an existing (possibly expired) challenge so random emails cannot spam admins
+  const existing = await LoginOtpToken.findOne({ userId: user._id });
+  if (!existing) {
+    throw new Error('Unable to resend verification code');
+  }
+
+  await issueAdminLoginOtp(user);
+  return { sent: true, email: user.email };
 };
 
 /**
@@ -246,9 +365,6 @@ const logout = async (userId) => {
  */
 const getTermsContent = async () => legalContent.getTermsContent();
 
-/** Expiry for reset code: 1 minute */
-const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;
-
 /**
  * Forgot password: user must exist; generate 6-digit code, store with expiry, send email.
  * @param {string} email - User's email
@@ -297,7 +413,7 @@ const forgotPassword = async (email) => {
  */
 const resetPassword = async (email, code, newPassword) => {
   const normalized = (email || '').toString().trim().toLowerCase();
-  const codeStr = (code || '').toString().trim().replace(/\D/g, '').slice(0, 6);
+  const codeStr = normalizeOtpCode(code);
   if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
     throw new Error('Please provide a valid email address');
   }
@@ -331,6 +447,8 @@ const resetPassword = async (email, code, newPassword) => {
 module.exports = {
   register,
   login,
+  verifyLoginOtp,
+  resendLoginOtp,
   getCurrentUser,
   logout,
   generateToken,

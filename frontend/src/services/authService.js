@@ -37,34 +37,82 @@ const authService = {
   },
 
   /**
+   * Persist authenticated session fields from a login / verify-otp payload.
+   * @param {Object} data - { token, user, childProfiles?, childProfile?, parent? }
+   */
+  persistSession: (data) => {
+    if (!data) return;
+    if (data.token) {
+      sessionStorage.setItem('token', data.token);
+    }
+    if (data.user) {
+      sessionStorage.setItem('user', JSON.stringify(data.user));
+    }
+    if (data.childProfiles) {
+      sessionStorage.setItem('childProfiles', JSON.stringify(data.childProfiles));
+    }
+    if (data.childProfile) {
+      sessionStorage.setItem('childProfile', JSON.stringify(data.childProfile));
+    }
+    if (data.parent) {
+      sessionStorage.setItem('parent', JSON.stringify(data.parent));
+    }
+  },
+
+  /**
    * Login user
    * @param {String} email - User's email
    * @param {String} password - User's password
-   * @returns {Promise} API response with user data and token
+   * @returns {Promise} API response – either session data or { requiresOtp, email } for admins
    */
   login: async (email, password) => {
     try {
       const response = await api.post('/auth/login', { email, password });
-      
-      // Save token and user to sessionStorage
-      if (response.data.data?.token) {
-        sessionStorage.setItem('token', response.data.data.token);
+
+      // Admin OTP challenge: do not persist a session yet
+      if (response.data.data?.requiresOtp) {
+        return response.data;
       }
-      if (response.data.data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      
-      // Save additional data if available
-      if (response.data.data?.childProfiles) {
-        sessionStorage.setItem('childProfiles', JSON.stringify(response.data.data.childProfiles));
-      }
-      if (response.data.data?.childProfile) {
-        sessionStorage.setItem('childProfile', JSON.stringify(response.data.data.childProfile));
-      }
-      if (response.data.data?.parent) {
-        sessionStorage.setItem('parent', JSON.stringify(response.data.data.parent));
-      }
-      
+
+      authService.persistSession(response.data.data);
+
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Verify admin login OTP and establish session.
+   * @param {String} email
+   * @param {String} code - 6-digit code
+   * @returns {Promise} API response with user data and token
+   */
+  verifyLoginOtp: async (email, code) => {
+    try {
+      const response = await api.post('/auth/verify-login-otp', {
+        email: email.trim(),
+        code: String(code).replace(/\D/g, '').slice(0, 6),
+      });
+
+      authService.persistSession(response.data.data);
+
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Resend admin login OTP email.
+   * @param {String} email
+   * @returns {Promise} API response
+   */
+  resendLoginOtp: async (email) => {
+    try {
+      const response = await api.post('/auth/resend-login-otp', {
+        email: email.trim(),
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
