@@ -3,7 +3,7 @@
  * Loads the Bunny embed page directly in WebView; manual "I finished watching" when not yet completed.
  */
 
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,9 +11,9 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import * as ScreenOrientation from 'expo-screen-orientation';
 import { WebView } from 'react-native-webview';
 
 import { BUNNY_EMBED_REFERER } from '@/config';
@@ -24,12 +24,14 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
+import { useVideoPlayerFullscreen } from '@/hooks/useVideoPlayerFullscreen';
 import { useUiStore } from '@/store/uiStore';
 import {
   buildBunnyEmbedWebViewUrl,
   looksLikeBunnyExploreEmbedUrl,
 } from '@/utils/bunnyExploreEmbed';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
+import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import { CMS_PLAYER_MODAL_ORIENTATIONS } from '@/utils/cmsPlayerOrientation';
 
 export interface BunnyEmbedPlayerModalProps {
@@ -77,6 +79,16 @@ export function BunnyEmbedPlayerModal({
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false);
   const [wasAlreadyWatched, setWasAlreadyWatched] = useState(false);
+  const { isFullscreen, enterFullscreen, exitFullscreen } = useVideoPlayerFullscreen(open);
+  const { width: winW, height: winH } = useWindowDimensions();
+  const fullscreenStageStyle = useMemo(() => {
+    if (!isFullscreen || !(winW > 0) || !(winH > 0)) return null;
+    const byWidthH = (winW * 9) / 16;
+    if (byWidthH <= winH) {
+      return { width: winW, height: byWidthH };
+    }
+    return { width: (winH * 16) / 9, height: winH };
+  }, [isFullscreen, winW, winH]);
 
   const validEmbed = useMemo(
     () => (embedUrl && looksLikeBunnyExploreEmbedUrl(embedUrl) ? embedUrl.trim() : null),
@@ -112,23 +124,12 @@ export function BunnyEmbedPlayerModal({
 
   useEffect(() => {
     if (!open) return;
-    if (Platform.OS === 'ios') {
-      void ScreenOrientation.unlockAsync().catch(() => {});
-    }
     setWebLoading(true);
     setPlaybackError(null);
     setHasRecordedWatch(false);
     setWasAlreadyWatched(false);
     setShowConfirmClose(false);
     setIsRecordingWatch(false);
-
-    return () => {
-      if (Platform.OS === 'ios') {
-        void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(
-          () => {}
-        );
-      }
-    };
   }, [open, validEmbed]);
 
   useEffect(() => {
@@ -161,6 +162,7 @@ export function BunnyEmbedPlayerModal({
         duration: 4000,
       });
       onVideoComplete?.();
+      void exitFullscreen();
       onClose();
     } catch (e) {
       showDialog({
@@ -181,12 +183,14 @@ export function BunnyEmbedPlayerModal({
     showDialog,
     onVideoComplete,
     onClose,
+    exitFullscreen,
   ]);
 
   const handleConfirmedClose = useCallback(() => {
     setShowConfirmClose(false);
+    void exitFullscreen();
     onClose();
-  }, [onClose]);
+  }, [onClose, exitFullscreen]);
 
   const skipCloseConfirm = wasAlreadyWatched || hasRecordedWatch;
 
@@ -212,22 +216,47 @@ export function BunnyEmbedPlayerModal({
           Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
         }
         onRequestClose={handleCloseAttempt}
-        statusBarTranslucent>
-        <View style={styles.overlay}>
-          <View style={styles.card}>
-            <View style={styles.header}>
-              <ThemedText style={styles.title} numberOfLines={1}>
-                {title}
-              </ThemedText>
-              <Pressable
-                onPress={handleCloseAttempt}
-                style={styles.closeBtn}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Close">
-                <MaterialIcons name="close" size={26} color={colors.textSecondary} />
-              </Pressable>
-            </View>
+        statusBarTranslucent
+        navigationBarTranslucent={Platform.OS === 'android'}
+        onShow={() => {
+          if (Platform.OS === 'android') {
+            restoreAndroidImmersiveDefault();
+          }
+        }}>
+        <View style={[styles.overlay, isFullscreen && styles.overlayFullscreen]}>
+          {isFullscreen && Platform.OS === 'android' ? (
+            <View style={styles.whiteFill} pointerEvents="none" />
+          ) : null}
+          <View style={[styles.card, isFullscreen && styles.cardFullscreen]}>
+            {!isFullscreen ? (
+              <View style={styles.header}>
+                <ThemedText style={styles.title} numberOfLines={1}>
+                  {title}
+                </ThemedText>
+                <View style={styles.headerActions}>
+                  <Pressable
+                    onPress={() => {
+                      void enterFullscreen();
+                    }}
+                    style={styles.headerIconBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Fullscreen"
+                  >
+                    <MaterialCommunityIcons name="fullscreen" size={26} color={colors.secondary} />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleCloseAttempt}
+                    style={styles.headerIconBtn}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close"
+                  >
+                    <MaterialIcons name="close" size={26} color={colors.textSecondary} />
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
 
             {playbackError ? (
               <View style={styles.errorBanner}>
@@ -235,56 +264,82 @@ export function BunnyEmbedPlayerModal({
               </View>
             ) : null}
 
-            <View style={styles.videoContainer} collapsable={false}>
-              {webViewSource ? (
-                <>
-                  <WebView
-                    {...BUNNY_EMBED_WEBVIEW_PROPS}
-                    source={webViewSource}
-                    style={StyleSheet.absoluteFill}
-                    onLoadEnd={handleWebViewLoadEnd}
-                    onError={handleWebViewError}
-                    onHttpError={handleWebViewError}
-                    accessibilityLabel={`Bunny embed playback for ${title}`}
-                  />
-                  {webLoading && (
-                    <View style={styles.recordingOverlay}>
-                      <ActivityIndicator size="large" color={colors.secondary} />
-                      <ThemedText style={styles.recordingText}>Loading video...</ThemedText>
-                    </View>
-                  )}
-                  {isRecordingWatch && (
-                    <View style={styles.recordingOverlay}>
-                      <ActivityIndicator size="large" color={colors.secondary} />
-                      <ThemedText style={styles.recordingText}>Recording your progress...</ThemedText>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <View style={styles.loadingWrap}>
-                  <ThemedText style={styles.loadingText}>
-                    No Bunny embed URL is available for this video.
-                  </ThemedText>
-                </View>
-              )}
+            <View
+              style={[styles.videoContainer, isFullscreen && styles.videoContainerFullscreen]}
+              collapsable={false}
+            >
+              <View
+                style={
+                  isFullscreen && fullscreenStageStyle
+                    ? [styles.videoStage, fullscreenStageStyle]
+                    : styles.videoStageFill
+                }
+              >
+                {webViewSource ? (
+                  <>
+                    <WebView
+                      {...BUNNY_EMBED_WEBVIEW_PROPS}
+                      source={webViewSource}
+                      style={StyleSheet.absoluteFill}
+                      onLoadEnd={handleWebViewLoadEnd}
+                      onError={handleWebViewError}
+                      onHttpError={handleWebViewError}
+                      accessibilityLabel={`Bunny embed playback for ${title}`}
+                    />
+                    {webLoading && (
+                      <View style={styles.recordingOverlay}>
+                        <ActivityIndicator size="large" color={colors.secondary} />
+                        <ThemedText style={styles.recordingText}>Loading video...</ThemedText>
+                      </View>
+                    )}
+                    {isRecordingWatch && (
+                      <View style={styles.recordingOverlay}>
+                        <ActivityIndicator size="large" color={colors.secondary} />
+                        <ThemedText style={styles.recordingText}>Recording your progress...</ThemedText>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <View style={styles.loadingWrap}>
+                    <ThemedText style={styles.loadingText}>
+                      No Bunny embed URL is available for this video.
+                    </ThemedText>
+                  </View>
+                )}
+              </View>
             </View>
 
-            {showFinishButton ? (
+            {showFinishButton && !isFullscreen ? (
               <Pressable
                 style={[styles.finishedBtn, isRecordingWatch && styles.finishedBtnDisabled]}
                 onPress={handleMarkFinished}
                 disabled={isRecordingWatch}
                 accessibilityRole="button"
-                accessibilityLabel="I finished watching">
+                accessibilityLabel="I finished watching"
+              >
                 <ThemedText style={styles.finishedBtnText}>I finished watching</ThemedText>
               </Pressable>
             ) : null}
 
-            <View style={styles.footer}>
-              <Pressable style={styles.closeFooterBtn} onPress={handleCloseAttempt}>
-                <ThemedText style={styles.closeFooterBtnText}>Close</ThemedText>
+            {isFullscreen ? (
+              <Pressable
+                onPress={() => {
+                  void exitFullscreen();
+                }}
+                style={styles.exitFullscreenBtn}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Exit fullscreen"
+              >
+                <MaterialCommunityIcons name="fullscreen-exit" size={28} color={colors.secondary} />
               </Pressable>
-            </View>
+            ) : (
+              <View style={styles.footer}>
+                <Pressable style={styles.closeFooterBtn} onPress={handleCloseAttempt}>
+                  <ThemedText style={styles.closeFooterBtnText}>Close</ThemedText>
+                </Pressable>
+              </View>
+            )}
           </View>
 
           <ConfirmModal
@@ -312,6 +367,16 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     position: 'relative',
   },
+  overlayFullscreen: {
+    backgroundColor: '#ffffff',
+    padding: 0,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+  },
+  whiteFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#ffffff',
+  },
   card: {
     width: '100%',
     maxWidth: 480,
@@ -320,6 +385,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderBottomWidth: 3,
     borderBottomColor: colors.secondary,
+  },
+  cardFullscreen: {
+    flex: 1,
+    maxWidth: '100%',
+    borderRadius: 0,
+    borderBottomWidth: 0,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -332,7 +406,12 @@ const styles = StyleSheet.create({
     elevation: 2,
     backgroundColor: colors.bgCard,
   },
-  closeBtn: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+  },
+  headerIconBtn: {
     minWidth: 44,
     minHeight: 44,
     justifyContent: 'center',
@@ -362,6 +441,35 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     zIndex: 0,
+  },
+  videoContainerFullscreen: {
+    flex: 1,
+    width: '100%',
+    aspectRatio: undefined,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoStage: {
+    backgroundColor: '#000',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  videoStageFill: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  exitFullscreenBtn: {
+    position: 'absolute',
+    right: spacing[4],
+    bottom: spacing[4],
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 30,
+    elevation: 30,
   },
   recordingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -394,6 +502,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     alignItems: 'center',
     borderRadius: radii.lg,
+  },
+  finishedBtnFullscreen: {
+    position: 'absolute',
+    left: spacing[4],
+    right: 72,
+    bottom: spacing[4],
+    marginHorizontal: 0,
+    marginTop: 0,
+    zIndex: 20,
   },
   finishedBtnDisabled: {
     opacity: 0.6,
