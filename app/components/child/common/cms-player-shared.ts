@@ -211,7 +211,7 @@ export function getScaledInteractiveMetrics(
 const CONTENT_READING_FONT_SIZE_MIN = 20;
 const CONTENT_READING_FONT_SIZE_MAX = 72;
 
-/** Default content reading size when CMS does not set `reading.fontSizePx`. */
+/** Default content reading size when CMS does not set `reading.fontSizePx` (design-space px @ 1920×1080). */
 export const DEFAULT_CONTENT_READING_FONT_PX = Math.round(20 * 1.1);
 
 function normalizeReadingFontSizePx(value: unknown): number | null {
@@ -225,7 +225,44 @@ function normalizeReadingFontSizePx(value: unknown): number | null {
   return rounded;
 }
 
-/** Resolves px for content reading display; null = use `DEFAULT_CONTENT_READING_FONT_PX`. */
+/**
+ * Stage scale vs CMS design canvas (same basis as interactive metrics).
+ * Reading font presets (Small…3XL) are authored in design-space px.
+ */
+export function getCmsStageScale(stageWidth: number, stageHeight: number): number {
+  if (!(stageWidth > 0) || !(stageHeight > 0)) return 1;
+  return Math.min(stageWidth / CMS_DESIGN_WIDTH, stageHeight / CMS_DESIGN_HEIGHT);
+}
+
+/**
+ * Extra readability on smaller mobile stages after design-space scaling.
+ * Applied only when scale < 1 so full-size stages stay at authored px.
+ */
+export const CMS_READING_FONT_MOBILE_BOOST = 1.35;
+
+/**
+ * Convert CMS design-space reading font px to device px for the current 16:9 stage.
+ * Without this, 2XL (56px) is huge on phones vs laptop web where the stage is much larger.
+ */
+export function scaleCmsReadingFontSizePx(
+  designFontPx: number,
+  stageWidth: number,
+  stageHeight: number
+): number {
+  const safeDesign =
+    typeof designFontPx === 'number' && Number.isFinite(designFontPx) && designFontPx > 0
+      ? designFontPx
+      : DEFAULT_CONTENT_READING_FONT_PX;
+  const stageScale = getCmsStageScale(stageWidth, stageHeight);
+  const effectiveScale =
+    stageScale > 0 && stageScale < 1
+      ? Math.min(1, stageScale * CMS_READING_FONT_MOBILE_BOOST)
+      : stageScale;
+  const scaled = safeDesign * effectiveScale;
+  return Math.max(10, Math.round(scaled));
+}
+
+/** Resolves design-space px for content reading; always returns a number (default if unset). */
 export function resolveContentReadingFontSizePx(
   page: CmsPlayablePage | Record<string, unknown>
 ): number {
@@ -251,7 +288,15 @@ export interface ReadingLineGroup {
   words: NormalizedReadingWord[];
 }
 
-export const CMS_READING_LINE_ERASE_MS = 180;
+export const CMS_READING_LINE_ERASE_MS = 90;
+
+/**
+ * Minimum visible window for short CMS timings so phone progress ticks (~20–50ms)
+ * and line fade animations cannot skip tiny words/lines entirely.
+ */
+export const CMS_READING_MIN_WORD_SEC = 0.08;
+export const CMS_READING_MIN_LINE_SEC = 0.12;
+export const CMS_READING_TIME_EPSILON_SEC = 0.02;
 
 export function normalizeReadingText(text = ''): string {
   return String(text || '')
@@ -340,8 +385,10 @@ export function getActiveReadingLineIndex(
     const lineWords = lineGroups[i]?.words ?? [];
     if (!lineWords.length) continue;
     const start = lineWords[0].start;
-    const end = lineWords[lineWords.length - 1].end;
-    if (t >= start && t <= end + 0.001) {
+    const rawEnd = lineWords[lineWords.length - 1].end;
+    const nextStart = lineGroups[i + 1]?.words?.[0]?.start;
+    const end = clampTimingEnd(start, rawEnd, CMS_READING_MIN_LINE_SEC, nextStart);
+    if (t + CMS_READING_TIME_EPSILON_SEC >= start && t <= end + CMS_READING_TIME_EPSILON_SEC) {
       return i;
     }
   }
@@ -349,22 +396,87 @@ export function getActiveReadingLineIndex(
   return -1;
 }
 
+/**
+ * Line index for the cutted karaoke UI.
+ * - During a line window → that line
+ * - Between lines → -1 (erase)
+ * - After the last line / audio finished → hold the last line (never dump full text)
+ */
+export function resolveCmsContentDisplayLineIndex(
+  timeSec: number,
+  lineGroups: ReadingLineGroup[],
+  options?: { holdLastAfterEnd?: boolean; audioFinished?: boolean }
+): number {
+  if (!lineGroups.length || !Number.isFinite(timeSec)) return -1;
+
+  const active = getActiveReadingLineIndex(timeSec, lineGroups);
+  if (active >= 0) return active;
+
+  const holdLast = options?.holdLastAfterEnd !== false;
+  if (!holdLast) return -1;
+
+  const lastGroup = lineGroups[lineGroups.length - 1];
+  const lastWords = lastGroup?.words ?? [];
+  if (!lastWords.length) return -1;
+  const lastStart = lastWords[0]?.start;
+  const lastEndRaw = lastWords[lastWords.length - 1]?.end;
+  if (!Number.isFinite(lastStart) || !Number.isFinite(lastEndRaw)) return -1;
+  const lastEnd = clampTimingEnd(lastStart, lastEndRaw, CMS_READING_MIN_LINE_SEC);
+
+  if (options?.audioFinished || timeSec > lastEnd + CMS_READING_TIME_EPSILON_SEC) {
+    return lineGroups.length - 1;
+  }
+
+  return -1;
+}
+
+/**
+ * Sticky word highlight: latest word whose start has been reached / still in padded window.
+ * Short words between progress ticks still highlight instead of being skipped.
+ */
 export function getActiveReadingWordIndexInLine(
   timeSec: number,
   lineWords: NormalizedReadingWord[]
 ): number {
   if (!lineWords.length || !Number.isFinite(timeSec)) return -1;
   const t = Math.max(0, timeSec);
+  const firstStart = lineWords[0].start;
+  if (t + CMS_READING_TIME_EPSILON_SEC < firstStart) return -1;
 
+  let best = 0;
   for (let i = 0; i < lineWords.length; i += 1) {
-    const { start, end } = lineWords[i];
-    const isLast = i === lineWords.length - 1;
-    if (t >= start && (isLast ? t <= end + 0.001 : t < end)) {
+    const start = lineWords[i].start;
+    const rawEnd = lineWords[i].end;
+    const nextStart = lineWords[i + 1]?.start;
+    const end = clampTimingEnd(start, rawEnd, CMS_READING_MIN_WORD_SEC, nextStart);
+
+    if (t + CMS_READING_TIME_EPSILON_SEC >= start) {
+      best = i;
+    }
+    if (t <= end + CMS_READING_TIME_EPSILON_SEC && t + CMS_READING_TIME_EPSILON_SEC >= start) {
       return i;
+    }
+    if (typeof nextStart === 'number' && t < nextStart) {
+      return best;
     }
   }
 
-  return -1;
+  return best;
+}
+
+function clampTimingEnd(
+  start: number,
+  end: number,
+  minDurationSec: number,
+  nextBoundary?: number
+): number {
+  const safeStart = Number.isFinite(start) ? start : 0;
+  const safeEnd = Number.isFinite(end) ? end : safeStart;
+  let effective = Math.max(safeEnd, safeStart + minDurationSec);
+  if (typeof nextBoundary === 'number' && Number.isFinite(nextBoundary) && nextBoundary > safeStart) {
+    effective = Math.min(effective, Math.max(safeStart, nextBoundary - CMS_READING_TIME_EPSILON_SEC));
+  }
+  return Math.max(effective, safeStart);
 }
 
 /**
@@ -392,10 +504,14 @@ export function extractReadingWordsFromPage(
   for (const item of raw) {
     const row = item as { w?: string; start?: unknown; end?: unknown; lineIndex?: unknown };
     const w = String(row?.w ?? '').trim();
-    const start = Number(row?.start);
-    const end = Number(row?.end);
+    let start = Number(row?.start);
+    let end = Number(row?.end);
     const lineIndex = Number.isFinite(Number(row?.lineIndex)) ? Number(row.lineIndex) : undefined;
-    if (!w || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    if (!w || !Number.isFinite(start) || !Number.isFinite(end)) continue;
+    // Zero-length / inverted short timings still need a visible window on mobile.
+    if (end <= start) {
+      end = start + CMS_READING_MIN_WORD_SEC;
+    }
     parsed.push({ w, start, end, lineIndex });
   }
 
@@ -432,16 +548,7 @@ export function getActiveReadingWordIndex(
   timeSec: number,
   words: NormalizedReadingWord[]
 ): number {
-  if (!words.length || !Number.isFinite(timeSec)) return -1;
-  const t = Math.max(0, timeSec);
-  for (let i = 0; i < words.length; i++) {
-    const { start, end } = words[i];
-    const isLast = i === words.length - 1;
-    if (t >= start && (isLast ? t <= end + 0.001 : t < end)) {
-      return i;
-    }
-  }
-  return -1;
+  return getActiveReadingWordIndexInLine(timeSec, words);
 }
 
 /** Bundled CMS control chrome (intro / demo / content / interactive / reward). */

@@ -1,15 +1,18 @@
 /**
  * CMS built-in book modal — layout parity with web CmsBooksModalPlayer + CmsBooksModalPlayer.jsx.
- * Stage is always 16:9 (1920×1080 design space). Landscape while open (no portrait player UI); preload + caching.
+ * Stage is always 16:9 (1920×1080 design space), full-bleed in the window; close/home overlay the stage.
+ * Landscape while open (no portrait player UI); preload + caching.
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Dimensions,
   Modal,
   Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text,
   View,
@@ -20,7 +23,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
-import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import {
@@ -33,6 +35,7 @@ import {
   type CmsBookMediaManifest,
 } from '@/services/cmsBookMediaManifest';
 import type { CmsPlayableBookDetail } from '@/services/cmsBooksPlayerService';
+import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import {
   CMS_BOOK_PLAYER_MODAL_ORIENTATIONS,
   prepareCmsPlayerOrientation,
@@ -62,9 +65,8 @@ import {
   isCmsPageMediaReady,
 } from '@/utils/cmsBookPageMediaReady';
 
-/** Right rail for close; stage uses remaining width + full window height. */
-const CLOSE_RAIL = 44;
-const ROW_GAP = 6;
+/** Overlay close / home control size (does not reserve layout width). */
+const OVERLAY_CTRL = 44;
 
 export { lockLandscapeForCmsBookPlayer } from '@/utils/cmsPlayerOrientation';
 
@@ -171,10 +173,23 @@ export function CmsPlayerModal({
     void (async () => {
       await prepareCmsPlayerOrientation();
       await ensureCmsPlaybackAudioMode();
+      // Android Modal uses a new window — re-hide status/nav bars or a grey
+      // "status bar strip" appears on the left/right in landscape.
+      StatusBar.setHidden(true, 'fade');
+      if (Platform.OS === 'android') {
+        restoreAndroidImmersiveDefault();
+      }
     })();
 
     return () => {
       void restoreAppPortraitOrientation();
+      if (Platform.OS === 'android') {
+        // App-wide Android default stays immersive.
+        restoreAndroidImmersiveDefault();
+        StatusBar.setHidden(true, 'fade');
+      } else {
+        StatusBar.setHidden(false, 'fade');
+      }
     };
   }, [open]);
 
@@ -434,18 +449,25 @@ export function CmsPlayerModal({
     finalizeAndClose('close');
   }, [finalizeAndClose]);
 
-  const horizontalInset = Math.max(insets.left, insets.right, spacing[2]);
-  /** Full window height for stage (status/nav bars often remain visible). */
-  const rootPadTop = 0;
-  const rootPadBottom = 0;
-
+  /**
+   * Full-bleed 16:9 stage. Expand by safe-area insets so we cover the landscape
+   * status-bar strip (often left/right) that can show as a grey band.
+   */
   const { width: stageW, height: stageH } = useMemo(() => {
-    const rowInnerWidth = Math.max(0, winW - horizontalInset * 2);
-    // Symmetric left spacer + right close rail, each CLOSE_RAIL wide, with row gap between the three columns.
-    const centerMaxWidth = Math.max(0, rowInnerWidth - CLOSE_RAIL * 2 - ROW_GAP * 2);
-    const availableHeight = Math.max(0, winH);
-    return computeStageSize(centerMaxWidth, availableHeight);
-  }, [winW, winH, horizontalInset]);
+    const screen = Dimensions.get('screen');
+    const screenLong = Math.max(screen.width, screen.height);
+    const screenShort = Math.min(screen.width, screen.height);
+    const landscape = winW >= winH;
+    const screenW = landscape ? screenLong : screenShort;
+    const screenH = landscape ? screenShort : screenLong;
+    const fullW = Math.max(winW, screenW, winW + insets.left + insets.right);
+    const fullH = Math.max(winH, screenH, winH + insets.top + insets.bottom);
+    return computeStageSize(fullW, fullH);
+  }, [winW, winH, insets.left, insets.right, insets.top, insets.bottom]);
+
+  const overlayPadTop = Math.max(insets.top, spacing[1]);
+  const overlayPadRight = Math.max(insets.right, spacing[1]);
+  const overlayPadBottom = Math.max(insets.bottom, spacing[2]);
 
   const renderPreloading = () => (
     <View style={[styles.stageShell, { width: stageW, height: stageH }]}>
@@ -508,6 +530,8 @@ export function CmsPlayerModal({
           onAudioHeard={() => markContentAudioHeard(pageId)}
           onPrev={goPrev}
           onNext={goNext}
+          stageWidth={stageW}
+          stageHeight={stageH}
         />
       );
     }
@@ -582,72 +606,74 @@ export function CmsPlayerModal({
       visible={open}
       animationType="fade"
       presentationStyle="fullScreen"
+      statusBarTranslucent
+      navigationBarTranslucent={Platform.OS === 'android'}
       supportedOrientations={
         Platform.OS === 'ios' ? [...CMS_BOOK_PLAYER_MODAL_ORIENTATIONS] : undefined
       }
+      onShow={() => {
+        StatusBar.setHidden(true, 'fade');
+        if (Platform.OS === 'android') {
+          restoreAndroidImmersiveDefault();
+        }
+      }}
       onRequestClose={handleClose}
     >
-      <View
-        style={[
-          styles.root,
-          {
-            paddingTop: rootPadTop,
-            paddingBottom: rootPadBottom,
-            paddingLeft: horizontalInset,
-            paddingRight: horizontalInset,
-          },
-        ]}
-      >
-        <View style={styles.playerRow}>
-          <View
-            style={styles.sideRailSpacer}
-            pointerEvents="none"
-            accessible={false}
-            importantForAccessibility="no-hide-descendants"
-          />
-          <View style={styles.stageCenter}>{stageView}</View>
+      <View style={styles.root}>
+        {/* White fill under status-bar / letterbox so no grey strip shows */}
+        <View style={styles.whiteFill} pointerEvents="none" />
+        <View style={styles.stageViewport}>{stageView}</View>
 
-          <View style={[styles.sideRail, styles.sideRailFlushTop, isRewardPage && styles.sideRailReward]}>
-            <Pressable
-              onPress={handleClose}
-              disabled={isFinalizing}
-              style={({ pressed }) => [styles.railIconBtn, pressed && styles.pressed]}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Close book player"
-              accessibilityState={{ disabled: isFinalizing }}
-            >
-              <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
-            </Pressable>
-
-            {isRewardPage ? (
-              <View style={styles.railHomeBtn} accessibilityRole="none">
-                {isFinalizing ? (
-                  <CmsPlayerLoadingSpinner
-                    size={36}
-                    accessibilityLabel={finalizingMessage}
-                  />
-                ) : (
-                  <Pressable
-                    onPress={() => finalizeAndClose('home')}
-                    hitSlop={14}
-                    style={({ pressed }) => [styles.railHomePressable, pressed && styles.pressed]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Go home and finish book"
-                  >
-                    <Image
-                      source={cmsLocalUiAssets.homeButton}
-                      style={styles.railHomeImg}
-                      resizeMode="contain"
-                      accessibilityIgnoresInvertColors
-                      accessibilityLabel="Home button"
-                    />
-                  </Pressable>
-                )}
-              </View>
-            ) : null}
-          </View>
+        <View
+          style={[
+            styles.overlayTopRight,
+            { top: overlayPadTop, right: overlayPadRight },
+          ]}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            onPress={handleClose}
+            disabled={isFinalizing}
+            style={({ pressed }) => [styles.railIconBtn, pressed && styles.pressed]}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close book player"
+            accessibilityState={{ disabled: isFinalizing }}
+          >
+            <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
+          </Pressable>
         </View>
+
+        {isRewardPage ? (
+          <View
+            style={[
+              styles.overlayBottomRight,
+              { bottom: overlayPadBottom, right: overlayPadRight },
+            ]}
+            pointerEvents="box-none"
+            accessibilityRole="none"
+          >
+            {isFinalizing ? (
+              <CmsPlayerLoadingSpinner size={36} accessibilityLabel={finalizingMessage} />
+            ) : (
+              <Pressable
+                onPress={() => finalizeAndClose('home')}
+                hitSlop={14}
+                style={({ pressed }) => [styles.railHomePressable, pressed && styles.pressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Go home and finish book"
+              >
+                <Image
+                  source={cmsLocalUiAssets.homeButton}
+                  style={styles.railHomeImg}
+                  resizeMode="contain"
+                  accessibilityIgnoresInvertColors
+                  accessibilityLabel="Home button"
+                />
+              </Pressable>
+            )}
+          </View>
+        ) : null}
 
         {isFinalizing ? (
           <View
@@ -671,36 +697,35 @@ export function CmsPlayerModal({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#ffffff',
     position: 'relative',
   },
-  /** Horizontal: balance spacer | stage (flex) | close rail */
-  playerRow: {
+  whiteFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#ffffff',
+  },
+  /** Centers the 16:9 stage; leftover letterbox stays white (not grey/black). */
+  stageViewport: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'stretch',
     justifyContent: 'center',
-    gap: ROW_GAP,
-  },
-  /** Invisible width balance so the 16:9 stage sits in the horizontal center. */
-  sideRailSpacer: {
-    width: CLOSE_RAIL,
-    flexShrink: 0,
-  },
-  sideRail: {
-    width: CLOSE_RAIL,
-    flexShrink: 0,
-    alignSelf: 'stretch',
-    paddingTop: spacing[1],
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
   },
-  sideRailReward: {
-    justifyContent: 'space-between',
-    paddingBottom: spacing[2],
+  overlayTopRight: {
+    position: 'absolute',
+    zIndex: 50,
+    elevation: 50,
+    width: OVERLAY_CTRL,
+    alignItems: 'center',
   },
-  sideRailFlushTop: {
-    paddingTop: 0,
+  overlayBottomRight: {
+    position: 'absolute',
+    zIndex: 50,
+    elevation: 50,
+    width: OVERLAY_CTRL,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   railIconBtn: {
     width: 36,
@@ -708,13 +733,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.06)',
-  },
-  railHomeBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.08)',
   },
   railHomePressable: {
     width: 40,
@@ -760,22 +779,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pressed: { opacity: 0.72 },
-  stageCenter: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-    minHeight: 0,
-    minWidth: 0,
-  },
-  /** Match web pageFrameSx: 16:9, border, radius */
+  /** Full-bleed 16:9 stage — no side rails eating width. */
   stageFrame: {
-    borderRadius: radii.sm,
+    borderRadius: 0,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 0,
     backgroundColor: '#fff',
-    maxWidth: '100%',
   },
   stageShell: {
     flex: 1,

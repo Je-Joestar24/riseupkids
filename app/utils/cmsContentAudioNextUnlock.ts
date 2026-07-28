@@ -6,8 +6,15 @@
 /** Unlock Next this many seconds before audio ends (feels snappy). */
 export const CMS_CONTENT_AUDIO_UNLOCK_REMAINING_SEC = 0.5;
 
-/** If audio never reports progress/duration, unlock so Next cannot stick forever. */
+/**
+ * Wall-clock grace before we consider a *stalled* load.
+ * Must NOT unlock merely because narration is longer than this — only when
+ * playback never started / never reported progress (see shouldSafetyUnlockCmsContentAudio).
+ */
 export const CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS = 12_000;
+
+/** Below this position after the grace period, treat playback as never started. */
+export const CMS_CONTENT_AUDIO_STALL_POSITION_SEC = 0.25;
 
 export interface CmsContentAudioNextUnlockInput {
   /** Remote/local URI present for this page. */
@@ -22,6 +29,26 @@ export interface CmsContentAudioNextUnlockInput {
   durationSec: number | null;
   didJustFinish: boolean;
   unlockRemainingSec?: number;
+}
+
+/**
+ * Whether the safety timer may mark audio as failed/skipped.
+ * Returns false while audio is loaded or progressing — long MP3s must keep playing.
+ */
+export function shouldSafetyUnlockCmsContentAudio(options: {
+  positionSec: number;
+  playerDurationSec: number | null | undefined;
+  didJustFinish: boolean;
+}): boolean {
+  if (options.didJustFinish) return false;
+  const duration = options.playerDurationSec;
+  if (typeof duration === 'number' && duration > 0 && Number.isFinite(duration)) {
+    return false;
+  }
+  if (options.positionSec >= CMS_CONTENT_AUDIO_STALL_POSITION_SEC) {
+    return false;
+  }
+  return true;
 }
 
 /**

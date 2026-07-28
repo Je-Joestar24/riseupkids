@@ -1,6 +1,7 @@
 import {
   CMS_CONTENT_AUDIO_UNLOCK_REMAINING_SEC,
   resolveCmsContentAudioDurationSec,
+  shouldSafetyUnlockCmsContentAudio,
   shouldUnlockCmsContentNextFromAudio,
 } from '@/utils/cmsContentAudioNextUnlock';
 
@@ -92,6 +93,48 @@ describe('shouldUnlockCmsContentNextFromAudio', () => {
         audioFailedOrSkipped: false,
         positionSec: 1,
         durationSec: null,
+        didJustFinish: false,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('shouldSafetyUnlockCmsContentAudio', () => {
+  it('unlocks when playback never started (stall)', () => {
+    expect(
+      shouldSafetyUnlockCmsContentAudio({
+        positionSec: 0,
+        playerDurationSec: null,
+        didJustFinish: false,
+      })
+    ).toBe(true);
+  });
+
+  it('does not unlock long narrations that are progressing', () => {
+    expect(
+      shouldSafetyUnlockCmsContentAudio({
+        positionSec: 5,
+        playerDurationSec: 45,
+        didJustFinish: false,
+      })
+    ).toBe(false);
+  });
+
+  it('does not unlock when duration is known even near start', () => {
+    expect(
+      shouldSafetyUnlockCmsContentAudio({
+        positionSec: 0.1,
+        playerDurationSec: 30,
+        didJustFinish: false,
+      })
+    ).toBe(false);
+  });
+
+  it('does not unlock when position advanced without duration metadata', () => {
+    expect(
+      shouldSafetyUnlockCmsContentAudio({
+        positionSec: 1,
+        playerDurationSec: null,
         didJustFinish: false,
       })
     ).toBe(false);

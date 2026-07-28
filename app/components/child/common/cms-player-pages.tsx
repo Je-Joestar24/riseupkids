@@ -30,20 +30,22 @@ import {
   CMS_READING_LINE_ERASE_MS,
   cmsLocalUiAssets,
   extractReadingWordsFromPage,
-  getActiveReadingLineIndex,
   getActiveReadingWordIndexInLine,
   groupReadingWordsByLine,
   normalizeReadingText,
   resolveAudioUrl,
   resolveContentReadingFontSizePx,
   resolveCmsAbsoluteMediaUrl,
+  resolveCmsContentDisplayLineIndex,
   resolveImageUrl,
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
+  scaleCmsReadingFontSizePx,
 } from './cms-player-shared';
 import {
   CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS,
   resolveCmsContentAudioDurationSec,
+  shouldSafetyUnlockCmsContentAudio,
   shouldUnlockCmsContentNextFromAudio,
 } from '@/utils/cmsContentAudioNextUnlock';
 
@@ -53,8 +55,11 @@ function useReadingLineTransition(activeLineIndex: number, resetKey: string) {
   const [displayLineIndex, setDisplayLineIndex] = useState(-1);
   const opacity = useRef(new Animated.Value(0)).current;
   const previousLineRef = useRef(activeLineIndex);
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
+    animRef.current?.stop();
+    animRef.current = null;
     setDisplayLineIndex(-1);
     opacity.setValue(0);
     previousLineRef.current = -1;
@@ -64,41 +69,34 @@ function useReadingLineTransition(activeLineIndex: number, resetKey: string) {
     const previousLine = previousLineRef.current;
     if (activeLineIndex === previousLine) return;
 
-    if (activeLineIndex < 0) {
-      Animated.timing(opacity, {
-        toValue: 0,
+    animRef.current?.stop();
+    animRef.current = null;
+
+    // Show a new line immediately — short timed lines cannot wait for a long fade-out.
+    if (activeLineIndex >= 0) {
+      setDisplayLineIndex(activeLineIndex);
+      previousLineRef.current = activeLineIndex;
+      opacity.setValue(0);
+      animRef.current = Animated.timing(opacity, {
+        toValue: 1,
         duration: CMS_READING_LINE_ERASE_MS,
         useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) {
-          setDisplayLineIndex(-1);
-          previousLineRef.current = activeLineIndex;
-        }
       });
+      animRef.current.start();
       return;
     }
 
-    if (previousLine >= 0 && previousLine !== activeLineIndex) {
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: CMS_READING_LINE_ERASE_MS,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished) return;
-        setDisplayLineIndex(activeLineIndex);
-        previousLineRef.current = activeLineIndex;
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: CMS_READING_LINE_ERASE_MS,
-          useNativeDriver: true,
-        }).start();
-      });
-      return;
-    }
-
-    setDisplayLineIndex(activeLineIndex);
-    previousLineRef.current = activeLineIndex;
-    opacity.setValue(1);
+    // Erase between cutted lines (activeLineIndex === -1).
+    animRef.current = Animated.timing(opacity, {
+      toValue: 0,
+      duration: CMS_READING_LINE_ERASE_MS,
+      useNativeDriver: true,
+    });
+    animRef.current.start(({ finished }) => {
+      if (!finished) return;
+      setDisplayLineIndex(-1);
+      previousLineRef.current = -1;
+    });
   }, [activeLineIndex, opacity]);
 
   return { displayLineIndex, opacity };
@@ -319,6 +317,8 @@ export function CmsContentPage({
   onAudioHeard,
   onPrev,
   onNext,
+  stageWidth = 0,
+  stageHeight = 0,
 }: {
   page: CmsPlayablePage;
   hasPrev: boolean;
@@ -331,11 +331,19 @@ export function CmsContentPage({
   onAudioHeard?: () => void;
   onPrev: () => void;
   onNext: () => void;
+  /** Current 16:9 stage size — used to scale CMS design-space font presets. */
+  stageWidth?: number;
+  stageHeight?: number;
 }) {
   const bgImage = useCmsPlayableMediaUri(resolveImageUrl(page));
   const audioUrl = useCmsPlayableMediaUri(resolveAudioUrl(page));
   const soundRef = useRef<Audio.Sound | null>(null);
   const heardNotifiedRef = useRef(false);
+  const playbackProbeRef = useRef({
+    positionSec: 0,
+    playerDurationSec: null as number | null,
+    didJustFinish: false,
+  });
   const [currentTime, setCurrentTime] = useState(0);
   const [playerDurationSec, setPlayerDurationSec] = useState<number | null>(null);
   const [didJustFinish, setDidJustFinish] = useState(false);
@@ -353,9 +361,16 @@ export function CmsContentPage({
 
   const words = useMemo(() => extractReadingWordsFromPage(page), [page]);
   const lineGroups = useMemo(() => groupReadingWordsByLine(words, readingText), [words, readingText]);
-  const readingFontSizePx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
+  const designReadingFontPx = useMemo(() => resolveContentReadingFontSizePx(page), [page]);
+  const readingFontSizePx = useMemo(
+    () => scaleCmsReadingFontSizePx(designReadingFontPx, stageWidth, stageHeight),
+    [designReadingFontPx, stageWidth, stageHeight]
+  );
   const readingTextStyles = useMemo(
-    () => ({ fontSize: readingFontSizePx }),
+    () => ({
+      fontSize: readingFontSizePx,
+      lineHeight: Math.round(readingFontSizePx * 1.25),
+    }),
     [readingFontSizePx]
   );
 
@@ -396,19 +411,31 @@ export function CmsContentPage({
     onAudioHeard?.();
   }, [audioUnlocked, audioAlreadyHeard, onAudioHeard]);
 
-  // Safety: never leave Next stuck if audio stalls / never reports duration.
+  // Safety: unlock only when audio never starts (stall). Do NOT unlock long narrations at 12s.
   useEffect(() => {
     if (!audioUrl || audioAlreadyHeard || audioUnlocked || audioFailedOrSkipped) return undefined;
     const timer = setTimeout(() => {
-      setAudioFailedOrSkipped(true);
+      const probe = playbackProbeRef.current;
+      if (
+        shouldSafetyUnlockCmsContentAudio({
+          positionSec: probe.positionSec,
+          playerDurationSec: probe.playerDurationSec,
+          didJustFinish: probe.didJustFinish,
+        })
+      ) {
+        setAudioFailedOrSkipped(true);
+      }
     }, CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS);
     return () => clearTimeout(timer);
   }, [audioUrl, audioAlreadyHeard, audioUnlocked, audioFailedOrSkipped, page.pageId]);
 
   const activeLineIndex = useMemo(() => {
     if (!karaokeReady) return -1;
-    return getActiveReadingLineIndex(currentTime, lineGroups);
-  }, [currentTime, lineGroups, karaokeReady]);
+    return resolveCmsContentDisplayLineIndex(currentTime, lineGroups, {
+      holdLastAfterEnd: true,
+      audioFinished: didJustFinish,
+    });
+  }, [currentTime, lineGroups, karaokeReady, didJustFinish]);
 
   const { displayLineIndex, opacity } = useReadingLineTransition(
     activeLineIndex,
@@ -434,6 +461,11 @@ export function CmsContentPage({
     setDidJustFinish(false);
     setAudioFailedOrSkipped(false);
     setKaraokeReady(false);
+    playbackProbeRef.current = {
+      positionSec: 0,
+      playerDurationSec: null,
+      didJustFinish: false,
+    };
 
     if (!audioUrl) {
       // No reading audio — do not block Next.
@@ -457,7 +489,7 @@ export function CmsContentPage({
           return;
         }
         try {
-          await s.setProgressUpdateIntervalAsync(45);
+          await s.setProgressUpdateIntervalAsync(20);
         } catch {
           // older expo-av may omit this API
         }
@@ -465,15 +497,22 @@ export function CmsContentPage({
         s.setOnPlaybackStatusUpdate((status) => {
           if (!status.isLoaded) return;
           if (status.durationMillis != null && status.durationMillis > 0) {
-            setPlayerDurationSec(status.durationMillis / 1000);
+            const nextDuration = status.durationMillis / 1000;
+            playbackProbeRef.current.playerDurationSec = nextDuration;
+            setPlayerDurationSec(nextDuration);
           }
           if (status.positionMillis != null) {
-            setCurrentTime(status.positionMillis / 1000);
+            const nextPos = status.positionMillis / 1000;
+            playbackProbeRef.current.positionSec = nextPos;
+            setCurrentTime(nextPos);
           }
           if (status.didJustFinish) {
+            playbackProbeRef.current.didJustFinish = true;
             setDidJustFinish(true);
             if (status.durationMillis != null) {
-              setCurrentTime(status.durationMillis / 1000);
+              const endPos = status.durationMillis / 1000;
+              playbackProbeRef.current.positionSec = endPos;
+              setCurrentTime(endPos);
             }
           }
         });
@@ -498,6 +537,7 @@ export function CmsContentPage({
   }, [page.pageId, audioUrl, wordTimingFingerprint, words.length]);
 
   const staticReadingLabel = readingText || page.subtitle || 'Subtitle';
+  const hasTimedKaraoke = words.length > 0;
   const showKaraokeLine = shouldShowCmsContentKaraokeLine(
     karaokeReady,
     words.length,
@@ -541,7 +581,7 @@ export function CmsContentPage({
                   </Text>
                 ))}
               </Animated.View>
-            ) : (
+            ) : !hasTimedKaraoke ? (
               <Text
                 style={[styles.readingText, readingTextStyles]}
                 accessibilityRole="text"
@@ -549,7 +589,7 @@ export function CmsContentPage({
               >
                 {staticReadingLabel}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
         <View style={styles.contentRight}>
