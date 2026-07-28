@@ -18,7 +18,10 @@ import {
 } from 'react-native';
 import { StatusBar } from 'react-native';
 
-import { setImmersiveFullscreen } from '@/utils/androidNavigationBar';
+import {
+    restoreAndroidImmersiveDefault,
+    setImmersiveFullscreen,
+} from '@/utils/androidNavigationBar';
 import { WebView } from 'react-native-webview';
 
 import { ThemedText } from '@/components/themed-text';
@@ -228,9 +231,12 @@ export function Html5Modal({
         try {
             await ScreenOrientation.lockAsync(PORTRAIT);
             setIsFullscreen(false);
-            StatusBar.setHidden(false, 'slide');
             if (Platform.OS === 'android') {
-                setImmersiveFullscreen(false);
+                // App default is immersive ON — restore, do not leave system bars visible.
+                StatusBar.setHidden(true, 'slide');
+                restoreAndroidImmersiveDefault();
+            } else {
+                StatusBar.setHidden(false, 'slide');
             }
         } catch {
             // ignore

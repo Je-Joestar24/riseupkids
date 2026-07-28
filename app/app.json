@@ -87,6 +87,13 @@
         {
           "initialOrientation": "PORTRAIT"
         }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "visibility": "hidden",
+          "legacyVisible": "sticky-immersive"
+        }
       ]
     ],
     "experiments": {

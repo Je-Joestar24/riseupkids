@@ -15,6 +15,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
+import { withMinAndroidInset } from '@/utils/androidNavigationBar';
 
 const ICON_SIZE = 32;
 const CONTAINER_PADDING = 8;
@@ -108,7 +109,7 @@ export function FooterNavigation({ childId }: FooterNavigationProps) {
     };
 
     return (
-        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.container, { paddingBottom: withMinAndroidInset(insets.bottom) }]}>
             <View style={styles.inner}>
                 {NAV_ITEMS.map((item) => {
                     const isActive = activeValue === item.value;

@@ -15,6 +15,7 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useExploreStore } from '@/store/exploreStore';
+import { withMinAndroidInset } from '@/utils/androidNavigationBar';
 
 interface HeaderNavProps {
   childId: string;
@@ -38,7 +39,7 @@ export function HeaderNav({ childId }: HeaderNavProps) {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: withMinAndroidInset(insets.top) }]}>
       <View style={styles.toolbar}>
         {/* Column 1: takes all space, logo centered within it */}
         <View style={styles.logoColumn}>
