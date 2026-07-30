@@ -5,7 +5,7 @@
 
 import { Platform } from 'react-native';
 
-import { BUNNY_EMBED_WEBVIEW_PROPS } from './bunny-embed-webview';
+import { BUNNY_EMBED_WEBVIEW_PROPS } from '@/utils/bunnyEmbedWebViewProps';
 
 /** Inline CMS video — plays in-page; no native fullscreen overlay on iOS. */
 export const CMS_INLINE_WEBVIEW_PROPS = {

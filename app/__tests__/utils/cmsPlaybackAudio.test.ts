@@ -6,7 +6,10 @@ jest.mock('expo-av', () => ({
   InterruptionModeAndroid: { DoNotMix: 1 },
 }));
 
+import { Audio } from 'expo-av';
+
 import {
+  ensureCmsPlaybackAudioMode,
   resetCmsPlaybackAudioModeForTests,
   shouldShowCmsContentKaraokeLine,
 } from '@/utils/cmsPlaybackAudio';
@@ -14,6 +17,7 @@ import {
 describe('cmsPlaybackAudio', () => {
   afterEach(() => {
     resetCmsPlaybackAudioModeForTests();
+    jest.clearAllMocks();
   });
 
   describe('shouldShowCmsContentKaraokeLine', () => {
@@ -22,6 +26,18 @@ describe('cmsPlaybackAudio', () => {
       expect(shouldShowCmsContentKaraokeLine(false, 5, 3)).toBe(false);
       expect(shouldShowCmsContentKaraokeLine(true, 5, 0)).toBe(false);
       expect(shouldShowCmsContentKaraokeLine(true, 0, 0)).toBe(false);
+    });
+  });
+
+  describe('ensureCmsPlaybackAudioMode', () => {
+    it('enables silent-mode playback for iOS CMS books', async () => {
+      await ensureCmsPlaybackAudioMode();
+      expect(Audio.setAudioModeAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+        })
+      );
     });
   });
 });

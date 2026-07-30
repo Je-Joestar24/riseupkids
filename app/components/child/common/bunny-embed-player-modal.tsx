@@ -1,6 +1,7 @@
 /**
  * Bunny Stream embed player (child-facing).
- * Loads the Bunny embed page directly in WebView; manual "I finished watching" when not yet completed.
+ * Watch-only WebView (no Bunny controls / native FS); manual "I finished watching" when needed.
+ * @see docs/BUNNY_EMBED_WATCH_ONLY_PLAN.md
  */
 
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -14,9 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 
-import { BUNNY_EMBED_REFERER } from '@/config';
+import { BunnyEmbedWebView } from '@/components/child/common/bunny-embed-webview';
 import { ConfirmModal } from '@/components/child/common/confirm-modal';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
@@ -26,10 +26,7 @@ import { typography } from '@/config/theme/typography';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { useVideoPlayerFullscreen } from '@/hooks/useVideoPlayerFullscreen';
 import { useUiStore } from '@/store/uiStore';
-import {
-  buildBunnyEmbedWebViewUrl,
-  looksLikeBunnyExploreEmbedUrl,
-} from '@/utils/bunnyExploreEmbed';
+import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
 import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import { CMS_PLAYER_MODAL_ORIENTATIONS } from '@/utils/cmsPlayerOrientation';
@@ -45,21 +42,6 @@ export interface BunnyEmbedPlayerModalProps {
   onVideoComplete?: () => void;
 }
 
-/** Shared WebView settings for Bunny Stream embed pages on iOS/Android preview builds. */
-const BUNNY_EMBED_WEBVIEW_PROPS = {
-  originWhitelist: ['*'],
-  allowsFullscreenVideo: true,
-  allowsInlineMediaPlayback: true,
-  mediaPlaybackRequiresUserAction: false,
-  javaScriptEnabled: true,
-  domStorageEnabled: true,
-  mixedContentMode: 'always' as const,
-  androidLayerType: 'hardware' as const,
-  setSupportMultipleWindows: false,
-  bounces: false,
-  scalesPageToFit: true,
-};
-
 export function BunnyEmbedPlayerModal({
   open,
   onClose,
@@ -73,8 +55,6 @@ export function BunnyEmbedPlayerModal({
   const showDialog = useUiStore((s) => s.showDialog);
   const { markExploreVideoWatched, getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
-  const [webLoading, setWebLoading] = useState(true);
-  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isRecordingWatch, setIsRecordingWatch] = useState(false);
   const [hasRecordedWatch, setHasRecordedWatch] = useState(false);
@@ -95,37 +75,12 @@ export function BunnyEmbedPlayerModal({
     [embedUrl]
   );
 
-  const webViewSource = useMemo(
-    () =>
-      validEmbed
-        ? {
-            uri: buildBunnyEmbedWebViewUrl(validEmbed),
-            headers: {
-              Referer: BUNNY_EMBED_REFERER,
-              referer: BUNNY_EMBED_REFERER,
-            },
-          }
-        : null,
-    [validEmbed]
-  );
-
-  const handleWebViewError = useCallback(() => {
-    setPlaybackError('The video could not load. Check your connection and try again.');
-    setWebLoading(false);
-  }, []);
-
-  const handleWebViewLoadEnd = useCallback(() => {
-    setWebLoading(false);
-  }, []);
-
   /** Show manual finish only for first-time (not yet watched) explore videos. */
   const showFinishButton =
     Boolean(exploreContentId) && !wasAlreadyWatched && !hasRecordedWatch;
 
   useEffect(() => {
     if (!open) return;
-    setWebLoading(true);
-    setPlaybackError(null);
     setHasRecordedWatch(false);
     setWasAlreadyWatched(false);
     setShowConfirmClose(false);
@@ -204,7 +159,7 @@ export function BunnyEmbedPlayerModal({
 
   if (!open) return null;
 
-  const showPlayer = Boolean(webViewSource);
+  const showPlayer = Boolean(validEmbed) || Boolean(embedUrl);
 
   return (
     <>
@@ -258,12 +213,6 @@ export function BunnyEmbedPlayerModal({
               </View>
             ) : null}
 
-            {playbackError ? (
-              <View style={styles.errorBanner}>
-                <ThemedText style={styles.errorText}>{playbackError}</ThemedText>
-              </View>
-            ) : null}
-
             <View
               style={[styles.videoContainer, isFullscreen && styles.videoContainerFullscreen]}
               collapsable={false}
@@ -275,37 +224,22 @@ export function BunnyEmbedPlayerModal({
                     : styles.videoStageFill
                 }
               >
-                {webViewSource ? (
-                  <>
-                    <WebView
-                      {...BUNNY_EMBED_WEBVIEW_PROPS}
-                      source={webViewSource}
-                      style={StyleSheet.absoluteFill}
-                      onLoadEnd={handleWebViewLoadEnd}
-                      onError={handleWebViewError}
-                      onHttpError={handleWebViewError}
-                      accessibilityLabel={`Bunny embed playback for ${title}`}
-                    />
-                    {webLoading && (
-                      <View style={styles.recordingOverlay}>
-                        <ActivityIndicator size="large" color={colors.secondary} />
-                        <ThemedText style={styles.recordingText}>Loading video...</ThemedText>
-                      </View>
-                    )}
-                    {isRecordingWatch && (
-                      <View style={styles.recordingOverlay}>
-                        <ActivityIndicator size="large" color={colors.secondary} />
-                        <ThemedText style={styles.recordingText}>Recording your progress...</ThemedText>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View style={styles.loadingWrap}>
-                    <ThemedText style={styles.loadingText}>
-                      No Bunny embed URL is available for this video.
-                    </ThemedText>
-                  </View>
-                )}
+                <>
+                  <BunnyEmbedWebView
+                    embedUrl={validEmbed}
+                    title={title}
+                    style={StyleSheet.absoluteFill}
+                    interactionMode="watchOnly"
+                    playbackPreset="watchOnly"
+                    showLoadingOverlay
+                  />
+                  {isRecordingWatch && (
+                    <View style={styles.recordingOverlay}>
+                      <ActivityIndicator size="large" color={colors.secondary} />
+                      <ThemedText style={styles.recordingText}>Recording your progress...</ThemedText>
+                    </View>
+                  )}
+                </>
               </View>
             </View>
 
@@ -425,15 +359,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginRight: spacing[2],
   },
-  errorBanner: {
-    paddingHorizontal: spacing[4],
-    paddingTop: spacing[2],
-  },
-  errorText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.error,
-  },
   videoContainer: {
     width: '100%',
     aspectRatio: 16 / 9,
@@ -483,18 +408,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Quicksand_600SemiBold',
     color: colors.textInverse,
   },
-  loadingWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing[4],
-  },
-  loadingText: {
-    fontSize: typography.sizes.base,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textInverse,
-    textAlign: 'center',
-  },
   finishedBtn: {
     marginHorizontal: spacing[4],
     marginTop: spacing[3],
@@ -502,15 +415,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing[3],
     alignItems: 'center',
     borderRadius: radii.lg,
-  },
-  finishedBtnFullscreen: {
-    position: 'absolute',
-    left: spacing[4],
-    right: 72,
-    bottom: spacing[4],
-    marginHorizontal: 0,
-    marginTop: 0,
-    zIndex: 20,
   },
   finishedBtnDisabled: {
     opacity: 0.6,

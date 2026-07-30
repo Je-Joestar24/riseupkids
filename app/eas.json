@@ -17,6 +17,15 @@
         "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
       }
     },
+    "production-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
+      }
+    },
     "production": {
       "autoIncrement": true,
       "env": {

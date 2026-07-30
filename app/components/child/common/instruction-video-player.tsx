@@ -110,13 +110,10 @@ export function InstructionVideoPlayer({
             title={title}
             style={styles.fill}
             showLoadingOverlay
+            interactionMode="watchOnly"
+            playbackPreset="watchOnly"
           />
         </View>
-        {useExternalControls ? (
-          <ThemedText style={styles.embedHint}>
-            Tap the video, then use its play and pause controls to listen to each question.
-          </ThemedText>
-        ) : null}
       </View>
     );
   }
@@ -210,12 +207,6 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base,
     fontFamily: 'Quicksand_700Bold',
     color: colors.secondary,
-  },
-  embedHint: {
-    fontSize: typography.sizes.sm,
-    fontFamily: 'Quicksand_600SemiBold',
-    color: colors.textSecondary,
-    lineHeight: 20,
   },
   fill: {
     flex: 1,

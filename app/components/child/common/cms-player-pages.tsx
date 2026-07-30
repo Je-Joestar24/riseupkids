@@ -19,9 +19,10 @@ import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import type { CmsPlayablePage } from '@/services/cmsBooksPlayerService';
 import {
-  ensureCmsPlaybackAudioMode,
-  shouldShowCmsContentKaraokeLine,
-} from '@/utils/cmsPlaybackAudio';
+  startCmsIntroBackgroundMusic,
+  stopCmsIntroBackgroundMusic,
+} from '@/services/cmsIntroBackgroundMusic';
+import { shouldStartCmsIntroBackgroundMusic } from '@/utils/cmsPlaybackAudio';
 
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap, useCmsPlayableMediaUri } from './cms-player-media-context';
@@ -48,6 +49,10 @@ import {
   shouldSafetyUnlockCmsContentAudio,
   shouldUnlockCmsContentNextFromAudio,
 } from '@/utils/cmsContentAudioNextUnlock';
+import {
+  ensureCmsPlaybackAudioMode,
+  shouldShowCmsContentKaraokeLine,
+} from '@/utils/cmsPlaybackAudio';
 
 const DOT_COUNT = 14;
 
@@ -108,6 +113,8 @@ export function CmsIntroPage({
   isPreloading,
   isNextDisabled,
   onNext,
+  /** Bumped by modal after landscape + audio mode — restarts BGM on iOS session reset. */
+  audioSessionEpoch = 0,
 }: {
   page: CmsPlayablePage;
   hasNext: boolean;
@@ -115,74 +122,41 @@ export function CmsIntroPage({
   /** When true, Next/Play is locked (initial preload or next-page media not ready). */
   isNextDisabled?: boolean;
   onNext: () => void;
+  audioSessionEpoch?: number;
 }) {
   const bg = useCmsPlayableMediaUri(resolveImageUrl(page));
   const backgroundMusicUrl = useCmsPlayableMediaUri(resolveIntroBackgroundMusicUrl(page));
-  const soundRef = useRef<Audio.Sound | null>(null);
   const nextLocked = Boolean(isNextDisabled ?? isPreloading);
-
-  const stopBackgroundMusic = useCallback(async () => {
-    const active = soundRef.current;
-    soundRef.current = null;
-    if (!active) return;
-    try {
-      await active.stopAsync();
-    } catch {
-      // already stopped
-    }
-    try {
-      await active.unloadAsync();
-    } catch {
-      // unload failed
-    }
-  }, []);
 
   const handleNext = useCallback(() => {
     if (nextLocked || !hasNext) return;
-    void stopBackgroundMusic().finally(() => {
+    void stopCmsIntroBackgroundMusic().finally(() => {
       onNext();
     });
-  }, [onNext, stopBackgroundMusic, nextLocked, hasNext]);
+  }, [onNext, nextLocked, hasNext]);
 
   useEffect(() => {
     let cancelled = false;
 
-    void stopBackgroundMusic();
-
-    if (!backgroundMusicUrl || isPreloading) {
+    if (!shouldStartCmsIntroBackgroundMusic({ backgroundMusicUrl, isPreloading })) {
+      void stopCmsIntroBackgroundMusic();
       return () => {
         cancelled = true;
       };
     }
 
-    (async () => {
-      try {
-        await ensureCmsPlaybackAudioMode();
-
-        const uri = backgroundMusicUrl;
-        if (!uri || cancelled) return;
-
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true, isLooping: true, volume: 1 }
-        );
-
-        if (cancelled) {
-          await sound.unloadAsync();
-          return;
-        }
-
-        soundRef.current = sound;
-      } catch {
-        // Optional BGM — continue without audio.
+    void (async () => {
+      const ok = await startCmsIntroBackgroundMusic(backgroundMusicUrl);
+      if (cancelled && ok) {
+        await stopCmsIntroBackgroundMusic();
       }
     })();
 
     return () => {
       cancelled = true;
-      void stopBackgroundMusic();
+      void stopCmsIntroBackgroundMusic();
     };
-  }, [page.pageId, backgroundMusicUrl, isPreloading, stopBackgroundMusic]);
+  }, [page.pageId, backgroundMusicUrl, isPreloading, audioSessionEpoch]);
 
   return (
     <View style={styles.fill} accessibilityLabel={page.title || 'Intro page'}>

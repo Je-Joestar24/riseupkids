@@ -558,6 +558,8 @@ export function CmsLoopingBackgroundVideo({
         <Animated.View style={[styles.videoLayer, { opacity: bunnyReady ? bunnyOpacity : 0 }]}>
           <BunnyEmbedWebView
             embedUrl={playbackUri}
+            interactionMode="watchOnly"
+            playbackPreset="backgroundLoop"
             allowNativeFullscreen={false}
             showLoadingOverlay={false}
             style={styles.transparentFill}

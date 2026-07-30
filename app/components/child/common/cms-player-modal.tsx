@@ -41,7 +41,8 @@ import {
   prepareCmsPlayerOrientation,
   restoreAppPortraitOrientation,
 } from '@/utils/cmsPlayerOrientation';
-import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
+import { prepareCmsPlaybackAudioAfterOrientation } from '@/utils/cmsPlaybackAudio';
+import { stopCmsIntroBackgroundMusic } from '@/services/cmsIntroBackgroundMusic';
 
 import {
   collectCmsPlayerMediaUrls,
@@ -137,6 +138,8 @@ export function CmsPlayerModal({
   const [allowNextRemoteStream, setAllowNextRemoteStream] = useState(false);
   /** Page IDs whose reading audio was completed (or skipped safely) this book session. */
   const [heardAudioPageIds, setHeardAudioPageIds] = useState<Record<string, true>>({});
+  /** Bumped after landscape lock + audio mode so intro BGM re-arms on iOS. */
+  const [audioSessionEpoch, setAudioSessionEpoch] = useState(0);
 
 
   const isControlledPreload = controlledPreloading !== undefined;
@@ -166,13 +169,15 @@ export function CmsPlayerModal({
 
   useEffect(() => {
     if (!open) {
+      void stopCmsIntroBackgroundMusic();
       void restoreAppPortraitOrientation();
       return;
     }
 
     void (async () => {
       await prepareCmsPlayerOrientation();
-      await ensureCmsPlaybackAudioMode();
+      const epoch = await prepareCmsPlaybackAudioAfterOrientation();
+      setAudioSessionEpoch(epoch);
       // Android Modal uses a new window — re-hide status/nav bars or a grey
       // "status bar strip" appears on the left/right in landscape.
       StatusBar.setHidden(true, 'fade');
@@ -182,6 +187,7 @@ export function CmsPlayerModal({
     })();
 
     return () => {
+      void stopCmsIntroBackgroundMusic();
       void restoreAppPortraitOrientation();
       if (Platform.OS === 'android') {
         // App-wide Android default stays immersive.
@@ -543,6 +549,7 @@ export function CmsPlayerModal({
           hasNext={hasNext}
           isPreloading={isPreloading}
           isNextDisabled={isNextDisabled}
+          audioSessionEpoch={audioSessionEpoch}
           onNext={goNext}
         />
       );

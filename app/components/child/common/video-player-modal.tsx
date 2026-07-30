@@ -446,6 +446,8 @@ export function VideoPlayerModal({
                       embedUrl={embedUrl}
                       title={video?.title ?? 'Video'}
                       style={StyleSheet.absoluteFill}
+                      interactionMode="watchOnly"
+                      playbackPreset="watchOnly"
                     />
                     {isRecordingWatch && (
                       <View style={styles.recordingOverlay}>
