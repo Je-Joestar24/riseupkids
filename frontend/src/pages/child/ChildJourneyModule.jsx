@@ -106,9 +106,25 @@ const ChildJourneyModule = ({ childId }) => {
   const course = courseDetails?.course;
   const progress = courseDetails?.progress;
 
-  // Calculate progress counts - memoized to prevent unnecessary recalculations
-  // Must be called before any conditional returns (Rules of Hooks)
+  // Calculate progress counts - prefer server progressSummary (current contents only)
   const progressCounts = useMemo(() => {
+    const summary = courseDetails?.progressSummary;
+    if (
+      summary &&
+      typeof summary.completedCount === 'number' &&
+      typeof summary.totalCount === 'number'
+    ) {
+      return {
+        totalCount: summary.totalCount,
+        completedCount: summary.completedCount,
+        todoCount:
+          typeof summary.todoCount === 'number'
+            ? summary.todoCount
+            : Math.max(0, summary.totalCount - summary.completedCount),
+        lockedCount: summary.lockedCount || 0,
+      };
+    }
+
     if (!course || !course.contents) {
       return {
         totalCount: 0,
@@ -121,38 +137,35 @@ const ChildJourneyModule = ({ childId }) => {
     const courseContents = course.contents || [];
     const totalCount = courseContents.length;
 
-    // Get completed content items (matching both contentId and contentType)
     const completedItems = new Set();
     if (progress?.contentProgress) {
       progress.contentProgress
         .filter((item) => item.status === 'completed')
         .forEach((item) => {
-          // Use both contentId and contentType as key (same as Course model)
           const key = `${item.contentId.toString()}-${item.contentType}`;
           completedItems.add(key);
         });
     }
 
-    // Count completed items (matching both contentId and contentType)
     const completedCount = courseContents.filter((content) => {
-      // Use _contentId or contentId from populated contents
       const contentId = content._contentId || content._id || content.contentId;
       const contentType = content._contentType || content.contentType;
+      if (!contentId || !contentType) return false;
       const key = `${contentId.toString()}-${contentType}`;
       return completedItems.has(key);
     }).length;
 
-    // To Do = Total - Completed (locked is 0 for now as per requirements)
-    const todoCount = totalCount - completedCount;
-    const lockedCount = 0; // As per requirements, locked is 0 for now
-
     return {
       totalCount,
       completedCount,
-      todoCount,
-      lockedCount,
+      todoCount: totalCount - completedCount,
+      lockedCount: 0,
     };
-  }, [course?.contents?.length, progress?.contentProgress?.length]);
+  }, [
+    courseDetails?.progressSummary,
+    course?.contents,
+    progress?.contentProgress,
+  ]);
 
   // Extract content by type - memoized to prevent unnecessary recalculations
   // Must be called before any conditional returns (Rules of Hooks)

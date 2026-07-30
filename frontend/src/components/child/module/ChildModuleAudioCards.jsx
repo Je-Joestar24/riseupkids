@@ -18,6 +18,7 @@ const ChildModuleAudioCards = ({
 }) => {
   // Check if status is rejected (child-friendly handling)
   const isRejected = status === 'rejected';
+  const isCompleted = status === 'completed';
   // Get cover image URL
   const getCoverImageUrl = (coverImagePath) => {
     if (!coverImagePath) return null;
@@ -82,6 +83,42 @@ const ChildModuleAudioCards = ({
             objectFit: 'cover',
           }}
         />
+
+        {/* Completion Checkbox - Top Left (after teacher approval → course completed) */}
+        {isCompleted && (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '12px',
+              left: '12px',
+              padding: '8px',
+              backgroundColor: themeColors.textInverse,
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+            }}
+            aria-label="Audio assignment completed"
+            role="img"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={themeColors.secondary}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="m9 12 2 2 4-4"></path>
+            </svg>
+          </Box>
+        )}
 
         {/* Headphones Badge - Top Right */}
         <Box

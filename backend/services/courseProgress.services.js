@@ -1,4 +1,5 @@
 const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant, VideoWatch } = require('../models');
+const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
 
 /** Once a module reaches this % under automatic rules, keep it open (do not re-lock). */
 const MODULE_ACCESS_AUTO_KEEP_OPEN_PCT = 75;
@@ -231,6 +232,25 @@ const getChildCourses = async (childId, queryParams = {}) => {
         currentStatus = 'locked';
       }
 
+      const livePct = progress
+        ? computeCourseContentProgress(course.contents, progress.contentProgress)
+            .progressPercentage
+        : 0;
+
+      // Persist heal when CMS removed content left stored % stale
+      if (progress && progress.progressPercentage !== livePct) {
+        progress.updateProgressPercentage(course);
+        await progress.save().catch(() => {});
+        // Refresh display status after heal (e.g. all remaining content done → completed)
+        currentStatus = progress.status;
+        if (accessOverride === 'force_lock' && currentStatus !== 'completed') {
+          currentStatus = 'locked';
+        }
+        if (accessOverride === 'force_unlock' && currentStatus === 'locked') {
+          currentStatus = 'not_started';
+        }
+      }
+
       return {
         course: course.toObject(),
         progress: progress ? progress.toObject() : null,
@@ -239,7 +259,10 @@ const getChildCourses = async (childId, queryParams = {}) => {
         accessOverride,
         accessReason: accessCheck.reason || null,
         missingPrerequisites: accessCheck.missingCourses || [],
-        progressPercentage: progress ? progress.progressPercentage : 0,
+        progressPercentage:
+          progress && typeof progress.progressPercentage === 'number'
+            ? progress.progressPercentage
+            : livePct,
       };
     })
   );
@@ -625,14 +648,17 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
   progress.markContentCompleted(contentId, contentType, step, course);
   await progress.save();
 
-  // Check if all content is completed
-  const totalContent = course.contents.length;
-  const completedContent = progress.contentProgress.filter(
-    (item) => item.status === 'completed'
-  ).length;
+  // Check if all *current* course content is completed (ignore removed orphans)
+  const { completedContent, totalContent, progressPercentage } =
+    computeCourseContentProgress(course.contents, progress.contentProgress);
 
-  if (completedContent === totalContent && progress.status !== 'completed') {
+  if (
+    totalContent > 0 &&
+    completedContent === totalContent &&
+    progress.status !== 'completed'
+  ) {
     progress.status = 'completed';
+    progress.progressPercentage = progressPercentage;
     progress.completedAt = new Date();
     // Clear admin override so automatic sequencing continues cleanly
     if (getProgressOverride(progress) !== 'none') {
@@ -648,6 +674,106 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
   }
 
   return progress;
+};
+
+/**
+ * Mark a content item completed on every published course that includes it.
+ * Used when completion happens outside the course content endpoint
+ * (e.g. audio assignment approved by teacher).
+ *
+ * @returns {Promise<Array<{ courseId: string, ok: boolean, error?: string }>>}
+ */
+const markContentCompletedInContainingCourses = async (
+  childId,
+  contentId,
+  contentType
+) => {
+  const courses = await Course.find({
+    isArchived: { $ne: true },
+    contents: {
+      $elemMatch: {
+        contentId,
+        contentType,
+      },
+    },
+  }).select('_id title contents');
+
+  const results = [];
+  for (const course of courses) {
+    try {
+      await updateContentProgress(childId, course._id, contentId, contentType);
+      results.push({ courseId: String(course._id), ok: true });
+    } catch (err) {
+      results.push({
+        courseId: String(course._id),
+        ok: false,
+        error: err?.message || String(err),
+      });
+    }
+  }
+  return results;
+};
+
+/**
+ * Recalculate + persist progressPercentage for every child on a course
+ * after CMS adds/removes/reorders module contents.
+ *
+ * @param {String|Object} courseOrId - Course document or id
+ * @returns {Number} Number of progress docs updated
+ */
+const recalculateProgressForCourse = async (courseOrId) => {
+  const course =
+    courseOrId && courseOrId.contents
+      ? courseOrId
+      : await Course.findById(courseOrId);
+  if (!course) {
+    throw new Error('Course not found');
+  }
+
+  const progresses = await CourseProgress.find({ course: course._id });
+  let updated = 0;
+
+  for (const progress of progresses) {
+    const beforePct = progress.progressPercentage;
+    const beforeStatus = progress.status;
+    const beforeLen = Array.isArray(progress.contentProgress)
+      ? progress.contentProgress.length
+      : 0;
+
+    progress.updateProgressPercentage(course);
+
+    const afterLen = Array.isArray(progress.contentProgress)
+      ? progress.contentProgress.length
+      : 0;
+    const changed =
+      beforePct !== progress.progressPercentage ||
+      beforeStatus !== progress.status ||
+      beforeLen !== afterLen;
+
+    if (changed) {
+      // If newly completed via content removal, clear overrides and unlock next
+      if (progress.status === 'completed' && beforeStatus !== 'completed') {
+        if (getProgressOverride(progress) !== 'none') {
+          progress.accessOverride = 'none';
+          progress.accessOverrideAt = null;
+          progress.accessOverrideBy = null;
+          progress.accessOverrideNote = '';
+        }
+      }
+      await progress.save();
+      updated += 1;
+
+      if (progress.status === 'completed' && beforeStatus !== 'completed') {
+        try {
+          await unlockNextCourse(progress.child, course._id);
+        } catch (_) {
+          // Non-fatal: next unlock may fail if sequencing rules block it
+        }
+      }
+    }
+  }
+
+  return updated;
 };
 
 /**
@@ -846,7 +972,7 @@ const getCourseDetailsForChild = async (childId, courseId) => {
   }
 
   // Get course progress
-  const progress = await CourseProgress.findOne({
+  let progress = await CourseProgress.findOne({
     child: childId,
     course: courseId,
   }).lean();
@@ -946,6 +1072,33 @@ const getCourseDetailsForChild = async (childId, courseId) => {
   const courseDoc = await Course.findById(courseId);
   const contentsBySteps = courseDoc ? courseDoc.getContentsBySteps() : [];
 
+  // Live progress vs current course.contents (ignore orphans from removed CMS items)
+  let liveProgress = computeCourseContentProgress(
+    course.contents,
+    progress?.contentProgress
+  );
+
+  if (
+    progress &&
+    typeof progress.progressPercentage === 'number' &&
+    progress.progressPercentage !== liveProgress.progressPercentage
+  ) {
+    try {
+      const progressDoc = await CourseProgress.findById(progress._id);
+      if (progressDoc) {
+        progressDoc.updateProgressPercentage(course);
+        await progressDoc.save();
+        progress = progressDoc.toObject();
+        liveProgress = computeCourseContentProgress(
+          course.contents,
+          progress.contentProgress
+        );
+      }
+    } catch (_) {
+      // non-fatal — still return live counts
+    }
+  }
+
   // Resolve display status for clients (journey cards / module gate)
   let effectiveStatus = progress?.status || (accessCheck.accessible ? 'not_started' : 'locked');
   const accessOverride = getProgressOverride(progress);
@@ -953,14 +1106,21 @@ const getCourseDetailsForChild = async (childId, courseId) => {
     effectiveStatus = 'locked';
   }
   if (accessOverride === 'force_unlock' && effectiveStatus === 'locked') {
-    effectiveStatus = progress?.progressPercentage > 0 ? 'in_progress' : 'not_started';
+    effectiveStatus =
+      liveProgress.progressPercentage > 0 ? 'in_progress' : 'not_started';
   }
   if (
-    shouldKeepModuleOpenByProgress(progress) &&
+    shouldKeepModuleOpenByProgress({
+      ...progress,
+      progressPercentage: liveProgress.progressPercentage,
+    }) &&
     effectiveStatus === 'locked' &&
     accessOverride !== 'force_lock'
   ) {
     effectiveStatus = 'in_progress';
+  }
+  if (liveProgress.progressPercentage === 100 && effectiveStatus !== 'locked') {
+    effectiveStatus = 'completed';
   }
 
   return {
@@ -970,7 +1130,19 @@ const getCourseDetailsForChild = async (childId, courseId) => {
       contentsBySteps,
     },
     child: childProfile.toObject(),
-    progress: progress || null,
+    progress: progress
+      ? { ...progress, progressPercentage: liveProgress.progressPercentage }
+      : null,
+    progressSummary: {
+      completedCount: liveProgress.completedContent,
+      totalCount: liveProgress.totalContent,
+      progressPercentage: liveProgress.progressPercentage,
+      todoCount: Math.max(
+        0,
+        liveProgress.totalContent - liveProgress.completedContent
+      ),
+      lockedCount: 0,
+    },
     status: effectiveStatus,
     accessible: accessCheck.accessible,
     accessOverride,
@@ -1177,6 +1349,8 @@ module.exports = {
   getCourseDetailsForChild,
   updateScormProgress,
   getScormProgress,
+  recalculateProgressForCourse,
+  markContentCompletedInContainingCourses,
   MODULE_ACCESS_AUTO_KEEP_OPEN_PCT,
   shouldKeepModuleOpenByProgress,
 };

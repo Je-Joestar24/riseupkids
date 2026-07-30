@@ -12,6 +12,7 @@ const Activity = require('../models/Activity');
 const Lesson = require('../models/Lesson');
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
+const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
 
 /**
  * Get child progress summary for parent dashboard
@@ -63,23 +64,19 @@ const getChildProgress = async (childId) => {
       const course = cp.course;
       if (!course) return null;
 
-      // Calculate completed items count from contentProgress
-      const completedCount = cp.contentProgress
-        ? cp.contentProgress.filter((item) => item.status === 'completed').length
-        : 0;
-
-      // Get total content items from course contents array
-      const totalCount = course.contents && Array.isArray(course.contents) 
-        ? course.contents.length 
-        : 0;
+      // Count only against current course.contents (ignore removed orphans)
+      const live = computeCourseContentProgress(
+        course.contents,
+        cp.contentProgress
+      );
 
       return {
         _id: course._id,
         title: course.title || 'Untitled Course',
-        progressPercentage: cp.progressPercentage || 0,
+        progressPercentage: live.progressPercentage,
         status: cp.status || 'not_started',
-        completedCount,
-        totalCount,
+        completedCount: live.completedContent,
+        totalCount: live.totalContent,
         updatedAt: cp.updatedAt,
       };
     })

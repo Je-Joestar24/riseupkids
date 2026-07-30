@@ -547,6 +547,20 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
 
   await course.save();
 
+  // When module contents change, recalc all child progress against current items
+  // (fixes stale % when videos/books/activities were removed after partial completion)
+  if (contents !== undefined && Array.isArray(contents)) {
+    try {
+      const { recalculateProgressForCourse } = require('./courseProgress.services');
+      await recalculateProgressForCourse(course);
+    } catch (err) {
+      console.error(
+        '[contentCollection] Failed to recalculate course progress after contents update:',
+        err?.message || err
+      );
+    }
+  }
+
   // Get updated course with populated data
   const updatedCourse = await Course.findById(courseId)
     .populate('createdBy', 'name email')

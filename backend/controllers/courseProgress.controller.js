@@ -488,13 +488,29 @@ const submitBookCompletion = async (req, res) => {
     const requiredReadingCount = book.requiredReadingCount || 5;
     const completion = contentProgressItem.scormProgress?.completion || {};
     
-    // If requirement is already met and stars are awarded, return existing data
-    // (This prevents unnecessary processing, but still allows new readings to be recorded if needed)
+    // If requirement is already met and stars are awarded, still ensure course
+    // content is marked completed (older submissions only set starsAwarded).
     if (currentReadingCount >= requiredReadingCount && completion.starsAwarded) {
       console.log(`[Book Completion] Request ${requestId} - ✅ Requirement already met (${currentReadingCount}/${requiredReadingCount}) and stars awarded`);
-      
+
+      if (contentProgressItem.status !== 'completed') {
+        try {
+          await courseProgressService.updateContentProgress(
+            childId,
+            courseId,
+            bookId,
+            'book'
+          );
+        } catch (syncErr) {
+          console.error(
+            `[Book Completion] Request ${requestId} - Failed to sync book course completion:`,
+            syncErr?.message || syncErr
+          );
+        }
+      }
+
       const childStats = await ChildStats.getOrCreate(childId);
-      
+
       return res.json({
         success: true,
         canComplete: true,
@@ -649,6 +665,9 @@ const submitBookCompletion = async (req, res) => {
       );
 
       if (finalContentProgressItem) {
+        if (!finalContentProgressItem.scormProgress) {
+          finalContentProgressItem.scormProgress = { completion: {} };
+        }
         if (!finalContentProgressItem.scormProgress.completion) {
           finalContentProgressItem.scormProgress.completion = {};
         }
@@ -656,6 +675,22 @@ const submitBookCompletion = async (req, res) => {
         finalContentProgressItem.scormProgress.completion.starsAwardedAt = new Date();
         await finalProgress.save();
         console.log(`[Book Completion] Request ${requestId} - ✅ Requirement met - completion flag saved`);
+      }
+
+      // Mark book as completed on the course (module % / checkmark)
+      try {
+        await courseProgressService.updateContentProgress(
+          childId,
+          courseId,
+          bookId,
+          'book'
+        );
+        console.log(`[Book Completion] Request ${requestId} - ✅ Book marked completed on course`);
+      } catch (syncErr) {
+        console.error(
+          `[Book Completion] Request ${requestId} - Failed to mark book completed on course:`,
+          syncErr?.message || syncErr
+        );
       }
     } else {
       console.log(`[Book Completion] Request ${requestId} - Requirement not yet met (${readingCount}/${requiredReadingCount})`);

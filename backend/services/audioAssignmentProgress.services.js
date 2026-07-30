@@ -258,6 +258,26 @@ const reviewAudioAssignmentSubmission = async ({
 
   await progress.save();
 
+  // Approve → mark audioAssignment completed on every course that includes it
+  // (checkmark + module % must not depend on the child reopening the modal)
+  if (decision === 'approved') {
+    try {
+      const {
+        markContentCompletedInContainingCourses,
+      } = require('./courseProgress.services');
+      await markContentCompletedInContainingCourses(
+        childId,
+        audioAssignmentId,
+        'audioAssignment'
+      );
+    } catch (err) {
+      console.error(
+        '[audioAssignment] Failed to sync course progress after approval:',
+        err?.message || err
+      );
+    }
+  }
+
   return await AudioAssignmentProgress.findById(progress._id)
     .populate('child', 'displayName avatar parent')
     .populate('audioAssignment', 'title instructions coverImage starsAwarded badgeAwarded instructionVideo referenceAudio')

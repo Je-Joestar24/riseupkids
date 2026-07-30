@@ -48,13 +48,27 @@ export interface ModuleProgressSummary {
 }
 
 function deriveProgressSummary(
-  contentProgress: Array<{ status: string }> | undefined,
-  totalContentCount: number
+  contentProgress:
+    | Array<{ contentId?: string; contentType?: string; status: string }>
+    | undefined,
+  contents: PopulatedContentItem[]
 ): ModuleProgressSummary {
+  const totalContentCount = contents.length;
   const list = contentProgress ?? [];
-  const completedCount = list.filter(
-    (p) => p.status === 'completed'
-  ).length;
+
+  const completedItems = new Set(
+    list
+      .filter((p) => p.status === 'completed')
+      .map((p) => `${String(p.contentId)}-${p.contentType}`)
+  );
+
+  const completedCount = contents.filter((content) => {
+    const contentId = getContentId(content);
+    const contentType = content._contentType;
+    if (!contentId || !contentType) return false;
+    return completedItems.has(`${contentId}-${contentType}`);
+  }).length;
+
   const todoCount = Math.max(0, totalContentCount - completedCount);
   return {
     completedCount,
@@ -267,11 +281,34 @@ export function useModule(): UseModuleReturn {
   );
 
   const progressSummary = useMemo((): ModuleProgressSummary => {
-    return deriveProgressSummary(
-      progress?.contentProgress,
-      contents.length
-    );
-  }, [progress?.contentProgress, contents.length]);
+    const serverSummary = (
+      details as { progressSummary?: ModuleProgressSummary } | null
+    )?.progressSummary;
+    if (
+      serverSummary &&
+      typeof serverSummary.completedCount === 'number' &&
+      typeof serverSummary.totalCount === 'number'
+    ) {
+      return {
+        completedCount: serverSummary.completedCount,
+        todoCount:
+          typeof serverSummary.todoCount === 'number'
+            ? serverSummary.todoCount
+            : Math.max(0, serverSummary.totalCount - serverSummary.completedCount),
+        lockedCount: serverSummary.lockedCount ?? 0,
+        totalCount: serverSummary.totalCount,
+        progressPercentage:
+          typeof serverSummary.progressPercentage === 'number'
+            ? serverSummary.progressPercentage
+            : serverSummary.totalCount > 0
+              ? Math.round(
+                  (serverSummary.completedCount / serverSummary.totalCount) * 100
+                )
+              : 0,
+      };
+    }
+    return deriveProgressSummary(progress?.contentProgress, contents);
+  }, [details, progress?.contentProgress, contents]);
 
   const getVideoProgressCirclesFor = useCallback(
     (video: PopulatedContentItem) =>

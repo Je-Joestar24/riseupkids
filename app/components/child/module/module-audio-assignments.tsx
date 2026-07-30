@@ -38,6 +38,7 @@ function AudioCard({
 }) {
   const coverUrl = getCoverImageUrl(audio.coverImage ?? undefined);
   const isRejected = status === 'rejected';
+  const isCompleted = status === 'completed';
   const timeMin = Number(audio.estimatedDuration ?? 0);
   const timeLabel = timeMin > 0 ? `${timeMin} min` : '0 min';
 
@@ -57,6 +58,11 @@ function AudioCard({
           />
         ) : (
           <View style={styles.placeholder} />
+        )}
+        {isCompleted && (
+          <View style={styles.checkBadge} accessibilityLabel="Audio assignment completed">
+            <MaterialCommunityIcons name="check-circle" size={20} color={colors.orange} />
+          </View>
         )}
         <View style={styles.headphonesBadge}>
           <MaterialCommunityIcons name="headphones" size={20} color={colors.textInverse} />
@@ -163,6 +169,23 @@ const styles = StyleSheet.create({
   placeholder: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.bgTertiary,
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: spacing[3],
+    left: spacing[3],
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.textInverse,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+    zIndex: 2,
   },
   headphonesBadge: {
     position: 'absolute',

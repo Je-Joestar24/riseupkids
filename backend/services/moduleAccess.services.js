@@ -10,6 +10,7 @@ const {
   MODULE_ACCESS_AUTO_KEEP_OPEN_PCT,
   shouldKeepModuleOpenByProgress,
 } = require('./courseProgress.services');
+const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -189,10 +190,36 @@ async function getChildModuleAccessDetail(childId) {
     if (accessOverride === 'force_lock' && status !== 'completed') status = 'locked';
     if (accessOverride === 'force_unlock' && status === 'locked') status = 'not_started';
 
-    const totalContent = Array.isArray(course.contents) ? course.contents.length : 0;
-    const completedContent = progress?.contentProgress
-      ? progress.contentProgress.filter((c) => c.status === 'completed').length
-      : 0;
+    // Live counts vs current course.contents (ignore removed videos/books/activities)
+    const live = computeCourseContentProgress(
+      course.contents,
+      progress?.contentProgress
+    );
+
+    // Heal stale stored % when CMS removed content after last completion update
+    if (
+      progress &&
+      typeof progress.progressPercentage === 'number' &&
+      progress.progressPercentage !== live.progressPercentage
+    ) {
+      try {
+        const progressDoc = await CourseProgress.findById(progress._id);
+        if (progressDoc) {
+          progressDoc.updateProgressPercentage(course);
+          await progressDoc.save();
+          progress.progressPercentage = progressDoc.progressPercentage;
+          progress.status = progressDoc.status;
+          progress.contentProgress = progressDoc.contentProgress;
+          if (progressDoc.status === 'completed' && status !== 'completed') {
+            status = 'completed';
+          } else if (progressDoc.status !== 'completed' && status === 'completed') {
+            status = progressDoc.status;
+          }
+        }
+      } catch (_) {
+        // Non-fatal: still return live computed values below
+      }
+    }
 
     const isCompleted = status === 'completed';
     const effectivelyLocked = status === 'locked' || accessOverride === 'force_lock';
@@ -202,13 +229,13 @@ async function getChildModuleAccessDetail(childId) {
       title: course.title,
       stepOrder: course.stepOrder,
       status,
-      progressPercentage: progress?.progressPercentage || 0,
+      progressPercentage: live.progressPercentage,
       accessible: accessCheck.accessible,
       accessOverride,
       accessOverrideAt: progress?.accessOverrideAt || null,
       accessOverrideNote: progress?.accessOverrideNote || '',
-      completedContent,
-      totalContent,
+      completedContent: live.completedContent,
+      totalContent: live.totalContent,
       canLock: !isCompleted && !effectivelyLocked,
       canUnlock: !isCompleted && effectivelyLocked,
       canClearOverride: accessOverride !== 'none' && !isCompleted,

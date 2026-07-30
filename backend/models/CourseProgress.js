@@ -1,4 +1,8 @@
 const mongoose = require('mongoose');
+const {
+  computeCourseContentProgress,
+  filterContentProgressToCourse,
+} = require('../utils/courseProgressCompute.util');
 
 /**
  * CourseProgress Model
@@ -211,25 +215,41 @@ courseProgressSchema.index({ child: 1, completedAt: -1 });
 /**
  * Update progress percentage based on content completion
  * Called when content items are completed
- * Note: This requires the course to be populated to get total content count
+ * Note: This requires the course to be populated to get total content count.
+ * Only current course.contents count — orphaned rows for removed items are ignored/pruned.
  */
 courseProgressSchema.methods.updateProgressPercentage = function (course) {
   if (!course || !course.contents || course.contents.length === 0) {
     this.progressPercentage = 0;
+    if (Array.isArray(this.contentProgress) && this.contentProgress.length > 0) {
+      this.contentProgress = filterContentProgressToCourse(
+        this.contentProgress,
+        course?.contents || []
+      );
+    }
     return;
   }
 
-  const totalCount = course.contents.length;
-  const completedCount = this.contentProgress.filter(
-    (item) => item.status === 'completed'
-  ).length;
+  // Drop progress for content no longer on the course (CMS remove video/book/activity)
+  this.contentProgress = filterContentProgressToCourse(
+    this.contentProgress,
+    course.contents
+  );
 
-  this.progressPercentage = Math.round((completedCount / totalCount) * 100);
+  const { progressPercentage } = computeCourseContentProgress(
+    course.contents,
+    this.contentProgress
+  );
+  this.progressPercentage = progressPercentage;
 
   // Auto-update status based on progress
   if (this.progressPercentage === 100 && this.status !== 'completed') {
     this.status = 'completed';
     this.completedAt = new Date();
+  } else if (this.progressPercentage < 100 && this.status === 'completed') {
+    // Content was added or completion no longer covers all current items
+    this.status = this.progressPercentage > 0 ? 'in_progress' : 'not_started';
+    this.completedAt = null;
   } else if (this.progressPercentage > 0 && this.status === 'not_started') {
     this.status = 'in_progress';
     if (!this.startedAt) {

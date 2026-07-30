@@ -122,6 +122,13 @@ export interface ModuleDetailsPayload {
   course: CourseWithContents;
   child: ChildProfileStub;
   progress: CourseProgressDoc | null;
+  progressSummary?: {
+    completedCount: number;
+    totalCount: number;
+    progressPercentage: number;
+    todoCount?: number;
+    lockedCount?: number;
+  };
   accessible: boolean;
   status?: 'not_started' | 'in_progress' | 'completed' | 'locked' | string;
   accessOverride?: 'none' | 'force_unlock' | 'force_lock' | string | null;

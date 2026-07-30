@@ -16,6 +16,7 @@ jest.mock('../models', () => ({
   CourseProgress: {
     find: jest.fn(),
     findOne: jest.fn(),
+    findById: jest.fn(),
     create: jest.fn(),
     distinct: jest.fn(),
   },
@@ -71,7 +72,7 @@ function chainFindByIdLean(result) {
   };
 }
 
-function mockDetailAfterMutation(progressSnapshot) {
+function mockDetailAfterMutation(progressSnapshot, courseOverrides = {}) {
   ChildProfile.findById.mockReturnValue(
     chainFindByIdLean({
       _id: childId,
@@ -88,8 +89,12 @@ function mockDetailAfterMutation(progressSnapshot) {
           _id: courseId,
           title: 'Week 3',
           stepOrder: 3,
-          contents: [{}, {}],
+          contents: courseOverrides.contents || [
+            { contentId: 'c1', contentType: 'video', step: 1 },
+            { contentId: 'c2', contentType: 'book', step: 1 },
+          ],
           createdAt: new Date(),
+          ...courseOverrides,
         },
       ],
     }),
@@ -97,6 +102,7 @@ function mockDetailAfterMutation(progressSnapshot) {
   CourseProgress.find.mockReturnValue({
     lean: async () => [progressSnapshot],
   });
+  CourseProgress.findById.mockResolvedValue(null);
 }
 
 describe('moduleAccess.services', () => {
@@ -157,10 +163,21 @@ describe('moduleAccess.services', () => {
 
   describe('lockModuleForChild', () => {
     it('sets force_lock and preserves progress percentage', async () => {
+      const contents = [
+        { contentId: 'c1', contentType: 'video', step: 1 },
+        { contentId: 'c2', contentType: 'book', step: 1 },
+        { contentId: 'c3', contentType: 'activity', step: 1 },
+        { contentId: 'c4', contentType: 'video', step: 1 },
+        { contentId: 'c5', contentType: 'book', step: 1 },
+      ];
+      const contentProgress = [
+        { contentId: 'c1', contentType: 'video', step: 1, status: 'completed' },
+        { contentId: 'c2', contentType: 'book', step: 1, status: 'completed' },
+      ];
       const progress = mockProgressDoc({
         status: 'in_progress',
         progressPercentage: 40,
-        contentProgress: [{ status: 'completed' }, { status: 'not_started' }],
+        contentProgress,
       });
       ChildProfile.findById.mockReturnValueOnce(chainFindByIdLean({ _id: childId }));
       Course.findById.mockReturnValueOnce(
@@ -172,14 +189,17 @@ describe('moduleAccess.services', () => {
       );
       CourseProgress.findOne.mockResolvedValue(progress);
       checkCourseAccess.mockResolvedValue({ accessible: false, reason: 'admin_locked' });
-      mockDetailAfterMutation({
-        child: childId,
-        course: courseId,
-        status: 'locked',
-        progressPercentage: 40,
-        accessOverride: 'force_lock',
-        contentProgress: progress.contentProgress,
-      });
+      mockDetailAfterMutation(
+        {
+          child: childId,
+          course: courseId,
+          status: 'locked',
+          progressPercentage: 40,
+          accessOverride: 'force_lock',
+          contentProgress,
+        },
+        { contents }
+      );
 
       const detail = await lockModuleForChild(childId, courseId, adminId);
 
@@ -188,6 +208,8 @@ describe('moduleAccess.services', () => {
       expect(progress.progressPercentage).toBe(40);
       expect(detail.modules[0].canUnlock).toBe(true);
       expect(detail.modules[0].progressPercentage).toBe(40);
+      expect(detail.modules[0].completedContent).toBe(2);
+      expect(detail.modules[0].totalContent).toBe(5);
     });
   });
 
@@ -248,34 +270,78 @@ describe('moduleAccess.services', () => {
 
   describe('getChildModuleAccessDetail button flags', () => {
     it('marks completed modules as not lockable/unlockable', async () => {
-      mockDetailAfterMutation({
-        child: childId,
-        course: courseId,
-        status: 'completed',
-        progressPercentage: 100,
-        accessOverride: 'none',
-        contentProgress: [{ status: 'completed' }],
-      });
-      // Override course title for this case
-      Course.find.mockReturnValue({
-        select: () => ({
-          lean: async () => [
-            {
-              _id: courseId,
-              title: 'Week 1',
-              stepOrder: 1,
-              contents: [{}],
-              createdAt: new Date(),
-            },
+      mockDetailAfterMutation(
+        {
+          _id: 'prog1',
+          child: childId,
+          course: courseId,
+          status: 'completed',
+          progressPercentage: 100,
+          accessOverride: 'none',
+          contentProgress: [
+            { contentId: 'c1', contentType: 'video', step: 1, status: 'completed' },
           ],
-        }),
-      });
+        },
+        {
+          title: 'Week 1',
+          stepOrder: 1,
+          contents: [{ contentId: 'c1', contentType: 'video', step: 1 }],
+        }
+      );
       checkCourseAccess.mockResolvedValue({ accessible: true, reason: null });
 
       const detail = await getChildModuleAccessDetail(childId);
       expect(detail.modules[0].canLock).toBe(false);
       expect(detail.modules[0].canUnlock).toBe(false);
       expect(detail.modules[0].status).toBe('completed');
+    });
+
+    it('recomputes % from current contents when stored % is stale after CMS removals', async () => {
+      const contents = [
+        { contentId: 'c1', contentType: 'video', step: 1 },
+        { contentId: 'c2', contentType: 'book', step: 1 },
+        { contentId: 'c3', contentType: 'activity', step: 1 },
+        { contentId: 'c4', contentType: 'video', step: 1 },
+      ];
+      const contentProgress = [
+        { contentId: 'c1', contentType: 'video', step: 1, status: 'completed' },
+        { contentId: 'c2', contentType: 'book', step: 1, status: 'completed' },
+        // Orphans from removed items
+        { contentId: 'old1', contentType: 'video', step: 1, status: 'completed' },
+      ];
+      const healedDoc = {
+        _id: 'prog1',
+        progressPercentage: 10,
+        status: 'in_progress',
+        contentProgress,
+        updateProgressPercentage: jest.fn(function () {
+          this.progressPercentage = 50;
+          this.contentProgress = contentProgress.slice(0, 2);
+        }),
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+      mockDetailAfterMutation(
+        {
+          _id: 'prog1',
+          child: childId,
+          course: courseId,
+          status: 'in_progress',
+          progressPercentage: 10, // stale (was 1/10 before removals)
+          accessOverride: 'none',
+          contentProgress,
+        },
+        { title: 'Introduction', stepOrder: 10, contents }
+      );
+      CourseProgress.findById.mockResolvedValue(healedDoc);
+      checkCourseAccess.mockResolvedValue({ accessible: true, reason: null });
+
+      const detail = await getChildModuleAccessDetail(childId);
+
+      expect(detail.modules[0].completedContent).toBe(2);
+      expect(detail.modules[0].totalContent).toBe(4);
+      expect(detail.modules[0].progressPercentage).toBe(50);
+      expect(healedDoc.updateProgressPercentage).toHaveBeenCalled();
+      expect(healedDoc.save).toHaveBeenCalled();
     });
   });
 });
