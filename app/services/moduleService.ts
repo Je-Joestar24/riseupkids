@@ -123,6 +123,9 @@ export interface ModuleDetailsPayload {
   child: ChildProfileStub;
   progress: CourseProgressDoc | null;
   accessible: boolean;
+  status?: 'not_started' | 'in_progress' | 'completed' | 'locked' | string;
+  accessOverride?: 'none' | 'force_unlock' | 'force_lock' | string | null;
+  accessReason?: string | null;
   missingPrerequisites: unknown[];
 }
 

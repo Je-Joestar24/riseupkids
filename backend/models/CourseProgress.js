@@ -168,6 +168,29 @@ const courseProgressSchema = new mongoose.Schema(
       default: 1,
       min: 1,
     },
+    /**
+     * Admin Module Access override — survives getChildCourses auto lock/unlock.
+     * @see docs/ADMIN_MODULE_ACCESS_CONTROL_PLAN.md
+     */
+    accessOverride: {
+      type: String,
+      enum: ['none', 'force_unlock', 'force_lock'],
+      default: 'none',
+    },
+    accessOverrideAt: {
+      type: Date,
+      default: null,
+    },
+    accessOverrideBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    accessOverrideNote: {
+      type: String,
+      maxlength: 500,
+      default: '',
+    },
   },
   {
     timestamps: true,

@@ -17,6 +17,7 @@ import type {
   BookReadingStatus,
   ApiResponse,
 } from '@/services/moduleService';
+import { isJourneyModuleLocked } from '@/utils/journeyModuleAccess';
 
 // ---------------------------------------------------------------------------
 // State
@@ -94,6 +95,24 @@ export const useModuleStore = create<ModuleState & ModuleActions>((set, get) => 
     try {
       const res = await moduleService.getCourseDetailsForChild(courseId, childId);
       const details = res?.success ? res.data ?? null : null;
+
+      if (
+        details &&
+        isJourneyModuleLocked({
+          status: details.status ?? details.progress?.status,
+          accessible: details.accessible,
+          accessOverride: details.accessOverride,
+          accessReason: details.accessReason,
+        })
+      ) {
+        set({
+          details: null,
+          isLoading: false,
+          error: 'This course is locked. Complete previous courses first.',
+        });
+        return null;
+      }
+
       set({
         details: details ?? null,
         isLoading: false,

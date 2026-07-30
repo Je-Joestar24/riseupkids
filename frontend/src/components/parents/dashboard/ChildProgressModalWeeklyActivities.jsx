@@ -98,47 +98,33 @@ const ChildProgressModalWeeklyActivities = ({ courses }) => {
               alignItems: 'center',
               justifyContent: 'center',
               padding: { xs: 3, sm: 4 },
-              gap: 1.5,
+              textAlign: 'center',
             }}
           >
-            <Box
+            <BookIcon
               sx={{
-                width: { xs: 56, sm: 64 },
-                height: { xs: 56, sm: 64 },
-                borderRadius: '50%',
-                backgroundColor: `${themeColors.secondary}15`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: 0.5,
+                fontSize: { xs: 40, sm: 48 },
+                color: themeColors.textSecondary,
+                marginBottom: 1,
+                opacity: 0.5,
               }}
-            >
-              <BookIcon
-                sx={{
-                  fontSize: { xs: 32, sm: 36 },
-                  color: themeColors.secondary,
-                  opacity: 0.6,
-                }}
-              />
-            </Box>
+            />
             <Typography
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontSize: { xs: '0.875rem', sm: '1rem' },
                 fontWeight: 600,
                 color: themeColors.textSecondary,
-                textAlign: 'center',
               }}
             >
-              No courses started yet
+              No activity yet
             </Typography>
             <Typography
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontSize: { xs: '0.75rem', sm: '0.875rem' },
-                color: themeColors.textMuted,
-                textAlign: 'center',
-                maxWidth: '300px',
+                color: themeColors.textSecondary,
+                marginTop: 0.5,
               }}
             >
               Course progress will appear here once your child begins their learning journey

@@ -6,6 +6,7 @@ import { themeColors } from '../../../config/themeColors';
 import { BACKEND_BASE_URL } from '../../../config/constants';
 import footstepsIcon from '../../../assets/images/footsteps.png';
 import lockIcon from '../../../assets/images/lock.png';
+import { isJourneyModuleLocked } from '../../../utils/journeyModuleAccess';
 
 /**
  * ChildJourneyCards Component
@@ -206,7 +207,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
           courses.map((courseItem, index) => {
             const course = courseItem.course || {};
             const status = courseItem.status || 'not_started';
-            const isLocked = status === 'locked';
+            const isLocked = isJourneyModuleLocked(courseItem);
             // Use sequential position for step display (1, 2, 3...) 
             // Courses are already sorted by stepOrder from backend, so index + 1 represents the sequential position
             // This displays as "Step 1", "Step 2", etc. regardless of raw stepOrder values (10, 20, 30...)
@@ -231,7 +232,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   borderRadius: '0px',
                   overflow: 'hidden',
                   boxShadow: theme.shadows[4],
-                  border: `3px solid ${getBorderColor(status)}`,
+                  border: `3px solid ${getBorderColor(isLocked ? 'locked' : status)}`,
                   position: 'relative',
                   opacity: 1,
                   transition: 'transform 0.2s, box-shadow 0.2s',

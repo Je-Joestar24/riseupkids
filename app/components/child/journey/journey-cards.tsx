@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import type { ChildCourseWithProgress } from '@/services/journeyService';
+import { isJourneyModuleLocked } from '@/utils/journeyModuleAccess';
 
 import { API_BASE_URL } from '@/config';
 
@@ -105,7 +106,7 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
       {courses.map((courseItem, index) => {
         const course = courseItem.course ?? ({} as ChildCourseWithProgress['course']);
         const status = (courseItem.status ?? 'not_started') as CardStatus;
-        const isLocked = status === 'locked';
+        const isLocked = isJourneyModuleLocked(courseItem);
         const stepOrder = index + 1;
         const coverUrl = getCoverImageUrl(
           course.coverImagePath ?? null,
@@ -127,7 +128,7 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
             disabled={isLocked}
             style={({ pressed }) => [
               styles.card,
-              { borderColor: getBorderColor(status) },
+              { borderColor: getBorderColor(isLocked ? 'locked' : status) },
               isLocked && styles.cardLocked,
               pressed && !isLocked && styles.cardPressed,
             ]}
@@ -193,7 +194,7 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
 
             {/* Card content: icon + title + description */}
             <View style={styles.content}>
-              <View style={[styles.footstepsWrap, { borderColor: getIconBorderColor(status), backgroundColor: getIconBorderColor(status) }]}>
+              <View style={[styles.footstepsWrap, { borderColor: getIconBorderColor(isLocked ? 'locked' : status), backgroundColor: getIconBorderColor(isLocked ? 'locked' : status) }]}>
                 <Image
                   source={isLocked ? LOCK_IMAGE : FOOTSTEPS_IMAGE}
                   style={isLocked ? styles.lockFootstepImage : styles.footstepsImage}

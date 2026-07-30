@@ -24,11 +24,25 @@ const ChildJourney = ({ childId }) => {
     getSummaryCounts,
   } = useCourseProgress(childId);
 
-  // Fetch courses on mount
+  // Fetch courses on mount and when returning to the page (admin lock/unlock)
   useEffect(() => {
     if (childId) {
       fetchChildCourses();
     }
+  }, [childId, fetchChildCourses]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (childId && document.visibilityState === 'visible') {
+        fetchChildCourses();
+      }
+    };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
   }, [childId, fetchChildCourses]);
 
   // Calculate current week and total weeks from courses

@@ -39,6 +39,8 @@ export interface ChildCourseWithProgress {
   progress: JourneyCourseProgress | null;
   status: 'not_started' | 'in_progress' | 'completed' | 'locked';
   accessible: boolean;
+  accessOverride?: 'none' | 'force_unlock' | 'force_lock' | string | null;
+  accessReason?: string | null;
   missingPrerequisites: JourneyCourse[];
   progressPercentage: number;
 }

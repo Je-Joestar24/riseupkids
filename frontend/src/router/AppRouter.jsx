@@ -16,6 +16,7 @@ import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminDeletionRequests from '../pages/admin/AdminDeletionRequests';
 import AdminUsers from '../pages/admin/AdminUsers';
+import AdminModuleAccess from '../pages/admin/AdminModuleAccess';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
@@ -280,6 +281,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminUsers />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/module-access"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminModuleAccess />
               </AdminLayout>
             </AuthedAccess>
           }

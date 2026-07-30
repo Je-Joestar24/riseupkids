@@ -71,7 +71,7 @@ const ChildJourneyModule = ({ childId }) => {
         // Fetch course details with populated contents
         const details = await fetchCourseDetailsForChild(courseId);
 
-        // Check if course is accessible
+        // Check if course is accessible (honors admin Module Access overrides)
         if (!details.accessible) {
           setError('This course is locked. Complete previous courses first.');
           setLoading(false);

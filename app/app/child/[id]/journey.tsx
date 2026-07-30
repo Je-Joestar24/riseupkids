@@ -6,6 +6,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { JourneyCards } from '@/components/child/journey/journey-cards';
 import { JourneyHeader } from '@/components/child/journey/journey-header';
@@ -18,7 +19,14 @@ import { useJourney } from '@/hooks/journeyHook';
 
 export default function ChildJourneyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { loading, error, courseProgress, coursesWithProgress } = useJourney(id);
+  const { loading, error, courseProgress, coursesWithProgress, refresh } = useJourney(id);
+
+  // Refresh when returning to journey so admin lock/unlock shows without app restart
+  useFocusEffect(
+    React.useCallback(() => {
+      void refresh();
+    }, [refresh])
+  );
 
   const step =
     courseProgress.completedCount +

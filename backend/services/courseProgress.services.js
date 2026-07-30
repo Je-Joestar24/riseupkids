@@ -1,5 +1,28 @@
 const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant, VideoWatch } = require('../models');
 
+/** Once a module reaches this % under automatic rules, keep it open (do not re-lock). */
+const MODULE_ACCESS_AUTO_KEEP_OPEN_PCT = 75;
+
+const getProgressOverride = (progress) =>
+  (progress && progress.accessOverride) || 'none';
+
+const getProgressPercentage = (progress) => {
+  const raw = progress?.progressPercentage;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/**
+ * Automatic access: modules already substantially progressed stay playable
+ * even if prerequisites / 1-active rules would otherwise lock them.
+ */
+const shouldKeepModuleOpenByProgress = (progress) => {
+  if (!progress) return false;
+  if (progress.status === 'completed') return false;
+  if (getProgressOverride(progress) === 'force_lock') return false;
+  return getProgressPercentage(progress) >= MODULE_ACCESS_AUTO_KEEP_OPEN_PCT;
+};
+
 /**
  * Count courses in "in_progress" or "not_started" status for a child
  * Maximum allowed is 2
@@ -17,7 +40,9 @@ const countInProgressCourses = async (childId) => {
 
 /**
  * Check if a child can access a course
- * Verifies prerequisites are completed if course is sequential
+ * Verifies prerequisites are completed if course is sequential.
+ * Honors admin accessOverride (force_unlock / force_lock).
+ * Keeps modules open automatically once progress >= 75%.
  * 
  * @param {String} childId - Child's MongoDB ID
  * @param {String} courseId - Course's MongoDB ID
@@ -29,9 +54,42 @@ const checkCourseAccess = async (childId, courseId) => {
     throw new Error('Course not found');
   }
 
+  const progress = await CourseProgress.findOne({ child: childId, course: courseId })
+    .select('accessOverride status progressPercentage')
+    .lean();
+  const override = getProgressOverride(progress);
+
+  if (override === 'force_unlock') {
+    return {
+      accessible: true,
+      reason: 'admin_override',
+      course,
+      accessOverride: override,
+    };
+  }
+
+  if (override === 'force_lock') {
+    return {
+      accessible: false,
+      reason: 'admin_locked',
+      course,
+      accessOverride: override,
+    };
+  }
+
+  // Substantial progress: keep open under automatic rules (e.g. after Reset automatic)
+  if (shouldKeepModuleOpenByProgress(progress)) {
+    return {
+      accessible: true,
+      reason: 'substantial_progress',
+      course,
+      accessOverride: 'none',
+    };
+  }
+
   // If course is not sequential or has no prerequisites, it's accessible
   if (!course.isSequential || !course.prerequisites || course.prerequisites.length === 0) {
-    return { accessible: true, reason: null, course };
+    return { accessible: true, reason: null, course, accessOverride: 'none' };
   }
 
   // Check if all prerequisites are completed
@@ -56,10 +114,11 @@ const checkCourseAccess = async (childId, courseId) => {
       missingPrerequisites: missing,
       missingCourses,
       course,
+      accessOverride: 'none',
     };
   }
 
-  return { accessible: true, reason: null, course };
+  return { accessible: true, reason: null, course, accessOverride: 'none' };
 };
 
 /**
@@ -154,11 +213,20 @@ const getChildCourses = async (childId, queryParams = {}) => {
     courses.map(async (course) => {
       const progress = progressMap[course._id.toString()] || null;
       const accessCheck = await checkCourseAccess(childId, course._id);
+      const accessOverride = getProgressOverride(progress);
 
       // Determine current status
       let currentStatus = 'not_started';
       if (progress) {
         currentStatus = progress.status;
+        // Keep force_lock reflected as locked unless completed
+        if (accessOverride === 'force_lock' && currentStatus !== 'completed') {
+          currentStatus = 'locked';
+        }
+        // Force unlock: if still locked in DB, surface as not_started for journey UI
+        if (accessOverride === 'force_unlock' && currentStatus === 'locked') {
+          currentStatus = 'not_started';
+        }
       } else if (!accessCheck.accessible) {
         currentStatus = 'locked';
       }
@@ -168,6 +236,8 @@ const getChildCourses = async (childId, queryParams = {}) => {
         progress: progress ? progress.toObject() : null,
         status: currentStatus,
         accessible: accessCheck.accessible,
+        accessOverride,
+        accessReason: accessCheck.reason || null,
         missingPrerequisites: accessCheck.missingCourses || [],
         progressPercentage: progress ? progress.progressPercentage : 0,
       };
@@ -178,6 +248,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
   // Keep completed courses as-is, but limit active courses
   // Lock courses beyond the first 1 (in order) that are in progress/not_started
   // If no course is in progress and there are accessible locked courses, unlock the next one
+  // Admin overrides: never re-lock force_unlock; never auto-unlock force_lock
   const MAX_IN_PROGRESS = 1;
   let inProgressCount = 0;
   const coursesToLock = []; // Track courses that need to be locked in the database
@@ -191,7 +262,11 @@ const getChildCourses = async (childId, queryParams = {}) => {
   // If no course is in progress, find the first accessible locked course and unlock it
   if (currentInProgress.length === 0) {
     for (const item of coursesWithProgress) {
-      if (item.status === 'locked' && item.accessible && item.status !== 'completed') {
+      if (
+        item.status === 'locked' &&
+        item.accessible &&
+        item.accessOverride !== 'force_lock'
+      ) {
         // This is the next course that should be unlocked and started
         courseToUnlock = {
           progressId: item.progress?._id || null,
@@ -209,6 +284,17 @@ const getChildCourses = async (childId, queryParams = {}) => {
 
   // Second pass: enforce the limit and update statuses
   coursesWithProgress = coursesWithProgress.map((item) => {
+    const override = item.accessOverride || 'none';
+
+    // Force-lock stays locked (completed already returned above)
+    if (override === 'force_lock' && item.status !== 'completed') {
+      return {
+        ...item,
+        status: 'locked',
+        accessible: false,
+      };
+    }
+
     // Check if this course should be unlocked and started
     if (courseToUnlock && courseToUnlock.courseId.toString() === item.course._id.toString()) {
       inProgressCount = 1; // Mark that we have an in-progress course
@@ -235,6 +321,40 @@ const getChildCourses = async (childId, queryParams = {}) => {
     // Keep completed courses as-is
     if (item.status === 'completed') {
       return item;
+    }
+
+    // Admin force_unlock: never re-lock under the 1-active rule
+    if (override === 'force_unlock') {
+      if (item.status === 'in_progress' || item.status === 'not_started') {
+        inProgressCount++;
+      }
+      return {
+        ...item,
+        accessible: true,
+      };
+    }
+
+    // Automatic keep-open: ≥75% progress stays playable (not re-locked by 1-active rule)
+    if (
+      shouldKeepModuleOpenByProgress({
+        status: item.status,
+        progressPercentage: item.progressPercentage,
+        accessOverride: override,
+      })
+    ) {
+      const openStatus =
+        item.status === 'locked' || item.status === 'not_started' ? 'in_progress' : item.status;
+      if (openStatus === 'in_progress' || openStatus === 'not_started') {
+        inProgressCount++;
+      }
+      return {
+        ...item,
+        status: openStatus,
+        accessible: true,
+        progress: item.progress
+          ? { ...item.progress, status: openStatus }
+          : item.progress,
+      };
     }
 
     // For courses that are "in_progress" or "not_started", enforce the 1-course limit
@@ -288,7 +408,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
   if (courseToUnlock) {
     if (courseToUnlock.progressId) {
       await CourseProgress.findOneAndUpdate(
-        { _id: courseToUnlock.progressId },
+        { _id: courseToUnlock.progressId, accessOverride: { $ne: 'force_lock' } },
         {
           status: 'in_progress',
           startedAt: new Date(),
@@ -309,10 +429,13 @@ const getChildCourses = async (childId, queryParams = {}) => {
     }
   }
 
-  // Update database records for courses that need to be locked
+  // Update database records for courses that need to be locked (never force_unlock)
   if (coursesToLock.length > 0) {
     await CourseProgress.updateMany(
-      { _id: { $in: coursesToLock } },
+      {
+        _id: { $in: coursesToLock },
+        accessOverride: { $nin: ['force_unlock'] },
+      },
       { status: 'locked' }
     ).catch((err) => console.error('Error updating progress status to locked:', err));
   }
@@ -441,12 +564,19 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
     });
     await progress.populate('course');
   } else if (progress.status === 'locked') {
-    // Check if we can unlock this course
-    const currentInProgressCount = await countInProgressCourses(childId);
-    const MAX_IN_PROGRESS = 1;
+    const accessCheck = await checkCourseAccess(childId, courseId);
+    if (!accessCheck.accessible) {
+      throw new Error('Course is locked. Complete prerequisites first.');
+    }
 
-    if (currentInProgressCount >= MAX_IN_PROGRESS) {
-      throw new Error('Maximum 1 course in progress. Complete the current course before starting another.');
+    // Force-unlocked modules may start even if another course is active
+    if (getProgressOverride(progress) !== 'force_unlock') {
+      const currentInProgressCount = await countInProgressCourses(childId);
+      const MAX_IN_PROGRESS = 1;
+
+      if (currentInProgressCount >= MAX_IN_PROGRESS) {
+        throw new Error('Maximum 1 course in progress. Complete the current course before starting another.');
+      }
     }
 
     // Unlock and start the course
@@ -504,6 +634,13 @@ const updateContentProgress = async (childId, courseId, contentId, contentType) 
   if (completedContent === totalContent && progress.status !== 'completed') {
     progress.status = 'completed';
     progress.completedAt = new Date();
+    // Clear admin override so automatic sequencing continues cleanly
+    if (getProgressOverride(progress) !== 'none') {
+      progress.accessOverride = 'none';
+      progress.accessOverrideAt = null;
+      progress.accessOverrideBy = null;
+      progress.accessOverrideNote = '';
+    }
     await progress.save();
 
     // Unlock next course in sequence (if any)
@@ -587,6 +724,11 @@ const unlockNextCourse = async (childId, completedCourseId) => {
         child: childId,
         course: nextCourse._id,
       });
+
+      // Never auto-unlock an admin force_lock
+      if (progress && getProgressOverride(progress) === 'force_lock') {
+        continue;
+      }
 
       if (!progress) {
         progress = await CourseProgress.create({
@@ -804,6 +946,23 @@ const getCourseDetailsForChild = async (childId, courseId) => {
   const courseDoc = await Course.findById(courseId);
   const contentsBySteps = courseDoc ? courseDoc.getContentsBySteps() : [];
 
+  // Resolve display status for clients (journey cards / module gate)
+  let effectiveStatus = progress?.status || (accessCheck.accessible ? 'not_started' : 'locked');
+  const accessOverride = getProgressOverride(progress);
+  if (accessOverride === 'force_lock' && effectiveStatus !== 'completed') {
+    effectiveStatus = 'locked';
+  }
+  if (accessOverride === 'force_unlock' && effectiveStatus === 'locked') {
+    effectiveStatus = progress?.progressPercentage > 0 ? 'in_progress' : 'not_started';
+  }
+  if (
+    shouldKeepModuleOpenByProgress(progress) &&
+    effectiveStatus === 'locked' &&
+    accessOverride !== 'force_lock'
+  ) {
+    effectiveStatus = 'in_progress';
+  }
+
   return {
     course: {
       ...course,
@@ -812,7 +971,10 @@ const getCourseDetailsForChild = async (childId, courseId) => {
     },
     child: childProfile.toObject(),
     progress: progress || null,
+    status: effectiveStatus,
     accessible: accessCheck.accessible,
+    accessOverride,
+    accessReason: accessCheck.reason || null,
     missingPrerequisites: accessCheck.missingCourses || [],
   };
 };
@@ -1015,5 +1177,7 @@ module.exports = {
   getCourseDetailsForChild,
   updateScormProgress,
   getScormProgress,
+  MODULE_ACCESS_AUTO_KEEP_OPEN_PCT,
+  shouldKeepModuleOpenByProgress,
 };
 
