@@ -140,6 +140,7 @@ describe('moduleAccess.services', () => {
       expect(progress.save).toHaveBeenCalled();
       expect(detail.modules[0].accessOverride).toBe('force_unlock');
       expect(detail.modules[0].canUnlock).toBe(false);
+      expect(detail.modules[0].canLock).toBe(true);
     });
 
     it('rejects completed modules', async () => {
@@ -207,6 +208,7 @@ describe('moduleAccess.services', () => {
       expect(progress.status).toBe('locked');
       expect(progress.progressPercentage).toBe(40);
       expect(detail.modules[0].canUnlock).toBe(true);
+      expect(detail.modules[0].canLock).toBe(false);
       expect(detail.modules[0].progressPercentage).toBe(40);
       expect(detail.modules[0].completedContent).toBe(2);
       expect(detail.modules[0].totalContent).toBe(5);
@@ -294,6 +296,34 @@ describe('moduleAccess.services', () => {
       expect(detail.modules[0].canLock).toBe(false);
       expect(detail.modules[0].canUnlock).toBe(false);
       expect(detail.modules[0].status).toBe('completed');
+    });
+
+    it('shows both Lock and Unlock on automatic (not yet admin-locked)', async () => {
+      mockDetailAfterMutation(
+        {
+          _id: 'prog1',
+          child: childId,
+          course: courseId,
+          status: 'in_progress',
+          progressPercentage: 10,
+          accessOverride: 'none',
+          contentProgress: [],
+        },
+        {
+          title: 'Introduction',
+          stepOrder: 10,
+          contents: [
+            { contentId: 'c1', contentType: 'video', step: 1 },
+            { contentId: 'c2', contentType: 'book', step: 1 },
+          ],
+        }
+      );
+      checkCourseAccess.mockResolvedValue({ accessible: true, reason: null });
+
+      const detail = await getChildModuleAccessDetail(childId);
+      expect(detail.modules[0].canLock).toBe(true);
+      expect(detail.modules[0].canUnlock).toBe(true);
+      expect(detail.modules[0].canClearOverride).toBe(false);
     });
 
     it('recomputes % from current contents when stored % is stale after CMS removals', async () => {

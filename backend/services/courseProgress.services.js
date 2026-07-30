@@ -282,15 +282,20 @@ const getChildCourses = async (childId, queryParams = {}) => {
     (item) => item.status === 'in_progress' || item.status === 'not_started'
   );
 
-  // If no course is in progress, find the first accessible locked course and unlock it
+  // If no course is in progress, find the first accessible locked course and unlock it.
+  // Admin force_lock is a hard gate: do not skip past it to auto-start later modules
+  // (locking the next/first module alone must pause the journey).
   if (currentInProgress.length === 0) {
     for (const item of coursesWithProgress) {
-      if (
-        item.status === 'locked' &&
-        item.accessible &&
-        item.accessOverride !== 'force_lock'
-      ) {
-        // This is the next course that should be unlocked and started
+      if (item.status === 'completed') {
+        continue;
+      }
+
+      if (item.accessOverride === 'force_lock') {
+        break;
+      }
+
+      if (item.status === 'locked' && item.accessible) {
         courseToUnlock = {
           progressId: item.progress?._id || null,
           courseId: item.course._id,
@@ -305,16 +310,45 @@ const getChildCourses = async (childId, queryParams = {}) => {
     inProgressCount = 1; // The course we're unlocking will be in_progress
   }
 
-  // Second pass: enforce the limit and update statuses
+  // Second pass: enforce the limit and update statuses.
+  // Once we pass an admin force_lock in journey order, later modules stay closed
+  // (unless force_unlock) so locking the next/first module alone pauses progress.
+  let blockedByAdminLockGate = false;
   coursesWithProgress = coursesWithProgress.map((item) => {
     const override = item.accessOverride || 'none';
 
-    // Force-lock stays locked (completed already returned above)
-    if (override === 'force_lock' && item.status !== 'completed') {
+    // Keep completed courses as-is (gate does not apply behind them)
+    if (item.status === 'completed') {
+      return item;
+    }
+
+    // Force-lock stays locked and blocks auto-open of everything after it
+    if (override === 'force_lock') {
+      blockedByAdminLockGate = true;
       return {
         ...item,
         status: 'locked',
         accessible: false,
+      };
+    }
+
+    if (blockedByAdminLockGate && override !== 'force_unlock') {
+      if (
+        item.progress &&
+        (item.status === 'in_progress' || item.status === 'not_started')
+      ) {
+        coursesToLock.push(item.progress._id);
+      }
+      return {
+        ...item,
+        status: 'locked',
+        accessible: false,
+        progress: item.progress
+          ? {
+              ...item.progress,
+              status: 'locked',
+            }
+          : null,
       };
     }
 
@@ -339,11 +373,6 @@ const getChildCourses = async (childId, queryParams = {}) => {
               currentStep: 1,
             },
       };
-    }
-
-    // Keep completed courses as-is
-    if (item.status === 'completed') {
-      return item;
     }
 
     // Admin force_unlock: never re-lock under the 1-active rule
@@ -831,7 +860,8 @@ const unlockNextCourse = async (childId, completedCourseId) => {
     return; // Completed course not found in list
   }
 
-  // Find the next accessible course after the completed one
+  // Find the next accessible course after the completed one.
+  // Admin force_lock is a hard gate — stop here; do not skip to later modules.
   for (let i = completedIndex + 1; i < allCourses.length; i++) {
     const nextCourse = allCourses[i];
 
@@ -841,21 +871,27 @@ const unlockNextCourse = async (childId, completedCourseId) => {
       break; // Stop unlocking, limit reached
     }
 
-    // Check if course is accessible (prerequisites met)
+    let progress = await CourseProgress.findOne({
+      child: childId,
+      course: nextCourse._id,
+    });
+
+    if (progress && getProgressOverride(progress) === 'force_lock') {
+      break;
+    }
+
+    // Check if course is accessible (prerequisites met / overrides)
     const accessCheck = await checkCourseAccess(childId, nextCourse._id);
+
+    if (
+      accessCheck.accessOverride === 'force_lock' ||
+      accessCheck.reason === 'admin_locked'
+    ) {
+      break;
+    }
 
     if (accessCheck.accessible) {
       // Get or create progress and set it to "in_progress" (not "not_started")
-      let progress = await CourseProgress.findOne({
-        child: childId,
-        course: nextCourse._id,
-      });
-
-      // Never auto-unlock an admin force_lock
-      if (progress && getProgressOverride(progress) === 'force_lock') {
-        continue;
-      }
-
       if (!progress) {
         progress = await CourseProgress.create({
           child: childId,
@@ -871,7 +907,7 @@ const unlockNextCourse = async (childId, completedCourseId) => {
         progress.currentStep = progress.currentStep || 1;
         await progress.save();
       }
-      
+
       // Only unlock one course at a time (the next one in sequence)
       break;
     }

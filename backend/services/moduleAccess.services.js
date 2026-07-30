@@ -222,7 +222,10 @@ async function getChildModuleAccessDetail(childId) {
     }
 
     const isCompleted = status === 'completed';
-    const effectivelyLocked = status === 'locked' || accessOverride === 'force_lock';
+    // Incomplete modules always offer Lock and Unlock on automatic rules.
+    // Hide Unlock only when already force_unlocked; hide Lock only when already force_locked.
+    const canLock = !isCompleted && accessOverride !== 'force_lock';
+    const canUnlock = !isCompleted && accessOverride !== 'force_unlock';
 
     modules.push({
       courseId: course._id,
@@ -236,8 +239,8 @@ async function getChildModuleAccessDetail(childId) {
       accessOverrideNote: progress?.accessOverrideNote || '',
       completedContent: live.completedContent,
       totalContent: live.totalContent,
-      canLock: !isCompleted && !effectivelyLocked,
-      canUnlock: !isCompleted && effectivelyLocked,
+      canLock,
+      canUnlock,
       canClearOverride: accessOverride !== 'none' && !isCompleted,
     });
   }
@@ -299,7 +302,7 @@ async function unlockModuleForChild(childId, courseId, adminUserId, note = '') {
   progress.accessOverrideBy = adminUserId || null;
   progress.accessOverrideNote = String(note || '').slice(0, 500);
 
-  if (progress.status === 'locked') {
+  if (progress.status === 'locked' || progress.status === 'not_started') {
     progress.status = 'in_progress';
     progress.startedAt = progress.startedAt || new Date();
     progress.currentStep = progress.currentStep || 1;
