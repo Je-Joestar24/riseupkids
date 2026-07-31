@@ -2,6 +2,7 @@
  * Child Kid's Wall (feed)
  * Show & Tell feed: header, share CTA, post cards (single column), footer.
  * Uses useKidsWall(childId) for feed, like/star, and share flow.
+ * iOS (or preview env): Coming Soon artwork instead of the live wall.
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -9,6 +10,7 @@ import React, { useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { WallCards } from '@/components/child/wall/wall-cards';
+import { WallComingSoon } from '@/components/child/wall/wall-coming-soon';
 import { WallCardsSkeleton } from '@/components/child/wall/wall-skeletal-loading';
 import { WallFooter } from '@/components/child/wall/wall-footer';
 import { WallHeader } from '@/components/child/wall/wall-header';
@@ -18,14 +20,18 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useChildProfile } from '@/hooks/childProfileHook';
 import { useKidsWall } from '@/hooks/kidswallHook';
+import { isKidsWallComingSoon } from '@/utils/kidsWallComingSoon';
 
 export default function ChildWallScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const childId = id ?? null;
-  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(childId);
+  const comingSoon = isKidsWallComingSoon();
+  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(
+    comingSoon ? null : childId
+  );
 
-  const wall = useKidsWall(childId ?? undefined);
+  const wall = useKidsWall(comingSoon ? undefined : childId ?? undefined);
   const {
     posts,
     loading,
@@ -40,8 +46,9 @@ export default function ChildWallScreen() {
   const loadingMutation = childId && 'loadingMutation' in wall ? wall.loadingMutation : false;
 
   useEffect(() => {
+    if (comingSoon) return;
     fetchFeed();
-  }, [fetchFeed]);
+  }, [comingSoon, fetchFeed]);
 
   const handleSharePress = useCallback(() => {
     if (!childId || !kidsWallEnabled) return;
@@ -61,6 +68,10 @@ export default function ChildWallScreen() {
     },
     [toggleStar]
   );
+
+  if (comingSoon) {
+    return <WallComingSoon />;
+  }
 
   if (profileLoading) {
     return (

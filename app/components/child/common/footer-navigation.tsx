@@ -16,6 +16,7 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { withMinAndroidInset } from '@/utils/androidNavigationBar';
+import { getKidsWallNavLabel } from '@/utils/kidsWallComingSoon';
 
 const ICON_SIZE = 32;
 const CONTAINER_PADDING = 8;
@@ -38,12 +39,14 @@ interface FooterNavigationProps {
 
 type NavValue = 'home' | 'journey' | 'explore' | 'wall';
 
-const NAV_ITEMS: { value: NavValue; label: string; isImage: boolean }[] = [
-    { value: 'home', label: 'Home', isImage: false },
-    { value: 'journey', label: 'My Journey', isImage: true },
-    { value: 'explore', label: 'Explore', isImage: false },
-    { value: 'wall', label: "Kid's Wall", isImage: false },
-];
+function getNavItems(): { value: NavValue; label: string; isImage: boolean }[] {
+    return [
+        { value: 'home', label: 'Home', isImage: false },
+        { value: 'journey', label: 'My Journey', isImage: true },
+        { value: 'explore', label: 'Explore', isImage: false },
+        { value: 'wall', label: getKidsWallNavLabel(), isImage: false },
+    ];
+}
 
 function getActiveFromPath(pathname: string): NavValue {
     // Module is a sibling route; when on module, keep "My Journey" active in footer
@@ -64,12 +67,13 @@ export function FooterNavigation({ childId }: FooterNavigationProps) {
     const pathname = usePathname();
     const insets = useSafeAreaInsets();
     const activeValue = getActiveFromPath(pathname);
+    const navItems = getNavItems();
 
     const handleNav = (value: NavValue) => {
         router.push(`/child/${childId}/${value}` as never);
     };
 
-    const renderIcon = (item: (typeof NAV_ITEMS)[0], isActive: boolean) => {
+    const renderIcon = (item: (typeof navItems)[0], isActive: boolean) => {
         const iconColor = isActive
             ? item.value === 'wall'
                 ? colors.secondary
@@ -111,7 +115,7 @@ export function FooterNavigation({ childId }: FooterNavigationProps) {
     return (
         <View style={[styles.container, { paddingBottom: withMinAndroidInset(insets.bottom) }]}>
             <View style={styles.inner}>
-                {NAV_ITEMS.map((item) => {
+                {navItems.map((item) => {
                     const isActive = activeValue === item.value;
 
                     return (

@@ -21,18 +21,22 @@ import { spacing } from '@/config/theme/spacing';
 import { useChildProfile } from '@/hooks/childProfileHook';
 import { useKidsWall } from '@/hooks/kidswallHook';
 import { useUiStore } from '@/store/uiStore';
+import { isKidsWallComingSoon } from '@/utils/kidsWallComingSoon';
 
 export default function WallShareScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const childId = id ?? null;
-  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(childId);
+  const comingSoon = isKidsWallComingSoon();
+  const { kidsWallEnabled, loading: profileLoading } = useChildProfile(
+    comingSoon ? null : childId
+  );
 
   const [photo, setPhoto] = useState<SharePhotoAsset | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
 
-  const wall = useKidsWall(childId ?? undefined);
+  const wall = useKidsWall(comingSoon ? undefined : childId ?? undefined);
   const createPost = childId && 'createPost' in wall ? wall.createPost : undefined;
   const loadingMutation = childId && 'loadingMutation' in wall ? wall.loadingMutation : false;
   const showDialog = useUiStore((s) => s.showDialog);
@@ -42,14 +46,19 @@ export default function WallShareScreen() {
   }, [router]);
 
   useEffect(() => {
-    if (profileLoading || kidsWallEnabled || !childId) return;
+    if (!comingSoon || !childId) return;
+    router.replace(`/child/${childId}/wall` as never);
+  }, [comingSoon, childId, router]);
+
+  useEffect(() => {
+    if (comingSoon || profileLoading || kidsWallEnabled || !childId) return;
     showDialog({
       message: KIDS_WALL_UPLOAD_DISABLED_MESSAGE,
       type: 'info',
       duration: 5000,
       onClose: () => router.replace(`/child/${childId}/wall` as never),
     });
-  }, [profileLoading, kidsWallEnabled, childId, showDialog, router]);
+  }, [comingSoon, profileLoading, kidsWallEnabled, childId, showDialog, router]);
 
   const handlePhotoSelect = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -108,7 +117,7 @@ export default function WallShareScreen() {
     [childId, createPost, router, showDialog]
   );
 
-  if (!childId) {
+  if (!childId || comingSoon) {
     return null;
   }
 

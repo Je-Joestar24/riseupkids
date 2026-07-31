@@ -19,6 +19,7 @@ import {
 import { KIDS_WALL_UPLOAD_DISABLED_MESSAGE } from '@/constants/kidsWallConsent';
 import { useChildProfile } from '@/hooks/childProfileHook';
 import { useUiStore } from '@/store/uiStore';
+import { isKidsWallComingSoon } from '@/utils/kidsWallComingSoon';
 
 export interface ContentsShareProps {
   childId: string;
@@ -27,7 +28,8 @@ export interface ContentsShareProps {
 
 export function ContentsShare({ childId, videoType }: ContentsShareProps) {
   const router = useRouter();
-  const { kidsWallEnabled } = useChildProfile(childId);
+  const comingSoon = isKidsWallComingSoon();
+  const { kidsWallEnabled } = useChildProfile(comingSoon ? null : childId);
   const showDialog = useUiStore((s) => s.showDialog);
 
   const shareTitle = VIDEO_TYPE_SHARE_TITLES[videoType] ?? 'Share My Work!';
@@ -47,6 +49,10 @@ export function ContentsShare({ childId, videoType }: ContentsShareProps) {
       `/child/${childId}/wall/share?from=explore&videoType=${encodeURIComponent(videoType)}` as never
     );
   };
+
+  if (comingSoon) {
+    return null;
+  }
 
   return (
     <View style={styles.card}>
