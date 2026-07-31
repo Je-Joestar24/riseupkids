@@ -151,7 +151,7 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
         <StarCamMapBackButton borderColor={accentColor} onBack={onBack} />
 
         <View style={styles.content}>
-          <ThemedText style={[styles.title, { color: accentColor }]}>{categoryHuntTitle || 'Category Hunt'}</ThemedText>
+          <ThemedText style={[styles.title, { color: accentColor }]}>{(categoryHuntTitle == 'Sing Hunt' ? 'Home Hunt' : categoryHuntTitle) || 'Category Hunt'}</ThemedText>
 
           <View style={styles.imageFrame}>
             {hasPlayableIntroVideo ? (
