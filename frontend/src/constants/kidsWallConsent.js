@@ -2,7 +2,7 @@
 export const KIDS_WALL_CONSENT_COPY = {
   title: 'Allow Kids Wall',
   intro:
-    "Kids Wall is a shared space where your child can post photos for other Rise Up Kids families.",
+    'Kids Wall (Android app and Web only; not available on iOS) is a shared space where your child can post photos for other Rise Up Kids families.',
   moderation:
     'Every photo is reviewed by our team before it appears to other families.',
   visibility:

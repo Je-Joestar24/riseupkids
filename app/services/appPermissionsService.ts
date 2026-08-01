@@ -3,6 +3,8 @@ import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { Platform } from 'react-native';
 
+import { isKidsWallComingSoon } from '@/utils/kidsWallComingSoon';
+
 export type AppPermissionKey = 'camera' | 'microphone' | 'mediaLibrary';
 
 export interface AppPermissionResult {
@@ -41,12 +43,15 @@ async function requestMediaLibraryPermission(): Promise<AppPermissionResult> {
 export async function requestStartupAppPermissions(): Promise<AppPermissionResult[]> {
   if (Platform.OS === 'web') return [];
 
-  const results: AppPermissionResult[] = [];
-  for (const requestPermission of [
+  // Do not prompt for photo library on iOS while Kids Wall sharing is unavailable.
+  const permissionRequests = [
     requestCameraPermission,
     requestMicrophonePermission,
-    requestMediaLibraryPermission,
-  ]) {
+    ...(isKidsWallComingSoon() ? [] : [requestMediaLibraryPermission]),
+  ];
+
+  const results: AppPermissionResult[] = [];
+  for (const requestPermission of permissionRequests) {
     try {
       results.push(await requestPermission());
     } catch {

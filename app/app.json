@@ -59,7 +59,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Rise Up Kids needs photo library access so children can choose images to share."
+          "photosPermission": "Rise Up Kids needs photo library access for optional learning features that use photos you choose on supported platforms."
         }
       ],
       [
