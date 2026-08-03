@@ -65,8 +65,9 @@ export function LegalAcceptanceGate({ visible, onAccept }: LegalAcceptanceGatePr
               Welcome to Rise Up Kids
             </ThemedText>
             <ThemedText style={styles.lead}>
-              Rise Up Kids is a parent-managed learning app for children. A parent or legal
-              guardian must create the account and supervise use of the app.
+              Rise Up Kids is an adult-controlled learning app for children. Parents, guardians,
+              schools, admins, and teachers manage access. Children do not create their own
+              accounts.
             </ThemedText>
             <ThemedText style={styles.body}>
               Before you continue, please review our Terms of Use and Privacy Policy. They explain

@@ -2,11 +2,11 @@
 export const KIDS_WALL_CONSENT_COPY = {
   title: 'Allow Kids Wall',
   intro:
-    'Kids Wall (Android app and Web only; not available on iOS) is a shared space where your child can post photos for other Rise Up Kids families.',
+    'Kids Wall (Android app and Web only; not available on iOS) lets children share photos of the activities they are doing as they experience the language.',
   moderation:
-    'Every photo is reviewed by our team before it appears to other families.',
+    'Photos of faces and body parts are not allowed. Every photo is reviewed by our team before it appears to other families.',
   visibility:
-    "Approved posts show your child's nickname and age only — not their full name or contact details.",
+    "Approved posts show your child's nickname and age only, not their full name or contact details.",
   checkbox:
     'I understand how Kids Wall works and I consent to my child using this feature.',
   enableButton: 'Allow Kids Wall',

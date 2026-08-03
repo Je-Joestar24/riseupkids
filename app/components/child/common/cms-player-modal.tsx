@@ -66,9 +66,6 @@ import {
   isCmsPageMediaReady,
 } from '@/utils/cmsBookPageMediaReady';
 
-/** Overlay close / home control size (does not reserve layout width). */
-const OVERLAY_CTRL = 44;
-
 export { lockLandscapeForCmsBookPlayer } from '@/utils/cmsPlayerOrientation';
 
 export interface CmsSessionPayload {
@@ -471,8 +468,13 @@ export function CmsPlayerModal({
     return computeStageSize(fullW, fullH);
   }, [winW, winH, insets.left, insets.right, insets.top, insets.bottom]);
 
-  const overlayPadTop = Math.max(insets.top, spacing[1]);
-  const overlayPadRight = Math.max(insets.right, spacing[1]);
+  /**
+   * Book player is landscape-locked. Do not use `insets.top` for the close control —
+   * inside a fullscreen Modal it is often a stale portrait status-bar inset, which
+   * pushes the X toward the upper-middle on iOS and smaller screens.
+   */
+  const overlayPadTop = spacing[2];
+  const overlayPadRight = Math.max(insets.right, spacing[2]);
   const overlayPadBottom = Math.max(insets.bottom, spacing[2]);
 
   const renderPreloading = () => (
@@ -631,17 +633,15 @@ export function CmsPlayerModal({
         <View style={styles.whiteFill} pointerEvents="none" />
         <View style={styles.stageViewport}>{stageView}</View>
 
-        <View
-          style={[
-            styles.overlayTopRight,
-            { top: overlayPadTop, right: overlayPadRight },
-          ]}
-          pointerEvents="box-none"
-        >
+        <View style={styles.overlayTopRight} pointerEvents="box-none">
           <Pressable
             onPress={handleClose}
             disabled={isFinalizing}
-            style={({ pressed }) => [styles.railIconBtn, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.railIconBtn,
+              { marginTop: overlayPadTop, marginRight: overlayPadRight },
+              pressed && styles.pressed,
+            ]}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Close book player"
@@ -652,21 +652,20 @@ export function CmsPlayerModal({
         </View>
 
         {isRewardPage ? (
-          <View
-            style={[
-              styles.overlayBottomRight,
-              { bottom: overlayPadBottom, right: overlayPadRight },
-            ]}
-            pointerEvents="box-none"
-            accessibilityRole="none"
-          >
+          <View style={styles.overlayBottomRight} pointerEvents="box-none" accessibilityRole="none">
             {isFinalizing ? (
-              <CmsPlayerLoadingSpinner size={36} accessibilityLabel={finalizingMessage} />
+              <View style={{ marginBottom: overlayPadBottom, marginRight: overlayPadRight }}>
+                <CmsPlayerLoadingSpinner size={36} accessibilityLabel={finalizingMessage} />
+              </View>
             ) : (
               <Pressable
                 onPress={() => finalizeAndClose('home')}
                 hitSlop={14}
-                style={({ pressed }) => [styles.railHomePressable, pressed && styles.pressed]}
+                style={({ pressed }) => [
+                  styles.railHomePressable,
+                  { marginBottom: overlayPadBottom, marginRight: overlayPadRight },
+                  pressed && styles.pressed,
+                ]}
                 accessibilityRole="button"
                 accessibilityLabel="Go home and finish book"
               >
@@ -721,18 +720,20 @@ const styles = StyleSheet.create({
   },
   overlayTopRight: {
     position: 'absolute',
-    zIndex: 50,
-    elevation: 50,
-    width: OVERLAY_CTRL,
-    alignItems: 'center',
+    top: 0,
+    right: 0,
+    zIndex: 100,
+    elevation: 100,
+    alignItems: 'flex-end',
   },
   overlayBottomRight: {
     position: 'absolute',
-    zIndex: 50,
-    elevation: 50,
-    width: OVERLAY_CTRL,
-    alignItems: 'center',
-    justifyContent: 'center',
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    elevation: 100,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
   },
   railIconBtn: {
     width: 36,

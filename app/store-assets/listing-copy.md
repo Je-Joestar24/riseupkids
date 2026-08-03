@@ -9,33 +9,15 @@ Rise Up Kids
 English immersion for kids
 
 ## Short description (Google Play, max 80 chars)
-English by immersion for kids — videos, books, StarCam missions, and progress.
+Research based English for kids. Natural immersion for families and schools.
 
-`Character count: 78`
+`Character count: 76`
 
 ## Promotional text (Apple, max 170 chars)
-Help kids build real English confidence with immersive videos, interactive books, and StarCam missions parents can track.
+Research based natural language English for kids. Immersive learning controlled by parents, schools, admins, and teachers.
 
 ## Full description (Google Play + Apple)
-
-Rise Up Kids helps children learn English by immersion — through real kids videos, interactive books, and playful StarCam missions that turn everyday objects into English practice.
-
-**What kids get**
-- Videos with real kids that teach English in context
-- Interactive read-along books paced for growing learners
-- StarCam mini-missions for hands-on English practice
-- Stars, progress, and a journey that keeps learning fun
-
-**What parents get**
-- A parent-managed account (children do not create their own login)
-- Clear visibility into learning progress
-- COPPA-minded design with parental controls
-
-**Platforms**
-- Learning features are available on iOS, Android, and Web
-- Kids Wall photo sharing is available on the Android app and Web only (not on iOS)
-
-Rise Up Kids — Passion to Learn.
+See `play-full-description.txt` (sale-site voice + privacy references).
 
 ## Category
 Education
@@ -56,4 +38,4 @@ https://riseup.kids/privacy
 https://riseup.kids/terms
 
 ## Age rating notes
-Children’s education app. Parent-managed accounts. No third-party ads. Camera used for StarCam learning missions. Photo library used only for optional photo features on supported platforms (Kids Wall is Android/Web only).
+Children's education app. Adult-controlled accounts (parents, schools, admins, teachers). No third-party ads. Camera used for StarCam learning missions. Kids Wall (Android/Web only) is for activity photos; faces and body parts are not allowed.
