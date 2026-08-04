@@ -3,6 +3,8 @@
  * All layout percentages are relative to a 1920×1080 logical stage.
  */
 
+import { Platform } from 'react-native';
+
 import { BACKEND_ORIGIN } from '@/config';
 import type { CmsPlayablePage, PlayerPageMedia } from '@/services/cmsBooksPlayerService';
 
@@ -52,23 +54,52 @@ export function computeStageSize(
 }
 
 /**
+ * iOS inset scale for the 16:9 stage (ratio unchanged).
+ * Leaves a margin from the home-indicator / gesture edges so drag controls
+ * are not flush with the physical bottom of the phone.
+ */
+export const CMS_IOS_STAGE_FIT_SCALE = 0.9;
+
+export type ComputeCmsPlayerStageSizeOptions = {
+  /** Override Platform.OS for tests. */
+  platformOs?: string;
+  /** Override iOS fit scale (0–1). */
+  iosFitScale?: number;
+};
+
+/**
  * CMS book player is landscape-locked. Always size the 16:9 stage from a
  * landscape logical viewport, then clamp into the currently visible window so
  * brief flips / oversize safe-area math cannot crop the stage.
+ *
+ * On iOS the fitted stage is scaled down slightly (still 16:9) so interactive
+ * controls clear the home indicator — Android keeps full-bleed fit.
  */
 export function computeCmsPlayerStageSize(
   windowWidth: number,
-  windowHeight: number
+  windowHeight: number,
+  options?: ComputeCmsPlayerStageSizeOptions
 ): { width: number; height: number } {
   const winW = Math.max(0, windowWidth);
   const winH = Math.max(0, windowHeight);
   const landscapeW = Math.max(winW, winH);
   const landscapeH = Math.min(winW, winH);
   const ideal = computeStageSize(landscapeW, landscapeH);
-  if (ideal.width <= winW + 0.5 && ideal.height <= winH + 0.5) {
-    return ideal;
+  const fitted =
+    ideal.width <= winW + 0.5 && ideal.height <= winH + 0.5
+      ? ideal
+      : computeStageSize(winW, winH);
+
+  const platformOs = options?.platformOs ?? Platform.OS;
+  if (platformOs !== 'ios') {
+    return fitted;
   }
-  return computeStageSize(winW, winH);
+
+  const scale = Math.max(0.5, Math.min(1, options?.iosFitScale ?? CMS_IOS_STAGE_FIT_SCALE));
+  return {
+    width: fitted.width * scale,
+    height: fitted.height * scale,
+  };
 }
 
 export function resolvePageType(rawType: string | undefined): string {
