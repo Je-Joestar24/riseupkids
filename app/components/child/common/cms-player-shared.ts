@@ -38,7 +38,10 @@ function cmsMediaUrl(raw: string | null | undefined): string {
 export const CMS_DESIGN_WIDTH = 1920;
 export const CMS_DESIGN_HEIGHT = 1080;
 
-/** Match web pageFrameSx: 16:9 stage inside the available viewport. */
+/**
+ * Contain-fit a 16:9 stage inside the available viewport (never larger / never crop).
+ * Longer screens shrink width; shorter screens shrink height — same as Android.
+ */
 export function computeStageSize(
   viewportWidth: number,
   viewportHeight: number
@@ -46,11 +49,19 @@ export function computeStageSize(
   const w = Math.max(0, viewportWidth);
   const h = Math.max(0, viewportHeight);
   if (w <= 0 || h <= 0) return { width: 0, height: 0 };
-  const byWidth = (w * CMS_DESIGN_HEIGHT) / CMS_DESIGN_WIDTH;
-  const byHeight = (h * CMS_DESIGN_WIDTH) / CMS_DESIGN_HEIGHT;
-  const height = Math.min(h, byWidth);
-  const width = Math.min(w, byHeight);
-  return { width, height };
+
+  const designRatio = CMS_DESIGN_WIDTH / CMS_DESIGN_HEIGHT; // 16:9
+  const viewportRatio = w / h;
+
+  if (viewportRatio > designRatio) {
+    // Viewport wider than 16:9 → height-limited (letterbox left/right).
+    const height = h;
+    return { width: height * designRatio, height };
+  }
+
+  // Viewport taller/narrower than 16:9 → width-limited (letterbox top/bottom).
+  const width = w;
+  return { width, height: width / designRatio };
 }
 
 /**
@@ -58,7 +69,7 @@ export function computeStageSize(
  * Leaves a margin from the home-indicator / gesture edges so drag controls
  * are not flush with the physical bottom of the phone.
  */
-export const CMS_IOS_STAGE_FIT_SCALE = 0.9;
+export const CMS_IOS_STAGE_FIT_SCALE = 0.88;
 
 export type ComputeCmsPlayerStageSizeOptions = {
   /** Override Platform.OS for tests. */
@@ -68,37 +79,41 @@ export type ComputeCmsPlayerStageSizeOptions = {
 };
 
 /**
- * CMS book player is landscape-locked. Always size the 16:9 stage from a
- * landscape logical viewport, then clamp into the currently visible window so
- * brief flips / oversize safe-area math cannot crop the stage.
+ * Size the CMS stage from the *actual* available viewport box (Modal onLayout).
  *
- * On iOS the fitted stage is scaled down slightly (still 16:9) so interactive
- * controls clear the home indicator — Android keeps full-bleed fit.
+ * Never sizes from a larger “logical landscape” than the real box — that was
+ * zooming/cropping on long iPhones when window dims disagreed with Modal layout.
+ * On iOS, apply a small uniform shrink (still 16:9); Android stays full contain-fit.
  */
 export function computeCmsPlayerStageSize(
-  windowWidth: number,
-  windowHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
   options?: ComputeCmsPlayerStageSizeOptions
 ): { width: number; height: number } {
-  const winW = Math.max(0, windowWidth);
-  const winH = Math.max(0, windowHeight);
-  const landscapeW = Math.max(winW, winH);
-  const landscapeH = Math.min(winW, winH);
-  const ideal = computeStageSize(landscapeW, landscapeH);
-  const fitted =
-    ideal.width <= winW + 0.5 && ideal.height <= winH + 0.5
-      ? ideal
-      : computeStageSize(winW, winH);
+  const boxW = Math.max(0, viewportWidth);
+  const boxH = Math.max(0, viewportHeight);
+  const fitted = computeStageSize(boxW, boxH);
+
+  // Hard clamp — stage must never exceed the measured viewport (anti zoom-crop).
+  const width = Math.min(fitted.width, boxW);
+  const height = Math.min(fitted.height, boxH);
+  const clamped =
+    width > 0 && height > 0
+      ? // Re-assert exact 16:9 after clamp (prefer the limiting edge).
+        width / height > CMS_DESIGN_WIDTH / CMS_DESIGN_HEIGHT
+        ? { width: height * (CMS_DESIGN_WIDTH / CMS_DESIGN_HEIGHT), height }
+        : { width, height: width / (CMS_DESIGN_WIDTH / CMS_DESIGN_HEIGHT) }
+      : { width: 0, height: 0 };
 
   const platformOs = options?.platformOs ?? Platform.OS;
   if (platformOs !== 'ios') {
-    return fitted;
+    return clamped;
   }
 
   const scale = Math.max(0.5, Math.min(1, options?.iosFitScale ?? CMS_IOS_STAGE_FIT_SCALE));
   return {
-    width: fitted.width * scale,
-    height: fitted.height * scale,
+    width: clamped.width * scale,
+    height: clamped.height * scale,
   };
 }
 

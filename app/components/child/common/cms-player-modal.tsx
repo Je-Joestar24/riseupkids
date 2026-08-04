@@ -8,6 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  type LayoutChangeEvent,
   Modal,
   Platform,
   Pressable,
@@ -116,6 +117,11 @@ export function CmsPlayerModal({
   autoPreload = true,
 }: CmsPlayerModalProps) {
   const { width: winW, height: winH } = useWindowDimensions();
+  /**
+   * iOS Modal window dims can disagree with the real laid-out area (safe area /
+   * landscape). Size the stage from onLayout so we never zoom/crop like Android.
+   */
+  const [viewportBox, setViewportBox] = useState({ width: winW, height: winH });
   const signature = usePagesSignature(pages);
 
   const playablePages = useMemo(() => getPlayablePages(pages), [pages]);
@@ -492,14 +498,34 @@ export function CmsPlayerModal({
     finalizeAndClose('close');
   }, [finalizeAndClose]);
 
+  // Keep fallback dims in sync before the first onLayout after open/rotate.
+  useEffect(() => {
+    if (!open) return;
+    if (winW > 0 && winH > 0) {
+      setViewportBox((prev) =>
+        prev.width === winW && prev.height === winH ? prev : { width: winW, height: winH }
+      );
+    }
+  }, [open, winW, winH]);
+
   /**
-   * Strict 16:9 stage fitted inside the visible window (never oversized / cropped).
-   * Uses landscape logical viewport so a brief iOS flip cannot shrink the stage.
+   * Strict 16:9 contain-fit inside the measured Modal viewport (never zoom/crop).
+   * iOS applies CMS_IOS_STAGE_FIT_SCALE; content % layouts scale with the stage.
    */
   const { width: stageW, height: stageH } = useMemo(
-    () => computeCmsPlayerStageSize(winW, winH),
-    [winW, winH]
+    () => computeCmsPlayerStageSize(viewportBox.width, viewportBox.height),
+    [viewportBox.width, viewportBox.height]
   );
+
+  const handleViewportLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width <= 0 || height <= 0) return;
+    setViewportBox((prev) =>
+      Math.abs(prev.width - width) < 0.5 && Math.abs(prev.height - height) < 0.5
+        ? prev
+        : { width, height }
+    );
+  }, []);
 
   /** Close/home sit on the stage corner (16:9 frame), not the letterbox. */
   const stageOverlayPad = spacing[2];
@@ -707,7 +733,9 @@ export function CmsPlayerModal({
       <View style={styles.root}>
         {/* White fill under status-bar / letterbox so no grey strip shows */}
         <View style={styles.whiteFill} pointerEvents="none" />
-        <View style={styles.stageViewport}>{stageView}</View>
+        <View style={styles.stageViewport} onLayout={handleViewportLayout}>
+          {stageView}
+        </View>
 
         {isFinalizing ? (
           <View

@@ -168,7 +168,7 @@ export function CmsIntroPage({
         <Image
           source={{ uri: bg }}
           style={StyleSheet.absoluteFillObject}
-          resizeMode="cover"
+          resizeMode="contain"
           accessibilityLabel={page.title || 'Intro'}
           accessibilityRole="image"
         />
@@ -234,7 +234,7 @@ export function CmsDemoPage({
           <Image
             source={{ uri: bgImage }}
             style={StyleSheet.absoluteFillObject}
-            resizeMode="cover"
+            resizeMode="contain"
             accessibilityLabel={page.title || 'Demo'}
             accessibilityRole="image"
           />
