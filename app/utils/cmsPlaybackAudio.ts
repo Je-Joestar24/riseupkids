@@ -14,6 +14,80 @@ import { Platform } from 'react-native';
 export const CMS_INTRO_BGM_IOS_SETTLE_MS = 450;
 /** Watchdog: if still not playing after this, re-apply audio mode and playAsync. */
 export const CMS_INTRO_BGM_PLAY_WATCHDOG_MS = 600;
+/** Same settle for content / interactive narration taps on iOS. */
+export const CMS_CONTENT_AUDIO_IOS_SETTLE_MS = 350;
+/** Watchdog for content reading audio that loads but stays silent on iOS. */
+export const CMS_CONTENT_AUDIO_PLAY_WATCHDOG_MS = 700;
+
+export function getCmsContentAudioSettleMs(platformOs: string = Platform.OS): number {
+  return platformOs === 'ios' ? CMS_CONTENT_AUDIO_IOS_SETTLE_MS : 0;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export type PrepareCmsContentAudioOptions = {
+  /** Skip iOS settle when the Sound was already primed / session is warm. */
+  skipSettle?: boolean;
+};
+
+/**
+ * iOS settle after landscape lock, then re-apply AVAudioSession.
+ * Call before creating/playing content or interactive narration.
+ */
+export async function prepareCmsContentAudioPlayback(
+  isCancelled?: () => boolean,
+  options?: PrepareCmsContentAudioOptions
+): Promise<boolean> {
+  const settleMs = options?.skipSettle ? 0 : getCmsContentAudioSettleMs();
+  if (settleMs > 0) {
+    await delay(settleMs);
+    if (isCancelled?.()) return false;
+  }
+  await ensureCmsPlaybackAudioMode();
+  return !isCancelled?.();
+}
+
+/**
+ * Explicit play + iOS watchdog retry when the sound loads but stays silent.
+ * Does not restart short clips that already advanced (position > 0).
+ */
+export async function playCmsSoundWithIosWatchdog(
+  sound: {
+    playAsync: () => Promise<unknown>;
+    getStatusAsync: () => Promise<{
+      isLoaded: boolean;
+      isPlaying?: boolean;
+      didJustFinish?: boolean;
+      positionMillis?: number;
+    }>;
+  },
+  isCancelled?: () => boolean
+): Promise<void> {
+  await sound.playAsync();
+  if (Platform.OS !== 'ios') return;
+
+  await delay(CMS_CONTENT_AUDIO_PLAY_WATCHDOG_MS);
+  if (isCancelled?.()) return;
+
+  try {
+    const status = await sound.getStatusAsync();
+    const alreadyProgressed = (status.positionMillis ?? 0) > 0;
+    if (
+      status.isLoaded &&
+      !status.isPlaying &&
+      !status.didJustFinish &&
+      !alreadyProgressed
+    ) {
+      await ensureCmsPlaybackAudioMode();
+      if (isCancelled?.()) return;
+      await sound.playAsync();
+    }
+  } catch {
+    // Best-effort — caller still owns the sound lifecycle.
+  }
+}
 
 let audioSessionEpoch = 0;
 

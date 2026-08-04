@@ -50,7 +50,11 @@ import {
   shouldUnlockCmsContentNextFromAudio,
 } from '@/utils/cmsContentAudioNextUnlock';
 import {
-  ensureCmsPlaybackAudioMode,
+  takePrimedCmsContentAudio,
+} from '@/services/cmsContentAudioPrime';
+import {
+  playCmsSoundWithIosWatchdog,
+  prepareCmsContentAudioPlayback,
   shouldShowCmsContentKaraokeLine,
 } from '@/utils/cmsPlaybackAudio';
 
@@ -452,12 +456,26 @@ export function CmsContentPage({
 
     (async () => {
       try {
-        await ensureCmsPlaybackAudioMode();
+        // Prefer a Sound primed on the previous page (critical for short MP3s on iOS).
+        let s = await takePrimedCmsContentAudio(audioUrl);
+        const fromPrime = Boolean(s);
 
-        const { sound: s } = await Audio.Sound.createAsync(
-          { uri: audioUrl },
-          { shouldPlay: false, positionMillis: 0 }
-        );
+        const ready = await prepareCmsContentAudioPlayback(() => cancelled, {
+          skipSettle: fromPrime,
+        });
+        if (!ready) {
+          if (s) await s.unloadAsync().catch(() => {});
+          return;
+        }
+
+        if (!s) {
+          const created = await Audio.Sound.createAsync(
+            { uri: audioUrl },
+            { shouldPlay: false, positionMillis: 0 }
+          );
+          s = created.sound;
+        }
+
         if (cancelled) {
           await s.unloadAsync();
           return;
@@ -490,7 +508,7 @@ export function CmsContentPage({
             }
           }
         });
-        await s.playAsync();
+        await playCmsSoundWithIosWatchdog(s, () => cancelled);
         if (!cancelled) {
           setKaraokeReady(true);
         }

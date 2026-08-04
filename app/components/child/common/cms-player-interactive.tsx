@@ -21,7 +21,10 @@ import {
   hasCustomInteractiveLayout,
   layoutRectToPx,
 } from '@/utils/cmsInteractiveLayout';
-import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
+import {
+  playCmsSoundWithIosWatchdog,
+  prepareCmsContentAudioPlayback,
+} from '@/utils/cmsPlaybackAudio';
 import {
   CMS_GOOD_JOB_ADVANCE_DELAY_MS,
   CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
@@ -462,13 +465,15 @@ export function CmsInteractivePage({
           : cmsInteractiveFeedbackAudio.tryAgain;
 
       try {
-        await ensureCmsPlaybackAudioMode();
-        const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: true });
+        const ready = await prepareCmsContentAudioPlayback(() => !active);
+        if (!ready) return;
+        const { sound } = await Audio.Sound.createAsync(source, { shouldPlay: false });
         if (!active) {
           await sound.unloadAsync().catch(() => {});
           return;
         }
         feedbackAudioRef.current = sound;
+        await playCmsSoundWithIosWatchdog(sound, () => !active);
         if (dropResult === 'correct') {
           void scheduleAdvanceAfterGoodJob(sound);
         }
@@ -514,8 +519,11 @@ export function CmsInteractivePage({
       if (requestId !== audioRequestIdRef.current) return;
 
       try {
-        await ensureCmsPlaybackAudioMode();
-        const { sound } = await Audio.Sound.createAsync({ uri: option.audio }, { shouldPlay: true });
+        const ready = await prepareCmsContentAudioPlayback(
+          () => requestId !== audioRequestIdRef.current
+        );
+        if (!ready) return;
+        const { sound } = await Audio.Sound.createAsync({ uri: option.audio }, { shouldPlay: false });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
           return;
@@ -530,6 +538,7 @@ export function CmsInteractivePage({
             setPlayingOptionId((current) => (current === option.id ? '' : current));
           }
         });
+        await playCmsSoundWithIosWatchdog(sound, () => requestId !== audioRequestIdRef.current);
       } catch {
         if (requestId === audioRequestIdRef.current) {
           setPlayingOptionId('');
@@ -549,8 +558,11 @@ export function CmsInteractivePage({
       if (requestId !== audioRequestIdRef.current) return;
 
       try {
-        await ensureCmsPlaybackAudioMode();
-        const { sound } = await Audio.Sound.createAsync({ uri: zone.audio }, { shouldPlay: true });
+        const ready = await prepareCmsContentAudioPlayback(
+          () => requestId !== audioRequestIdRef.current
+        );
+        if (!ready) return;
+        const { sound } = await Audio.Sound.createAsync({ uri: zone.audio }, { shouldPlay: false });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
           return;
@@ -565,6 +577,7 @@ export function CmsInteractivePage({
             setPlayingAnswerId((current) => (current === zone.id ? '' : current));
           }
         });
+        await playCmsSoundWithIosWatchdog(sound, () => requestId !== audioRequestIdRef.current);
       } catch {
         if (requestId === audioRequestIdRef.current) {
           setPlayingAnswerId('');

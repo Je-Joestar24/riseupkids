@@ -1,7 +1,8 @@
 /**
  * CMS built-in book player orientation lifecycle.
  *
- * Locks strictly to landscape while the CMS player is open (game-style).
+ * Locks to a single landscape orientation while open so iPhone rotation cannot
+ * flip into portrait (or the opposite landscape) and shrink/trap the stage.
  * Restores portrait when the player closes.
  */
 
@@ -10,29 +11,47 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 
 const PORTRAIT_LOCK = ScreenOrientation.OrientationLock.PORTRAIT_UP;
 
-/** Both landscape directions — never portrait while CMS book player is active. */
-const CMS_LANDSCAPE_LOCK = ScreenOrientation.OrientationLock.LANDSCAPE;
+/**
+ * Prefer one fixed landscape on iOS so users cannot flip the phone mid-book.
+ * Android keeps a broader landscape lock as a fallback path.
+ */
+const CMS_IOS_FIXED_LANDSCAPE = ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT;
 
-const CMS_LANDSCAPE_LOCK_FALLBACKS: ScreenOrientation.OrientationLock[] = [
-  CMS_LANDSCAPE_LOCK,
-  ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
-  ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
-];
+function getCmsLandscapeLockFallbacks(): ScreenOrientation.OrientationLock[] {
+  if (Platform.OS === 'ios') {
+    return [
+      CMS_IOS_FIXED_LANDSCAPE,
+      ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
+      ScreenOrientation.OrientationLock.LANDSCAPE,
+    ];
+  }
+  return [
+    ScreenOrientation.OrientationLock.LANDSCAPE,
+    ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
+    ScreenOrientation.OrientationLock.LANDSCAPE_LEFT,
+  ];
+}
 
 let cmsOrientationDepth = 0;
 let orientationListener: ScreenOrientation.Subscription | null = null;
 
-function isPortraitOrientation(orientation: ScreenOrientation.Orientation): boolean {
+function isAllowedCmsOrientation(orientation: ScreenOrientation.Orientation): boolean {
+  if (Platform.OS === 'ios') {
+    return orientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT;
+  }
   return (
-    orientation === ScreenOrientation.Orientation.PORTRAIT_UP ||
-    orientation === ScreenOrientation.Orientation.PORTRAIT_DOWN
+    orientation === ScreenOrientation.Orientation.LANDSCAPE_LEFT ||
+    orientation === ScreenOrientation.Orientation.LANDSCAPE_RIGHT
   );
 }
 
 async function applyCmsLandscapeLock(): Promise<boolean> {
-  for (const lock of CMS_LANDSCAPE_LOCK_FALLBACKS) {
+  for (const lock of getCmsLandscapeLockFallbacks()) {
     try {
-      await ScreenOrientation.unlockAsync();
+      // Avoid unlock-first on iOS — unlock briefly allows portrait and shrinks the stage.
+      if (Platform.OS !== 'ios') {
+        await ScreenOrientation.unlockAsync();
+      }
       await ScreenOrientation.lockAsync(lock);
       return true;
     } catch {
@@ -47,7 +66,7 @@ function startCmsOrientationGuard(): void {
 
   orientationListener = ScreenOrientation.addOrientationChangeListener((event) => {
     if (cmsOrientationDepth <= 0) return;
-    if (isPortraitOrientation(event.orientationInfo.orientation)) {
+    if (!isAllowedCmsOrientation(event.orientationInfo.orientation)) {
       void applyCmsLandscapeLock();
     }
   });
@@ -62,9 +81,22 @@ export async function prepareCmsPlayerOrientation(): Promise<void> {
   if (Platform.OS === 'web') return;
 
   cmsOrientationDepth += 1;
-  if (cmsOrientationDepth > 1) return;
+  if (cmsOrientationDepth > 1) {
+    // Already locked — re-apply without stacking another restore.
+    await applyCmsLandscapeLock();
+    return;
+  }
 
   startCmsOrientationGuard();
+  await applyCmsLandscapeLock();
+}
+
+/**
+ * Re-apply the fixed landscape lock without changing ref-count.
+ * Use from Modal.onShow — iOS sometimes ignores the first lock.
+ */
+export async function reassertCmsPlayerLandscapeLock(): Promise<void> {
+  if (Platform.OS === 'web' || cmsOrientationDepth <= 0) return;
   await applyCmsLandscapeLock();
 }
 
@@ -93,12 +125,17 @@ export function lockLandscapeForCmsBookPlayer(): void {
   void prepareCmsPlayerOrientation();
 }
 
-/** iOS Modal orientations for CMS built-in book player — landscape only. */
-export const CMS_BOOK_PLAYER_MODAL_ORIENTATIONS = [
-  'landscape',
-  'landscape-left',
-  'landscape-right',
-] as const;
+/** Test helper — reset ref-count / listener between suites. */
+export function resetCmsPlayerOrientationForTests(): void {
+  cmsOrientationDepth = 0;
+  stopCmsOrientationGuard();
+}
+
+/**
+ * iOS Modal orientations for CMS built-in book player.
+ * One landscape only — matching the fixed lock so flip cannot change layout.
+ */
+export const CMS_BOOK_PLAYER_MODAL_ORIENTATIONS = ['landscape-right'] as const;
 
 /** Shared modal orientations for other video modals that may rotate freely on iOS. */
 export const CMS_PLAYER_MODAL_ORIENTATIONS = [

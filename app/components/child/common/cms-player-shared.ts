@@ -43,11 +43,32 @@ export function computeStageSize(
 ): { width: number; height: number } {
   const w = Math.max(0, viewportWidth);
   const h = Math.max(0, viewportHeight);
+  if (w <= 0 || h <= 0) return { width: 0, height: 0 };
   const byWidth = (w * CMS_DESIGN_HEIGHT) / CMS_DESIGN_WIDTH;
   const byHeight = (h * CMS_DESIGN_WIDTH) / CMS_DESIGN_HEIGHT;
   const height = Math.min(h, byWidth);
   const width = Math.min(w, byHeight);
   return { width, height };
+}
+
+/**
+ * CMS book player is landscape-locked. Always size the 16:9 stage from a
+ * landscape logical viewport, then clamp into the currently visible window so
+ * brief flips / oversize safe-area math cannot crop the stage.
+ */
+export function computeCmsPlayerStageSize(
+  windowWidth: number,
+  windowHeight: number
+): { width: number; height: number } {
+  const winW = Math.max(0, windowWidth);
+  const winH = Math.max(0, windowHeight);
+  const landscapeW = Math.max(winW, winH);
+  const landscapeH = Math.min(winW, winH);
+  const ideal = computeStageSize(landscapeW, landscapeH);
+  if (ideal.width <= winW + 0.5 && ideal.height <= winH + 0.5) {
+    return ideal;
+  }
+  return computeStageSize(winW, winH);
 }
 
 export function resolvePageType(rawType: string | undefined): string {

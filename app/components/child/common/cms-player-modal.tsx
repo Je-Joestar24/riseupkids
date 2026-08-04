@@ -8,7 +8,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dimensions,
   Modal,
   Platform,
   Pressable,
@@ -19,7 +18,6 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
@@ -39,14 +37,20 @@ import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import {
   CMS_BOOK_PLAYER_MODAL_ORIENTATIONS,
   prepareCmsPlayerOrientation,
+  reassertCmsPlayerLandscapeLock,
   restoreAppPortraitOrientation,
 } from '@/utils/cmsPlayerOrientation';
 import { prepareCmsPlaybackAudioAfterOrientation } from '@/utils/cmsPlaybackAudio';
 import { stopCmsIntroBackgroundMusic } from '@/services/cmsIntroBackgroundMusic';
+import {
+  clearPrimedCmsContentAudio,
+  primeCmsContentAudio,
+} from '@/services/cmsContentAudioPrime';
 
 import {
   collectCmsPlayerMediaUrls,
   preloadCmsPlayerAssets,
+  resolvePlayableMediaUri,
   type CmsMediaUriMap,
 } from './cms-player-media';
 import { CmsMediaUriProvider } from './cms-player-media-context';
@@ -54,9 +58,10 @@ import { CmsInteractivePage } from './cms-player-interactive';
 import { CmsPlayerLoadingSpinner } from './cms-player-loading-spinner';
 import { CmsContentPage, CmsDemoPage, CmsIntroPage } from './cms-player-pages';
 import {
-  computeStageSize,
+  computeCmsPlayerStageSize,
   cmsLocalUiAssets,
   getPlayablePages,
+  resolveAudioUrl,
   resolvePageType,
 } from './cms-player-shared';
 import { CmsRewardStage } from './cms-reward-dialog';
@@ -110,7 +115,6 @@ export function CmsPlayerModal({
   onSessionComplete,
   autoPreload = true,
 }: CmsPlayerModalProps) {
-  const insets = useSafeAreaInsets();
   const { width: winW, height: winH } = useWindowDimensions();
   const signature = usePagesSignature(pages);
 
@@ -167,6 +171,7 @@ export function CmsPlayerModal({
   useEffect(() => {
     if (!open) {
       void stopCmsIntroBackgroundMusic();
+      void clearPrimedCmsContentAudio();
       void restoreAppPortraitOrientation();
       return;
     }
@@ -185,6 +190,7 @@ export function CmsPlayerModal({
 
     return () => {
       void stopCmsIntroBackgroundMusic();
+      void clearPrimedCmsContentAudio();
       void restoreAppPortraitOrientation();
       if (Platform.OS === 'android') {
         // App-wide Android default stays immersive.
@@ -332,9 +338,43 @@ export function CmsPlayerModal({
   }, [open, signature]);
 
   const currentPage = playablePages[currentIndex] || null;
+  const prevPage = playablePages[currentIndex - 1] || null;
   const nextPage = playablePages[currentIndex + 1] || null;
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < playablePages.length - 1;
+
+  /**
+   * While a page is visible, decode prev/current/next content narration into
+   * Audio.Sound so short MP3s play immediately on Next or Prev.
+   * (Next is also gated until next-page media is on disk + current audio unlocks.)
+   */
+  useEffect(() => {
+    if (!open || isPreloading) return;
+
+    const pagesToPrime = [prevPage, currentPage, nextPage].filter(
+      (page): page is CmsPlayablePage =>
+        Boolean(page) && resolvePageType(page?.type) === 'content'
+    );
+
+    pagesToPrime.forEach((page) => {
+      const remote = resolveAudioUrl(page);
+      const playable = resolvePlayableMediaUri(remote, mediaUriMap);
+      if (playable) {
+        void primeCmsContentAudio(playable);
+      }
+    });
+  }, [open, isPreloading, prevPage, currentPage, nextPage, mediaUriMap]);
+
+  /**
+   * Hard stop for the client portrait trap: if the window ever reports taller
+   * than wide while the book is open, force landscape again immediately.
+   */
+  useEffect(() => {
+    if (!open || Platform.OS === 'web') return;
+    if (winW > 0 && winH > 0 && winW < winH) {
+      void reassertCmsPlayerLandscapeLock();
+    }
+  }, [open, winW, winH]);
 
   const nextPageReady = useMemo(() => {
     if (!hasNext) return true;
@@ -453,29 +493,16 @@ export function CmsPlayerModal({
   }, [finalizeAndClose]);
 
   /**
-   * Full-bleed 16:9 stage. Expand by safe-area insets so we cover the landscape
-   * status-bar strip (often left/right) that can show as a grey band.
+   * Strict 16:9 stage fitted inside the visible window (never oversized / cropped).
+   * Uses landscape logical viewport so a brief iOS flip cannot shrink the stage.
    */
-  const { width: stageW, height: stageH } = useMemo(() => {
-    const screen = Dimensions.get('screen');
-    const screenLong = Math.max(screen.width, screen.height);
-    const screenShort = Math.min(screen.width, screen.height);
-    const landscape = winW >= winH;
-    const screenW = landscape ? screenLong : screenShort;
-    const screenH = landscape ? screenShort : screenLong;
-    const fullW = Math.max(winW, screenW, winW + insets.left + insets.right);
-    const fullH = Math.max(winH, screenH, winH + insets.top + insets.bottom);
-    return computeStageSize(fullW, fullH);
-  }, [winW, winH, insets.left, insets.right, insets.top, insets.bottom]);
+  const { width: stageW, height: stageH } = useMemo(
+    () => computeCmsPlayerStageSize(winW, winH),
+    [winW, winH]
+  );
 
-  /**
-   * Book player is landscape-locked. Do not use `insets.top` for the close control —
-   * inside a fullscreen Modal it is often a stale portrait status-bar inset, which
-   * pushes the X toward the upper-middle on iOS and smaller screens.
-   */
-  const overlayPadTop = spacing[2];
-  const overlayPadRight = Math.max(insets.right, spacing[2]);
-  const overlayPadBottom = Math.max(insets.bottom, spacing[2]);
+  /** Close/home sit on the stage corner (16:9 frame), not the letterbox. */
+  const stageOverlayPad = spacing[2];
 
   const renderPreloading = () => (
     <View style={[styles.stageShell, { width: stageW, height: stageH }]}>
@@ -606,6 +633,53 @@ export function CmsPlayerModal({
         accessibilityRole="none"
       >
         {renderPageBody()}
+
+        <View style={styles.stageChrome} pointerEvents="box-none">
+          <Pressable
+            onPress={handleClose}
+            disabled={isFinalizing}
+            style={({ pressed }) => [
+              styles.railIconBtn,
+              styles.stageCloseBtn,
+              { top: stageOverlayPad, right: stageOverlayPad },
+              pressed && styles.pressed,
+            ]}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close book player"
+            accessibilityState={{ disabled: isFinalizing }}
+          >
+            <MaterialCommunityIcons name="close" size={22} color="#ffffff" />
+          </Pressable>
+
+          {isRewardPage ? (
+            <View
+              style={[styles.stageHomeWrap, { bottom: stageOverlayPad, right: stageOverlayPad }]}
+              pointerEvents="box-none"
+              accessibilityRole="none"
+            >
+              {isFinalizing ? (
+                <CmsPlayerLoadingSpinner size={36} accessibilityLabel={finalizingMessage} />
+              ) : (
+                <Pressable
+                  onPress={() => finalizeAndClose('home')}
+                  hitSlop={14}
+                  style={({ pressed }) => [styles.railHomePressable, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Go home and finish book"
+                >
+                  <Image
+                    source={cmsLocalUiAssets.homeButton}
+                    style={styles.railHomeImg}
+                    resizeMode="contain"
+                    accessibilityIgnoresInvertColors
+                    accessibilityLabel="Home button"
+                  />
+                </Pressable>
+              )}
+            </View>
+          ) : null}
+        </View>
       </View>
     </CmsMediaUriProvider>
   );
@@ -625,6 +699,8 @@ export function CmsPlayerModal({
         if (Platform.OS === 'android') {
           restoreAndroidImmersiveDefault();
         }
+        // Re-assert fixed landscape when the modal appears (iOS can ignore earlier lock).
+        void reassertCmsPlayerLandscapeLock();
       }}
       onRequestClose={handleClose}
     >
@@ -632,54 +708,6 @@ export function CmsPlayerModal({
         {/* White fill under status-bar / letterbox so no grey strip shows */}
         <View style={styles.whiteFill} pointerEvents="none" />
         <View style={styles.stageViewport}>{stageView}</View>
-
-        <View style={styles.overlayTopRight} pointerEvents="box-none">
-          <Pressable
-            onPress={handleClose}
-            disabled={isFinalizing}
-            style={({ pressed }) => [
-              styles.railIconBtn,
-              { marginTop: overlayPadTop, marginRight: overlayPadRight },
-              pressed && styles.pressed,
-            ]}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Close book player"
-            accessibilityState={{ disabled: isFinalizing }}
-          >
-            <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
-          </Pressable>
-        </View>
-
-        {isRewardPage ? (
-          <View style={styles.overlayBottomRight} pointerEvents="box-none" accessibilityRole="none">
-            {isFinalizing ? (
-              <View style={{ marginBottom: overlayPadBottom, marginRight: overlayPadRight }}>
-                <CmsPlayerLoadingSpinner size={36} accessibilityLabel={finalizingMessage} />
-              </View>
-            ) : (
-              <Pressable
-                onPress={() => finalizeAndClose('home')}
-                hitSlop={14}
-                style={({ pressed }) => [
-                  styles.railHomePressable,
-                  { marginBottom: overlayPadBottom, marginRight: overlayPadRight },
-                  pressed && styles.pressed,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Go home and finish book"
-              >
-                <Image
-                  source={cmsLocalUiAssets.homeButton}
-                  style={styles.railHomeImg}
-                  resizeMode="contain"
-                  accessibilityIgnoresInvertColors
-                  accessibilityLabel="Home button"
-                />
-              </Pressable>
-            )}
-          </View>
-        ) : null}
 
         {isFinalizing ? (
           <View
@@ -718,30 +746,27 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#ffffff',
   },
-  overlayTopRight: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
+  /** Close / home chrome overlaid on the 16:9 stage (not the letterbox). */
+  stageChrome: {
+    ...StyleSheet.absoluteFillObject,
     zIndex: 100,
     elevation: 100,
-    alignItems: 'flex-end',
   },
-  overlayBottomRight: {
+  stageCloseBtn: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
-    zIndex: 100,
-    elevation: 100,
+  },
+  stageHomeWrap: {
+    position: 'absolute',
     alignItems: 'flex-end',
     justifyContent: 'flex-end',
   },
   railIconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
   },
   railHomePressable: {
     width: 40,
