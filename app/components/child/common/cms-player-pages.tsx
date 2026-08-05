@@ -53,9 +53,11 @@ import {
   takePrimedCmsContentAudio,
 } from '@/services/cmsContentAudioPrime';
 import {
+  getCmsContentKaraokeLeadMs,
   playCmsSoundWithIosWatchdog,
   prepareCmsContentAudioPlayback,
   shouldShowCmsContentKaraokeLine,
+  shouldShowCmsContentReadingFallback,
 } from '@/utils/cmsPlaybackAudio';
 
 const DOT_COUNT = 14;
@@ -458,11 +460,9 @@ export function CmsContentPage({
       try {
         // Prefer a Sound primed on the previous page (critical for short MP3s on iOS).
         let s = await takePrimedCmsContentAudio(audioUrl);
-        const fromPrime = Boolean(s);
 
-        const ready = await prepareCmsContentAudioPlayback(() => cancelled, {
-          skipSettle: fromPrime,
-        });
+        // Always settle on iOS — skipSettle after intro BGM stop caused silent pages.
+        const ready = await prepareCmsContentAudioPlayback(() => cancelled);
         if (!ready) {
           if (s) await s.unloadAsync().catch(() => {});
           return;
@@ -508,10 +508,18 @@ export function CmsContentPage({
             }
           }
         });
-        await playCmsSoundWithIosWatchdog(s, () => cancelled);
+
+        // Show / arm karaoke BEFORE play — never wait on the iOS watchdog first.
         if (!cancelled) {
           setKaraokeReady(true);
         }
+        const leadMs = getCmsContentKaraokeLeadMs();
+        if (leadMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, leadMs));
+          if (cancelled) return;
+        }
+
+        await playCmsSoundWithIosWatchdog(s, () => cancelled, { awaitWatchdog: false });
       } catch {
         if (!cancelled) {
           // Audio failed — unlock Next and still show static reading text.
@@ -529,8 +537,12 @@ export function CmsContentPage({
   }, [page.pageId, audioUrl, wordTimingFingerprint, words.length]);
 
   const staticReadingLabel = readingText || page.subtitle || 'Subtitle';
-  const hasTimedKaraoke = words.length > 0;
   const showKaraokeLine = shouldShowCmsContentKaraokeLine(
+    karaokeReady,
+    words.length,
+    visibleLineWords.length
+  );
+  const showReadingFallback = shouldShowCmsContentReadingFallback(
     karaokeReady,
     words.length,
     visibleLineWords.length
@@ -573,7 +585,7 @@ export function CmsContentPage({
                   </Text>
                 ))}
               </Animated.View>
-            ) : !hasTimedKaraoke ? (
+            ) : showReadingFallback ? (
               <Text
                 style={[styles.readingText, readingTextStyles]}
                 accessibilityRole="text"

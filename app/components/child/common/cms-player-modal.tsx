@@ -46,6 +46,7 @@ import { stopCmsIntroBackgroundMusic } from '@/services/cmsIntroBackgroundMusic'
 import {
   clearPrimedCmsContentAudio,
   primeCmsContentAudio,
+  shouldPrimeCmsContentAudio,
 } from '@/services/cmsContentAudioPrime';
 
 import {
@@ -350,12 +351,13 @@ export function CmsPlayerModal({
   const hasNext = currentIndex < playablePages.length - 1;
 
   /**
-   * While a page is visible, decode prev/current/next content narration into
-   * Audio.Sound so short MP3s play immediately on Next or Prev.
-   * (Next is also gated until next-page media is on disk + current audio unlocks.)
+   * Decode nearby content narration into Audio.Sound for instant Next/Prev play.
+   * Never prime during intro — creating another Sound kills intro BGM on iOS (DoNotMix).
    */
   useEffect(() => {
     if (!open || isPreloading) return;
+    const currentType = resolvePageType(currentPage?.type);
+    if (!shouldPrimeCmsContentAudio(currentType)) return;
 
     const pagesToPrime = [prevPage, currentPage, nextPage].filter(
       (page): page is CmsPlayablePage =>
@@ -366,7 +368,9 @@ export function CmsPlayerModal({
       const remote = resolveAudioUrl(page);
       const playable = resolvePlayableMediaUri(remote, mediaUriMap);
       if (playable) {
-        void primeCmsContentAudio(playable);
+        void primeCmsContentAudio(playable, [remote]);
+      } else if (remote) {
+        void primeCmsContentAudio(remote);
       }
     });
   }, [open, isPreloading, prevPage, currentPage, nextPage, mediaUriMap]);

@@ -18,9 +18,18 @@ export const CMS_INTRO_BGM_PLAY_WATCHDOG_MS = 600;
 export const CMS_CONTENT_AUDIO_IOS_SETTLE_MS = 350;
 /** Watchdog for content reading audio that loads but stays silent on iOS. */
 export const CMS_CONTENT_AUDIO_PLAY_WATCHDOG_MS = 700;
+/**
+ * Brief pause after karaoke text mounts and before narration starts on iOS.
+ * Without this, short clips finish before the first line can paint/highlight.
+ */
+export const CMS_CONTENT_KARAOKE_LEAD_MS = 220;
 
 export function getCmsContentAudioSettleMs(platformOs: string = Platform.OS): number {
   return platformOs === 'ios' ? CMS_CONTENT_AUDIO_IOS_SETTLE_MS : 0;
+}
+
+export function getCmsContentKaraokeLeadMs(platformOs: string = Platform.OS): number {
+  return platformOs === 'ios' ? CMS_CONTENT_KARAOKE_LEAD_MS : 0;
 }
 
 function delay(ms: number): Promise<void> {
@@ -49,6 +58,14 @@ export async function prepareCmsContentAudioPlayback(
   return !isCancelled?.();
 }
 
+export type PlayCmsSoundWatchdogOptions = {
+  /**
+   * When false, start play immediately and run the iOS watchdog in the background.
+   * Content karaoke must not wait on the watchdog or short clips finish before text shows.
+   */
+  awaitWatchdog?: boolean;
+};
+
 /**
  * Explicit play + iOS watchdog retry when the sound loads but stays silent.
  * Does not restart short clips that already advanced (position > 0).
@@ -63,30 +80,54 @@ export async function playCmsSoundWithIosWatchdog(
       positionMillis?: number;
     }>;
   },
-  isCancelled?: () => boolean
+  isCancelled?: () => boolean,
+  options?: PlayCmsSoundWatchdogOptions
 ): Promise<void> {
   await sound.playAsync();
   if (Platform.OS !== 'ios') return;
 
-  await delay(CMS_CONTENT_AUDIO_PLAY_WATCHDOG_MS);
-  if (isCancelled?.()) return;
+  const runWatchdog = async () => {
+    await delay(CMS_CONTENT_AUDIO_PLAY_WATCHDOG_MS);
+    if (isCancelled?.()) return;
 
-  try {
-    const status = await sound.getStatusAsync();
-    const alreadyProgressed = (status.positionMillis ?? 0) > 0;
-    if (
-      status.isLoaded &&
-      !status.isPlaying &&
-      !status.didJustFinish &&
-      !alreadyProgressed
-    ) {
-      await ensureCmsPlaybackAudioMode();
-      if (isCancelled?.()) return;
-      await sound.playAsync();
+    try {
+      const status = await sound.getStatusAsync();
+      const alreadyProgressed = (status.positionMillis ?? 0) > 0;
+      if (
+        status.isLoaded &&
+        !status.isPlaying &&
+        !status.didJustFinish &&
+        !alreadyProgressed
+      ) {
+        await ensureCmsPlaybackAudioMode();
+        if (isCancelled?.()) return;
+        await sound.playAsync();
+      }
+    } catch {
+      // Best-effort — caller still owns the sound lifecycle.
     }
-  } catch {
-    // Best-effort — caller still owns the sound lifecycle.
+  };
+
+  if (options?.awaitWatchdog === false) {
+    void runWatchdog();
+    return;
   }
+
+  await runWatchdog();
+}
+
+/**
+ * Reading text must never blank on iOS while audio/session is still arming.
+ * Timed pages show static text until the first karaoke line is ready.
+ */
+export function shouldShowCmsContentReadingFallback(
+  karaokeReady: boolean,
+  wordsCount: number,
+  visibleLineWordsCount: number
+): boolean {
+  if (wordsCount <= 0) return true;
+  if (!karaokeReady) return true;
+  return visibleLineWordsCount <= 0;
 }
 
 let audioSessionEpoch = 0;

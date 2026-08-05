@@ -136,6 +136,18 @@ export async function startCmsIntroBackgroundMusic(uri: string): Promise<boolean
 
     await sound.playAsync();
 
+    // Immediate re-arm: iOS often reports loaded-but-silent right after playAsync.
+    try {
+      const early = await sound.getStatusAsync();
+      if (early.isLoaded && !early.isPlaying && !early.didJustFinish) {
+        await ensureCmsPlaybackAudioMode();
+        if (requestId !== playRequestId || sound !== activeSound) return false;
+        await sound.playAsync();
+      }
+    } catch {
+      // ignore — watchdog below still runs
+    }
+
     // Watchdog: iOS often loads then goes silent after orientation/session reset.
     await delay(CMS_INTRO_BGM_PLAY_WATCHDOG_MS);
     if (requestId !== playRequestId || sound !== activeSound) return false;

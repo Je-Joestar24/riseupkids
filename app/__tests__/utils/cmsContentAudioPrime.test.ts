@@ -16,6 +16,7 @@ import {
   getPrimedCmsContentAudioCount,
   primeCmsContentAudio,
   resetCmsContentAudioPrimeForTests,
+  shouldPrimeCmsContentAudio,
   takePrimedCmsContentAudio,
 } from '@/services/cmsContentAudioPrime';
 
@@ -80,5 +81,22 @@ describe('cmsContentAudioPrime', () => {
     await primeCmsContentAudio('file:///cache/same.mp3');
 
     expect(Audio.Sound.createAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not prime during intro (protects intro BGM on iOS)', () => {
+    expect(shouldPrimeCmsContentAudio('intro')).toBe(false);
+    expect(shouldPrimeCmsContentAudio('content')).toBe(true);
+    expect(shouldPrimeCmsContentAudio('demo')).toBe(true);
+  });
+
+  it('allows take via remote alias when primed from local file URI', async () => {
+    const sound = mockLoadedSound();
+    (Audio.Sound.createAsync as jest.Mock).mockResolvedValue({ sound });
+
+    await primeCmsContentAudio('file:///cache/page.mp3', ['https://cdn.example/page.mp3']);
+    const taken = await takePrimedCmsContentAudio('https://cdn.example/page.mp3');
+
+    expect(taken).toBe(sound);
+    expect(getPrimedCmsContentAudioCount()).toBe(0);
   });
 });

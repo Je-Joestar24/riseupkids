@@ -4,6 +4,9 @@
  * Disk preload alone is not enough on iOS — `Audio.Sound.createAsync` after a
  * page change races the AVAudioSession, and ~1s clips often finish (or fail)
  * before cold create + play settles. Priming creates the Sound ahead of time.
+ *
+ * IMPORTANT: Do not prime while intro BGM is active — iOS DoNotMix lets a second
+ * Sound create steal/silence the intro music.
  */
 
 import { Audio } from 'expo-av';
@@ -41,20 +44,45 @@ async function isSoundLoaded(sound: Audio.Sound): Promise<boolean> {
   }
 }
 
+function keysForSound(sound: Audio.Sound): string[] {
+  const keys: string[] = [];
+  primedByUri.forEach((value, key) => {
+    if (value === sound) keys.push(key);
+  });
+  return keys;
+}
+
+/**
+ * True when it is safe to prime content narration (never during intro BGM).
+ */
+export function shouldPrimeCmsContentAudio(currentPageType: string | undefined): boolean {
+  return currentPageType !== 'intro';
+}
+
 /**
  * Create (or keep) a loaded, paused Sound for this playable URI.
- * Safe to call repeatedly for the current + next content pages.
+ * `aliasUris` let take() succeed whether the page uses remote or cached file://.
  */
-export async function primeCmsContentAudio(uri: string | null | undefined): Promise<boolean> {
+export async function primeCmsContentAudio(
+  uri: string | null | undefined,
+  aliasUris: Array<string | null | undefined> = []
+): Promise<boolean> {
   const key = normalizeUri(uri);
   if (!key) return false;
 
+  const aliases = Array.from(
+    new Set(
+      [key, ...aliasUris.map(normalizeUri)].filter((value) => Boolean(value) && value !== key)
+    )
+  );
+
   const existing = primedByUri.get(key);
   if (existing && (await isSoundLoaded(existing))) {
+    aliases.forEach((alias) => primedByUri.set(alias, existing));
     return true;
   }
   if (existing) {
-    primedByUri.delete(key);
+    keysForSound(existing).forEach((k) => primedByUri.delete(k));
     await unloadSound(existing);
   }
 
@@ -76,10 +104,12 @@ export async function primeCmsContentAudio(uri: string | null | undefined): Prom
     const raced = primedByUri.get(key);
     if (raced) {
       await unloadSound(sound);
+      aliases.forEach((alias) => primedByUri.set(alias, raced));
       return isSoundLoaded(raced);
     }
 
     primedByUri.set(key, sound);
+    aliases.forEach((alias) => primedByUri.set(alias, sound));
     return true;
   } catch {
     return false;
@@ -98,7 +128,8 @@ export async function takePrimedCmsContentAudio(
 
   const sound = primedByUri.get(key);
   if (!sound) return null;
-  primedByUri.delete(key);
+
+  keysForSound(sound).forEach((k) => primedByUri.delete(k));
 
   if (!(await isSoundLoaded(sound))) {
     await unloadSound(sound);
@@ -116,14 +147,14 @@ export async function takePrimedCmsContentAudio(
 /** Drop every primed Sound — call when the CMS player closes. */
 export async function clearPrimedCmsContentAudio(): Promise<void> {
   primeGeneration += 1;
-  const sounds = Array.from(primedByUri.values());
+  const unique = Array.from(new Set(primedByUri.values()));
   primedByUri.clear();
-  await Promise.all(sounds.map((sound) => unloadSound(sound)));
+  await Promise.all(unique.map((sound) => unloadSound(sound)));
 }
 
-/** How many URIs are currently primed (tests / diagnostics). */
+/** How many unique Sounds are currently primed (tests / diagnostics). */
 export function getPrimedCmsContentAudioCount(): number {
-  return primedByUri.size;
+  return new Set(primedByUri.values()).size;
 }
 
 export function resetCmsContentAudioPrimeForTests(): void {
