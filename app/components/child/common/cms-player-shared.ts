@@ -69,7 +69,7 @@ export function computeStageSize(
  * Leaves a margin from the home-indicator / gesture edges so drag controls
  * are not flush with the physical bottom of the phone.
  */
-export const CMS_IOS_STAGE_FIT_SCALE = 0.88;
+export const CMS_IOS_STAGE_FIT_SCALE = 0.99;
 
 export type ComputeCmsPlayerStageSizeOptions = {
   /** Override Platform.OS for tests. */
