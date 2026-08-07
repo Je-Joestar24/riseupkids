@@ -1,6 +1,7 @@
 /**
  * On-screen CMS video playback debugger for APK/device diagnosis.
  * Shown only when EXPO_PUBLIC_CMS_VIDEO_DEBUG=true is set at build time.
+ * Missing / false / any other value = forced off in every environment.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';
@@ -21,14 +22,24 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_BASE_URL, APP_VERSION } from '@/config';
 import { Quicksand } from '@/constants/theme';
 
-export const CMS_VIDEO_DEBUG_ENABLED = process.env.EXPO_PUBLIC_CMS_VIDEO_DEBUG === 'true';
+/** Only the exact string "true" enables the overlay. Missing/false/empty → off. */
+export function isCmsVideoDebugEnvEnabled(
+  raw: string | undefined = process.env.EXPO_PUBLIC_CMS_VIDEO_DEBUG
+): boolean {
+  return String(raw ?? '')
+    .trim()
+    .toLowerCase() === 'true';
+}
+
+export const CMS_VIDEO_DEBUG_ENABLED = isCmsVideoDebugEnvEnabled();
 
 /** Visible only when EXPO_PUBLIC_CMS_VIDEO_DEBUG=true (e.g. in .env or eas.json env). */
 export function shouldShowCmsVideoDebugPanel(_options?: {
   failed?: boolean;
   stuckLoading?: boolean;
 }): boolean {
-  return CMS_VIDEO_DEBUG_ENABLED;
+  // Re-check at call time so callers cannot keep a stale true after env is cleared.
+  return isCmsVideoDebugEnvEnabled();
 }
 
 export interface CmsVideoPlaybackDebugContext {
@@ -141,6 +152,7 @@ export function CmsVideoPlaybackDebugPanel({ visible, context }: CmsVideoPlaybac
   const { height: winH } = useWindowDimensions();
   const [minimized, setMinimized] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const envEnabled = shouldShowCmsVideoDebugPanel();
 
   const rows = useMemo(() => buildDebugRows(context), [context]);
   const report = useMemo(() => formatDebugReport(context), [context]);
@@ -159,7 +171,8 @@ export function CmsVideoPlaybackDebugPanel({ visible, context }: CmsVideoPlaybac
     setTimeout(() => setShareStatus(null), 4000);
   }, [report]);
 
-  if (!visible) return null;
+  // Hard gate: never render when env is missing/false, even if a caller passes visible.
+  if (!envEnabled || !visible) return null;
 
   if (minimized) {
     return (

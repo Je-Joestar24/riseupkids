@@ -30,26 +30,13 @@ function simpleHash(input: string): string {
   return Math.abs(h).toString(36);
 }
 
-const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
+import { resolveCmsCacheFileExtension } from '@/utils/cmsMediaFileExtension';
 
-function extensionFromUrl(url: string): string {
-  const path = url.split('?')[0]?.toLowerCase() ?? '';
-  const m = path.match(/\.([a-z0-9]{1,8})$/);
-  if (!m) return '';
-  return `.${m[1]}`;
-}
+const IMAGE_EXT = /\.(png|jpe?g|webp|gif|bmp|svg)(\?|$)/i;
 
 /** Guess a file extension when CDN URLs omit one (expo-av needs a real video extension). */
 function inferCachedExtension(url: string): string {
-  const ext = extensionFromUrl(url);
-  if (ext) return ext;
-
-  const lower = url.toLowerCase();
-  if (/\.(mp4|webm|mov|m4v)(\?|$)/.test(lower)) return extensionFromUrl(url) || '.mp4';
-  if (/(?:\/video|\/videos|videoasset|mediadelivery|\/embed\/)/.test(lower)) return '.mp4';
-  if (/\.(mp3|wav|m4a|aac|ogg)(\?|$)/.test(lower) || /\/audio/.test(lower)) return '.mp3';
-  if (IMAGE_EXT.test(lower) || /\/images?\//.test(lower)) return '.jpg';
-  return '.bin';
+  return resolveCmsCacheFileExtension(url);
 }
 
 function isLikelyVideoUrl(url: string): boolean {
@@ -93,12 +80,30 @@ export async function getCachedMediaUriIfReady(remoteUrl: string): Promise<strin
   const dir = await ensureCacheDir();
   if (!dir) return null;
 
-  const ext = extensionFromUrl(normalized) || inferCachedExtension(normalized);
+  const ext = inferCachedExtension(normalized);
   const dest = `${dir}${simpleHash(normalized)}${ext}`;
   const info = await FileSystem.getInfoAsync(dest);
   if (info.exists) {
     resolvedUriCache.set(normalized, dest);
     return dest;
+  }
+
+  // Migrate legacy audio caches saved as .mpeg/.mpg (iOS-unplayable).
+  if (ext === '.mp3') {
+    for (const legacyExt of ['.mpeg', '.mpg']) {
+      const legacy = `${dir}${simpleHash(normalized)}${legacyExt}`;
+      const legacyInfo = await FileSystem.getInfoAsync(legacy);
+      if (legacyInfo.exists) {
+        try {
+          await FileSystem.copyAsync({ from: legacy, to: dest });
+          resolvedUriCache.set(normalized, dest);
+          return dest;
+        } catch {
+          resolvedUriCache.set(normalized, legacy);
+          return legacy;
+        }
+      }
+    }
   }
   return null;
 }

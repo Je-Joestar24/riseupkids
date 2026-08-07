@@ -62,6 +62,7 @@ import { CmsContentPage, CmsDemoPage, CmsIntroPage } from './cms-player-pages';
 import {
   computeCmsPlayerStageSize,
   cmsLocalUiAssets,
+  collectInteractivePageAudioUrls,
   getPlayablePages,
   resolveAudioUrl,
   resolvePageType,
@@ -351,26 +352,41 @@ export function CmsPlayerModal({
   const hasNext = currentIndex < playablePages.length - 1;
 
   /**
-   * Decode nearby content narration into Audio.Sound for instant Next/Prev play.
+   * Decode nearby narration + interactive option/answer audio into Audio.Sound.
    * Never prime during intro — creating another Sound kills intro BGM on iOS (DoNotMix).
+   * Remaps .mpeg → .mp3 via primeCmsContentAudio / ensurePlayableCmsAudioUri.
    */
   useEffect(() => {
     if (!open || isPreloading) return;
     const currentType = resolvePageType(currentPage?.type);
     if (!shouldPrimeCmsContentAudio(currentType)) return;
 
-    const pagesToPrime = [prevPage, currentPage, nextPage].filter(
-      (page): page is CmsPlayablePage =>
-        Boolean(page) && resolvePageType(page?.type) === 'content'
+    const pagesToPrime = [prevPage, currentPage, nextPage].filter((page): page is CmsPlayablePage =>
+      Boolean(page)
     );
 
     pagesToPrime.forEach((page) => {
-      const remote = resolveAudioUrl(page);
-      const playable = resolvePlayableMediaUri(remote, mediaUriMap);
-      if (playable) {
-        void primeCmsContentAudio(playable, [remote]);
-      } else if (remote) {
-        void primeCmsContentAudio(remote);
+      const pageType = resolvePageType(page?.type);
+      if (pageType === 'content') {
+        const remote = resolveAudioUrl(page);
+        const playable = resolvePlayableMediaUri(remote, mediaUriMap);
+        if (playable) {
+          void primeCmsContentAudio(playable, [remote]);
+        } else if (remote) {
+          void primeCmsContentAudio(remote);
+        }
+        return;
+      }
+
+      if (pageType === 'interactive') {
+        collectInteractivePageAudioUrls(page).forEach((remote) => {
+          const playable = resolvePlayableMediaUri(remote, mediaUriMap);
+          if (playable) {
+            void primeCmsContentAudio(playable, [remote]);
+          } else if (remote) {
+            void primeCmsContentAudio(remote);
+          }
+        });
       }
     });
   }, [open, isPreloading, prevPage, currentPage, nextPage, mediaUriMap]);

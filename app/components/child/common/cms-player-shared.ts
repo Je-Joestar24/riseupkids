@@ -184,6 +184,46 @@ export function resolveAudioUrl(page: CmsPlayablePage | Record<string, unknown>)
   return cmsMediaUrl(raw);
 }
 
+/**
+ * Option + answer (drop-zone) audio URLs for an interactive page.
+ * Used to prime / remapped-play mislabeled CMS uploads (.mpeg → .mp3).
+ */
+export function collectInteractivePageAudioUrls(
+  page: CmsPlayablePage | Record<string, unknown> | null | undefined
+): string[] {
+  if (!page) return [];
+  const p = page as CmsPlayablePage & Record<string, unknown>;
+  if (resolvePageType(p.type) !== 'interactive') return [];
+
+  const urls = new Set<string>();
+  const push = (raw: string | null | undefined) => {
+    const absolute = cmsMediaUrl(raw);
+    if (absolute) urls.add(absolute);
+  };
+
+  (p.interaction?.options ?? []).forEach((option) => {
+    const opt = option as Record<string, unknown>;
+    push((opt.audioMedia as { url?: string } | undefined)?.url);
+    push((opt.audioMedia as { cloudUrl?: string } | undefined)?.cloudUrl);
+    push(opt.audioUrl as string | undefined);
+    push(opt.audio as string | undefined);
+  });
+
+  (p.interaction?.dropZones ?? []).forEach((zone, index) => {
+    const z = zone as Record<string, unknown>;
+    push((z.audioMedia as { url?: string } | undefined)?.url);
+    push((z.audioMedia as { cloudUrl?: string } | undefined)?.cloudUrl);
+    push(z.audioUrl as string | undefined);
+    push(z.audio as string | undefined);
+    if (index === 0) push(p.answerAudioOne as string | undefined);
+    if (index === 1) push(p.answerAudioTwo as string | undefined);
+  });
+
+  push((p.media as PlayerPageMedia | undefined)?.instructionAudioMedia?.url);
+
+  return Array.from(urls);
+}
+
 /** Optional intro/cover background music (cover `media.audioMedia`). */
 export function resolveIntroBackgroundMusicUrl(
   page: CmsPlayablePage | Record<string, unknown>

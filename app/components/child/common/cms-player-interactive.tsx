@@ -25,6 +25,7 @@ import {
   playCmsSoundWithIosWatchdog,
   prepareCmsContentAudioPlayback,
 } from '@/utils/cmsPlaybackAudio';
+import { ensurePlayableCmsAudioUri } from '@/utils/cmsMediaFileExtension';
 import {
   CMS_GOOD_JOB_ADVANCE_DELAY_MS,
   CMS_GOOD_JOB_ADVANCE_FALLBACK_MS,
@@ -153,30 +154,38 @@ export function CmsInteractivePage({
   const isSingleLayout = !isParallelInteraction;
 
   const options: OptionModel[] = useMemo(() => {
-    const firstOptionSource = page?.interaction?.options?.[0] || {};
-    const secondOptionSource = page?.interaction?.options?.[1] || {};
+    const firstOptionSource = (page?.interaction?.options?.[0] || {}) as Record<string, unknown>;
+    const secondOptionSource = (page?.interaction?.options?.[1] || {}) as Record<string, unknown>;
+    const resolveOptionAudio = (source: Record<string, unknown>) =>
+      resolvePlayableMediaUri(
+        toSafeMediaUrl(source?.audioMedia)
+          || toSafeMediaUrl(source?.audioUrl)
+          || toSafeMediaUrl(source?.audio)
+          || '',
+        mediaUriMap
+      );
     const list: OptionModel[] = [
       {
-        id: firstOptionSource?.optionId || 'option_one',
-        label: firstOptionSource?.label || 'Option 1',
+        id: (firstOptionSource?.optionId as string) || 'option_one',
+        label: (firstOptionSource?.label as string) || 'Option 1',
         image: resolvePlayableMediaUri(
           (page as { optionImageOne?: string }).optionImageOne
-          || firstOptionSource?.imageMedia?.url
+          || (firstOptionSource?.imageMedia as { url?: string } | undefined)?.url
           || '',
           mediaUriMap
         ),
-        audio: resolvePlayableMediaUri(firstOptionSource?.audioMedia?.url || '', mediaUriMap),
+        audio: resolveOptionAudio(firstOptionSource),
       },
       {
-        id: secondOptionSource?.optionId || 'option_two',
-        label: secondOptionSource?.label || 'Option 2',
+        id: (secondOptionSource?.optionId as string) || 'option_two',
+        label: (secondOptionSource?.label as string) || 'Option 2',
         image: resolvePlayableMediaUri(
           (page as { optionImageTwo?: string }).optionImageTwo
-          || secondOptionSource?.imageMedia?.url
+          || (secondOptionSource?.imageMedia as { url?: string } | undefined)?.url
           || '',
           mediaUriMap
         ),
-        audio: resolvePlayableMediaUri(secondOptionSource?.audioMedia?.url || '', mediaUriMap),
+        audio: resolveOptionAudio(secondOptionSource),
       },
     ];
     return list.filter((option, index) => {
@@ -229,6 +238,29 @@ export function CmsInteractivePage({
   useEffect(() => {
     positionRef.current = optionPositions;
   }, [optionPositions]);
+
+  /**
+   * Pre-copy any mislabeled .mpeg option/answer audio to .mp3 before the kid taps,
+   * so the first ear-button press does not race a file copy on iOS.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    const uris = [
+      ...options.map((option) => option.audio),
+      ...dropZoneItems.map((zone) => zone.audio),
+    ].filter(Boolean);
+
+    void (async () => {
+      for (const uri of uris) {
+        if (cancelled) return;
+        await ensurePlayableCmsAudioUri(uri);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [options, dropZoneItems]);
 
   useEffect(() => {
     placedByZoneRef.current = placedByZone;
@@ -523,7 +555,8 @@ export function CmsInteractivePage({
           () => requestId !== audioRequestIdRef.current
         );
         if (!ready) return;
-        const { sound } = await Audio.Sound.createAsync({ uri: option.audio }, { shouldPlay: false });
+        const playableUri = await ensurePlayableCmsAudioUri(option.audio);
+        const { sound } = await Audio.Sound.createAsync({ uri: playableUri }, { shouldPlay: false });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
           return;
@@ -562,7 +595,8 @@ export function CmsInteractivePage({
           () => requestId !== audioRequestIdRef.current
         );
         if (!ready) return;
-        const { sound } = await Audio.Sound.createAsync({ uri: zone.audio }, { shouldPlay: false });
+        const playableUri = await ensurePlayableCmsAudioUri(zone.audio);
+        const { sound } = await Audio.Sound.createAsync({ uri: playableUri }, { shouldPlay: false });
         if (requestId !== audioRequestIdRef.current) {
           await sound.unloadAsync().catch(() => {});
           return;
@@ -808,6 +842,7 @@ export function CmsInteractivePage({
             const hidden = dragLayer?.id === option.id;
             const lockedHere = Boolean(placedByOption[option.id]);
             const size = elementSizes[option.id];
+            const isPlayingThis = Boolean(playingOptionId) && playingOptionId === option.id;
             return (
               <View
                 key={option.id}
@@ -818,17 +853,14 @@ export function CmsInteractivePage({
                     top: pos.y,
                     width: size?.w || stageMetrics.cardWidth,
                     height: size?.h || stageMetrics.cardHeight,
-                    opacity:
-                      hidden
-                        ? 0
-                        : (playingOptionId || playingAnswerId) && playingOptionId !== option.id
-                          ? 0.72
-                          : 1,
-                    zIndex: lockedHere ? 12 : 6,
+                    opacity: hidden ? 0 : 1,
+                    transform: [{ scale: isPlayingThis ? 1.06 : 1 }],
+                    zIndex: lockedHere ? 12 : isPlayingThis ? 10 : 6,
                   },
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={`Choose ${option.label}`}
+                accessibilityState={{ selected: isPlayingThis }}
                 {...responders[option.id].panHandlers}
               >
                 {option.image ? (
@@ -846,11 +878,13 @@ export function CmsInteractivePage({
           })}
         </View>
 
-        {zoneLayouts.zones.map((z) => (
+        {zoneLayouts.zones.map((z) => {
+          const zoneMeta = dropZoneItems.find((d) => d.id === z.id);
+          const isPlayingThis = Boolean(playingAnswerId) && playingAnswerId === z.id;
+          return (
           <Pressable
             key={z.id}
             onPress={() => {
-              const zoneMeta = dropZoneItems.find((d) => d.id === z.id);
               if (zoneMeta?.audio) {
                 void playZoneAudio(zoneMeta);
               }
@@ -862,19 +896,19 @@ export function CmsInteractivePage({
                 top: z.y,
                 width: z.w,
                 height: z.h,
-                opacity:
-                  playingAnswerId && playingAnswerId !== z.id
-                    ? 0.82
-                    : 1,
+                opacity: 1,
+                transform: [{ scale: isPlayingThis ? 1.06 : 1 }],
+                zIndex: isPlayingThis ? 9 : 4,
               },
             ]}
-            pointerEvents={dropZoneItems.find((d) => d.id === z.id)?.audio ? 'auto' : 'none'}
+            pointerEvents={zoneMeta?.audio ? 'auto' : 'none'}
             accessibilityRole="button"
-            accessibilityLabel={`Play ${dropZoneItems.find((d) => d.id === z.id)?.label || 'Answer'} sound`}
+            accessibilityLabel={`Play ${zoneMeta?.label || 'Answer'} sound`}
+            accessibilityState={{ selected: isPlayingThis }}
           >
-            {dropZoneItems.find((d) => d.id === z.id)?.guideImageUrl ? (
+            {zoneMeta?.guideImageUrl ? (
               <Image
-                source={{ uri: dropZoneItems.find((d) => d.id === z.id)?.guideImageUrl || '' }}
+                source={{ uri: zoneMeta.guideImageUrl }}
                 style={styles.optionImg}
                 resizeMode="contain"
                 accessibilityIgnoresInvertColors
@@ -883,7 +917,8 @@ export function CmsInteractivePage({
               <View style={styles.dropPlaceholder} />
             )}
           </Pressable>
-        ))}
+          );
+        })}
 
         {dragLayer ? (
           <View

@@ -25,6 +25,7 @@ import {
   playCmsSoundWithIosWatchdog,
   prepareCmsContentAudioPlayback,
 } from '@/utils/cmsPlaybackAudio';
+import { ensurePlayableCmsAudioUri } from '@/utils/cmsMediaFileExtension';
 
 export interface CmsRewardStageProps {
   page: CmsPlayablePage;
@@ -69,8 +70,9 @@ export function CmsRewardStage({
       try {
         const ready = await prepareCmsContentAudioPlayback(() => !active);
         if (!ready) return;
+        const playableUri = await ensurePlayableCmsAudioUri(rewardAudioUrl);
         const { sound } = await Audio.Sound.createAsync(
-          { uri: rewardAudioUrl },
+          { uri: playableUri },
           { shouldPlay: false, isLooping: false }
         );
         if (!active) {

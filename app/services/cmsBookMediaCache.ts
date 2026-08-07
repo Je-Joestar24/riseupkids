@@ -26,6 +26,10 @@ import {
   isCmsPageMediaReady,
   prioritizeCmsBookAssetsForProgressivePreload,
 } from '@/utils/cmsBookPageMediaReady';
+import {
+  ensurePlayableCmsAudioUri,
+  looksLikeCmsAudioUrl,
+} from '@/utils/cmsMediaFileExtension';
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
 
 const inflight = new Map<string, Promise<string>>();
@@ -176,12 +180,28 @@ async function preloadPackAsset(
 
   if (localUri && isLocalMediaUri(localUri)) {
     if (!(await fileExists(localUri))) {
+      // New path may be .mp3 while an older .mpeg pack file still exists.
+      if (looksLikeCmsAudioUrl(normalized, asset.kind)) {
+        for (const legacyExt of ['.mpeg', '.mpg']) {
+          const legacy = dest.replace(/\.mp3$/i, legacyExt);
+          if (legacy !== dest && (await fileExists(legacy))) {
+            const migrated = await ensurePlayableCmsAudioUri(legacy);
+            if (migrated && (await fileExists(migrated))) {
+              uriMap[normalized] = migrated;
+              return true;
+            }
+          }
+        }
+      }
       uriMap[normalized] = normalized;
       return false;
     }
-    uriMap[normalized] = localUri;
+    const playable = looksLikeCmsAudioUrl(normalized, asset.kind)
+      ? await ensurePlayableCmsAudioUri(localUri)
+      : localUri;
+    uriMap[normalized] = playable;
     if (isImageUrl(normalized)) {
-      warmImageDecode(localUri);
+      warmImageDecode(playable);
     }
     return true;
   }

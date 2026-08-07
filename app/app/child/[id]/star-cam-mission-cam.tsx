@@ -141,6 +141,7 @@ export default function StarCamMissionCamRoute() {
   });
   const [isCheckingScan, setIsCheckingScan] = useState(false);
   const [isAdvancing, setIsAdvancing] = useState(false);
+  const [isPromptAudioPlaying, setIsPromptAudioPlaying] = useState(false);
   const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const detectInFlightRef = useRef(false);
   const audioRef = useRef<Audio.Sound | null>(null);
@@ -148,6 +149,7 @@ export default function StarCamMissionCamRoute() {
   const autoIntroAudioKeyRef = useRef<string | null>(null);
   const isScreenActiveRef = useRef(true);
   const isAudioModeReadyRef = useRef(false);
+  const promptAudioUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!cameraPermission) {
@@ -177,6 +179,7 @@ export default function StarCamMissionCamRoute() {
   const unloadActiveAudio = useCallback(async () => {
     const activeSound = audioRef.current;
     audioRef.current = null;
+    setIsPromptAudioPlaying(false);
     if (!activeSound) return;
     try {
       await activeSound.stopAsync();
@@ -196,7 +199,12 @@ export default function StarCamMissionCamRoute() {
       audioRequestIdRef.current = requestId;
       const safeUrl = String(url || '').trim();
       const fallbackMs = options.fallbackMs ?? 0;
+      const isPromptClip =
+        Boolean(safeUrl) &&
+        Boolean(promptAudioUrlRef.current) &&
+        safeUrl === promptAudioUrlRef.current;
       if (!safeUrl) {
+        setIsPromptAudioPlaying(false);
         if (fallbackMs > 0) await wait(fallbackMs);
         return;
       }
@@ -222,6 +230,7 @@ export default function StarCamMissionCamRoute() {
           return;
         }
         audioRef.current = sound;
+        setIsPromptAudioPlaying(isPromptClip);
 
         if (!options.waitForFinish) {
           sound.setOnPlaybackStatusUpdate((status) => {
@@ -229,6 +238,7 @@ export default function StarCamMissionCamRoute() {
               if (audioRef.current === sound) {
                 void unloadActiveAudio();
               } else {
+                setIsPromptAudioPlaying(false);
                 void sound.unloadAsync();
               }
             }
@@ -253,9 +263,11 @@ export default function StarCamMissionCamRoute() {
         if (audioRef.current === sound) {
           await unloadActiveAudio();
         } else {
+          setIsPromptAudioPlaying(false);
           await sound.unloadAsync();
         }
       } catch {
+        setIsPromptAudioPlaying(false);
         if (fallbackMs > 0) await wait(fallbackMs);
       }
     },
@@ -304,6 +316,10 @@ export default function StarCamMissionCamRoute() {
     () => resolveCachedMediaUrl(currentPracticeItem?.audioUrl || null),
     [currentPracticeItem?.audioUrl, resolveCachedMediaUrl]
   );
+
+  useEffect(() => {
+    promptAudioUrlRef.current = objectIntroAudioUrl || null;
+  }, [objectIntroAudioUrl]);
   /** Scan-only prompt — e.g. "Is this a book?" while checking the camera capture */
   const scanQuestionAudioUrl = useMemo(
     () => resolveCachedMediaUrl(currentItem?.questionAudioUrl || null),
@@ -507,6 +523,7 @@ export default function StarCamMissionCamRoute() {
       hasCameraPermission={hasCameraPermission}
       isDetecting={isCheckingScan || isDetectingObject || isAdvancing}
       isReplayPromptDisabled={isCheckingScan || isAdvancing}
+      isPromptAudioPlaying={isPromptAudioPlaying}
       notificationVisible={notificationState.visible}
       notificationTone={notificationState.tone}
       notificationTitle={notificationState.title}

@@ -16,6 +16,7 @@ import {
   getCmsIntroBackgroundMusicSettleMs,
   resolveCmsIntroBackgroundMusicStatusAction,
 } from '@/utils/cmsPlaybackAudio';
+import { ensurePlayableCmsAudioUri } from '@/utils/cmsMediaFileExtension';
 
 let activeSound: Audio.Sound | null = null;
 let playRequestId = 0;
@@ -110,9 +111,12 @@ export async function startCmsIntroBackgroundMusic(uri: string): Promise<boolean
   await ensureCmsPlaybackAudioMode();
   if (requestId !== playRequestId) return false;
 
+  const playableUri = await ensurePlayableCmsAudioUri(trimmed);
+  if (requestId !== playRequestId) return false;
+
   try {
     const { sound } = await Audio.Sound.createAsync(
-      { uri: trimmed },
+      { uri: playableUri },
       {
         shouldPlay: false,
         isLooping: true,

@@ -775,12 +775,13 @@ const InteractiveTest = ({
                 WebkitUserDrag: 'none',
                 transition: dragState?.id === option.id
                   ? 'none'
-                  : 'left 0.2s ease, top 0.2s ease, transform 0.2s ease, opacity 0.12s ease',
-                opacity: dragState?.id === option.id ? 0 : (playingOptionId && playingOptionId !== option.id ? 0.72 : 1),
+                  : 'left 0.2s ease, top 0.2s ease, transform 0.2s ease',
+                opacity: dragState?.id === option.id ? 0 : 1,
+                transform: playingOptionId && playingOptionId === option.id ? 'scale(1.06)' : 'scale(1)',
                 visibility: dragState?.id === option.id ? 'hidden' : 'visible',
-                zIndex: placedByOption[option.id] ? 12 : 6,
+                zIndex: placedByOption[option.id] ? 12 : (playingOptionId === option.id ? 10 : 6),
                 '&:hover': {
-                  transform: 'scale(1.03)',
+                  transform: playingOptionId && playingOptionId === option.id ? 'scale(1.06)' : 'scale(1.03)',
                 },
               }}
             >
@@ -855,8 +856,10 @@ const InteractiveTest = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     overflow: 'hidden',
-                    opacity: playingAnswerId && playingAnswerId !== zone.id ? 0.82 : 1,
-                    transition: 'opacity 0.12s ease',
+                    opacity: 1,
+                    transform: playingAnswerId && playingAnswerId === zone.id ? 'scale(1.06)' : 'scale(1)',
+                    transition: 'transform 0.12s ease',
+                    zIndex: playingAnswerId === zone.id ? 9 : 4,
                   }}
                 >
                   {zone.guideImageUrl ? (
@@ -923,8 +926,10 @@ const InteractiveTest = ({
                     overflow: 'hidden',
                     pointerEvents: hasAnswerAudio ? 'auto' : 'none',
                     cursor: hasAnswerAudio ? 'pointer' : 'default',
-                    opacity: playingAnswerId && playingAnswerId !== zone.id ? 0.82 : 1,
-                    transition: 'opacity 0.12s ease',
+                    opacity: 1,
+                    transform: playingAnswerId && playingAnswerId === zone.id ? 'scale(1.06)' : 'scale(1)',
+                    transition: 'transform 0.12s ease',
+                    zIndex: playingAnswerId === zone.id ? 9 : 4,
                   }}
                 >
                   {zone.guideImageUrl ? (

@@ -11,6 +11,7 @@
 
 import { Audio } from 'expo-av';
 
+import { ensurePlayableCmsAudioUri } from '@/utils/cmsMediaFileExtension';
 import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 
 const primedByUri = new Map<string, Audio.Sound>();
@@ -67,13 +68,12 @@ export async function primeCmsContentAudio(
   uri: string | null | undefined,
   aliasUris: Array<string | null | undefined> = []
 ): Promise<boolean> {
-  const key = normalizeUri(uri);
-  if (!key) return false;
+  const rawKey = normalizeUri(uri);
+  if (!rawKey) return false;
+  const key = await ensurePlayableCmsAudioUri(rawKey);
 
   const aliases = Array.from(
-    new Set(
-      [key, ...aliasUris.map(normalizeUri)].filter((value) => Boolean(value) && value !== key)
-    )
+    new Set([rawKey, ...aliasUris.map(normalizeUri)].filter((value) => Boolean(value) && value !== key))
   );
 
   const existing = primedByUri.get(key);
@@ -123,10 +123,11 @@ export async function primeCmsContentAudio(
 export async function takePrimedCmsContentAudio(
   uri: string | null | undefined
 ): Promise<Audio.Sound | null> {
-  const key = normalizeUri(uri);
-  if (!key) return null;
+  const rawKey = normalizeUri(uri);
+  if (!rawKey) return null;
+  const playableKey = await ensurePlayableCmsAudioUri(rawKey);
 
-  const sound = primedByUri.get(key);
+  const sound = primedByUri.get(playableKey) || primedByUri.get(rawKey);
   if (!sound) return null;
 
   keysForSound(sound).forEach((k) => primedByUri.delete(k));

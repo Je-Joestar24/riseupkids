@@ -52,13 +52,20 @@ import {
 import {
   takePrimedCmsContentAudio,
 } from '@/services/cmsContentAudioPrime';
+import { ensurePlayableCmsAudioUri } from '@/utils/cmsMediaFileExtension';
 import {
+  getCmsContentAudioSettleMs,
   getCmsContentKaraokeLeadMs,
   playCmsSoundWithIosWatchdog,
   prepareCmsContentAudioPlayback,
   shouldShowCmsContentKaraokeLine,
   shouldShowCmsContentReadingFallback,
 } from '@/utils/cmsPlaybackAudio';
+import {
+  CmsContentAudioDebugPanel,
+  shouldShowCmsContentAudioDebug,
+  type CmsContentAudioDebugContext,
+} from './cms-content-audio-debug';
 
 const DOT_COUNT = 14;
 
@@ -316,7 +323,8 @@ export function CmsContentPage({
   stageHeight?: number;
 }) {
   const bgImage = useCmsPlayableMediaUri(resolveImageUrl(page));
-  const audioUrl = useCmsPlayableMediaUri(resolveAudioUrl(page));
+  const remoteAudioUrl = resolveAudioUrl(page);
+  const audioUrl = useCmsPlayableMediaUri(remoteAudioUrl);
   const soundRef = useRef<Audio.Sound | null>(null);
   const heardNotifiedRef = useRef(false);
   const playbackProbeRef = useRef({
@@ -330,6 +338,31 @@ export function CmsContentPage({
   const [audioFailedOrSkipped, setAudioFailedOrSkipped] = useState(false);
   /** Karaoke highlight only after audio is loaded and playback has started (sync with word coloring). */
   const [karaokeReady, setKaraokeReady] = useState(false);
+  const audioDebugEnabled = shouldShowCmsContentAudioDebug();
+  const [audioDebug, setAudioDebug] = useState<CmsContentAudioDebugContext>({
+    pageId: page.pageId,
+    pageType: 'content',
+    engine: 'expo-av',
+    phase: 'idle',
+  });
+  const lastDebugPosLogRef = useRef(0);
+
+  const pushAudioDebug = useCallback(
+    (patch: Partial<CmsContentAudioDebugContext>, logLine?: string) => {
+      if (!audioDebugEnabled) return;
+      setAudioDebug((prev) => {
+        const nextLines = logLine
+          ? [...(prev.logLines ?? []).slice(-12), `${Date.now() % 100000}:${logLine}`]
+          : prev.logLines;
+        const next = { ...prev, ...patch, logLines: nextLines };
+        if (__DEV__ && logLine) {
+          console.log('[CMS AudioDebug]', page.pageId, logLine, patch);
+        }
+        return next;
+      });
+    },
+    [audioDebugEnabled, page.pageId]
+  );
 
   const readingText = useMemo(
     () =>
@@ -447,10 +480,41 @@ export function CmsContentPage({
       didJustFinish: false,
     };
 
+    const settleMs = getCmsContentAudioSettleMs();
+    const leadMs = getCmsContentKaraokeLeadMs();
+    pushAudioDebug(
+      {
+        pageId: page.pageId,
+        pageType: 'content',
+        remoteAudioUrl,
+        playableAudioUrl: audioUrl,
+        fromPrime: null,
+        phase: 'idle',
+        karaokeReady: false,
+        isPlaying: null,
+        isLoaded: null,
+        positionSec: 0,
+        durationSec: null,
+        didJustFinish: false,
+        audioFailedOrSkipped: false,
+        wordsCount: words.length,
+        leadMs,
+        settleMs,
+        engine: 'expo-av',
+        lastError: null,
+        logLines: [],
+      },
+      'page mount'
+    );
+
     if (!audioUrl) {
       // No reading audio — do not block Next.
       setAudioFailedOrSkipped(true);
       setKaraokeReady(true);
+      pushAudioDebug(
+        { phase: 'no_url', audioFailedOrSkipped: true, karaokeReady: true },
+        'no playable audio url'
+      );
       return () => {
         cancelled = true;
       };
@@ -458,19 +522,35 @@ export function CmsContentPage({
 
     (async () => {
       try {
+        pushAudioDebug({ phase: 'take_prime' }, 'takePrimedCmsContentAudio');
         // Prefer a Sound primed on the previous page (critical for short MP3s on iOS).
-        let s = await takePrimedCmsContentAudio(audioUrl);
+        // Remap .mpeg → .mp3 so iOS AVPlayer accepts CMS mislabeled MP3 uploads.
+        const playableAudioUri = await ensurePlayableCmsAudioUri(audioUrl);
+        if (playableAudioUri !== audioUrl) {
+          pushAudioDebug(
+            { playableAudioUrl: playableAudioUri },
+            `audio ext remapped for iOS: ${audioUrl.split('/').pop()} → ${playableAudioUri.split('/').pop()}`
+          );
+        }
+        let s = await takePrimedCmsContentAudio(playableAudioUri);
+        if (!s && playableAudioUri !== audioUrl) {
+          s = await takePrimedCmsContentAudio(audioUrl);
+        }
+        const fromPrime = Boolean(s);
+        pushAudioDebug({ fromPrime, phase: 'settle' }, fromPrime ? 'primed hit' : 'primed miss → cold create');
 
         // Always settle on iOS — skipSettle after intro BGM stop caused silent pages.
         const ready = await prepareCmsContentAudioPlayback(() => cancelled);
         if (!ready) {
           if (s) await s.unloadAsync().catch(() => {});
+          pushAudioDebug({ phase: 'cancelled' }, 'settle cancelled');
           return;
         }
 
         if (!s) {
+          pushAudioDebug({ phase: 'create' }, `Audio.Sound.createAsync ${playableAudioUri}`);
           const created = await Audio.Sound.createAsync(
-            { uri: audioUrl },
+            { uri: playableAudioUri },
             { shouldPlay: false, positionMillis: 0 }
           );
           s = created.sound;
@@ -478,6 +558,7 @@ export function CmsContentPage({
 
         if (cancelled) {
           await s.unloadAsync();
+          pushAudioDebug({ phase: 'cancelled' }, 'cancelled cancelled after create');
           return;
         }
         try {
@@ -486,17 +567,31 @@ export function CmsContentPage({
           // older expo-av may omit this API
         }
         soundRef.current = s;
+        pushAudioDebug({ phase: 'attach', isLoaded: true }, 'status handler attached');
         s.setOnPlaybackStatusUpdate((status) => {
-          if (!status.isLoaded) return;
+          if (!status.isLoaded) {
+            pushAudioDebug({ isLoaded: false }, 'status !isLoaded');
+            return;
+          }
           if (status.durationMillis != null && status.durationMillis > 0) {
             const nextDuration = status.durationMillis / 1000;
             playbackProbeRef.current.playerDurationSec = nextDuration;
             setPlayerDurationSec(nextDuration);
+            pushAudioDebug({ durationSec: nextDuration, isLoaded: true });
           }
           if (status.positionMillis != null) {
             const nextPos = status.positionMillis / 1000;
             playbackProbeRef.current.positionSec = nextPos;
             setCurrentTime(nextPos);
+            const now = Date.now();
+            if (now - lastDebugPosLogRef.current > 250 || status.isPlaying) {
+              lastDebugPosLogRef.current = now;
+              pushAudioDebug({
+                positionSec: nextPos,
+                isPlaying: Boolean(status.isPlaying),
+                ...(status.isPlaying ? { phase: 'playing' as const } : {}),
+              });
+            }
           }
           if (status.didJustFinish) {
             playbackProbeRef.current.didJustFinish = true;
@@ -506,25 +601,68 @@ export function CmsContentPage({
               playbackProbeRef.current.positionSec = endPos;
               setCurrentTime(endPos);
             }
+            pushAudioDebug(
+              { didJustFinish: true, isPlaying: false, phase: 'finished' },
+              'didJustFinish'
+            );
           }
         });
 
         // Show / arm karaoke BEFORE play — never wait on the iOS watchdog first.
         if (!cancelled) {
           setKaraokeReady(true);
+          pushAudioDebug({ phase: 'karaoke_ready', karaokeReady: true }, 'karaoke armed');
         }
-        const leadMs = getCmsContentKaraokeLeadMs();
         if (leadMs > 0) {
+          pushAudioDebug({ phase: 'lead' }, `lead ${leadMs}ms`);
           await new Promise((resolve) => setTimeout(resolve, leadMs));
           if (cancelled) return;
         }
 
+        pushAudioDebug({ phase: 'play' }, 'playCmsSoundWithIosWatchdog');
         await playCmsSoundWithIosWatchdog(s, () => cancelled, { awaitWatchdog: false });
-      } catch {
+        try {
+          const st = await s.getStatusAsync();
+          if (st.isLoaded) {
+            pushAudioDebug(
+              {
+                isLoaded: true,
+                isPlaying: Boolean(st.isPlaying),
+                positionSec: (st.positionMillis ?? 0) / 1000,
+                durationSec:
+                  st.durationMillis != null && st.durationMillis > 0
+                    ? st.durationMillis / 1000
+                    : null,
+                phase: st.isPlaying ? 'playing' : 'play',
+              },
+              st.isPlaying ? 'post-play: playing' : 'post-play: NOT playing'
+            );
+          } else {
+            pushAudioDebug({ isLoaded: false, phase: 'failed' }, 'post-play: not loaded');
+          }
+        } catch (probeError) {
+          pushAudioDebug(
+            {
+              lastError:
+                probeError instanceof Error ? probeError.message : String(probeError),
+            },
+            'post-play status probe failed'
+          );
+        }
+      } catch (error) {
         if (!cancelled) {
           // Audio failed — unlock Next and still show static reading text.
           setAudioFailedOrSkipped(true);
           setKaraokeReady(true);
+          pushAudioDebug(
+            {
+              phase: 'failed',
+              audioFailedOrSkipped: true,
+              karaokeReady: true,
+              lastError: error instanceof Error ? error.message : String(error),
+            },
+            'playback exception'
+          );
         }
       }
     })();
@@ -534,7 +672,14 @@ export function CmsContentPage({
       soundRef.current?.unloadAsync().catch(() => {});
       soundRef.current = null;
     };
-  }, [page.pageId, audioUrl, wordTimingFingerprint, words.length]);
+  }, [
+    page.pageId,
+    audioUrl,
+    remoteAudioUrl,
+    wordTimingFingerprint,
+    words.length,
+    pushAudioDebug,
+  ]);
 
   const staticReadingLabel = readingText || page.subtitle || 'Subtitle';
   const showKaraokeLine = shouldShowCmsContentKaraokeLine(
@@ -556,8 +701,29 @@ export function CmsContentPage({
         ? 'Next, loading'
         : 'Go to next page';
 
+  useEffect(() => {
+    if (!audioDebugEnabled) return;
+    pushAudioDebug({
+      waitingOnAudio,
+      audioFailedOrSkipped,
+      karaokeReady,
+      wordsCount: words.length,
+    });
+  }, [
+    audioDebugEnabled,
+    waitingOnAudio,
+    audioFailedOrSkipped,
+    karaokeReady,
+    words.length,
+    pushAudioDebug,
+  ]);
+
   return (
     <View style={styles.fill}>
+      <CmsContentAudioDebugPanel
+        visible={audioDebugEnabled}
+        context={audioDebug}
+      />
       <View style={styles.contentGrid}>
         <View style={styles.contentLeft}>
           <View style={styles.dotsRow} accessibilityRole="none" accessibilityLabel="Decorative dots">

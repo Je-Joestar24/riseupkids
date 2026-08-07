@@ -26,7 +26,8 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import { hideSplashScreen, initSplashScreen } from '@/utils/splashScreen';
 
-void initSplashScreen();
+// Global scope (do not await) — required so iOS registers splash before first paint.
+initSplashScreen();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

@@ -26,6 +26,8 @@ export interface StarCamMissionCamScreenProps {
   hasCameraPermission: boolean;
   isDetecting?: boolean;
   isReplayPromptDisabled?: boolean;
+  /** True while vocabulary / LISTEN AGAIN audio is actively playing. */
+  isPromptAudioPlaying?: boolean;
   notificationVisible?: boolean;
   notificationTone?: 'success' | 'retry' | 'checking';
   notificationTitle?: string;
@@ -49,6 +51,7 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
   hasCameraPermission,
   isDetecting = false,
   isReplayPromptDisabled = false,
+  isPromptAudioPlaying = false,
   notificationVisible = false,
   notificationTone = 'success',
   notificationTitle = '',
@@ -89,12 +92,12 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
               disabled={isReplayPromptDisabled}
               accessibilityRole="button"
               accessibilityLabel="Replay vocabulary audio"
-              accessibilityState={{ disabled: isReplayPromptDisabled }}
+              accessibilityState={{ disabled: isReplayPromptDisabled, selected: isPromptAudioPlaying }}
               hitSlop={8}
               style={({ pressed }) => [
                 styles.audioReplayButton,
-                isReplayPromptDisabled && styles.audioReplayButtonDisabled,
-                pressed && !isReplayPromptDisabled && styles.audioReplayButtonPressed,
+                (isPromptAudioPlaying || (pressed && !isReplayPromptDisabled)) &&
+                  styles.audioReplayButtonActive,
               ]}>
               <MaterialIcons name="volume-up" size={18} color="#FFFFFF" />
               <ThemedText style={styles.audioReplayText}>LISTEN AGAIN</ThemedText>
@@ -138,10 +141,14 @@ export const StarCamMissionCamScreen = memo(function StarCamMissionCamScreen({
             disabled={isLoadingCameraPermission || !hasCameraPermission || isDetecting}
             accessibilityRole="button"
             accessibilityLabel="Capture object and check detection"
+            accessibilityState={{
+              disabled: isLoadingCameraPermission || !hasCameraPermission || isDetecting,
+              busy: isDetecting,
+            }}
             style={({ pressed }) => [
               styles.captureButton,
-              (isLoadingCameraPermission || !hasCameraPermission || isDetecting) && styles.captureButtonDisabled,
-              pressed && styles.captureButtonPressed,
+              (isLoadingCameraPermission || !hasCameraPermission) && styles.captureButtonDisabled,
+              (isDetecting || pressed) && styles.captureButtonActive,
             ]}>
             {isDetecting ? (
               <ActivityIndicator color="#FFFFFF" />
@@ -227,12 +234,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.45)',
     marginBottom: 6,
   },
-  audioReplayButtonDisabled: {
-    opacity: 0.55,
-  },
-  audioReplayButtonPressed: {
-    opacity: 0.86,
-    transform: [{ scale: 0.98 }],
+  audioReplayButtonActive: {
+    transform: [{ scale: 1.06 }],
+    borderColor: 'rgba(255,255,255,0.85)',
+    backgroundColor: 'rgba(255,255,255,0.32)',
   },
   audioReplayText: {
     color: '#FFFFFF',
@@ -295,9 +300,8 @@ const styles = StyleSheet.create({
   captureButtonDisabled: {
     opacity: 0.6,
   },
-  captureButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.98 }],
+  captureButtonActive: {
+    transform: [{ scale: 1.04 }],
   },
   captureButtonText: {
     color: '#FFFFFF',

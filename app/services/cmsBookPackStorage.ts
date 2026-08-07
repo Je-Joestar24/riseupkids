@@ -9,6 +9,11 @@ import { resolveCmsAbsoluteMediaUrl } from '@/components/child/common/cms-player
 import { isLocalMediaUri } from '@/components/child/common/cms-player-media';
 import type { CmsBookMediaAssetRef, CmsBookMediaManifest } from '@/services/cmsBookMediaManifest';
 import { looksLikeBunnyExploreEmbedUrl } from '@/utils/bunnyExploreEmbed';
+import {
+  ensurePlayableCmsAudioUri,
+  looksLikeCmsAudioUrl,
+  resolveCmsCacheFileExtension,
+} from '@/utils/cmsMediaFileExtension';
 
 const PACK_ROOT = 'cms-book-packs/';
 const PACK_INDEX_FILE = 'pack-index.json';
@@ -73,15 +78,7 @@ function sanitizeAssetFileName(
   remoteUrl: string,
   kind?: string | null
 ): string {
-  const path = remoteUrl.split('?')[0] ?? '';
-  const extMatch = path.match(/\.([a-z0-9]{1,8})$/i);
-  let ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
-  if (!ext) {
-    if (kind === 'video' || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(remoteUrl)) ext = '.mp4';
-    else if (kind === 'audio' || /\/audio/i.test(remoteUrl)) ext = '.mp3';
-    else if (kind === 'image' || /\/images?\//i.test(remoteUrl)) ext = '.jpg';
-    else ext = '.bin';
-  }
+  const ext = resolveCmsCacheFileExtension(remoteUrl, kind);
   const safeKey = String(assetKey || 'asset')
     .trim()
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
@@ -223,7 +220,11 @@ export async function loadBookPackForPreload(
         allPresent = false;
         continue;
       }
-      uriMap[remote] = entry.localUri;
+      const playable =
+        looksLikeCmsAudioUrl(remote, null) || /\.mpe?g(\?|$)/i.test(entry.localUri)
+          ? await ensurePlayableCmsAudioUri(entry.localUri)
+          : entry.localUri;
+      uriMap[remote] = playable;
     } catch {
       allPresent = false;
     }
