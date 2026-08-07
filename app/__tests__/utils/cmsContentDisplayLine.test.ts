@@ -1,6 +1,8 @@
 import {
   getActiveReadingWordIndexInLine,
+  getUpcomingReadingLineIndex,
   resolveCmsContentDisplayLineIndex,
+  resolveCmsContentTransitionLineIndex,
   type ReadingLineGroup,
 } from '@/components/child/common/cms-player-shared';
 
@@ -50,6 +52,28 @@ describe('resolveCmsContentDisplayLineIndex', () => {
     ];
     // 30ms authored window — still visible at t=0.18 because of min line pad
     expect(resolveCmsContentDisplayLineIndex(0.18, shortLines)).toBe(0);
+  });
+});
+
+describe('resolveCmsContentTransitionLineIndex', () => {
+  it('shows the first line at / just before playback start (preview parity)', () => {
+    expect(resolveCmsContentTransitionLineIndex(0, lines, { karaokeReady: true })).toBe(0);
+    const lateStart: ReadingLineGroup[] = [
+      {
+        lineIndex: 0,
+        words: [{ w: 'Wait', start: 0.4, end: 1 }],
+      },
+    ];
+    expect(getUpcomingReadingLineIndex(0, lateStart)).toBe(0);
+    expect(resolveCmsContentTransitionLineIndex(0, lateStart, { karaokeReady: true })).toBe(0);
+  });
+
+  it('stays blank until karaoke is ready so Prev does not dump all lines', () => {
+    expect(resolveCmsContentTransitionLineIndex(0, lines, { karaokeReady: false })).toBe(-1);
+  });
+
+  it('moves to the upcoming line after an erase gap', () => {
+    expect(resolveCmsContentTransitionLineIndex(1.2, lines, { karaokeReady: true })).toBe(1);
   });
 });
 

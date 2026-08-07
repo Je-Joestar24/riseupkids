@@ -503,6 +503,26 @@ export function getActiveReadingLineIndex(
   return -1;
 }
 
+/** Next line that has not started yet (web ContentTest parity). */
+export function getUpcomingReadingLineIndex(
+  timeSec: number,
+  lineGroups: ReadingLineGroup[]
+): number {
+  if (!lineGroups.length || !Number.isFinite(timeSec)) return -1;
+  const t = Math.max(0, timeSec);
+
+  for (let i = 0; i < lineGroups.length; i += 1) {
+    const lineWords = lineGroups[i]?.words ?? [];
+    if (!lineWords.length) continue;
+    const start = lineWords[0]?.start;
+    if (Number.isFinite(start) && t < start) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 /**
  * Line index for the cutted karaoke UI.
  * - During a line window → that line
@@ -532,6 +552,31 @@ export function resolveCmsContentDisplayLineIndex(
 
   if (options?.audioFinished || timeSec > lastEnd + CMS_READING_TIME_EPSILON_SEC) {
     return lineGroups.length - 1;
+  }
+
+  return -1;
+}
+
+/**
+ * Transition target for karaoke UI — matches admin ContentTest preview:
+ * active line, else upcoming line (so Prev/replay doesn’t flash the full text block).
+ */
+export function resolveCmsContentTransitionLineIndex(
+  timeSec: number,
+  lineGroups: ReadingLineGroup[],
+  options?: { holdLastAfterEnd?: boolean; audioFinished?: boolean; karaokeReady?: boolean }
+): number {
+  if (!lineGroups.length || options?.karaokeReady === false) return -1;
+
+  const display = resolveCmsContentDisplayLineIndex(timeSec, lineGroups, options);
+  if (display >= 0) return display;
+
+  const upcoming = getUpcomingReadingLineIndex(timeSec, lineGroups);
+  if (upcoming >= 0) return upcoming;
+
+  const firstStart = Number(lineGroups[0]?.words?.[0]?.start);
+  if (Number.isFinite(firstStart) && timeSec <= firstStart + 0.05) {
+    return 0;
   }
 
   return -1;

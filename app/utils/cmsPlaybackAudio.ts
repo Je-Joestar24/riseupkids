@@ -117,17 +117,19 @@ export async function playCmsSoundWithIosWatchdog(
 }
 
 /**
- * Reading text must never blank on iOS while audio/session is still arming.
- * Timed pages show static text until the first karaoke line is ready.
+ * Static full reading text is only for untimed pages (no karaoke words).
+ *
+ * Timed pages must never dump the whole multi-line string — that looks wrong on
+ * Prev/replay (all newlines at once) vs the web preview’s one-line animation.
+ * While arming or between cutted lines, show nothing; karaoke owns the UI.
  */
 export function shouldShowCmsContentReadingFallback(
-  karaokeReady: boolean,
+  _karaokeReady: boolean,
   wordsCount: number,
-  visibleLineWordsCount: number
+  _visibleLineWordsCount: number
 ): boolean {
-  if (wordsCount <= 0) return true;
-  if (!karaokeReady) return true;
-  return visibleLineWordsCount <= 0;
+  // Timed karaoke pages: never show the full static block (Prev/replay / newlines).
+  return wordsCount <= 0;
 }
 
 let audioSessionEpoch = 0;

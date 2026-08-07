@@ -37,7 +37,7 @@ import {
   resolveAudioUrl,
   resolveContentReadingFontSizePx,
   resolveCmsAbsoluteMediaUrl,
-  resolveCmsContentDisplayLineIndex,
+  resolveCmsContentTransitionLineIndex,
   resolveImageUrl,
   resolveIntroBackgroundMusicUrl,
   resolveVideoUrl,
@@ -90,10 +90,9 @@ function useReadingLineTransition(activeLineIndex: number, resetKey: string) {
     animRef.current?.stop();
     animRef.current = null;
 
-    // Show a new line immediately — short timed lines cannot wait for a long fade-out.
-    if (activeLineIndex >= 0) {
-      setDisplayLineIndex(activeLineIndex);
-      previousLineRef.current = activeLineIndex;
+    const fadeIn = (lineIndex: number) => {
+      setDisplayLineIndex(lineIndex);
+      previousLineRef.current = lineIndex;
       opacity.setValue(0);
       animRef.current = Animated.timing(opacity, {
         toValue: 1,
@@ -101,20 +100,39 @@ function useReadingLineTransition(activeLineIndex: number, resetKey: string) {
         useNativeDriver: true,
       });
       animRef.current.start();
+    };
+
+    // Erase (matches web ContentTest between cutted lines / on Prev replay).
+    if (activeLineIndex < 0) {
+      animRef.current = Animated.timing(opacity, {
+        toValue: 0,
+        duration: CMS_READING_LINE_ERASE_MS,
+        useNativeDriver: true,
+      });
+      animRef.current.start(({ finished }) => {
+        if (!finished) return;
+        setDisplayLineIndex(-1);
+        previousLineRef.current = -1;
+      });
       return;
     }
 
-    // Erase between cutted lines (activeLineIndex === -1).
-    animRef.current = Animated.timing(opacity, {
-      toValue: 0,
-      duration: CMS_READING_LINE_ERASE_MS,
-      useNativeDriver: true,
-    });
-    animRef.current.start(({ finished }) => {
-      if (!finished) return;
-      setDisplayLineIndex(-1);
-      previousLineRef.current = -1;
-    });
+    // Line → line: erase first, then reveal (preview parity; avoids dumping all lines).
+    if (previousLine >= 0 && previousLine !== activeLineIndex) {
+      const nextLine = activeLineIndex;
+      animRef.current = Animated.timing(opacity, {
+        toValue: 0,
+        duration: CMS_READING_LINE_ERASE_MS,
+        useNativeDriver: true,
+      });
+      animRef.current.start(({ finished }) => {
+        if (!finished) return;
+        fadeIn(nextLine);
+      });
+      return;
+    }
+
+    fadeIn(activeLineIndex);
   }, [activeLineIndex, opacity]);
 
   return { displayLineIndex, opacity };
@@ -444,9 +462,10 @@ export function CmsContentPage({
 
   const activeLineIndex = useMemo(() => {
     if (!karaokeReady) return -1;
-    return resolveCmsContentDisplayLineIndex(currentTime, lineGroups, {
+    return resolveCmsContentTransitionLineIndex(currentTime, lineGroups, {
       holdLastAfterEnd: true,
       audioFinished: didJustFinish,
+      karaokeReady,
     });
   }, [currentTime, lineGroups, karaokeReady, didJustFinish]);
 
@@ -461,9 +480,22 @@ export function CmsContentPage({
   }, [displayLineIndex, lineGroups]);
 
   const activeWordIndex = useMemo(() => {
-    if (displayLineIndex !== activeLineIndex || activeLineIndex < 0) return -1;
+    // Word coloring only while this line is the live timed window (not upcoming pre-show).
+    if (displayLineIndex < 0 || !karaokeReady) return -1;
+    const liveLineWords = lineGroups[displayLineIndex]?.words ?? [];
+    if (!liveLineWords.length) return -1;
+    const lineStart = liveLineWords[0]?.start;
+    const lineEnd = liveLineWords[liveLineWords.length - 1]?.end;
+    if (
+      !Number.isFinite(lineStart) ||
+      !Number.isFinite(lineEnd) ||
+      currentTime + 0.001 < lineStart ||
+      currentTime > lineEnd + 0.05
+    ) {
+      return -1;
+    }
     return getActiveReadingWordIndexInLine(currentTime, visibleLineWords);
-  }, [currentTime, visibleLineWords, displayLineIndex, activeLineIndex]);
+  }, [currentTime, visibleLineWords, displayLineIndex, lineGroups, karaokeReady]);
 
   useEffect(() => {
     let cancelled = false;

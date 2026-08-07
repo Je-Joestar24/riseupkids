@@ -44,11 +44,15 @@ describe('cmsPlaybackAudio', () => {
   });
 
   describe('shouldShowCmsContentReadingFallback', () => {
-    it('keeps static reading text visible while karaoke is arming (iOS blank-text bug)', () => {
-      expect(shouldShowCmsContentReadingFallback(false, 5, 0)).toBe(true);
-      expect(shouldShowCmsContentReadingFallback(true, 5, 0)).toBe(true);
+    it('never dumps full multi-line text on timed karaoke pages (Prev/replay parity)', () => {
+      expect(shouldShowCmsContentReadingFallback(false, 5, 0)).toBe(false);
+      expect(shouldShowCmsContentReadingFallback(true, 5, 0)).toBe(false);
       expect(shouldShowCmsContentReadingFallback(true, 5, 3)).toBe(false);
+    });
+
+    it('keeps static reading text only when the page has no timed words', () => {
       expect(shouldShowCmsContentReadingFallback(false, 0, 0)).toBe(true);
+      expect(shouldShowCmsContentReadingFallback(true, 0, 0)).toBe(true);
     });
   });
 
