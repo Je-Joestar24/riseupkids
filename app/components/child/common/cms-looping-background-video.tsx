@@ -4,7 +4,7 @@
  * when the device hardware decoder rejects the file (e.g. 4K H.264). Bunny embeds use WebView.
  */
 
-import { ResizeMode, Video } from 'expo-av';
+import { ResizeMode, Video, type AVPlaybackStatus } from 'expo-av';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Platform, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
@@ -22,6 +22,7 @@ import { isLocalMediaUri } from './cms-player-media';
 import { resolveCmsAbsoluteMediaUrl } from './cms-player-shared';
 import {
   buildLoopingVideoHtml,
+  CMS_LOOPING_VIDEO_ENDED_MESSAGE,
   CMS_LOOPING_VIDEO_ERROR_PREFIX,
   CMS_LOOPING_VIDEO_READY_MESSAGE,
 } from './cms-looping-video-html';
@@ -45,12 +46,21 @@ export interface CmsVideoPlaybackDebugMeta {
   uriMapResolved?: string | null;
 }
 
+export interface CmsLoopingVideoPlaybackEvent {
+  positionSec: number;
+  durationSec: number | null;
+  didJustFinish: boolean;
+  canDetectEnded: boolean;
+  failed: boolean;
+}
+
 export interface CmsLoopingBackgroundVideoProps {
   uri: string | null | undefined;
   /** Remote https URL used when local file playback fails. */
   remoteUri?: string | null;
   accessibilityLabel?: string;
   debug?: CmsVideoPlaybackDebugMeta;
+  onPlaybackEvent?: (event: CmsLoopingVideoPlaybackEvent) => void;
 }
 
 function resolvePlaybackCandidates(
@@ -77,12 +87,14 @@ function CmsHtml5LoopingVideoWebView({
   debugMeta,
   onDebugChange,
   priorError,
+  onPlaybackEvent,
 }: {
   candidates: string[];
   accessibilityLabel: string;
   debugMeta?: CmsVideoPlaybackDebugMeta;
   onDebugChange: (patch: Partial<CmsVideoPlaybackDebugContext>) => void;
   priorError?: string | null;
+  onPlaybackEvent?: (event: CmsLoopingVideoPlaybackEvent) => void;
 }) {
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [ready, setReady] = useState(false);
@@ -177,7 +189,14 @@ function CmsHtml5LoopingVideoWebView({
     setFailed(false);
     setStuckLoading(false);
     setLastError(null);
-  }, []);
+    onPlaybackEvent?.({
+      positionSec: 0,
+      durationSec: null,
+      didJustFinish: false,
+      canDetectEnded: true,
+      failed: false,
+    });
+  }, [onPlaybackEvent]);
 
   const handlePlaybackError = useCallback(
     (message: string) => {
@@ -188,8 +207,15 @@ function CmsHtml5LoopingVideoWebView({
         return;
       }
       setFailed(true);
+      onPlaybackEvent?.({
+        positionSec: 0,
+        durationSec: null,
+        didJustFinish: false,
+        canDetectEnded: true,
+        failed: true,
+      });
     },
-    [candidateIndex, candidates.length]
+    [candidateIndex, candidates.length, onPlaybackEvent]
   );
 
   const handleWebViewMessage = useCallback(
@@ -199,12 +225,22 @@ function CmsHtml5LoopingVideoWebView({
         handleReady();
         return;
       }
+      if (data === CMS_LOOPING_VIDEO_ENDED_MESSAGE) {
+        onPlaybackEvent?.({
+          positionSec: 0,
+          durationSec: null,
+          didJustFinish: true,
+          canDetectEnded: true,
+          failed: false,
+        });
+        return;
+      }
       if (data.startsWith(CMS_LOOPING_VIDEO_ERROR_PREFIX)) {
         const code = data.slice(CMS_LOOPING_VIDEO_ERROR_PREFIX.length) || 'unknown';
         handlePlaybackError(`HTML5 video error (code ${code}, candidate ${candidateIndex + 1}/${candidates.length})`);
       }
     },
-    [handleReady, handlePlaybackError, candidateIndex, candidates.length]
+    [handleReady, handlePlaybackError, candidateIndex, candidates.length, onPlaybackEvent]
   );
 
   const showDebug = shouldShowCmsVideoDebugPanel({ failed, stuckLoading });
@@ -276,12 +312,14 @@ function CmsNativeLoopingVideo({
   accessibilityLabel,
   debugMeta,
   onDebugChange,
+  onPlaybackEvent,
 }: {
   localUri: string | null;
   remoteUri: string | null;
   accessibilityLabel: string;
   debugMeta?: CmsVideoPlaybackDebugMeta;
   onDebugChange: (patch: Partial<CmsVideoPlaybackDebugContext>) => void;
+  onPlaybackEvent?: (event: CmsLoopingVideoPlaybackEvent) => void;
 }) {
   const candidates = useMemo(() => {
     const list: string[] = [];
@@ -297,7 +335,10 @@ function CmsNativeLoopingVideo({
   const [stuckLoading, setStuckLoading] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
   const [webViewPriorError, setWebViewPriorError] = useState<string | null>(null);
+  const [allowLoop, setAllowLoop] = useState(false);
   const opacity = useRef(new Animated.Value(0)).current;
+  const videoRef = useRef<Video>(null);
+  const endedOnceRef = useRef(false);
   const playbackUri = candidates[candidateIndex] ?? null;
 
   useEffect(() => {
@@ -308,6 +349,8 @@ function CmsNativeLoopingVideo({
     setStuckLoading(false);
     setLastError(null);
     setWebViewPriorError(null);
+    setAllowLoop(false);
+    endedOnceRef.current = false;
     opacity.setValue(0);
   }, [localUri, remoteUri, opacity]);
 
@@ -408,6 +451,32 @@ function CmsNativeLoopingVideo({
     [candidateIndex, candidates.length, switchToWebViewFallback]
   );
 
+  const handleStatus = useCallback(
+    (status: AVPlaybackStatus) => {
+      if (!status.isLoaded) return;
+      const positionSec = (status.positionMillis ?? 0) / 1000;
+      const durationSec =
+        status.durationMillis != null && status.durationMillis > 0
+          ? status.durationMillis / 1000
+          : null;
+      const didJustFinish = Boolean(status.didJustFinish);
+      onPlaybackEvent?.({
+        positionSec,
+        durationSec,
+        didJustFinish,
+        canDetectEnded: true,
+        failed: false,
+      });
+      if (didJustFinish && !endedOnceRef.current) {
+        endedOnceRef.current = true;
+        setAllowLoop(true);
+        void videoRef.current?.setIsLoopingAsync(true).catch(() => undefined);
+        void videoRef.current?.replayAsync().catch(() => undefined);
+      }
+    },
+    [onPlaybackEvent]
+  );
+
   const showDebug = shouldShowCmsVideoDebugPanel({ failed, stuckLoading });
 
   if (playbackEngine === 'webview') {
@@ -418,6 +487,7 @@ function CmsNativeLoopingVideo({
         debugMeta={debugMeta}
         onDebugChange={onDebugChange}
         priorError={webViewPriorError}
+        onPlaybackEvent={onPlaybackEvent}
       />
     );
   }
@@ -443,17 +513,19 @@ function CmsNativeLoopingVideo({
       {!failed ? (
         <Animated.View style={[styles.videoLayer, { opacity: ready ? opacity : 0 }]}>
           <Video
+            ref={videoRef}
             key={playbackUri}
             source={{ uri: playbackUri }}
             style={StyleSheet.absoluteFillObject}
             resizeMode={ResizeMode.COVER}
             shouldPlay
             isMuted
-            isLooping
+            isLooping={allowLoop}
             useNativeControls={false}
             progressUpdateIntervalMillis={Platform.OS === 'android' ? 500 : 250}
             onLoad={handleLoad}
             onError={handleError}
+            onPlaybackStatusUpdate={handleStatus}
             accessibilityLabel={accessibilityLabel}
           />
           {!ready ? (
@@ -490,6 +562,7 @@ export function CmsLoopingBackgroundVideo({
   remoteUri,
   accessibilityLabel = 'Tutorial video',
   debug,
+  onPlaybackEvent,
 }: CmsLoopingBackgroundVideoProps) {
   const playbackUri = resolveCmsAbsoluteMediaUrl(uri);
   const isBunnyEmbed = looksLikeBunnyExploreEmbedUrl(playbackUri);
@@ -566,11 +639,25 @@ export function CmsLoopingBackgroundVideo({
             onLoadEnd={() => {
               setBunnyReady(true);
               mergeDebug({ ready: true, activeSource: playbackUri, lastError: null });
+              onPlaybackEvent?.({
+                positionSec: 0,
+                durationSec: null,
+                didJustFinish: false,
+                canDetectEnded: false,
+                failed: false,
+              });
             }}
             onError={() => {
               setBunnyFailed(true);
               setBunnyError('Bunny WebView onError');
               mergeDebug({ failed: true, lastError: 'Bunny WebView onError' });
+              onPlaybackEvent?.({
+                positionSec: 0,
+                durationSec: null,
+                didJustFinish: false,
+                canDetectEnded: false,
+                failed: true,
+              });
             }}
           />
         </Animated.View>
@@ -598,6 +685,7 @@ export function CmsLoopingBackgroundVideo({
       accessibilityLabel={accessibilityLabel}
       debugMeta={debug}
       onDebugChange={mergeDebug}
+      onPlaybackEvent={onPlaybackEvent}
     />
   );
 }

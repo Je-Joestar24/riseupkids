@@ -1,6 +1,7 @@
 /**
- * CMS content-page Next unlock rules for reading audio.
+ * CMS content-page Next unlock rules for reading audio / transcript.
  * Lock only on first listen; never trap kids when audio is missing/broken.
+ * Stale finish events from a previous page must not unlock the next page.
  */
 
 /** Unlock Next this many seconds before audio ends (feels snappy). */
@@ -17,6 +18,9 @@ export const CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS = 12_000;
 export const CMS_CONTENT_AUDIO_STALL_POSITION_SEC = 0.25;
 
 export interface CmsContentAudioNextUnlockInput {
+  pageId?: string | null;
+  /** Page id that the current position / didJustFinish values belong to. */
+  playbackPageId?: string | null;
   /** Remote/local URI present for this page. */
   hasAudioUrl: boolean;
   /** Child already finished (or was cleared past) this page’s audio in this book session. */
@@ -29,6 +33,16 @@ export interface CmsContentAudioNextUnlockInput {
   durationSec: number | null;
   didJustFinish: boolean;
   unlockRemainingSec?: number;
+}
+
+/** True when status updates belong to the page currently on screen. */
+export function isCmsPlaybackBoundToPage(
+  pageId: string | null | undefined,
+  playbackPageId: string | null | undefined
+): boolean {
+  const page = String(pageId || '');
+  const bound = String(playbackPageId || '');
+  return Boolean(page) && page === bound;
 }
 
 /**
@@ -61,6 +75,15 @@ export function shouldUnlockCmsContentNextFromAudio(
   if (input.alreadyHeard) return true;
   if (!input.hasAudioUrl) return true;
   if (input.audioFailedOrSkipped) return true;
+
+  if (
+    input.pageId != null &&
+    input.playbackPageId != null &&
+    !isCmsPlaybackBoundToPage(input.pageId, input.playbackPageId)
+  ) {
+    return false;
+  }
+
   if (input.didJustFinish) return true;
 
   const unlockRemaining = input.unlockRemainingSec ?? CMS_CONTENT_AUDIO_UNLOCK_REMAINING_SEC;

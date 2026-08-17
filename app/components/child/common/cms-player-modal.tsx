@@ -42,6 +42,7 @@ import {
   restoreAppPortraitOrientation,
 } from '@/utils/cmsPlayerOrientation';
 import { prepareCmsPlaybackAudioAfterOrientation } from '@/utils/cmsPlaybackAudio';
+import { useCmsBookPagePlaybackFlags } from '@/hooks/useCmsBookPagePlaybackFlags';
 import { stopCmsIntroBackgroundMusic } from '@/services/cmsIntroBackgroundMusic';
 import {
   clearPrimedCmsContentAudio,
@@ -145,8 +146,6 @@ export function CmsPlayerModal({
   const [mediaReady, setMediaReady] = useState(false);
   /** After timeout, allow advancing onto next page using remote stream (anti-stuck). */
   const [allowNextRemoteStream, setAllowNextRemoteStream] = useState(false);
-  /** Page IDs whose reading audio was completed (or skipped safely) this book session. */
-  const [heardAudioPageIds, setHeardAudioPageIds] = useState<Record<string, true>>({});
   /** Bumped after landscape lock + audio mode so intro BGM re-arms on iOS. */
   const [audioSessionEpoch, setAudioSessionEpoch] = useState(0);
 
@@ -218,6 +217,12 @@ export function CmsPlayerModal({
     () => (book?.id ? `${book.id}:${bookManifest?.contentVersion ?? book.version ?? 0}` : signature),
     [book?.id, book?.version, bookManifest?.contentVersion, signature]
   );
+
+  const pagePlaybackFlags = useCmsBookPagePlaybackFlags({
+    bookId: book?.id ?? null,
+    contentVersion: bookManifest?.contentVersion ?? book?.contentVersion ?? null,
+    enabled: open,
+  });
 
   useEffect(() => {
     if (!usesInternalPreload) {
@@ -341,7 +346,6 @@ export function CmsPlayerModal({
       mediaUriMapRef.current = {};
       setAllowNextRemoteStream(false);
       pendingAdvanceRef.current = false;
-      setHeardAudioPageIds({});
     }
   }, [open, signature]);
 
@@ -428,10 +432,25 @@ export function CmsPlayerModal({
     setAllowNextRemoteStream(false);
   }, [currentIndex]);
 
-  const markContentAudioHeard = useCallback((pageId: string | undefined) => {
-    if (!pageId) return;
-    setHeardAudioPageIds((prev) => (prev[pageId] ? prev : { ...prev, [pageId]: true }));
-  }, []);
+  const markContentAudioHeard = useCallback(
+    (
+      pageId: string | undefined,
+      reason: 'audio_finished' | 'no_media' | 'playback_error' | 'safety_timeout'
+    ) => {
+      pagePlaybackFlags.markAudioHeard(pageId, reason);
+    },
+    [pagePlaybackFlags]
+  );
+
+  const markDemoVideoPlayed = useCallback(
+    (
+      pageId: string | undefined,
+      reason: 'video_finished' | 'no_media' | 'playback_error' | 'safety_timeout' | 'undetectable_stream'
+    ) => {
+      pagePlaybackFlags.markVideoPlayed(pageId, reason);
+    },
+    [pagePlaybackFlags]
+  );
 
   const goToIndex = useCallback((nextIndex: number) => {
     setCurrentIndex(nextIndex);
@@ -602,13 +621,14 @@ export function CmsPlayerModal({
       const pageId = currentPage.pageId || `content-${currentIndex}`;
       return (
         <CmsContentPage
+          key={pageId}
           page={currentPage}
           hasPrev={hasPrev}
           hasNext={hasNext}
           isPreloading={isPreloading}
           isNextDisabled={isNextDisabled}
-          audioAlreadyHeard={Boolean(heardAudioPageIds[pageId])}
-          onAudioHeard={() => markContentAudioHeard(pageId)}
+          audioAlreadyHeard={pagePlaybackFlags.isAudioHeard(pageId)}
+          onAudioHeard={(reason) => markContentAudioHeard(pageId, reason)}
           onPrev={goPrev}
           onNext={goNext}
           stageWidth={stageW}
@@ -632,11 +652,14 @@ export function CmsPlayerModal({
     if (pageType === 'demo') {
       return (
         <CmsDemoPage
+          key={currentPage.pageId || `demo-${currentIndex}`}
           page={currentPage}
           bookId={book?.id ?? null}
           hasNext={hasNext}
           isPreloading={isPreloading}
           isNextDisabled={isNextDisabled}
+          videoAlreadyPlayed={pagePlaybackFlags.isVideoPlayed(currentPage.pageId)}
+          onVideoPlayed={(reason) => markDemoVideoPlayed(currentPage.pageId, reason)}
           onNext={goNext}
         />
       );

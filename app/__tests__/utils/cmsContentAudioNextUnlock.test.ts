@@ -85,6 +85,21 @@ describe('shouldUnlockCmsContentNextFromAudio', () => {
     ).toBe(true);
   });
 
+  it('does not unlock the next page from a previous page didJustFinish', () => {
+    expect(
+      shouldUnlockCmsContentNextFromAudio({
+        pageId: 'content-2',
+        playbackPageId: 'content-1',
+        hasAudioUrl: true,
+        alreadyHeard: false,
+        audioFailedOrSkipped: false,
+        positionSec: 10,
+        durationSec: 10,
+        didJustFinish: true,
+      })
+    ).toBe(false);
+  });
+
   it('stays locked when duration is unknown and not finished', () => {
     expect(
       shouldUnlockCmsContentNextFromAudio({

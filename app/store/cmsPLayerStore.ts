@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { startCmsBookPackPreload } from '@/services/cmsBookMediaCache';
 import {
   cmsBooksPlayerService,
   normalizePlayableBookDetail,
@@ -89,6 +90,9 @@ export const useCmsPlayerStore = create<CmsBookPlayerStore>((set) => ({
         isLoadingBook: false,
         error: response?.success ? null : response?.message ?? 'Failed to load playable book',
       });
+      if (book) {
+        void startCmsBookPackPreload(book);
+      }
       return book;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

@@ -307,4 +307,186 @@ describe('CMS built-in book preload E2E (app pack storage)', () => {
     expect(events).toContain('all-done');
     expect(events.indexOf('playable')).toBeLessThan(events.indexOf('all-done'));
   });
+
+  it('starts the next-page demo video before later-page images finish', async () => {
+    const FileSystem = require('expo-file-system/legacy');
+    const events: string[] = [];
+    const laterUrl = 'https://cdn.riseupkids.test/uploads/media/images/later.png';
+
+    FileSystem.downloadAsync.mockImplementation(async (remoteUrl: string, dest: string) => {
+      mockDownloadCalls.push({ remoteUrl, dest });
+      if (String(remoteUrl).includes('demo.mp4')) {
+        events.push('video-start');
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        events.push('video-done');
+      } else if (String(remoteUrl).includes('later.png')) {
+        events.push('later-start');
+        await new Promise((resolve) => setTimeout(resolve, 80));
+        events.push('later-done');
+      } else {
+        events.push('start-asset');
+      }
+      mockFiles.set(dest, { exists: true, size: 1024 });
+      return { status: 200, uri: dest };
+    });
+
+    const laterAsset: CmsBookMediaAssetRef = {
+      key: 'pages.later-1.image',
+      mediaId: 'img-9',
+      url: laterUrl,
+      updatedAt: '2026-07-08T09:03:00.000Z',
+      kind: 'image',
+    };
+
+    await preloadCmsBookPackAssets({
+      bookId: 'book-e2e-near-video',
+      contentVersion: '1:2026-07-08T10:00:00.000Z',
+      assets: [...sampleAssets, laterAsset],
+      pages: [
+        {
+          pageId: 'cover-1',
+          type: 'cover',
+          order: 1,
+          title: 'Cover',
+          media: {
+            imageMedia: { url: sampleAssets[0].url },
+            audioMedia: { url: sampleAssets[1].url },
+          },
+        },
+        {
+          pageId: 'demo-1',
+          type: 'demo',
+          order: 2,
+          title: 'Demo',
+          media: { videoMedia: { url: sampleAssets[2].url } },
+        },
+        {
+          pageId: 'later-1',
+          type: 'content',
+          order: 3,
+          title: 'Later',
+          media: { imageMedia: { url: laterUrl } },
+        },
+      ] as never,
+      mode: 'progressive',
+      concurrency: { imageAudio: 2, video: 1 },
+    });
+
+    expect(events.indexOf('video-start')).toBeGreaterThanOrEqual(0);
+    expect(events.indexOf('later-done')).toBeGreaterThanOrEqual(0);
+    expect(events.indexOf('video-start')).toBeLessThan(events.indexOf('later-done'));
+  });
+
+  it('lookahead prefetch skips distant pages and does not save a full pack', async () => {
+    const laterUrl = 'https://cdn.riseupkids.test/uploads/media/images/later.png';
+    const laterAsset: CmsBookMediaAssetRef = {
+      key: 'pages.later-1.image',
+      mediaId: 'img-9',
+      url: laterUrl,
+      updatedAt: '2026-07-08T09:03:00.000Z',
+      kind: 'image',
+    };
+
+    await preloadCmsBookPackAssets({
+      bookId: 'book-e2e-lookahead',
+      contentVersion: '1:2026-07-08T10:00:00.000Z',
+      assets: [...sampleAssets, laterAsset],
+      pages: [
+        {
+          pageId: 'cover-1',
+          type: 'cover',
+          order: 1,
+          title: 'Cover',
+          media: {
+            imageMedia: { url: sampleAssets[0].url },
+            audioMedia: { url: sampleAssets[1].url },
+          },
+        },
+        {
+          pageId: 'demo-1',
+          type: 'demo',
+          order: 2,
+          title: 'Demo',
+          media: { videoMedia: { url: sampleAssets[2].url } },
+        },
+        {
+          pageId: 'later-1',
+          type: 'content',
+          order: 3,
+          title: 'Later',
+          media: { imageMedia: { url: laterUrl } },
+        },
+      ] as never,
+      mode: 'progressive',
+      maxPageLookahead: 1,
+    });
+
+    expect(mockDownloadCalls.some(({ remoteUrl }) => String(remoteUrl).includes('later.png'))).toBe(
+      false
+    );
+    expect(mockDownloadCalls.some(({ remoteUrl }) => String(remoteUrl).includes('demo.mp4'))).toBe(
+      true
+    );
+    const saved = await loadBookPackManifest('book-e2e-lookahead');
+    expect(saved).toBeNull();
+  });
+
+  it('joins an in-flight pack session instead of downloading twice', async () => {
+    const FileSystem = require('expo-file-system/legacy');
+    FileSystem.downloadAsync.mockImplementation(async (remoteUrl: string, dest: string) => {
+      mockDownloadCalls.push({ remoteUrl, dest });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      mockFiles.set(dest, { exists: true, size: 1024 });
+      return { status: 200, uri: dest };
+    });
+
+    const options = {
+      bookId: 'book-e2e-join',
+      contentVersion: '1:2026-07-08T10:00:00.000Z',
+      assets: sampleAssets,
+    };
+
+    const first = preloadCmsBookPackAssets(options);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = preloadCmsBookPackAssets(options);
+    await Promise.all([first, second]);
+
+    expect(mockDownloadCalls.length).toBe(3);
+  });
+
+  it('does not treat a cover-only pack as fully restored for the whole book', async () => {
+    const bookId = 'book-e2e-partial-pack';
+    const contentVersion = '1:2026-07-08T10:00:00.000Z';
+    const coverDest = 'file:///mock-doc/cms-book-packs/book-e2e-partial-pack/pages.cover-1.image.png';
+    mockFiles.set(coverDest, { exists: true, size: 1024 });
+    mockFiles.set('file:///mock-doc/cms-book-packs/book-e2e-partial-pack/pack-manifest.json', {
+      exists: true,
+      contents: JSON.stringify({
+        bookId,
+        contentVersion,
+        savedAt: '2026-07-08T10:00:00.000Z',
+        assets: {
+          'pages.cover-1.image': {
+            assetKey: 'pages.cover-1.image',
+            remoteUrl: sampleAssets[0].url,
+            localUri: coverDest,
+            mediaId: 'img-1',
+            mediaUpdatedAt: '2026-07-08T09:00:00.000Z',
+            bytes: 1024,
+          },
+        },
+      }),
+    });
+
+    const result = await preloadCmsBookPackAssets({
+      bookId,
+      contentVersion,
+      assets: sampleAssets,
+    });
+
+    expect(result.restoredFromPack).toBe(false);
+    expect(mockDownloadCalls.some(({ remoteUrl }) => String(remoteUrl).includes('demo.mp4'))).toBe(
+      true
+    );
+  });
 });

@@ -59,6 +59,10 @@ import { useCmsPlayerStore } from '@/store/cmsPLayerStore';
 import { useExploreStore } from '@/store/exploreStore';
 import { useHtml5Modal, isHtml5Book } from '@/hooks/html5Hook';
 import { useModule } from '@/hooks/moduleHook';
+import {
+  findFirstBuiltinCmsBookId,
+  prefetchCmsBuiltinBookStartPack,
+} from '@/services/cmsBookLibraryPrefetch';
 import type { BuiltInBookCompletionPayload } from '@/services/cmsBooksPlayerService';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import {
@@ -351,6 +355,16 @@ export default function ChildModuleScreen() {
     (videoWatchesByVideoId[getContentId(video)] as { starsAwarded?: boolean } | undefined)?.starsAwarded ? 1 : 0;
   const getChantStarPoints = (chant: PopulatedContentItem) =>
     isChantCompleted(chant) ? 1 : 0;
+
+  const firstBuiltinBookId = useMemo(() => findFirstBuiltinCmsBookId(books), [books]);
+
+  useEffect(() => {
+    if (!firstBuiltinBookId || cmsModalBook) return undefined;
+    const timer = setTimeout(() => {
+      void prefetchCmsBuiltinBookStartPack(firstBuiltinBookId).catch(() => undefined);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [firstBuiltinBookId, cmsModalBook]);
 
   const fetch = useCallback(() => {
     if (courseId && childId) {

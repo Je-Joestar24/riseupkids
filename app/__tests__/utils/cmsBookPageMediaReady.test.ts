@@ -141,6 +141,43 @@ describe('cmsBookPageMediaReady', () => {
       const ordered = prioritizeCmsBookAssetsForProgressivePreload(assets, pages, 0);
       expect(ordered[0].key).toBe('pages.demo-1.video');
     });
+
+    it('maxPageLookahead drops assets beyond the start window', () => {
+      const pages = [
+        page({ pageId: 'cover-1', type: 'cover' }),
+        page({ pageId: 'demo-1', type: 'demo' }),
+        page({ pageId: 'later-1', type: 'content' }),
+      ];
+      const assets: CmsBookMediaAssetRef[] = [
+        {
+          key: 'pages.cover-1.image',
+          mediaId: 'i1',
+          url: 'https://cdn.riseupkids.test/img/cover.png',
+          updatedAt: null,
+          kind: 'image',
+        },
+        {
+          key: 'pages.demo-1.video',
+          mediaId: 'v1',
+          url: 'https://cdn.riseupkids.test/videos/demo.mp4',
+          updatedAt: null,
+          kind: 'video',
+        },
+        {
+          key: 'pages.later-1.image',
+          mediaId: 'i2',
+          url: 'https://cdn.riseupkids.test/img/later.png',
+          updatedAt: null,
+          kind: 'image',
+        },
+      ];
+
+      const ordered = prioritizeCmsBookAssetsForProgressivePreload(assets, pages, 0, 1);
+      expect(ordered.map((asset) => asset.key)).toEqual([
+        'pages.cover-1.image',
+        'pages.demo-1.video',
+      ]);
+    });
   });
 
   describe('timeouts', () => {

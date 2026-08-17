@@ -191,6 +191,41 @@ function pageBand(pageIndex: number, focusPageIndex: number): number {
   return 3 + Math.min(pageIndex, 50);
 }
 
+export function getCmsBookAssetPageIndex(
+  assetKey: string,
+  pages: CmsPlayablePage[]
+): number {
+  return pageIndexForAssetKey(assetKey, pages);
+}
+
+/** True when this asset belongs to the current page or the next N pages. */
+export function isCmsBookAssetWithinLookahead(
+  assetKey: string,
+  pages: CmsPlayablePage[],
+  focusPageIndex: number,
+  maxPageLookahead: number
+): boolean {
+  const pageIndex = pageIndexForAssetKey(assetKey, pages);
+  if (pageIndex >= 10_000) return false;
+  return pageIndex <= Math.max(0, focusPageIndex) + Math.max(0, maxPageLookahead);
+}
+
+/**
+ * Near-term videos (current, next, +1) should share the pipe with page-1 images.
+ * Distant MP4s wait until those nearby videos finish so they don't starve start/next.
+ */
+export function isCmsNearTermVideoAsset(
+  asset: CmsBookMediaAssetRef,
+  pages: CmsPlayablePage[],
+  focusPageIndex = 0,
+  nearPageCount = 2
+): boolean {
+  const pageIndex = pageIndexForAssetKey(asset.key, pages);
+  if (pageIndex >= 10_000) return false;
+  const focus = Math.max(0, focusPageIndex);
+  return pageIndex >= focus && pageIndex <= focus + Math.max(0, nearPageCount);
+}
+
 /**
  * Order manifest assets so page 0 (+ next page / videos) download first.
  * Stable for iOS + Android — pure sort, no Platform branching.
@@ -198,10 +233,17 @@ function pageBand(pageIndex: number, focusPageIndex: number): number {
 export function prioritizeCmsBookAssetsForProgressivePreload(
   assets: CmsBookMediaAssetRef[],
   pages: CmsPlayablePage[],
-  focusPageIndex = 0
+  focusPageIndex = 0,
+  maxPageLookahead?: number
 ): CmsBookMediaAssetRef[] {
   const focus = Math.max(0, focusPageIndex);
-  const decorated = assets.map((asset, originalIndex) => {
+  const limited =
+    typeof maxPageLookahead === 'number'
+      ? assets.filter((asset) =>
+          isCmsBookAssetWithinLookahead(asset.key, pages, focus, maxPageLookahead)
+        )
+      : assets;
+  const decorated = limited.map((asset, originalIndex) => {
     const pageIndex = pageIndexForAssetKey(asset.key, pages);
     const page = pages[pageIndex];
     const videoHeavy = isCmsVideoHeavyPage(page);

@@ -26,7 +26,7 @@ import { shouldStartCmsIntroBackgroundMusic } from '@/utils/cmsPlaybackAudio';
 
 import { resolvePlayableMediaUri } from './cms-player-media';
 import { useCmsMediaUriMap, useCmsPlayableMediaUri } from './cms-player-media-context';
-import { CmsLoopingBackgroundVideo } from './cms-looping-background-video';
+import { CmsLoopingBackgroundVideo, type CmsLoopingVideoPlaybackEvent } from './cms-looping-background-video';
 import {
   CMS_READING_LINE_ERASE_MS,
   cmsLocalUiAssets,
@@ -49,6 +49,11 @@ import {
   shouldSafetyUnlockCmsContentAudio,
   shouldUnlockCmsContentNextFromAudio,
 } from '@/utils/cmsContentAudioNextUnlock';
+import {
+  CMS_DEMO_VIDEO_SAFETY_UNLOCK_MS,
+  shouldSafetyUnlockCmsDemoVideo,
+  shouldUnlockCmsDemoNextFromVideo,
+} from '@/utils/cmsDemoVideoNextUnlock';
 import {
   takePrimedCmsContentAudio,
 } from '@/services/cmsContentAudioPrime';
@@ -228,6 +233,8 @@ export function CmsDemoPage({
   hasNext,
   isPreloading,
   isNextDisabled,
+  videoAlreadyPlayed = false,
+  onVideoPlayed,
   onNext,
 }: {
   page: CmsPlayablePage;
@@ -235,6 +242,9 @@ export function CmsDemoPage({
   hasNext: boolean;
   isPreloading: boolean;
   isNextDisabled?: boolean;
+  /** True when this page’s demo video was already completed in this book/app. */
+  videoAlreadyPlayed?: boolean;
+  onVideoPlayed?: (reason: 'video_finished' | 'no_media' | 'playback_error' | 'safety_timeout' | 'undetectable_stream') => void;
   onNext: () => void;
 }) {
   const mediaUriMap = useCmsMediaUriMap();
@@ -242,7 +252,121 @@ export function CmsDemoPage({
   const pageVideoRaw = resolveVideoUrl(page);
   const remoteVideoUrl = resolveCmsAbsoluteMediaUrl(pageVideoRaw);
   const videoUrl = resolvePlayableMediaUri(pageVideoRaw, mediaUriMap);
-  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
+  const pageId = page.pageId || '';
+  const playedNotifiedRef = useRef(false);
+  const playbackProbeRef = useRef({
+    positionSec: 0,
+    playerDurationSec: null as number | null,
+    didJustFinish: false,
+  });
+  const [playbackPageId, setPlaybackPageId] = useState(pageId);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [playerDurationSec, setPlayerDurationSec] = useState<number | null>(null);
+  const [didJustFinish, setDidJustFinish] = useState(false);
+  const [canDetectEnded, setCanDetectEnded] = useState(true);
+  const [videoFailedOrSkipped, setVideoFailedOrSkipped] = useState(false);
+  const [videoSkipReason, setVideoSkipReason] = useState<'playback_error' | 'safety_timeout' | null>(null);
+
+  const hasVideoUrl = Boolean(videoUrl || remoteVideoUrl);
+  const videoUnlocked = shouldUnlockCmsDemoNextFromVideo({
+    pageId,
+    playbackPageId,
+    hasVideoUrl,
+    canDetectEnded,
+    alreadyPlayed: videoAlreadyPlayed,
+    videoFailedOrSkipped,
+    positionSec: currentTime,
+    durationSec: playerDurationSec,
+    didJustFinish,
+  });
+  const waitingOnVideo = hasVideoUrl && !videoAlreadyPlayed && !videoUnlocked;
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading) || waitingOnVideo;
+
+  useEffect(() => {
+    playedNotifiedRef.current = false;
+    setPlaybackPageId('');
+    setCurrentTime(0);
+    setPlayerDurationSec(null);
+    setDidJustFinish(false);
+    setCanDetectEnded(true);
+    setVideoFailedOrSkipped(false);
+    setVideoSkipReason(null);
+    playbackProbeRef.current = {
+      positionSec: 0,
+      playerDurationSec: null,
+      didJustFinish: false,
+    };
+  }, [pageId]);
+
+  useEffect(() => {
+    if (!videoUnlocked || playedNotifiedRef.current) return;
+    if (videoAlreadyPlayed) return;
+    playedNotifiedRef.current = true;
+    if (!hasVideoUrl) {
+      onVideoPlayed?.('no_media');
+      return;
+    }
+    if (videoFailedOrSkipped) {
+      onVideoPlayed?.(videoSkipReason || 'playback_error');
+      return;
+    }
+    if (!canDetectEnded) {
+      onVideoPlayed?.('undetectable_stream');
+      return;
+    }
+    onVideoPlayed?.('video_finished');
+  }, [
+    videoUnlocked,
+    videoAlreadyPlayed,
+    hasVideoUrl,
+    videoFailedOrSkipped,
+    canDetectEnded,
+    videoSkipReason,
+    onVideoPlayed,
+  ]);
+
+  useEffect(() => {
+    if (!hasVideoUrl || videoAlreadyPlayed || videoUnlocked || videoFailedOrSkipped) return undefined;
+    const timer = setTimeout(() => {
+      const probe = playbackProbeRef.current;
+      if (
+        shouldSafetyUnlockCmsDemoVideo({
+          positionSec: probe.positionSec,
+          playerDurationSec: probe.playerDurationSec,
+          didJustFinish: probe.didJustFinish,
+        })
+      ) {
+        setVideoSkipReason('safety_timeout');
+        setVideoFailedOrSkipped(true);
+      }
+    }, CMS_DEMO_VIDEO_SAFETY_UNLOCK_MS);
+    return () => clearTimeout(timer);
+  }, [hasVideoUrl, videoAlreadyPlayed, videoUnlocked, videoFailedOrSkipped, pageId]);
+
+  const handlePlaybackEvent = useCallback(
+    (event: CmsLoopingVideoPlaybackEvent) => {
+      setPlaybackPageId(pageId);
+      setCanDetectEnded(event.canDetectEnded);
+      playbackProbeRef.current = {
+        positionSec: event.positionSec,
+        playerDurationSec: event.durationSec,
+        didJustFinish: event.didJustFinish,
+      };
+      setCurrentTime(event.positionSec);
+      setPlayerDurationSec(event.durationSec);
+      if (event.didJustFinish) setDidJustFinish(true);
+      if (event.failed) {
+        setVideoSkipReason('playback_error');
+        setVideoFailedOrSkipped(true);
+      }
+    },
+    [pageId]
+  );
+
+  const handleNext = useCallback(() => {
+    if (nextLocked || !hasNext) return;
+    onNext();
+  }, [nextLocked, hasNext, onNext]);
 
   if (__DEV__ && !videoUrl) {
     const media = page.media as { videoMediaId?: string | null; videoMedia?: { url?: string | null } | null };
@@ -271,6 +395,7 @@ export function CmsDemoPage({
             uri={videoUrl || remoteVideoUrl}
             remoteUri={remoteVideoUrl}
             accessibilityLabel="Demo tutorial video"
+            onPlaybackEvent={handlePlaybackEvent}
             debug={{
               scene: 'demo',
               pageId: page.pageId,
@@ -291,19 +416,22 @@ export function CmsDemoPage({
         </View>
       ) : null}
       <Pressable
-        onPress={onNext}
+        onPress={handleNext}
         disabled={nextLocked || !hasNext}
         style={({ pressed }) => [
           styles.demoPlay,
           (pressed || nextLocked || !hasNext) && styles.pressed,
+          waitingOnVideo && styles.nextWaiting,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={nextLocked ? 'Next, loading' : 'Play demo and continue to interactive'}
+        accessibilityLabel={
+          waitingOnVideo ? 'Next, watching video' : nextLocked ? 'Next, loading' : 'Play demo and continue to interactive'
+        }
         accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.demoPlayButton}
-          style={styles.btnImg}
+          style={[styles.btnImg, waitingOnVideo && styles.nextWaitingImg]}
           resizeMode="contain"
           accessibilityLabel="Play demo"
         />
@@ -333,7 +461,7 @@ export function CmsContentPage({
   isNextDisabled?: boolean;
   /** True when this page’s reading audio was already completed in this book session. */
   audioAlreadyHeard?: boolean;
-  onAudioHeard?: () => void;
+  onAudioHeard?: (reason: 'audio_finished' | 'no_media' | 'playback_error' | 'safety_timeout') => void;
   onPrev: () => void;
   onNext: () => void;
   /** Current 16:9 stage size — used to scale CMS design-space font presets. */
@@ -354,6 +482,8 @@ export function CmsContentPage({
   const [playerDurationSec, setPlayerDurationSec] = useState<number | null>(null);
   const [didJustFinish, setDidJustFinish] = useState(false);
   const [audioFailedOrSkipped, setAudioFailedOrSkipped] = useState(false);
+  const [audioSkipReason, setAudioSkipReason] = useState<'playback_error' | 'safety_timeout' | null>(null);
+  const [playbackPageId, setPlaybackPageId] = useState(page.pageId || '');
   /** Karaoke highlight only after audio is loaded and playback has started (sync with word coloring). */
   const [karaokeReady, setKaraokeReady] = useState(false);
   const audioDebugEnabled = shouldShowCmsContentAudioDebug();
@@ -420,6 +550,8 @@ export function CmsContentPage({
   );
 
   const audioUnlocked = shouldUnlockCmsContentNextFromAudio({
+    pageId: page.pageId,
+    playbackPageId,
     hasAudioUrl: Boolean(audioUrl),
     alreadyHeard: audioAlreadyHeard,
     audioFailedOrSkipped,
@@ -433,14 +565,23 @@ export function CmsContentPage({
 
   useEffect(() => {
     heardNotifiedRef.current = false;
+    setPlaybackPageId('');
   }, [page.pageId]);
 
   useEffect(() => {
     if (!audioUnlocked || heardNotifiedRef.current) return;
     if (audioAlreadyHeard) return;
     heardNotifiedRef.current = true;
-    onAudioHeard?.();
-  }, [audioUnlocked, audioAlreadyHeard, onAudioHeard]);
+    if (!audioUrl) {
+      onAudioHeard?.('no_media');
+      return;
+    }
+    if (audioFailedOrSkipped) {
+      onAudioHeard?.(audioSkipReason || 'playback_error');
+      return;
+    }
+    onAudioHeard?.('audio_finished');
+  }, [audioUnlocked, audioAlreadyHeard, audioUrl, audioFailedOrSkipped, audioSkipReason, onAudioHeard]);
 
   // Safety: unlock only when audio never starts (stall). Do NOT unlock long narrations at 12s.
   useEffect(() => {
@@ -454,6 +595,7 @@ export function CmsContentPage({
           didJustFinish: probe.didJustFinish,
         })
       ) {
+        setAudioSkipReason('safety_timeout');
         setAudioFailedOrSkipped(true);
       }
     }, CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS);
@@ -505,7 +647,9 @@ export function CmsContentPage({
     setPlayerDurationSec(null);
     setDidJustFinish(false);
     setAudioFailedOrSkipped(false);
+    setAudioSkipReason(null);
     setKaraokeReady(false);
+    setPlaybackPageId(page.pageId || '');
     playbackProbeRef.current = {
       positionSec: 0,
       playerDurationSec: null,
@@ -540,7 +684,7 @@ export function CmsContentPage({
     );
 
     if (!audioUrl) {
-      // No reading audio — do not block Next.
+      setAudioSkipReason(null);
       setAudioFailedOrSkipped(true);
       setKaraokeReady(true);
       pushAudioDebug(
@@ -683,7 +827,7 @@ export function CmsContentPage({
         }
       } catch (error) {
         if (!cancelled) {
-          // Audio failed — unlock Next and still show static reading text.
+          setAudioSkipReason('playback_error');
           setAudioFailedOrSkipped(true);
           setKaraokeReady(true);
           pushAudioDebug(
@@ -732,6 +876,11 @@ export function CmsContentPage({
       : Boolean(isNextDisabled ?? isPreloading)
         ? 'Next, loading'
         : 'Go to next page';
+
+  const handleNext = useCallback(() => {
+    if (nextLocked || !hasNext) return;
+    onNext();
+  }, [nextLocked, hasNext, onNext]);
 
   useEffect(() => {
     if (!audioDebugEnabled) return;
@@ -826,7 +975,7 @@ export function CmsContentPage({
         />
       </Pressable>
       <Pressable
-        onPress={onNext}
+        onPress={handleNext}
         disabled={nextLocked || !hasNext}
         style={({ pressed }) => [
           styles.contentNext,

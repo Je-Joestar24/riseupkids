@@ -197,38 +197,44 @@ export async function loadBookPackForPreload(
     return { manifest: null, uriMap: {}, fullyRestored: false };
   }
 
-  const uriMap: Record<string, string> = {};
-  let allPresent = Object.keys(manifest.assets || {}).length > 0;
+  const entries = Object.values(manifest.assets || {});
+  const resolved = await Promise.all(
+    entries.map(async (entry) => {
+      const remote = normalizeRemoteUrl(entry.remoteUrl);
+      if (!remote) return { remote: '', localUri: '', present: false };
 
-  for (const entry of Object.values(manifest.assets || {})) {
-    const remote = normalizeRemoteUrl(entry.remoteUrl);
-    if (!remote) continue;
-
-    if (isStreamingAsset(remote)) {
-      uriMap[remote] = remote;
-      continue;
-    }
-
-    if (!isLocalMediaUri(entry.localUri)) {
-      allPresent = false;
-      continue;
-    }
-
-    try {
-      const info = await FileSystem.getInfoAsync(entry.localUri);
-      if (!info.exists) {
-        allPresent = false;
-        continue;
+      if (isStreamingAsset(remote)) {
+        return { remote, localUri: remote, present: true };
       }
-      const playable =
-        looksLikeCmsAudioUrl(remote, null) || /\.mpe?g(\?|$)/i.test(entry.localUri)
-          ? await ensurePlayableCmsAudioUri(entry.localUri)
-          : entry.localUri;
-      uriMap[remote] = playable;
-    } catch {
-      allPresent = false;
+
+      if (!isLocalMediaUri(entry.localUri)) {
+        return { remote, localUri: '', present: false };
+      }
+
+      try {
+        const info = await FileSystem.getInfoAsync(entry.localUri);
+        if (!info.exists) return { remote, localUri: '', present: false };
+        const playable =
+          looksLikeCmsAudioUrl(remote, null) || /\.mpe?g(\?|$)/i.test(entry.localUri)
+            ? await ensurePlayableCmsAudioUri(entry.localUri)
+            : entry.localUri;
+        return { remote, localUri: playable, present: Boolean(playable) };
+      } catch {
+        return { remote, localUri: '', present: false };
+      }
+    })
+  );
+
+  const uriMap: Record<string, string> = {};
+  let allPresent = entries.length > 0;
+  resolved.forEach((item) => {
+    if (!item.remote) return;
+    if (item.present && item.localUri) {
+      uriMap[item.remote] = item.localUri;
+      return;
     }
-  }
+    allPresent = false;
+  });
 
   return { manifest, uriMap, fullyRestored: allPresent && Object.keys(uriMap).length > 0 };
 }

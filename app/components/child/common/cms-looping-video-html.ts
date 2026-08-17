@@ -1,6 +1,7 @@
 /** Inline HTML5 looping video document for CMS demo/reward WebView backgrounds. */
 
 export const CMS_LOOPING_VIDEO_READY_MESSAGE = 'cms-video-ready';
+export const CMS_LOOPING_VIDEO_ENDED_MESSAGE = 'cms-video-ended';
 export const CMS_LOOPING_VIDEO_ERROR_PREFIX = 'cms-video-error:';
 
 export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | null): string {
@@ -17,7 +18,7 @@ export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | nul
 </style>
 </head>
 <body>
-  <video id="cms-bg-video" muted loop playsinline webkit-playsinline autoplay preload="auto" aria-label="Tutorial video"></video>
+  <video id="cms-bg-video" muted playsinline webkit-playsinline autoplay preload="auto" aria-label="Tutorial video"></video>
   <script>
     (function () {
       var video = document.getElementById('cms-bg-video');
@@ -25,6 +26,7 @@ export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | nul
       video.src = ${src};
       var poster = ${poster};
       if (poster) video.poster = poster;
+      video.loop = false;
       var notified = false;
       var notifyReady = function () {
         if (notified) return;
@@ -33,8 +35,18 @@ export function buildLoopingVideoHtml(videoUrl: string, posterUrl?: string | nul
           window.ReactNativeWebView.postMessage('${CMS_LOOPING_VIDEO_READY_MESSAGE}');
         }
       };
+      var notifyEnded = function () {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage('${CMS_LOOPING_VIDEO_ENDED_MESSAGE}');
+        }
+        try {
+          video.currentTime = 0;
+        } catch (e) {}
+        play();
+      };
       video.addEventListener('loadeddata', notifyReady);
       video.addEventListener('canplay', notifyReady);
+      video.addEventListener('ended', notifyEnded);
       video.addEventListener('error', function () {
         var code = video.error ? String(video.error.code) : 'unknown';
         if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
