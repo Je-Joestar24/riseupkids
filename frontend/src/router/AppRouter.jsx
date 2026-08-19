@@ -17,6 +17,7 @@ import AdminDashboard from '../pages/admin/AdminDashboard';
 import AdminDeletionRequests from '../pages/admin/AdminDeletionRequests';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminModuleAccess from '../pages/admin/AdminModuleAccess';
+import AdminNotifications from '../pages/admin/AdminNotifications';
 import AdminActivities from '../pages/admin/AdminActivities';
 import AdminCourses from '../pages/admin/AdminCourses';
 import AdminExplore from '../pages/admin/AdminExplore';
@@ -291,6 +292,16 @@ const AppRouter = () => {
             <AuthedAccess allowedRoles={['admin']}>
               <AdminLayout>
                 <AdminModuleAccess />
+              </AdminLayout>
+            </AuthedAccess>
+          }
+        />
+        <Route
+          path="/admin/notifications"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminLayout>
+                <AdminNotifications />
               </AdminLayout>
             </AuthedAccess>
           }

@@ -1,0 +1,90 @@
+import api from '../api/axios';
+
+const BASE = '/admin/notifications';
+
+const unwrapError = (error, fallback) => {
+  const message = error.response?.data?.message || error.message || fallback;
+  const err = new Error(message);
+  err.status = error.response?.status;
+  throw err;
+};
+
+const adminNotificationsService = {
+  getMeta: async () => {
+    try {
+      const response = await api.get(`${BASE}/meta`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to load notification settings');
+    }
+  },
+
+  list: async (params = {}) => {
+    try {
+      const response = await api.get(BASE, { params });
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to load notification campaigns');
+    }
+  },
+
+  getById: async (id) => {
+    try {
+      const response = await api.get(`${BASE}/${id}`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to load notification campaign');
+    }
+  },
+
+  create: async (payload) => {
+    try {
+      const response = await api.post(BASE, payload);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to create notification campaign');
+    }
+  },
+
+  update: async (id, payload) => {
+    try {
+      const response = await api.patch(`${BASE}/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to update notification campaign');
+    }
+  },
+
+  duplicate: async (id) => {
+    try {
+      const response = await api.post(`${BASE}/${id}/duplicate`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to duplicate notification campaign');
+    }
+  },
+
+  preview: async (id, language) => {
+    try {
+      const response = await api.get(`${BASE}/${id}/preview`, { params: { language } });
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to preview notification campaign');
+    }
+  },
+
+  uploadImage: async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await api.post(`${BASE}/images`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to upload notification image');
+    }
+  },
+};
+
+export default adminNotificationsService;

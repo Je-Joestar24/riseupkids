@@ -37,6 +37,7 @@ const StarCamVisionLabel = require('./StarCamVisionLabel');
 const ProgramPrintable = require('./ProgramPrintable');
 const ProgramLessonPlan = require('./ProgramLessonPlan');
 const CmsBook = require('./CmsBook');
+const NotificationCampaign = require('./NotificationCampaign');
 
 module.exports = {
   User,
@@ -77,5 +78,6 @@ module.exports = {
   ProgramPrintable,
   ProgramLessonPlan,
   CmsBook,
+  NotificationCampaign,
 };
 

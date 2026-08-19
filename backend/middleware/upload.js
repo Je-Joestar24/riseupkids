@@ -798,6 +798,19 @@ const uploadStarCamDetectImage = multer({
 // Cover image only (live streams, meetings, courses, etc.)
 const uploadCoverImage = uploadCourse;
 
+const uploadNotificationImage = multer({
+  storage: memoryStorage,
+  fileFilter: function (req, file, cb) {
+    if (file.fieldname !== 'image') return cb(new Error(`Unknown field: ${file.fieldname}`), false);
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    return cb(new Error('Notification image must be JPG, PNG, or WebP'), false);
+  },
+  limits: {
+    fileSize: 8 * 1024 * 1024,
+  },
+}).fields([{ name: 'image', maxCount: 1 }]);
+
 module.exports = {
   upload,
   uploadCoverImage,
@@ -824,5 +837,6 @@ module.exports = {
   uploadStarCamMissionImage,
   uploadStarCamMissionMedia,
   uploadStarCamDetectImage,
+  uploadNotificationImage,
 };
 

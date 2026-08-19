@@ -75,4 +75,5 @@ module.exports = {
   GoogleIntegration: stub,
   Meeting: stub,
   YouTubeLive: stub,
+  NotificationCampaign: stub,
 };

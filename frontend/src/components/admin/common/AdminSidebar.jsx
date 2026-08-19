@@ -80,6 +80,7 @@ const AdminSidebar = () => {
     { text: 'Kids Wall', icon: <WallpaperOutlined />, path: '/admin/kids-wall' },
     { text: 'Live Classes', icon: <VideocamOutlined />, path: '/admin/meetings' },
     { text: 'YouTube Live', icon: <LiveTvOutlined />, path: '/admin/youtube-live' },
+    { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
     /*     { text: 'Communities', icon: <ForumOutlined />, path: '/admin/communities' },
         { text: 'Notifications', icon: <NotificationsNone />, path: '/admin/notifications' },
         { text: 'Settings', icon: <SettingsOutlined />, path: '/admin/settings' },
