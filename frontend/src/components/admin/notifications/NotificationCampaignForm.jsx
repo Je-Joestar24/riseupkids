@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -16,6 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { DEFAULT_NOTIFICATION_TIMEZONE, isEditableCampaignStatus } from '../../../hooks/useAdminNotifications';
 
 const NotificationCampaignForm = ({
   open,
@@ -27,6 +29,9 @@ const NotificationCampaignForm = ({
   onChange,
   onClose,
   onSave,
+  onSchedule,
+  onSendNow,
+  onSendTest,
   onUploadImage,
 }) => {
   const languages = meta?.languages || [];
@@ -41,6 +46,13 @@ const NotificationCampaignForm = ({
     [form.destinationKind, meta]
   );
   const localization = form.localizations?.[tab] || { title: '', message: '' };
+  const canMutate = isEditableCampaignStatus(form.status);
+  const timezones = useMemo(() => {
+    const list = [...(meta?.timezones || [])];
+    if (form.timezone && !list.includes(form.timezone)) list.unshift(form.timezone);
+    if (!list.length) list.push(DEFAULT_NOTIFICATION_TIMEZONE);
+    return list;
+  }, [form.timezone, meta]);
 
   const updateField = (key, value) => onChange((current) => ({ ...current, [key]: value }));
 
@@ -135,6 +147,61 @@ const NotificationCampaignForm = ({
           ) : null}
         </Box>
 
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+          <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+            Schedule
+          </Typography>
+          {form.status ? (
+            <Chip size="small" label={form.status} aria-label={`Campaign status ${form.status}`} />
+          ) : null}
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            label="Send date"
+            type="date"
+            value={form.sendDate || ''}
+            onChange={(e) => updateField('sendDate', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: 1, minWidth: 180 }}
+            inputProps={{ 'aria-label': 'Send date' }}
+            disabled={!canMutate}
+          />
+          <TextField
+            label="Send time"
+            type="time"
+            value={form.sendTime || ''}
+            onChange={(e) => updateField('sendTime', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: 1, minWidth: 140 }}
+            inputProps={{ 'aria-label': 'Send time', step: 60 }}
+            disabled={!canMutate}
+          />
+          <FormControl sx={{ minWidth: 240, flex: 1 }} disabled={!canMutate}>
+            <InputLabel id="notification-timezone">Timezone</InputLabel>
+            <Select
+              labelId="notification-timezone"
+              label="Timezone"
+              value={form.timezone || ''}
+              onChange={(e) => updateField('timezone', e.target.value)}
+            >
+              {timezones.map((zone) => (
+                <MenuItem key={zone} value={zone}>
+                  {zone}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+        <TextField
+          label="Test user id (optional)"
+          value={form.testUserId || ''}
+          onChange={(e) => updateField('testUserId', e.target.value)}
+          helperText="Leave blank to send the test to the designated test account or your admin user."
+          fullWidth
+          disabled={!canMutate}
+          inputProps={{ 'aria-label': 'Test user id' }}
+        />
+
         <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, mt: 1 }}>
           Localized content
         </Typography>
@@ -194,12 +261,36 @@ const NotificationCampaignForm = ({
           ) : null}
         </Box>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      <DialogActions sx={{ px: 3, pb: 2, flexWrap: 'wrap', gap: 1, justifyContent: 'flex-end' }}>
         <Button onClick={onClose} sx={{ textTransform: 'none' }}>
-          Cancel
+          Close
         </Button>
-        <Button onClick={onSave} variant="contained" disabled={saving} sx={{ textTransform: 'none' }}>
+        <Button onClick={onSave} variant="outlined" disabled={saving || !canMutate} sx={{ textTransform: 'none' }}>
           {saving ? 'Saving…' : 'Save draft'}
+        </Button>
+        <Button
+          onClick={onSendTest}
+          variant="outlined"
+          disabled={saving || !canMutate}
+          sx={{ textTransform: 'none' }}
+        >
+          Send test
+        </Button>
+        <Button
+          onClick={onSchedule}
+          variant="outlined"
+          disabled={saving || !canMutate}
+          sx={{ textTransform: 'none' }}
+        >
+          {form.status === 'scheduled' ? 'Reschedule' : 'Schedule'}
+        </Button>
+        <Button
+          onClick={onSendNow}
+          variant="contained"
+          disabled={saving || !canMutate}
+          sx={{ textTransform: 'none' }}
+        >
+          Send now
         </Button>
       </DialogActions>
     </Dialog>

@@ -85,6 +85,42 @@ const adminNotificationsService = {
       unwrapError(error, 'Failed to upload notification image');
     }
   },
+
+  schedule: async (id, payload) => {
+    try {
+      const response = await api.post(`${BASE}/${id}/schedule`, payload);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to schedule notification campaign');
+    }
+  },
+
+  cancel: async (id) => {
+    try {
+      const response = await api.post(`${BASE}/${id}/cancel`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to cancel notification campaign');
+    }
+  },
+
+  sendNow: async (id) => {
+    try {
+      const response = await api.post(`${BASE}/${id}/send-now`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to send notification campaign');
+    }
+  },
+
+  sendTest: async (id, userId) => {
+    try {
+      const response = await api.post(`${BASE}/${id}/test`, userId ? { userId } : {});
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to send test notification');
+    }
+  },
 };
 
 export default adminNotificationsService;

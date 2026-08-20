@@ -44,5 +44,9 @@ describe('adminNotifications.routes – protection + endpoints', () => {
     expect(has('/:id', 'patch')).toBe(true);
     expect(has('/:id/duplicate', 'post')).toBe(true);
     expect(has('/:id/preview', 'get')).toBe(true);
+    expect(has('/:id/schedule', 'post')).toBe(true);
+    expect(has('/:id/cancel', 'post')).toBe(true);
+    expect(has('/:id/send-now', 'post')).toBe(true);
+    expect(has('/:id/test', 'post')).toBe(true);
   });
 });

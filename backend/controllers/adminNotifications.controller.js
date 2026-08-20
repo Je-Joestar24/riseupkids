@@ -1,8 +1,9 @@
 const notificationCampaignService = require('../services/notificationCampaign.services');
+const { sendCampaignNow, sendCampaignTest } = require('../services/notificationSend.services');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
-  const status = error.statusCode || (/not found/i.test(message) ? 404 : /required|invalid|must|duplicate/i.test(message) ? 400 : 500);
+  const status = error.statusCode || (/not found/i.test(message) ? 404 : /required|invalid|must|duplicate|cannot|only /i.test(message) ? 400 : 500);
   return res.status(status).json({
     success: false,
     message,
@@ -129,6 +130,66 @@ const uploadImage = async (req, res) => {
   }
 };
 
+const scheduleCampaign = async (req, res) => {
+  try {
+    const campaign = await notificationCampaignService.scheduleCampaign(
+      req.params.id,
+      req.body,
+      req.user?._id
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'Notification campaign scheduled',
+      data: campaign,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] scheduleCampaign:', error);
+    return handleError(res, error, 'Failed to schedule notification campaign');
+  }
+};
+
+const cancelCampaign = async (req, res) => {
+  try {
+    const campaign = await notificationCampaignService.cancelCampaign(req.params.id, req.user?._id);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification campaign cancelled',
+      data: campaign,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] cancelCampaign:', error);
+    return handleError(res, error, 'Failed to cancel notification campaign');
+  }
+};
+
+const sendNow = async (req, res) => {
+  try {
+    const campaign = await sendCampaignNow(req.params.id, req.user?._id);
+    return res.status(200).json({
+      success: true,
+      message: campaign.status === 'failed' ? 'Notification send completed with failures' : 'Notification campaign sent',
+      data: campaign,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] sendNow:', error);
+    return handleError(res, error, 'Failed to send notification campaign');
+  }
+};
+
+const sendTest = async (req, res) => {
+  try {
+    const result = await sendCampaignTest(req.params.id, req.user?._id, req.body?.userId);
+    return res.status(200).json({
+      success: true,
+      message: 'Test notification sent',
+      data: result,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] sendTest:', error);
+    return handleError(res, error, 'Failed to send test notification');
+  }
+};
+
 module.exports = {
   getMeta,
   listCampaigns,
@@ -138,4 +199,8 @@ module.exports = {
   duplicateCampaign,
   previewCampaign,
   uploadImage,
+  scheduleCampaign,
+  cancelCampaign,
+  sendNow,
+  sendTest,
 };

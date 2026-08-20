@@ -40,7 +40,7 @@ const NotificationsHeader = ({ onCreate }) => {
               marginTop: 0.5,
             }}
           >
-            Create, localize, preview, and duplicate notification campaigns
+            Create, schedule, send, and test notification campaigns
           </Typography>
         </Box>
       </Stack>

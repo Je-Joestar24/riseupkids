@@ -13,6 +13,11 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 
+import {
+  formatCampaignSchedule,
+  isEditableCampaignStatus,
+} from '../../../hooks/useAdminNotifications';
+
 const STATUS_COLOR = {
   draft: 'default',
   scheduled: 'info',
@@ -29,6 +34,7 @@ const NotificationsTable = ({
   onEdit,
   onPreview,
   onDuplicate,
+  onCancel,
 }) => {
   const theme = useTheme();
 
@@ -59,6 +65,7 @@ const NotificationsTable = ({
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Audience</TableCell>
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Languages</TableCell>
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Status</TableCell>
+          <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Scheduled for</TableCell>
           <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
             Actions
           </TableCell>
@@ -84,6 +91,9 @@ const NotificationsTable = ({
               <TableCell>
                 <Chip size="small" label={row.status} color={STATUS_COLOR[row.status] || 'default'} />
               </TableCell>
+              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', whiteSpace: 'nowrap' }}>
+                {formatCampaignSchedule(row)}
+              </TableCell>
               <TableCell align="right">
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
                   <Button size="small" onClick={() => onPreview?.(row)} sx={{ textTransform: 'none' }}>
@@ -92,11 +102,21 @@ const NotificationsTable = ({
                   <Button
                     size="small"
                     onClick={() => onEdit?.(row)}
-                    disabled={row.status !== 'draft'}
+                    disabled={!isEditableCampaignStatus(row.status)}
                     sx={{ textTransform: 'none' }}
                   >
                     Edit
                   </Button>
+                  {row.status === 'scheduled' ? (
+                    <Button
+                      size="small"
+                      color="warning"
+                      onClick={() => onCancel?.(row)}
+                      sx={{ textTransform: 'none' }}
+                    >
+                      Cancel
+                    </Button>
+                  ) : null}
                   <Button size="small" onClick={() => onDuplicate?.(row)} sx={{ textTransform: 'none' }}>
                     Duplicate
                   </Button>

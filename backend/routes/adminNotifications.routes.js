@@ -11,6 +11,10 @@ const {
   duplicateCampaign,
   previewCampaign,
   uploadImage,
+  scheduleCampaign,
+  cancelCampaign,
+  sendNow,
+  sendTest,
 } = require('../controllers/adminNotifications.controller');
 
 /**
@@ -26,6 +30,10 @@ router.get('/', listCampaigns);
 router.post('/', createCampaign);
 router.get('/:id/preview', previewCampaign);
 router.post('/:id/duplicate', duplicateCampaign);
+router.post('/:id/schedule', scheduleCampaign);
+router.post('/:id/cancel', cancelCampaign);
+router.post('/:id/send-now', sendNow);
+router.post('/:id/test', sendTest);
 router.get('/:id', getCampaign);
 router.patch('/:id', updateCampaign);
 

@@ -76,4 +76,6 @@ module.exports = {
   Meeting: stub,
   YouTubeLive: stub,
   NotificationCampaign: stub,
+  NotificationReceipt: stub,
+  NotificationSchedulerLock: stub,
 };

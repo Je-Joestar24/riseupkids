@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildEmptyForm, campaignToForm, formToPayload } from './useAdminNotifications.js';
+import {
+  buildEmptyForm,
+  campaignToForm,
+  DEFAULT_NOTIFICATION_TIMEZONE,
+  formToPayload,
+  formToSchedulePayload,
+  formatCampaignSchedule,
+  isEditableCampaignStatus,
+} from './useAdminNotifications.js';
 
 const meta = {
   languages: [
@@ -9,6 +17,7 @@ const meta = {
   ],
   types: [{ value: 'story_time', label: 'Story Time' }],
   destinationKinds: [{ value: 'home', label: 'Home' }],
+  timezones: ['UTC', 'America/Sao_Paulo', 'Europe/Lisbon'],
 };
 
 describe('Admin notification form helpers', () => {
@@ -16,6 +25,8 @@ describe('Admin notification form helpers', () => {
     const form = buildEmptyForm(meta);
     expect(Object.keys(form.localizations)).toEqual(['en', 'pt', 'es']);
     expect(form.localizations.en).toMatchObject({ title: '', message: '', imageMediaId: null });
+    expect(form.timezone).toBe(DEFAULT_NOTIFICATION_TIMEZONE);
+    expect(form.status).toBe('draft');
   });
 
   it('only sends localizations that have title and message', () => {
@@ -61,5 +72,60 @@ describe('Admin notification form helpers', () => {
     expect(form.localizations.en.imageMediaId).toBe('img-1');
     expect(form.destinationKind).toBe('book');
     expect(form.contentId).toBe('book-9');
+  });
+
+  it('maps schedule wall-clock fields for reschedule (2.2 / 2.5)', () => {
+    const form = campaignToForm(
+      {
+        internalName: 'Live reminder',
+        type: 'live_lesson',
+        audience: 'all',
+        status: 'scheduled',
+        timezone: 'America/Sao_Paulo',
+        sendLocalDate: '2026-08-20',
+        sendLocalTime: '09:00:00',
+        sendAt: '2026-08-20T12:00:00.000Z',
+        destination: { kind: 'home' },
+        localizations: [{ languageCode: 'en', title: 'Live', message: 'Soon' }],
+      },
+      meta
+    );
+
+    expect(form.status).toBe('scheduled');
+    expect(form.sendDate).toBe('2026-08-20');
+    expect(form.sendTime).toBe('09:00');
+    expect(form.timezone).toBe('America/Sao_Paulo');
+    expect(formToSchedulePayload(form)).toEqual({
+      sendDate: '2026-08-20',
+      sendTime: '09:00',
+      timezone: 'America/Sao_Paulo',
+    });
+  });
+
+  it('rejects a schedule payload without a local date and time', () => {
+    expect(() =>
+      formToSchedulePayload({
+        sendDate: '',
+        sendTime: '',
+        timezone: 'UTC',
+      })
+    ).toThrow(/Send date is required/);
+  });
+
+  it('formats scheduled wall-clock time for the table', () => {
+    expect(
+      formatCampaignSchedule({
+        sendLocalDate: '2026-08-20',
+        sendLocalTime: '09:00',
+        timezone: 'America/Sao_Paulo',
+      })
+    ).toBe('2026-08-20 09:00 (America/Sao_Paulo)');
+  });
+
+  it('allows edit for draft and scheduled, not after send', () => {
+    expect(isEditableCampaignStatus('draft')).toBe(true);
+    expect(isEditableCampaignStatus('scheduled')).toBe(true);
+    expect(isEditableCampaignStatus('sent')).toBe(false);
+    expect(isEditableCampaignStatus('cancelled')).toBe(false);
   });
 });

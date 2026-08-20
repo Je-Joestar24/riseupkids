@@ -9,6 +9,7 @@ const {
   NOTIFICATION_DESTINATION_KINDS,
   NOTIFICATION_STATUSES,
 } = require('../config/notificationCatalog');
+const { wallTimeToUtc, assertTimeZone } = require('../utils/notificationTimezone.util');
 const {
   assertNotificationImageMime,
   readImageDimensions,
@@ -104,6 +105,14 @@ function normalizeLocalizations(localizations) {
   });
 }
 
+const EDITABLE_STATUSES = ['draft', 'scheduled'];
+
+function assertEditable(campaign) {
+  if (!EDITABLE_STATUSES.includes(campaign.status)) {
+    throw httpError('Sent or cancelled campaigns cannot be edited');
+  }
+}
+
 async function populateCampaign(doc) {
   if (!doc) return null;
   if (typeof doc.populate === 'function') {
@@ -193,9 +202,7 @@ async function updateCampaign(id, payload, adminId) {
   if (!campaign) {
     throw httpError('Notification campaign not found', 404);
   }
-  if (campaign.status !== 'draft') {
-    throw httpError('Only draft campaigns can be edited in this phase');
-  }
+  assertEditable(campaign);
 
   if (payload.internalName !== undefined) {
     const internalName = asTrimmedString(payload.internalName);
@@ -219,6 +226,47 @@ async function updateCampaign(id, payload, adminId) {
   if (payload.localizations !== undefined) {
     campaign.localizations = normalizeLocalizations(payload.localizations);
   }
+  campaign.updatedBy = adminId;
+  await campaign.save();
+  return populateCampaign(campaign);
+}
+
+function applyScheduleFields(campaign, { sendDate, sendTime, timezone }, adminId) {
+  const zone = assertTimeZone(timezone);
+  const sendAt = wallTimeToUtc({ sendDate, sendTime, timezone: zone });
+  campaign.sendAt = sendAt;
+  campaign.timezone = zone;
+  campaign.sendLocalDate = String(sendDate).trim();
+  campaign.sendLocalTime = String(sendTime).trim();
+  campaign.status = 'scheduled';
+  campaign.scheduledBy = adminId;
+  campaign.updatedBy = adminId;
+  campaign.lastError = null;
+}
+
+async function scheduleCampaign(id, payload, adminId) {
+  const campaign = await NotificationCampaign.findById(id);
+  if (!campaign) {
+    throw httpError('Notification campaign not found', 404);
+  }
+  assertEditable(campaign);
+  if (!campaign.localizations?.length) {
+    throw httpError('Add at least one language before scheduling');
+  }
+  applyScheduleFields(campaign, payload, adminId);
+  await campaign.save();
+  return populateCampaign(campaign);
+}
+
+async function cancelCampaign(id, adminId) {
+  const campaign = await NotificationCampaign.findById(id);
+  if (!campaign) {
+    throw httpError('Notification campaign not found', 404);
+  }
+  if (campaign.status !== 'scheduled') {
+    throw httpError('Only scheduled campaigns can be cancelled');
+  }
+  campaign.status = 'cancelled';
   campaign.updatedBy = adminId;
   await campaign.save();
   return populateCampaign(campaign);
@@ -332,6 +380,9 @@ module.exports = {
   getCampaignById,
   updateCampaign,
   duplicateCampaign,
+  scheduleCampaign,
+  cancelCampaign,
   previewCampaign,
   uploadNotificationImage,
+  EDITABLE_STATUSES,
 };

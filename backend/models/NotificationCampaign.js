@@ -118,6 +118,21 @@ const notificationCampaignSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    sendLocalDate: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    sendLocalTime: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    lastError: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     delivery: {
       targeted: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
@@ -132,6 +147,6 @@ const notificationCampaignSchema = new mongoose.Schema(
 
 notificationCampaignSchema.index({ status: 1, createdAt: -1 });
 notificationCampaignSchema.index({ type: 1, status: 1 });
-notificationCampaignSchema.index({ internalName: 1 });
+notificationCampaignSchema.index({ status: 1, sendAt: 1 });
 
 module.exports = mongoose.model('NotificationCampaign', notificationCampaignSchema);

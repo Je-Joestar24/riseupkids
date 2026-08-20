@@ -14,6 +14,7 @@ dotenv.config();
 dns.setDefaultResultOrder('ipv4first');
 const mailConfig = require('./config/mail');
 const { startDeletionScheduler, stopDeletionScheduler } = require('./jobs/deletionScheduler');
+const { startNotificationScheduler, stopNotificationScheduler } = require('./jobs/notificationScheduler');
 
 // Import routes
 const apiRoutes = require('./routes/api');
@@ -261,6 +262,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDB();
   startDeletionScheduler();
+  startNotificationScheduler();
   const server = http.createServer(app);
   // Node's default request timeout (~5m) aborts slow large multipart uploads (e.g. explore videos).
   const requestTimeoutMs = parseInt(process.env.HTTP_REQUEST_TIMEOUT_MS || '0', 10);
@@ -286,6 +288,7 @@ const startServer = async () => {
   const shutdown = (signal) => {
     console.log(`[Server] ${signal} received — shutting down`);
     stopDeletionScheduler();
+    stopNotificationScheduler();
     server.close(() => process.exit(0));
   };
 

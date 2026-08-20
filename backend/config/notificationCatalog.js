@@ -106,6 +106,18 @@ function getNotificationAdminMeta() {
       aspectRatio: '3.2:1',
       formats: ['image/jpeg', 'image/png', 'image/webp'],
     },
+    timezones: [
+      'UTC',
+      'America/Sao_Paulo',
+      'America/New_York',
+      'America/Chicago',
+      'America/Denver',
+      'America/Los_Angeles',
+      'America/Mexico_City',
+      'Europe/Lisbon',
+      'Europe/Madrid',
+      'Europe/London',
+    ],
   };
 }
 

@@ -38,6 +38,8 @@ const ProgramPrintable = require('./ProgramPrintable');
 const ProgramLessonPlan = require('./ProgramLessonPlan');
 const CmsBook = require('./CmsBook');
 const NotificationCampaign = require('./NotificationCampaign');
+const NotificationReceipt = require('./NotificationReceipt');
+const NotificationSchedulerLock = require('./NotificationSchedulerLock');
 
 module.exports = {
   User,
@@ -79,5 +81,7 @@ module.exports = {
   ProgramLessonPlan,
   CmsBook,
   NotificationCampaign,
+  NotificationReceipt,
+  NotificationSchedulerLock,
 };
 
