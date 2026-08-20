@@ -1,5 +1,6 @@
 /**
  * CMS built-in book completion — parity with frontend/src/components/child/common/cmsCompletionDialog.jsx
+ * Small screens (iPhone SE): scrollable body + sticky Continue so the action is never clipped.
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,12 +11,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
-import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 
 export interface CmsCompletionDialogData {
@@ -36,7 +38,12 @@ export interface CmsCompletionDialogProps {
   data: CmsCompletionDialogData | null;
 }
 
+const FOOTER_RESERVE = 88;
+
 export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialogProps) {
+  const insets = useSafeAreaInsets();
+  const { height: winH, width: winW } = useWindowDimensions();
+  const compact = winH < 700 || winW < 380;
   const {
     score = 0,
     maxScore = 0,
@@ -50,6 +57,10 @@ export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialog
   } = data || {};
 
   const remaining = Math.max(requiredReadingCount - readingCount, 0);
+  const maxCardHeight = Math.max(
+    280,
+    winH - Math.max(insets.top, 12) - Math.max(insets.bottom, 12) - spacing[4] * 2
+  );
 
   return (
     <Modal
@@ -59,37 +70,47 @@ export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialog
       onRequestClose={onClose}
       accessibilityViewIsModal
     >
-      <Pressable
-        style={styles.backdrop}
-        onPress={(e) => e.stopPropagation()}
+      <View
+        style={[
+          styles.backdrop,
+          {
+            paddingTop: Math.max(insets.top, spacing[3]),
+            paddingBottom: Math.max(insets.bottom, spacing[3]),
+          },
+        ]}
         accessibilityRole="none"
         accessibilityLabel="Completion dialog backdrop"
       >
-        <Pressable
-          style={styles.cardWrap}
-          onPress={(e) => e.stopPropagation()}
+        <View
+          style={[styles.cardWrap, { maxHeight: maxCardHeight }]}
           accessibilityRole="none"
         >
           <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
+            style={[styles.scroll, { maxHeight: Math.max(160, maxCardHeight - FOOTER_RESERVE) }]}
+            contentContainerStyle={[
+              styles.scrollContent,
+              compact && styles.scrollContentCompact,
+            ]}
+            showsVerticalScrollIndicator
+            bounces
+            nestedScrollEnabled
             keyboardShouldPersistTaps="handled"
+            accessibilityLabel="Completion details"
           >
-            <Text style={styles.title} accessibilityRole="header">
+            <Text style={[styles.title, compact && styles.titleCompact]} accessibilityRole="header">
               🎉 Great Job! 🎉
             </Text>
 
             <MaterialCommunityIcons
               name="check-circle"
-              size={80}
+              size={compact ? 52 : 80}
               color={colors.success}
               style={styles.checkIcon}
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             />
 
-            <Text style={styles.lead} accessibilityRole="text">
+            <Text style={[styles.lead, compact && styles.leadCompact]} accessibilityRole="text">
               You finished the book!
             </Text>
 
@@ -115,15 +136,17 @@ export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialog
               <View style={styles.starsBox} accessibilityRole="summary">
                 <Text style={styles.starsTitle}>Stars Earned:</Text>
                 <View style={styles.starsRow}>
-                  <MaterialCommunityIcons name="star" size={40} color={colors.warning} />
-                  <Text style={styles.starsBig}>+{starsToAward}</Text>
+                  <MaterialCommunityIcons name="star" size={compact ? 28 : 40} color={colors.warning} />
+                  <Text style={[styles.starsBig, compact && styles.starsBigCompact]}>+{starsToAward}</Text>
                 </View>
                 {totalStars !== undefined && (
                   <Text style={styles.totalStars}>Total Stars: {totalStars}</Text>
                 )}
               </View>
             ) : null}
+          </ScrollView>
 
+          <View style={styles.footer}>
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [styles.continueBtn, pressed && styles.continueBtnPressed]}
@@ -132,9 +155,9 @@ export function CmsCompletionDialog({ open, onClose, data }: CmsCompletionDialog
             >
               <Text style={styles.continueLabel}>Continue</Text>
             </Pressable>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }
@@ -145,12 +168,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing[4],
+    paddingHorizontal: spacing[4],
   },
   cardWrap: {
     width: '100%',
     maxWidth: 400,
-    maxHeight: '90%',
     borderRadius: 20,
     backgroundColor: colors.bgCard,
     overflow: 'hidden',
@@ -164,17 +186,25 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   scrollContent: {
-    padding: spacing[3],
-    paddingBottom: spacing[6],
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[4],
+    paddingBottom: spacing[3],
+  },
+  scrollContentCompact: {
+    paddingTop: spacing[3],
+    paddingBottom: spacing[2],
   },
   title: {
     fontFamily: Quicksand.bold,
     fontSize: 26,
     color: colors.success,
     textAlign: 'center',
-    paddingTop: spacing[6],
-    paddingHorizontal: spacing[4],
+    paddingTop: spacing[2],
     paddingBottom: spacing[2],
+  },
+  titleCompact: {
+    fontSize: 22,
+    paddingTop: spacing[1],
   },
   checkIcon: {
     alignSelf: 'center',
@@ -187,6 +217,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 26,
     marginBottom: spacing[3],
+  },
+  leadCompact: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: spacing[2],
   },
   metricBox: {
     marginVertical: spacing[2],
@@ -240,22 +275,34 @@ const styles = StyleSheet.create({
     fontSize: 36,
     color: colors.warning,
   },
+  starsBigCompact: {
+    fontSize: 28,
+  },
   totalStars: {
     fontFamily: Quicksand.semiBold,
     fontSize: 15,
     color: colors.textSecondary,
     textAlign: 'center',
   },
+  footer: {
+    paddingHorizontal: spacing[4],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[4],
+    borderTopWidth: 1,
+    borderTopColor: colors.bgTertiary,
+    backgroundColor: colors.bgCard,
+  },
   continueBtn: {
-    marginTop: spacing[4],
     alignSelf: 'center',
-    minWidth: 200,
+    minWidth: 180,
+    minHeight: 44,
     paddingVertical: 12,
-    paddingHorizontal: 48,
+    paddingHorizontal: 36,
     borderRadius: 12,
     backgroundColor: colors.secondary,
     borderWidth: 3,
     borderColor: colors.primary,
+    justifyContent: 'center',
   },
   continueBtnPressed: {
     opacity: 0.92,

@@ -13,10 +13,13 @@ import {
     Modal,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import { StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
     restoreAndroidImmersiveDefault,
@@ -137,6 +140,8 @@ export function Html5Modal({
     const closeConfirmTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const showDialog = useUiStore((s) => s.showDialog);
     const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
+    const insets = useSafeAreaInsets();
+    const { height: winH } = useWindowDimensions();
 
     const handleWebViewMessage = useCallback(
         (event: { nativeEvent: { data: string } }) => {
@@ -526,8 +531,35 @@ export function Html5Modal({
                 statusBarTranslucent
                 onRequestClose={() => result?.passed === true && result ? handleContinueAfterPass(result) : result?.passed === false ? closeCompletionDialogOnly() : undefined}
             >
-                <Pressable style={styles.completionDialogBackdrop} onPress={(e) => e.stopPropagation()}>
-                    <View style={styles.completionDialogCard}>
+                <View
+                    style={[
+                        styles.completionDialogBackdrop,
+                        {
+                            paddingTop: Math.max(insets.top, spacing[3]),
+                            paddingBottom: Math.max(insets.bottom, spacing[3]),
+                        },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.completionDialogCard,
+                            {
+                                maxHeight: Math.max(
+                                    240,
+                                    winH - Math.max(insets.top, 12) - Math.max(insets.bottom, 12) - spacing[4] * 2
+                                ),
+                            },
+                        ]}
+                    >
+                        <ScrollView
+                            style={styles.completionDialogScroll}
+                            contentContainerStyle={styles.completionDialogScrollContent}
+                            showsVerticalScrollIndicator
+                            bounces
+                            nestedScrollEnabled
+                            keyboardShouldPersistTaps="handled"
+                            accessibilityLabel="Completion details"
+                        >
                         {result !== null && (() => {
                             const passed = result.passed === true;
                             const br = result.bookReading;
@@ -564,6 +596,7 @@ export function Html5Modal({
                                 return 'All done! Close when you\'re ready.';
                             })()}
                         </ThemedText>
+                        </ScrollView>
                         <View style={styles.resultActions}>
                             {result?.passed === false ? (
                                 <>
@@ -596,7 +629,7 @@ export function Html5Modal({
                             )}
                         </View>
                     </View>
-                </Pressable>
+                </View>
             </Modal>
         </Modal>
     );
@@ -795,16 +828,26 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: spacing[4],
+        paddingHorizontal: spacing[4],
     },
     completionDialogCard: {
         backgroundColor: colors.bgCard,
         borderRadius: radii.xl,
-        padding: spacing[6],
-        minWidth: 280,
+        width: '100%',
         maxWidth: 400,
+        overflow: 'hidden',
+        alignItems: 'stretch',
+    },
+    completionDialogScroll: {
+        width: '100%',
+        maxHeight: 360,
+    },
+    completionDialogScrollContent: {
+        paddingHorizontal: spacing[5],
+        paddingTop: spacing[5],
+        paddingBottom: spacing[3],
         alignItems: 'center',
-        gap: spacing[5],
+        gap: spacing[4],
     },
     completionDialogIconWrap: {
         flexDirection: 'row',
@@ -873,8 +916,14 @@ const styles = StyleSheet.create({
     },
     resultActions: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
         gap: spacing[3],
-        marginTop: spacing[2],
+        paddingHorizontal: spacing[5],
+        paddingTop: spacing[2],
+        paddingBottom: spacing[5],
+        borderTopWidth: 1,
+        borderTopColor: colors.bgTertiary,
     },
     resultBtn: {
         paddingVertical: spacing[3],

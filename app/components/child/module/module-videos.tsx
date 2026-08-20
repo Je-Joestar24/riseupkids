@@ -11,10 +11,10 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import { getCoverImageUrl } from '@/components/child/module/module-utils';
+import { ModuleProgressCircles } from '@/components/child/module/module-progress-circles';
 
 const CARD_GAP = spacing[4];
 const CARD_WIDTH_PCT = '48%';
-const CIRCLE_SIZE = 28;
 
 export interface ModuleVideosProps {
   videos: PopulatedContentItem[];
@@ -76,20 +76,10 @@ function VideoCard({
           <ThemedText style={styles.timeText}>{timeLabel}</ThemedText>
         </View>
       </View>
-      <View style={styles.circlesRow}>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <View
-            key={i}
-            style={[
-              styles.circle,
-              i < progressCircles && styles.circleFilled,
-            ]}>
-            {i < progressCircles && (
-              <MaterialCommunityIcons name="check" size={18} color={colors.textInverse} />
-            )}
-          </View>
-        ))}
-      </View>
+      <ModuleProgressCircles
+        filled={progressCircles}
+        accessibilityLabel={`${video.title || 'Video'} watch progress`}
+      />
     </Pressable>
   );
 }
@@ -215,25 +205,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.textInverse,
-  },
-  circlesRow: {
-    flexDirection: 'row',
-    gap: spacing[2],
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: spacing[4],
-    paddingHorizontal: spacing[2],
-  },
-  circle: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
-    borderRadius: CIRCLE_SIZE / 2,
-    borderWidth: 2,
-    borderColor: colors.orange,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  circleFilled: {
-    backgroundColor: colors.orange,
   },
 });

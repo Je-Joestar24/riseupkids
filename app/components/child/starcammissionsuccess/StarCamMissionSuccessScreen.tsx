@@ -4,11 +4,12 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View, Image } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { Fonts } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
+import { getStarCamMissionSuccessLayout } from '@/utils/starCamMissionSuccessLayout';
 
 export interface StarCamMissionSuccessScreenProps {
   missionTitle: string;
@@ -70,6 +71,9 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
   onTryAgain,
 }: StarCamMissionSuccessScreenProps) {
   const isFocused = useIsFocused();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getStarCamMissionSuccessLayout(winW, winH, insets);
   const [isVideoFailed, setIsVideoFailed] = useState(false);
   const [isAudioAvailable, setIsAudioAvailable] = useState(Boolean(rewardAudioUrl));
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -359,14 +363,34 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
           })}
         </View>
 
-        <View style={styles.content}>
+        <View style={[styles.content, { paddingTop: layout.contentPaddingTop }]}>
           <View style={styles.progressBadge}>
             <ThemedText style={styles.progressValue}>7/7</ThemedText>
             <ThemedText style={styles.progressLabel}>PERFECT</ThemedText>
           </View>
 
-          <ThemedText style={styles.title}>Mission Complete!</ThemedText>
-          <Animated.View style={[styles.mediaCard, { transform: [{ scale: mediaCardScale }], opacity: mediaCardOpacity }]}>
+          <ThemedText
+            style={[
+              styles.title,
+              {
+                fontSize: layout.titleFontSize,
+                lineHeight: layout.titleLineHeight,
+                marginTop: layout.titleMarginTop,
+              },
+            ]}>
+            Mission Complete!
+          </ThemedText>
+          <Animated.View
+            style={[
+              styles.mediaCard,
+              {
+                width: layout.mediaSize,
+                height: layout.mediaSize,
+                borderRadius: layout.mediaRadius,
+                transform: [{ scale: mediaCardScale }],
+                opacity: mediaCardOpacity,
+              },
+            ]}>
             {hasVideo ? (
               <Video
                 ref={videoRef}
@@ -445,44 +469,55 @@ export const StarCamMissionSuccessScreen = memo(function StarCamMissionSuccessSc
             )}
           </Animated.View>
 
-          <ThemedText style={styles.missionName}>{missionTitle}</ThemedText>
-          <ThemedText style={styles.subtitle}>{subtitle}</ThemedText>
-{/* 
-          <Pressable
-            style={({ pressed }) => [styles.audioToggleButton, pressed && styles.pressedButton, !isAudioAvailable && styles.disabledButton]}
-            onPress={() => {
-              if (!isAudioAvailable || isAudioLoading) return;
-              if (isAudioPlaying) {
-                void pauseAudio();
-                return;
-              }
-              void ensureLoadedAndPlayAudio();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Toggle mission reward sound">
-            <ThemedText style={styles.audioToggleText}>{audioButtonLabel}</ThemedText>
-          </Pressable> */}
+          <ThemedText
+            style={[
+              styles.missionName,
+              { fontSize: layout.missionFontSize, lineHeight: layout.missionLineHeight },
+            ]}
+            numberOfLines={2}>
+            {missionTitle}
+          </ThemedText>
+          <ThemedText
+            style={[
+              styles.subtitle,
+              {
+                fontSize: layout.subtitleFontSize,
+                lineHeight: layout.subtitleLineHeight,
+                marginBottom: layout.subtitleMarginBottom,
+              },
+            ]}
+            numberOfLines={2}>
+            {subtitle}
+          </ThemedText>
+        </View>
 
-          <View style={styles.actions}>
+          <View style={[styles.actions, { paddingBottom: layout.footerPaddingBottom }]}>
             <Pressable
-              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressedButton]}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                { height: layout.primaryButtonHeight },
+                pressed && styles.pressedButton,
+              ]}
               onPress={onGoToStarCam}
               accessibilityRole="button"
               accessibilityLabel="Go to Star Cam home">
-              <MaterialIcons name="photo-camera" size={24} color={colors.orange} />
+              <MaterialIcons name="photo-camera" size={layout.cameraIconSize} color={colors.orange} />
               <ThemedText style={styles.primaryButtonText}>STAR CAM</ThemedText>
             </Pressable>
             <ThemedText style={styles.footerHint}>Take your victory photo!</ThemedText>
 
             <Pressable
-              style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressedButton]}
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                { height: layout.secondaryButtonHeight },
+                pressed && styles.pressedButton,
+              ]}
               onPress={onTryAgain}
               accessibilityRole="button"
               accessibilityLabel="Play mission again">
               <ThemedText style={styles.secondaryButtonText}>PLAY AGAIN</ThemedText>
             </Pressable>
           </View>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -495,16 +530,16 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
+    minHeight: 0,
     borderWidth: 8,
     overflow: 'hidden',
   },
   content: {
     flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
-    paddingTop: 64,
-    paddingBottom: 24,
     zIndex: 3,
   },
   bokehLayer: {
@@ -574,9 +609,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mediaCard: {
-    width: '100%',
-    maxWidth: 320,
-    aspectRatio: 1,
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 3,
@@ -658,7 +690,11 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     maxWidth: 280,
+    alignSelf: 'center',
+    flexShrink: 0,
     gap: 8,
+    zIndex: 4,
+    paddingHorizontal: 18,
   },
   primaryButton: {
     height: 56,

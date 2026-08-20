@@ -11,10 +11,12 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { BunnyEmbedWebView } from '@/components/child/common/bunny-embed-webview';
@@ -562,6 +564,14 @@ export function VideoCompletionModal({
   message?: string;
   continueLabel?: string;
 }) {
+  const insets = useSafeAreaInsets();
+  const { height: winH, width: winW } = useWindowDimensions();
+  const compact = winH < 700 || winW < 380;
+  const maxCardHeight = Math.max(
+    240,
+    winH - Math.max(insets.top, 12) - Math.max(insets.bottom, 12) - spacing[4] * 2
+  );
+
   if (!open) return null;
 
   const remainingWatches = Math.max(
@@ -576,36 +586,58 @@ export function VideoCompletionModal({
       animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent>
-      <Pressable style={styles.completionOverlay} onPress={onClose}>
-        <View style={styles.completionCard}>
-          <ThemedText style={styles.completionTitle}>{title}</ThemedText>
-          <ThemedText style={styles.completionMessage}>
-            {message}
-          </ThemedText>
-          {watchResult?.starsJustAwarded && watchResult.starsToAward ? (
-            <View style={styles.starsWrap}>
-              <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
-              <ThemedText style={styles.starsText}>
-                You earned {watchResult.starsToAward} stars!
+      <View
+        style={[
+          styles.completionOverlay,
+          {
+            paddingTop: Math.max(insets.top, spacing[3]),
+            paddingBottom: Math.max(insets.bottom, spacing[3]),
+          },
+        ]}>
+        <View style={[styles.completionCard, { maxHeight: maxCardHeight }]}>
+          <ScrollView
+            style={{ maxHeight: Math.max(140, maxCardHeight - 88) }}
+            contentContainerStyle={styles.completionScrollContent}
+            showsVerticalScrollIndicator
+            bounces
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            accessibilityLabel="Completion details">
+            <ThemedText style={[styles.completionTitle, compact && styles.completionTitleCompact]}>
+              {title}
+            </ThemedText>
+            <ThemedText style={[styles.completionMessage, compact && styles.completionMessageCompact]}>
+              {message}
+            </ThemedText>
+            {watchResult?.starsJustAwarded && watchResult.starsToAward ? (
+              <View style={styles.starsWrap}>
+                <MaterialCommunityIcons name="star" size={compact ? 28 : 40} color={colors.accent} />
+                <ThemedText style={[styles.starsText, compact && styles.starsTextCompact]}>
+                  You earned {watchResult.starsToAward} stars!
+                </ThemedText>
+                <MaterialCommunityIcons name="star" size={compact ? 28 : 40} color={colors.accent} />
+              </View>
+            ) : watchResult?.starsWereAlreadyAwarded ? (
+              <ThemedText style={styles.starsAlreadyText}>
+                Stars already earned for this video! ⭐
               </ThemedText>
-              <MaterialCommunityIcons name="star" size={40} color={colors.accent} />
-            </View>
-          ) : watchResult?.starsWereAlreadyAwarded ? (
-            <ThemedText style={styles.starsAlreadyText}>
-              Stars already earned for this video! ⭐
-            </ThemedText>
-          ) : (
-            <ThemedText style={styles.watchMoreText}>
-              Watch {remainingWatches} more time(s) to earn stars!
-            </ThemedText>
-          )}
-          <Pressable
-            style={styles.continueBtn}
-            onPress={onClose}>
-            <ThemedText style={styles.continueBtnText}>{continueLabel}</ThemedText>
-          </Pressable>
+            ) : (
+              <ThemedText style={styles.watchMoreText}>
+                Watch {remainingWatches} more time(s) to earn stars!
+              </ThemedText>
+            )}
+          </ScrollView>
+          <View style={styles.completionFooter}>
+            <Pressable
+              style={styles.continueBtn}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={continueLabel}>
+              <ThemedText style={styles.continueBtnText}>{continueLabel}</ThemedText>
+            </Pressable>
+          </View>
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -785,15 +817,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing[6],
+    paddingHorizontal: spacing[4],
   },
   completionCard: {
     width: '100%',
     maxWidth: 400,
     backgroundColor: colors.bgCard,
     borderRadius: radii['2xl'],
-    padding: spacing[8],
+    overflow: 'hidden',
+    alignItems: 'stretch',
+  },
+  completionScrollContent: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[6],
+    paddingBottom: spacing[3],
     alignItems: 'center',
+  },
+  completionFooter: {
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[2],
+    paddingBottom: spacing[5],
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.bgTertiary,
   },
   completionTitle: {
     fontSize: typography.sizes['3xl'],
@@ -802,12 +848,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing[4],
   },
+  completionTitleCompact: {
+    fontSize: typography.sizes['2xl'],
+    marginBottom: spacing[2],
+  },
   completionMessage: {
     fontSize: typography.sizes.xl,
     fontFamily: 'Quicksand_400Regular',
     color: colors.text,
     textAlign: 'center',
     marginBottom: spacing[6],
+  },
+  completionMessageCompact: {
+    fontSize: typography.sizes.lg,
+    marginBottom: spacing[3],
   },
   starsWrap: {
     flexDirection: 'row',
@@ -819,6 +873,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes['2xl'],
     fontFamily: 'Quicksand_700Bold',
     color: colors.success,
+  },
+  starsTextCompact: {
+    fontSize: typography.sizes.xl,
   },
   starsAlreadyText: {
     fontSize: typography.sizes.lg,
@@ -834,9 +891,11 @@ const styles = StyleSheet.create({
   },
   continueBtn: {
     backgroundColor: colors.secondary,
-    paddingVertical: spacing[4],
+    minHeight: 44,
+    paddingVertical: spacing[3],
     paddingHorizontal: spacing[8],
     borderRadius: radii.xl,
+    justifyContent: 'center',
   },
   continueBtnText: {
     fontSize: typography.sizes.xl,

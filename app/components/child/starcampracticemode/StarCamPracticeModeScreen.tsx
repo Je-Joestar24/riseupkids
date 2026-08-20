@@ -2,8 +2,8 @@ import { Audio, Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Image, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { StarCamMapBackButton } from '@/components/child/starcamdynamicdisplay/StarCamMapBackButton';
 import { StarCamPracticeMissingVideoSkip } from '@/components/child/starcampracticemode/StarCamPracticeMissingVideoSkip';
@@ -11,6 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import type { StarCamPracticeSequenceItem } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeSequence } from '@/hooks/useStarCamPracticeSequence';
 import { useStarCamPracticeWatchProgress } from '@/hooks/useStarCamPracticeWatchProgress';
+import { getStarCamPracticeModeLayout } from '@/utils/starCamPracticeModeLayout';
 
 const applyVideoPlaybackRate = async (player: Video | null, rate: number) => {
   if (!player) return;
@@ -52,6 +53,9 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
   onComplete,
 }: StarCamPracticeModeScreenProps) {
   const isFocused = useIsFocused();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const layout = getStarCamPracticeModeLayout(winW, winH, insets);
   const videoRef = useRef<Video | null>(null);
   const [videoLoadFailed, setVideoLoadFailed] = useState(false);
   const { isItemWatched, markItemWatched, isLoaded: isWatchStateLoaded } = useStarCamPracticeWatchProgress({
@@ -84,7 +88,6 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
     isVideoLoading,
     isShowingNextIntro,
     isShowingMissingVideoSkip,
-    nextIntroText,
     onVideoLoadStart,
     onVideoLoad,
     onVideoError,
@@ -175,90 +178,115 @@ export const StarCamPracticeModeScreen = memo(function StarCamPracticeModeScreen
 
         <StarCamMapBackButton borderColor={accentColor} onBack={onBack} />
 
-        <View style={styles.content}>
-          <ThemedText style={[styles.title, { color: accentColor }]}>{title}</ThemedText>
+        <View style={[styles.content, { paddingTop: layout.contentPaddingTop }]}>
+          <ThemedText
+            style={[
+              styles.title,
+              {
+                color: accentColor,
+                fontSize: layout.titleFontSize,
+                lineHeight: layout.titleLineHeight,
+              },
+            ]}>
+            {title}
+          </ThemedText>
           <View style={styles.progressPill}>
             <ThemedText style={[styles.progressText, { color: accentColor }]}>
               {progressText} • Round {passNumber}/2
             </ThemedText>
           </View>
-{/*           {isShowingNextIntro && nextIntroText ? (
-            <View
-              style={[styles.nextToast, { borderColor: accentColor }]}
-              accessibilityRole="text"
-              accessibilityLabel={nextIntroText}>
-              <ThemedText style={[styles.nextToastText, { color: accentColor }]}>{nextIntroText}</ThemedText>
-            </View>
-          ) : null} */}
 
           <View style={styles.stack}>
-            <View style={styles.block}>
-              <View style={styles.mediaFrame}>
-                {hasPlayableVideo ? (
-                  <Video
-                    ref={videoRef}
-                    key={`${passNumber}-${progressText}-${pronunciationVideoUrl ?? 'no-video'}`}
-                    source={{ uri: pronunciationVideoUrl || '' }}
-                    style={styles.mediaCover}
-                    resizeMode={ResizeMode.COVER}
-                    shouldPlay={isFocused && !isShowingNextIntro}
-                    isLooping={false}
-                    rate={playbackRate}
-                    shouldCorrectPitch
-                    useNativeControls={false}
-                    onLoadStart={onVideoLoadStart}
-                    onLoad={handleVideoLoad}
-                    onError={() => {
-                      setVideoLoadFailed(true);
-                      onVideoError();
-                    }}
-                    onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                    accessibilityLabel={`${targetLabel} pronunciation video`}
-                  />
-                ) : isShowingMissingVideoSkip ? (
-                  <StarCamPracticeMissingVideoSkip accentColor={accentColor} />
-                ) : (
-                  <View style={styles.centered}>
-                    <ThemedText style={[styles.placeholderText, { color: accentColor }]}>
-                      Video is unavailable right now.
-                    </ThemedText>
-                  </View>
-                )}
-                {hasPlayableVideo && isVideoLoading ? (
-                  <View style={styles.videoLoadingOverlay} pointerEvents="none">
-                    <ActivityIndicator size="large" color={accentColor} />
-                  </View>
-                ) : null}
-              </View>
+            <View
+              style={[
+                styles.mediaFrame,
+                {
+                  width: layout.mediaSize,
+                  height: layout.mediaSize,
+                  borderRadius: layout.mediaRadius,
+                },
+              ]}>
+              {hasPlayableVideo ? (
+                <Video
+                  ref={videoRef}
+                  key={`${passNumber}-${progressText}-${pronunciationVideoUrl ?? 'no-video'}`}
+                  source={{ uri: pronunciationVideoUrl || '' }}
+                  style={styles.mediaCover}
+                  resizeMode={ResizeMode.COVER}
+                  shouldPlay={isFocused && !isShowingNextIntro}
+                  isLooping={false}
+                  rate={playbackRate}
+                  shouldCorrectPitch
+                  useNativeControls={false}
+                  onLoadStart={onVideoLoadStart}
+                  onLoad={handleVideoLoad}
+                  onError={() => {
+                    setVideoLoadFailed(true);
+                    onVideoError();
+                  }}
+                  onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+                  accessibilityLabel={`${targetLabel} pronunciation video`}
+                />
+              ) : isShowingMissingVideoSkip ? (
+                <StarCamPracticeMissingVideoSkip accentColor={accentColor} />
+              ) : (
+                <View style={styles.centered}>
+                  <ThemedText style={[styles.placeholderText, { color: accentColor }]}>
+                    Video is unavailable right now.
+                  </ThemedText>
+                </View>
+              )}
+              {hasPlayableVideo && isVideoLoading ? (
+                <View style={styles.videoLoadingOverlay} pointerEvents="none">
+                  <ActivityIndicator size="large" color={accentColor} />
+                </View>
+              ) : null}
             </View>
 
-            <ThemedText style={[styles.targetText, { color: accentColor, marginTop: 20 }]}>{targetLabel}</ThemedText>
+            <ThemedText
+              style={[
+                styles.targetText,
+                {
+                  color: accentColor,
+                  marginVertical: layout.targetMargin,
+                  fontSize: layout.targetFontSize,
+                  lineHeight: layout.targetLineHeight,
+                },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.7}>
+              {targetLabel}
+            </ThemedText>
 
-            <View style={styles.block}>
-              {/* <ThemedText style={[styles.blockLabel, { color: accentColor }]}>Sample</ThemedText> */}
-              <View style={styles.sampleWrap}>
-                <View style={styles.sampleFrame}>
-                  {sampleImageUrl ? (
-                    <Image
-                      source={{ uri: sampleImageUrl }}
-                      resizeMode="cover"
-                      style={styles.mediaCover}
-                      accessibilityLabel={`${targetLabel} sample image`}
-                    />
-                  ) : (
-                    <View style={styles.centered}>
-                      <ThemedText style={[styles.placeholderText, { color: accentColor }]}>No sample image yet.</ThemedText>
-                    </View>
-                  )}
+            <View
+              style={[
+                styles.sampleFrame,
+                {
+                  width: layout.mediaSize,
+                  height: layout.mediaSize,
+                  borderRadius: layout.mediaRadius,
+                },
+              ]}>
+              {sampleImageUrl ? (
+                <Image
+                  source={{ uri: sampleImageUrl }}
+                  resizeMode="cover"
+                  style={styles.mediaCover}
+                  accessibilityLabel={`${targetLabel} sample image`}
+                />
+              ) : (
+                <View style={styles.centered}>
+                  <ThemedText style={[styles.placeholderText, { color: accentColor }]}>No sample image yet.</ThemedText>
                 </View>
-              </View>
+              )}
             </View>
           </View>
         </View>
 
         {canShowSkipNow ? (
           <Pressable
-            style={[styles.skipFab, { borderColor: accentColor }]}
+            style={[styles.skipFab, { borderColor: accentColor, bottom: layout.compact ? 12 : 24 }]}
             onPress={() => void handleSkipNow()}
             accessibilityRole="button"
             accessibilityLabel={`Skip ${targetLabel} pronunciation video`}
@@ -278,15 +306,16 @@ const styles = StyleSheet.create({
   },
   root: {
     flex: 1,
+    minHeight: 0,
     borderWidth: 8,
     overflow: 'hidden',
   },
   content: {
     flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 22,
+    paddingBottom: 12,
   },
   title: {
     textAlign: 'center',
@@ -309,42 +338,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
   },
-  nextToast: {
-    marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.75)',
-    borderWidth: 2,
-  },
-  nextToastText: {
-    fontWeight: '800',
-    fontSize: 16,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
   stack: {
     flex: 1,
+    minHeight: 0,
     width: '100%',
-    maxWidth: 340,
     alignItems: 'center',
-    justifyContent: 'space-evenly',
-    paddingBottom: 10,
-  },
-  block: {
-    width: '100%',
-    height: '38%',
-  },
-  blockLabel: {
-    textAlign: 'center',
-    marginBottom: 10,
-    fontWeight: '700',
-    fontSize: 18,
+    justifyContent: 'center',
   },
   mediaFrame: {
-    width: '80%',
-    maxWidth: 280,
-    aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 28,
     overflow: 'hidden',
@@ -364,22 +365,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.08)',
   },
   sampleFrame: {
-    width: '80%',
-    maxWidth: 280,
-    aspectRatio: 1,
     alignSelf: 'center',
     borderRadius: 28,
     overflow: 'hidden',
     backgroundColor: '#EDEDED',
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.5)',
-  },
-  sampleWrap: {
-    flex: 1,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 0,
   },
   targetText: {
     fontWeight: '700',

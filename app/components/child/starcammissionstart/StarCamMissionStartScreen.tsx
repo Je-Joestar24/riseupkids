@@ -2,7 +2,15 @@ import { Video, ResizeMode } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused } from '@react-navigation/native';
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -12,6 +20,7 @@ import {
   ensureStarCamMissionIntroAudio,
   stopStarCamMissionIntroAudio,
 } from '@/services/starCamMissionIntroAudio';
+import { getStarCamMissionStartLayout } from '@/utils/starCamMissionStartLayout';
 
 export interface StarCamMissionStartScreenProps {
   categoryHuntTitle: string;
@@ -104,6 +113,8 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
   onStartMission,
 }: StarCamMissionStartScreenProps) {
   const isFocused = useIsFocused();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const layout = getStarCamMissionStartLayout(winW, winH);
   const videoRef = useRef<Video | null>(null);
   const resolvedImageUrl = resolveMediaUri(introImageUrl);
   const resolvedVideoUrl = resolveMediaUri(introVideoUrl || null);
@@ -150,10 +161,29 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
 
         <StarCamMapBackButton borderColor={accentColor} onBack={onBack} />
 
-        <View style={styles.content}>
-          <ThemedText style={[styles.title, { color: accentColor }]}>{(categoryHuntTitle == 'Sing Hunt' ? 'Home Hunt' : categoryHuntTitle) || 'Category Hunt'}</ThemedText>
+        <View style={[styles.body, { paddingTop: layout.contentPaddingTop }]}>
+          <ThemedText
+            style={[
+              styles.title,
+              {
+                color: accentColor,
+                fontSize: layout.titleFontSize,
+                lineHeight: layout.titleLineHeight,
+                marginBottom: layout.titleMarginBottom,
+              },
+            ]}>
+            {(categoryHuntTitle == 'Sing Hunt' ? 'Home Hunt' : categoryHuntTitle) || 'Category Hunt'}
+          </ThemedText>
 
-          <View style={styles.imageFrame}>
+          <View
+            style={[
+              styles.imageFrame,
+              {
+                width: layout.imageSize,
+                height: layout.imageSize,
+                marginBottom: layout.imageMarginBottom,
+              },
+            ]}>
             {hasPlayableIntroVideo ? (
               <Video
                 ref={videoRef}
@@ -170,16 +200,40 @@ export const StarCamMissionStartScreen = memo(function StarCamMissionStartScreen
               <Image source={{ uri: resolvedImageUrl }} style={styles.image} resizeMode="cover" accessibilityLabel={`${missionTitle || 'Mission'} image`} />
             ) : (
               <View style={styles.imagePlaceholder}>
-                <ThemedText style={[styles.placeholderLetter, { color: accentColor }]}>
+                <ThemedText style={[styles.placeholderLetter, { color: accentColor, fontSize: Math.round(layout.imageSize * 0.3), lineHeight: Math.round(layout.imageSize * 0.3) }]}>
                   {(missionTitle || '?').trim().charAt(0).toUpperCase() || '?'}
                 </ThemedText>
               </View>
             )}
           </View>
 
-          <ThemedText style={styles.missionTitleBottom}>{missionTitle || 'Mission'}</ThemedText>
-          <ThemedText style={styles.subtitle}>{introText || 'Get ready for your mission!'}</ThemedText>
+          <ThemedText style={styles.missionTitleBottom} numberOfLines={2}>
+            {missionTitle || 'Mission'}
+          </ThemedText>
+          <View style={[styles.descriptionWrap, { maxHeight: layout.descriptionMaxHeight }]}>
+            <ScrollView
+              style={styles.descriptionScroll}
+              contentContainerStyle={styles.descriptionScrollContent}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
+              bounces={false}
+              accessibilityLabel="Mission description"
+              accessibilityHint="Scroll to read the full description">
+              <ThemedText
+                style={[
+                  styles.subtitle,
+                  {
+                    fontSize: layout.descriptionFontSize,
+                    lineHeight: layout.descriptionLineHeight,
+                  },
+                ]}>
+                {introText || 'Get ready for your mission!'}
+              </ThemedText>
+            </ScrollView>
+          </View>
+        </View>
 
+        <View style={[styles.footer, { paddingBottom: layout.footerPaddingBottom }]}>
           <Pressable
             onPress={onStartMission}
             disabled={loading}
@@ -211,11 +265,11 @@ const styles = StyleSheet.create({
     borderColor: '#85C2B9',
     overflow: 'hidden',
   },
-  content: {
+  body: {
     flex: 1,
+    width: '100%',
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 86,
   },
   title: {
     textAlign: 'center',
@@ -251,9 +305,20 @@ const styles = StyleSheet.create({
     color: '#85C2B9',
     lineHeight: 88,
   },
+  descriptionWrap: {
+    width: '100%',
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  descriptionScroll: {
+    width: '100%',
+  },
+  descriptionScrollContent: {
+    paddingBottom: 2,
+  },
   subtitle: {
+    width: '100%',
     textAlign: 'center',
-    marginBottom: 26,
     fontWeight: '700',
     fontSize: 19,
     color: '#FFFFFF',
@@ -273,6 +338,13 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.15)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  footer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 20,
   },
   startBtn: {
     borderRadius: 12,
