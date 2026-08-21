@@ -41,7 +41,10 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
       ]
     },
     "web": {
@@ -49,6 +52,14 @@
       "favicon": "./assets/images/icon1024.png"
     },
     "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon1024.png",
+          "color": "#85C2B9",
+          "defaultChannel": "riseupkids-default"
+        }
+      ],
       "expo-router",
       [
         "expo-camera",

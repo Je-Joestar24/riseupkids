@@ -77,6 +77,7 @@ async function deliverToRecipients({ campaign, recipients, isTest }) {
     try {
       pushResult = await deliverPush({
         userId: recipient.userId,
+        childId: recipient.childId || null,
         title: snapshot.title,
         message: snapshot.message,
         destination: campaign.destination,

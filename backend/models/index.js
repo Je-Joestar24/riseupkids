@@ -40,6 +40,7 @@ const CmsBook = require('./CmsBook');
 const NotificationCampaign = require('./NotificationCampaign');
 const NotificationReceipt = require('./NotificationReceipt');
 const NotificationSchedulerLock = require('./NotificationSchedulerLock');
+const DevicePushToken = require('./DevicePushToken');
 
 module.exports = {
   User,
@@ -83,5 +84,6 @@ module.exports = {
   NotificationCampaign,
   NotificationReceipt,
   NotificationSchedulerLock,
+  DevicePushToken,
 };
 

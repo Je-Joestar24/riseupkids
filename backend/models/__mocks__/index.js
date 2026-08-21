@@ -78,4 +78,5 @@ module.exports = {
   NotificationCampaign: stub,
   NotificationReceipt: stub,
   NotificationSchedulerLock: stub,
+  DevicePushToken: stub,
 };

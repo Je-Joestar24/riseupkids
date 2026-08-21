@@ -1,0 +1,94 @@
+/**
+ * Phase 3 Expo push payload, parent-device targeting, and per-token failure isolation.
+ * @see docs/NOTIFICATION_SYSTEM_V1_PHASING.md
+ */
+
+jest.mock('../services/devicePushToken.services', () => ({
+  listActiveTokensForUser: jest.fn(),
+  markTokenInvalid: jest.fn(),
+}));
+
+jest.mock('../services/notificationPush.client', () => ({
+  sendExpoPushMessages: jest.fn(),
+}));
+
+const { listActiveTokensForUser, markTokenInvalid } = require('../services/devicePushToken.services');
+const { buildPushPayload, deliverPush } = require('../services/notificationPush.services');
+
+const parentId = 'parent-1';
+
+describe('Notification push (Phase 3)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('push payload includes title, message, and destination (3.4)', () => {
+    const payload = buildPushPayload({
+      title: 'Story Time is waiting!',
+      message: 'A new adventure is ready.',
+      destination: { kind: 'book', contentId: 'cms-22' },
+      campaignId: 'camp-1',
+      childId: 'child-9',
+      isTest: false,
+    });
+
+    expect(payload.title).toBe('Story Time is waiting!');
+    expect(payload.body).toBe('A new adventure is ready.');
+    expect(payload.data.destinationKind).toBe('book');
+    expect(payload.data.contentId).toBe('cms-22');
+    expect(payload.data.campaignId).toBe('camp-1');
+    expect(payload.data.childId).toBe('child-9');
+  });
+
+  it('parent vs children audience resolves to parent devices (3.6)', async () => {
+    listActiveTokensForUser.mockResolvedValue([
+      { token: 'ExponentPushToken[parent-phone]', platform: 'ios', userId: parentId },
+    ]);
+    const sendMessages = jest.fn().mockResolvedValue([{ status: 'ok' }]);
+
+    const result = await deliverPush(
+      {
+        userId: parentId,
+        childId: 'child-profile-99',
+        title: 'Mini Mission',
+        message: 'Find 7 objects',
+        destination: { kind: 'mini_mission', contentId: 'hazel-poster' },
+        campaignId: 'camp-2',
+      },
+      { sendMessages }
+    );
+
+    expect(listActiveTokensForUser).toHaveBeenCalledWith(parentId);
+    expect(listActiveTokensForUser).not.toHaveBeenCalledWith('child-profile-99');
+    expect(sendMessages.mock.calls[0][0][0].to).toBe('ExponentPushToken[parent-phone]');
+    expect(result.status).toBe('sent');
+  });
+
+  it('provider failure on one token does not abort the rest (3.9)', async () => {
+    listActiveTokensForUser.mockResolvedValue([
+      { token: 'ExponentPushToken[bad]', platform: 'ios', userId: parentId },
+      { token: 'ExponentPushToken[good]', platform: 'android', userId: parentId },
+    ]);
+    const sendMessages = jest.fn().mockResolvedValue([
+      { status: 'error', details: { error: 'DeviceNotRegistered' } },
+      { status: 'ok' },
+    ]);
+
+    const result = await deliverPush(
+      {
+        userId: parentId,
+        title: 'Live lesson',
+        message: 'Starts soon',
+        destination: { kind: 'live_lesson', contentId: 'live-1' },
+        campaignId: 'camp-3',
+      },
+      { sendMessages, invalidateToken: markTokenInvalid }
+    );
+
+    expect(result.status).toBe('sent');
+    expect(result.sentCount).toBe(1);
+    expect(result.failedCount).toBe(1);
+    expect(markTokenInvalid).toHaveBeenCalledWith('ExponentPushToken[bad]', 'invalid_token');
+    expect(markTokenInvalid).not.toHaveBeenCalledWith('ExponentPushToken[good]', expect.anything());
+  });
+});
