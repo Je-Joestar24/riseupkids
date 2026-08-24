@@ -3,7 +3,7 @@ const {
   acquireNotificationSchedulerLock,
   releaseNotificationSchedulerLock,
 } = require('../services/notificationSchedulerLock.service');
-const { sendCampaignNow } = require('../services/notificationSend.services');
+const { sendScheduledCampaign, processDueQueuedReceipts } = require('../services/notificationSend.services');
 
 const DEFAULT_INTERVAL_MS = 60 * 1000;
 const STARTUP_DELAY_MS = 15 * 1000;
@@ -20,19 +20,22 @@ function isNotificationSchedulerEnabled() {
 
 async function findDueCampaigns(now = new Date()) {
   return NotificationCampaign.find({
-    status: 'scheduled',
+    status: { $in: ['scheduled', 'sending'] },
     sendAt: { $lte: now },
   })
-    .select('_id sendAt timezone status')
+    .select('_id sendAt timezone status scheduledBy sentBy')
     .lean();
 }
 
 async function processDueCampaigns(now = new Date()) {
+  await processDueQueuedReceipts(now);
   const due = await findDueCampaigns(now);
   const results = [];
   for (const campaign of due) {
     try {
-      const sent = await sendCampaignNow(campaign._id, campaign.scheduledBy || null);
+      const sent = await sendScheduledCampaign(campaign._id, campaign.scheduledBy || campaign.sentBy || null, {
+        now,
+      });
       results.push({ campaignId: String(campaign._id), success: true, status: sent.status });
     } catch (error) {
       console.error(`[NotificationScheduler] campaign ${campaign._id} failed:`, error.message);

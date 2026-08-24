@@ -32,6 +32,7 @@ describe('notificationPushRegistration', () => {
       getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'undetermined', granted: false, canAskAgain: true }),
       requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true }),
       getExpoPushTokenAsync: jest.fn().mockResolvedValue({ data: 'ExponentPushToken[parent-ios]' }),
+      setNotificationHandler: jest.fn(),
     };
     devicePushTokenService.register.mockResolvedValue({ success: true });
 
@@ -43,10 +44,12 @@ describe('notificationPushRegistration', () => {
 
     expect(result).toEqual({ registered: true });
     expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
-    expect(devicePushTokenService.register).toHaveBeenCalledWith({
-      platform: 'ios',
-      token: 'ExponentPushToken[parent-ios]',
-    });
+    expect(devicePushTokenService.register).toHaveBeenCalledWith(
+      expect.objectContaining({
+        platform: 'ios',
+        token: 'ExponentPushToken[parent-ios]',
+      })
+    );
   });
 
   it('does not re-prompt after denial', async () => {
@@ -55,6 +58,8 @@ describe('notificationPushRegistration', () => {
       getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'denied', granted: false, canAskAgain: true }),
       requestPermissionsAsync: jest.fn(),
       getExpoPushTokenAsync: jest.fn(),
+      setNotificationHandler: jest.fn(),
+      setNotificationChannelAsync: jest.fn(),
     };
 
     const result = await registerDeviceForPushNotifications({
@@ -65,6 +70,26 @@ describe('notificationPushRegistration', () => {
 
     expect(result.registered).toBe(false);
     expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+    expect(devicePushTokenService.register).not.toHaveBeenCalled();
+  });
+
+  it('returns a reason instead of throwing when Expo cannot mint a token', async () => {
+    const notifications = {
+      getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true }),
+      requestPermissionsAsync: jest.fn(),
+      getExpoPushTokenAsync: jest.fn().mockRejectedValue(new Error('FCM is not configured')),
+      setNotificationHandler: jest.fn(),
+      setNotificationChannelAsync: jest.fn(),
+    };
+
+    const result = await registerDeviceForPushNotifications({
+      notifications,
+      platform: 'android',
+      registerToken: devicePushTokenService.register,
+    });
+
+    expect(result.registered).toBe(false);
+    expect(result.reason).toContain('FCM is not configured');
     expect(devicePushTokenService.register).not.toHaveBeenCalled();
   });
 });

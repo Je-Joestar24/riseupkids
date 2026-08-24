@@ -48,6 +48,19 @@ const NOTIFICATION_DESTINATION_KINDS = [
 
 const NOTIFICATION_STATUSES = ['draft', 'scheduled', 'sending', 'sent', 'failed', 'cancelled'];
 
+const NOTIFICATION_TIMING_MODES = [
+  { value: 'recipient_local', label: 'Recipient Local Time' },
+  { value: 'same_moment', label: 'Same Moment Worldwide' },
+];
+
+const NOTIFICATION_QUIET_HOUR_BEHAVIORS = [
+  { value: 'defer', label: 'Defer' },
+  { value: 'expire', label: 'Expire' },
+];
+
+const NOTIFICATION_QUIET_HOURS = { start: '20:00', end: '07:00' };
+const NOTIFICATION_FALLBACK_TIMEZONE = 'America/Sao_Paulo';
+
 function normalizeLanguageCode(code) {
   return String(code || '')
     .trim()
@@ -99,6 +112,10 @@ function getNotificationAdminMeta() {
     audiences: NOTIFICATION_AUDIENCES,
     destinationKinds: NOTIFICATION_DESTINATION_KINDS,
     statuses: NOTIFICATION_STATUSES,
+    timingModes: NOTIFICATION_TIMING_MODES,
+    quietHourBehaviors: NOTIFICATION_QUIET_HOUR_BEHAVIORS,
+    quietHours: NOTIFICATION_QUIET_HOURS,
+    fallbackTimezone: NOTIFICATION_FALLBACK_TIMEZONE,
     fallbackLanguage: 'en',
     recommendedImage: {
       width: 1920,
@@ -126,6 +143,10 @@ module.exports = {
   NOTIFICATION_AUDIENCES,
   NOTIFICATION_DESTINATION_KINDS,
   NOTIFICATION_STATUSES,
+  NOTIFICATION_TIMING_MODES,
+  NOTIFICATION_QUIET_HOUR_BEHAVIORS,
+  NOTIFICATION_QUIET_HOURS,
+  NOTIFICATION_FALLBACK_TIMEZONE,
   getNotificationLanguageCatalog,
   isCatalogLanguage,
   registerNotificationLanguage,

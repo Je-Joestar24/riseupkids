@@ -1,4 +1,5 @@
 const { DevicePushToken } = require('../models');
+const { reportUserTimezone } = require('./userTimezone.services');
 
 function httpError(message, statusCode = 400) {
   const err = new Error(message);
@@ -26,7 +27,7 @@ function normalizeToken(token) {
  * Register or refresh a parent-device Expo push token.
  * One row per user + token. Refresh updates lastSeen and clears invalid.
  */
-async function registerDevicePushToken({ userId, platform, token }) {
+async function registerDevicePushToken({ userId, platform, token, timezone }) {
   if (!userId) {
     throw httpError('A parent user is required to register a device token');
   }
@@ -39,7 +40,11 @@ async function registerDevicePushToken({ userId, platform, token }) {
     existing.lastSeenAt = new Date();
     existing.invalid = false;
     existing.invalidReason = null;
+    if (timezone) existing.timezone = timezone;
     await existing.save();
+    if (timezone) {
+      await reportUserTimezone({ userId, timezone });
+    }
     return existing;
   }
 
@@ -50,17 +55,26 @@ async function registerDevicePushToken({ userId, platform, token }) {
     stolen.lastSeenAt = new Date();
     stolen.invalid = false;
     stolen.invalidReason = null;
+    if (timezone) stolen.timezone = timezone;
     await stolen.save();
+    if (timezone) {
+      await reportUserTimezone({ userId, timezone });
+    }
     return stolen;
   }
 
-  return DevicePushToken.create({
+  const created = await DevicePushToken.create({
     userId,
     platform: normalizedPlatform,
     token: normalizedToken,
     lastSeenAt: new Date(),
     invalid: false,
+    timezone: timezone || null,
   });
+  if (timezone) {
+    await reportUserTimezone({ userId, timezone });
+  }
+  return created;
 }
 
 async function listActiveTokensForUser(userId) {

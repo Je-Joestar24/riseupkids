@@ -28,7 +28,7 @@ async function getParentUsers(userIds) {
   if (userIds?.length) {
     query._id = { $in: userIds };
   }
-  return User.find(query).select('_id preferredLanguage language isActive role').lean();
+  return User.find(query).select('_id preferredLanguage language isActive role timezone').lean();
 }
 
 /**
@@ -40,7 +40,7 @@ async function listCampaignRecipients(audience, { testUserId } = {}) {
     const parents = await getParentUsers([testUserId]);
     const adminFallback = parents.length
       ? parents
-      : await User.find({ _id: testUserId }).select('_id preferredLanguage language isActive role').lean();
+      : await User.find({ _id: testUserId }).select('_id preferredLanguage language isActive role timezone').lean();
     const user = adminFallback[0];
     if (!user) {
       throw httpError('Test user not found', 404);
@@ -52,6 +52,7 @@ async function listCampaignRecipients(audience, { testUserId } = {}) {
         userId: asId(user._id),
         childId: audience === 'children' ? asId(child?._id) : null,
         preferredLanguage: recipientLanguage({ user, child }),
+        timezone: user.timezone || null,
       },
     ];
   }
@@ -77,6 +78,7 @@ async function listCampaignRecipients(audience, { testUserId } = {}) {
       userId: parentId,
       childId: audience === 'children' ? asId(child?._id) : null,
       preferredLanguage: recipientLanguage({ user, child }),
+      timezone: user.timezone || null,
     };
   });
 }

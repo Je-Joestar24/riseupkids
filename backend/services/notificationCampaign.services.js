@@ -11,6 +11,12 @@ const {
 } = require('../config/notificationCatalog');
 const { wallTimeToUtc, assertTimeZone } = require('../utils/notificationTimezone.util');
 const {
+  normalizeTimingMode,
+  normalizeQuietHourBehavior,
+  earliestWorldwideSendAt,
+  parseExpiresAt,
+} = require('../utils/notificationTiming.util');
+const {
   assertNotificationImageMime,
   readImageDimensions,
 } = require('../utils/notificationImage.util.js');
@@ -137,6 +143,8 @@ async function createCampaign(payload, adminId) {
     fallbackLanguage: normalizeLanguageCode(payload.fallbackLanguage) || 'en',
     localizations: normalizeLocalizations(payload.localizations),
     status: 'draft',
+    timingMode: normalizeTimingMode(payload.timingMode),
+    quietHourBehavior: normalizeQuietHourBehavior(payload.quietHourBehavior),
     createdBy: adminId,
     updatedBy: adminId,
   });
@@ -226,18 +234,37 @@ async function updateCampaign(id, payload, adminId) {
   if (payload.localizations !== undefined) {
     campaign.localizations = normalizeLocalizations(payload.localizations);
   }
+  if (payload.timingMode !== undefined) {
+    campaign.timingMode = normalizeTimingMode(payload.timingMode);
+  }
+  if (payload.quietHourBehavior !== undefined) {
+    campaign.quietHourBehavior = normalizeQuietHourBehavior(payload.quietHourBehavior);
+  }
   campaign.updatedBy = adminId;
   await campaign.save();
   return populateCampaign(campaign);
 }
 
-function applyScheduleFields(campaign, { sendDate, sendTime, timezone }, adminId) {
-  const zone = assertTimeZone(timezone);
-  const sendAt = wallTimeToUtc({ sendDate, sendTime, timezone: zone });
+function applyScheduleFields(campaign, payload, adminId) {
+  const zone = assertTimeZone(payload.timezone);
+  const timingMode = normalizeTimingMode(payload.timingMode ?? campaign.timingMode);
+  const quietHourBehavior = normalizeQuietHourBehavior(
+    payload.quietHourBehavior ?? campaign.quietHourBehavior
+  );
+  const sendAt =
+    timingMode === 'recipient_local'
+      ? earliestWorldwideSendAt({ sendDate: payload.sendDate, sendTime: payload.sendTime })
+      : wallTimeToUtc({ sendDate: payload.sendDate, sendTime: payload.sendTime, timezone: zone });
+
   campaign.sendAt = sendAt;
   campaign.timezone = zone;
-  campaign.sendLocalDate = String(sendDate).trim();
-  campaign.sendLocalTime = String(sendTime).trim();
+  campaign.sendLocalDate = String(payload.sendDate).trim();
+  campaign.sendLocalTime = String(payload.sendTime).trim();
+  campaign.timingMode = timingMode;
+  campaign.quietHourBehavior = quietHourBehavior;
+  campaign.expiresAt = parseExpiresAt(payload, zone);
+  campaign.expiresLocalDate = campaign.expiresAt ? String(payload.expiresDate || '').trim() || null : null;
+  campaign.expiresLocalTime = campaign.expiresAt ? String(payload.expiresTime || '').trim() || null : null;
   campaign.status = 'scheduled';
   campaign.scheduledBy = adminId;
   campaign.updatedBy = adminId;
@@ -293,6 +320,9 @@ async function duplicateCampaign(id, adminId) {
     status: 'draft',
     sendAt: null,
     timezone: null,
+    timingMode: original.timingMode || 'same_moment',
+    quietHourBehavior: original.quietHourBehavior || 'defer',
+    expiresAt: null,
     createdBy: adminId,
     updatedBy: adminId,
   });

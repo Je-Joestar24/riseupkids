@@ -45,6 +45,9 @@ describe('NotificationCampaignForm Phase 2 actions', () => {
     expect(screen.getByLabelText('Send date')).toHaveValue('2026-08-20');
     expect(screen.getByLabelText('Send time')).toHaveValue('09:00');
     expect(screen.getByLabelText('Timezone')).toHaveTextContent('America/Sao_Paulo');
+    expect(screen.getByLabelText('Timing mode')).toBeInTheDocument();
+    expect(screen.getByLabelText('Quiet-hour behavior')).toBeInTheDocument();
+    expect(screen.getByLabelText('Expiration date')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Schedule' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Send now' })).toBeInTheDocument();

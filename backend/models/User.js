@@ -67,6 +67,24 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    /**
+     * IANA timezone from the last-seen parent device (e.g. America/Sao_Paulo).
+     * Never inferred from language. Missing values fall back at send time.
+     */
+    timezone: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    timezoneUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    timezoneSource: {
+      type: String,
+      enum: ['device', 'fallback'],
+      default: null,
+    },
     lastLogin: {
       type: Date,
     },

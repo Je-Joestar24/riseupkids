@@ -33,13 +33,79 @@ export function isEditableCampaignStatus(status) {
 }
 
 export function formatCampaignSchedule(campaign) {
-  if (campaign?.sendLocalDate && campaign?.sendLocalTime && campaign?.timezone) {
-    return `${campaign.sendLocalDate} ${campaign.sendLocalTime} (${campaign.timezone})`;
+  const clock =
+    campaign?.sendLocalDate && campaign?.sendLocalTime
+      ? `${campaign.sendLocalDate} ${campaign.sendLocalTime}`
+      : null;
+  if (clock && campaign?.timingMode === 'recipient_local') {
+    return `${clock} (recipient local time)`;
+  }
+  if (clock && campaign?.timezone) {
+    return `${clock} (${campaign.timezone})`;
   }
   if (campaign?.sendAt) {
     return new Date(campaign.sendAt).toISOString();
   }
   return '—';
+}
+
+export function describeCampaignSendResult(campaign) {
+  if (campaign?.status === 'sending') {
+    return {
+      type: 'info',
+      message:
+        'Send started. Families in quiet hours (8:00 PM–7:00 AM local) will receive this at 7:00 AM, unless it expires first.',
+    };
+  }
+  const sent = campaign?.delivery?.sent ?? 0;
+  const lastError = campaign?.lastError;
+  if (campaign?.status === 'failed' || sent === 0) {
+    if (lastError === 'no_device_token') {
+      return {
+        type: 'warning',
+        message: 'Send finished, but no parent phones are registered for push yet.',
+      };
+    }
+    return {
+      type: 'warning',
+      message: lastError
+        ? `Campaign send completed with failures (${lastError})`
+        : 'Campaign send completed with failures',
+    };
+  }
+  return { type: 'success', message: 'Campaign sent' };
+}
+
+export function describeTestSendResult(payload) {
+  const receipts = payload?.receipts || [];
+  const delivered = receipts.filter((row) => row.pushResult === 'sent').length;
+  const queued = receipts.filter((row) => row.pushResult === 'queued').length;
+  const targeted = payload?.targeted ?? receipts.length;
+  if (queued > 0 && delivered === 0) {
+    return {
+      type: 'info',
+      message:
+        'Test follows production timing. This family is in quiet hours, so it will arrive at 7:00 AM local time.',
+    };
+  }
+  if (delivered === 0) {
+    const reason = receipts[0]?.failureReason || payload?.failures?.[0]?.reason || 'no_device_token';
+    if (reason === 'no_device_token') {
+      return {
+        type: 'warning',
+        message:
+          'Test did not reach a phone. Log into the preview app as that parent and allow notifications first.',
+      };
+    }
+    return {
+      type: 'warning',
+      message: `Test did not reach a phone (${reason})`,
+    };
+  }
+  return {
+    type: 'success',
+    message: `Test notification sent (${targeted} recipient)`,
+  };
 }
 
 export function buildEmptyForm(meta) {
@@ -58,6 +124,10 @@ export function buildEmptyForm(meta) {
     sendDate: '',
     sendTime: '',
     timezone: defaultTimezone(meta),
+    timingMode: 'recipient_local',
+    quietHourBehavior: 'defer',
+    expiresDate: '',
+    expiresTime: '',
     testUserId: '',
     localizations,
   };
@@ -87,6 +157,10 @@ export function campaignToForm(campaign, meta) {
     sendDate: campaign.sendLocalDate || '',
     sendTime: normalizeSendTime(campaign.sendLocalTime),
     timezone: campaign.timezone || base.timezone,
+    timingMode: campaign.timingMode || 'recipient_local',
+    quietHourBehavior: campaign.quietHourBehavior || 'defer',
+    expiresDate: campaign.expiresLocalDate || '',
+    expiresTime: normalizeSendTime(campaign.expiresLocalTime),
     testUserId: '',
     localizations,
   };
@@ -111,6 +185,8 @@ export function formToPayload(form) {
       contentId: form.contentId || null,
     },
     localizations,
+    timingMode: form.timingMode === 'same_moment' ? 'same_moment' : 'recipient_local',
+    quietHourBehavior: form.quietHourBehavior === 'expire' ? 'expire' : 'defer',
   };
 }
 
@@ -127,7 +203,23 @@ export function formToSchedulePayload(form) {
   if (!timezone) {
     throw new Error('Timezone is required');
   }
-  return { sendDate, sendTime, timezone };
+  const payload = {
+    sendDate,
+    sendTime,
+    timezone,
+    timingMode: form.timingMode === 'same_moment' ? 'same_moment' : 'recipient_local',
+    quietHourBehavior: form.quietHourBehavior === 'expire' ? 'expire' : 'defer',
+  };
+  const expiresDate = String(form.expiresDate || '').trim();
+  const expiresTime = normalizeSendTime(form.expiresTime);
+  if (expiresDate || expiresTime) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(expiresDate) || !/^\d{2}:\d{2}$/.test(expiresTime)) {
+      throw new Error('Expiration needs both a date and time');
+    }
+    payload.expiresDate = expiresDate;
+    payload.expiresTime = expiresTime;
+  }
+  return payload;
 }
 
 export default function useAdminNotifications() {
@@ -268,11 +360,11 @@ export default function useAdminNotifications() {
         const saved = form ? await persistThen(form, campaignId) : { _id: campaignId };
         try {
           const response = await adminNotificationsService.sendNow(saved._id);
-          const status = response.data?.status;
+          const toast = describeCampaignSendResult(response.data);
           dispatch(
             showNotification({
-              message: status === 'failed' ? 'Campaign send completed with failures' : 'Campaign sent',
-              type: status === 'failed' ? 'warning' : 'success',
+              message: toast.message,
+              type: toast.type,
             })
           );
           await loadCampaigns();
@@ -299,11 +391,11 @@ export default function useAdminNotifications() {
         const testUserId = String(form?.testUserId || '').trim() || undefined;
         try {
           const response = await adminNotificationsService.sendTest(saved._id, testUserId);
-          const targeted = response.data?.targeted ?? response.data?.receipts?.length ?? 1;
+          const toast = describeTestSendResult(response.data);
           dispatch(
             showNotification({
-              message: `Test notification sent (${targeted} recipient)`,
-              type: 'success',
+              message: toast.message,
+              type: toast.type,
             })
           );
           await loadCampaigns();

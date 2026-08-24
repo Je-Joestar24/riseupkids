@@ -57,7 +57,8 @@
         {
           "icon": "./assets/images/icon1024.png",
           "color": "#85C2B9",
-          "defaultChannel": "riseupkids-default"
+          "defaultChannel": "riseupkids-default",
+          "enableBackgroundRemoteNotifications": true
         }
       ],
       "expo-router",

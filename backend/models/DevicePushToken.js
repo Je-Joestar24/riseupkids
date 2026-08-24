@@ -22,6 +22,11 @@ const devicePushTokenSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    timezone: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     invalid: {
       type: Boolean,
       default: false,

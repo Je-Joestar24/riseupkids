@@ -14,6 +14,8 @@ jest.mock('../models', () => ({
   },
   NotificationReceipt: {
     create: jest.fn(),
+    find: jest.fn(),
+    findOneAndUpdate: jest.fn(),
   },
   Media: { create: jest.fn() },
   User: { find: jest.fn() },
@@ -58,11 +60,18 @@ describe('Notification scheduler e2e (Phase 2)', () => {
     store.clear();
     acquireNotificationSchedulerLock.mockResolvedValue(true);
     releaseNotificationSchedulerLock.mockResolvedValue(undefined);
-    deliverPush.mockResolvedValue({ status: 'skipped', reason: 'push_provider_not_configured' });
+    deliverPush.mockResolvedValue({ status: 'sent', reason: null });
     listCampaignRecipients.mockResolvedValue([
       { userId: 'parent-1', childId: null, preferredLanguage: 'pt' },
     ]);
-    NotificationReceipt.create.mockImplementation(async (payload) => ({ _id: 'receipt-1', ...payload }));
+    NotificationReceipt.create.mockImplementation(async (payload) => {
+      const row = { _id: 'receipt-1', ...payload, save: jest.fn(async function save() { return this; }) };
+      return row;
+    });
+    NotificationReceipt.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([]),
+      limit: jest.fn().mockResolvedValue([]),
+    });
 
     NotificationCampaign.create.mockImplementation(async (payload) => {
       const doc = wrap({ _id: 'camp-e2e', ...payload });

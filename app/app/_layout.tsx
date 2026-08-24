@@ -20,6 +20,8 @@ import { useAndroidImmersiveFullscreen } from '@/hooks/useAndroidImmersiveFullsc
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/hooks/authHook';
 import { useLegalAcceptance } from '@/hooks/legalAcceptanceHook';
+import { useDeviceTimezoneReport } from '@/hooks/useDeviceTimezoneReport';
+import { useNotificationPushBootstrap } from '@/hooks/useNotificationPushBootstrap';
 import { useNotificationPushRegistration } from '@/hooks/useNotificationPushRegistration';
 import { useNotificationTapRouting } from '@/hooks/useNotificationTapRouting';
 import { useStartupPermissions } from '@/hooks/useStartupPermissions';
@@ -50,6 +52,8 @@ export default function RootLayout() {
     Quicksand_700Bold,
   });
   useStartupPermissions(fontsLoaded);
+  useNotificationPushBootstrap();
+  useDeviceTimezoneReport(fontsLoaded && legalReady);
   useNotificationPushRegistration(fontsLoaded && legalReady);
   useNotificationTapRouting(fontsLoaded && legalReady);
 

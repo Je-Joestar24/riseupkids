@@ -3,11 +3,15 @@ const { sendExpoPushMessages } = require('./notificationPush.client');
 
 const INVALID_TOKEN_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials']);
 
+const ANDROID_CHANNEL_ID = 'riseupkids-default';
+
 function buildPushPayload({ title, message, destination, campaignId, childId, isTest }) {
   return {
     title: String(title || '').trim(),
     body: String(message || '').trim(),
     sound: 'default',
+    channelId: ANDROID_CHANNEL_ID,
+    priority: 'high',
     data: {
       campaignId: campaignId ? String(campaignId) : null,
       destinationKind: destination?.kind || null,
@@ -38,6 +42,7 @@ async function deliverPush(
   const loadTokens = listTokens || listActiveTokensForUser;
   const tokens = await loadTokens(userId);
   if (!tokens.length) {
+    console.warn(`[notifications] no_device_token user=${userId}`);
     return { status: 'skipped', reason: 'no_device_token' };
   }
 

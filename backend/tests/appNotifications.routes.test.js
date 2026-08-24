@@ -36,5 +36,6 @@ describe('appNotifications.routes – parent device token endpoints', () => {
 
     expect(has('/device-tokens', 'post')).toBe(true);
     expect(has('/device-tokens', 'delete')).toBe(true);
+    expect(has('/timezone', 'post')).toBe(true);
   });
 });

@@ -3,6 +3,8 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { devicePushTokenService } from '@/services/devicePushTokenService';
+import { bootstrapPushNotifications } from '@/services/notificationPushBootstrap';
+import { getDeviceTimeZone } from '@/utils/deviceTimeZone';
 import {
   NOTIFICATION_PERMISSION_ASKED_KEY,
   ensureNotificationPermission,
@@ -13,6 +15,25 @@ type NotificationsModule = {
   getPermissionsAsync: () => Promise<{ status: string; granted?: boolean; canAskAgain?: boolean }>;
   requestPermissionsAsync: () => Promise<{ status: string; granted?: boolean; canAskAgain?: boolean }>;
   getExpoPushTokenAsync: (options?: { projectId?: string }) => Promise<{ data: string }>;
+  setNotificationHandler: (handler: {
+    handleNotification: () => Promise<{
+      shouldShowAlert: boolean;
+      shouldPlaySound: boolean;
+      shouldSetBadge: boolean;
+      shouldShowBanner: boolean;
+      shouldShowList: boolean;
+    }>;
+  }) => void;
+  setNotificationChannelAsync?: (
+    id: string,
+    config: {
+      name: string;
+      importance: number;
+      vibrationPattern: number[];
+      sound: string;
+    }
+  ) => Promise<unknown>;
+  AndroidImportance?: { MAX?: number; HIGH?: number };
 };
 
 function toPermissionStatus(result: {
@@ -55,6 +76,12 @@ export async function registerDeviceForPushNotifications(deps?: {
     return { registered: false, reason: 'notifications_unavailable' };
   }
 
+  try {
+    await bootstrapPushNotifications(Notifications, platform);
+  } catch (error) {
+    console.warn('[notifications] bootstrap failed:', error);
+  }
+
   const decision = await ensureNotificationPermission({
     getPermissions: async () => toPermissionStatus(await Notifications.getPermissionsAsync()),
     requestPermissions: async () => toPermissionStatus(await Notifications.requestPermissionsAsync()),
@@ -69,15 +96,21 @@ export async function registerDeviceForPushNotifications(deps?: {
   }
 
   const projectId = deps?.projectId || Constants.expoConfig?.extra?.eas?.projectId;
-  const tokenResult = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined
-  );
-  const token = tokenResult?.data;
-  if (!token) {
-    return { registered: false, reason: 'missing_token' };
-  }
+  try {
+    const tokenResult = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
+    const token = tokenResult?.data;
+    if (!token) {
+      return { registered: false, reason: 'missing_token' };
+    }
 
-  const register = deps?.registerToken || devicePushTokenService.register;
-  await register({ platform, token });
-  return { registered: true };
+    const register = deps?.registerToken || devicePushTokenService.register;
+    await register({ platform, token, timezone: getDeviceTimeZone() });
+    return { registered: true };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : 'token_register_failed';
+    console.warn('[notifications] token register failed:', reason);
+    return { registered: false, reason };
+  }
 }

@@ -156,6 +156,52 @@ const NotificationCampaignForm = ({
           ) : null}
         </Box>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <FormControl sx={{ minWidth: 240, flex: 1 }} disabled={!canMutate}>
+            <InputLabel id="notification-timing-mode">Timing mode</InputLabel>
+            <Select
+              labelId="notification-timing-mode"
+              label="Timing mode"
+              value={form.timingMode || 'recipient_local'}
+              onChange={(e) => updateField('timingMode', e.target.value)}
+              inputProps={{ 'aria-label': 'Timing mode' }}
+            >
+              {(meta?.timingModes || [
+                { value: 'recipient_local', label: 'Recipient Local Time' },
+                { value: 'same_moment', label: 'Same Moment Worldwide' },
+              ]).map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{ minWidth: 180, flex: 1 }} disabled={!canMutate}>
+            <InputLabel id="notification-quiet-hours">Quiet-hour behavior</InputLabel>
+            <Select
+              labelId="notification-quiet-hours"
+              label="Quiet-hour behavior"
+              value={form.quietHourBehavior || 'defer'}
+              onChange={(e) => updateField('quietHourBehavior', e.target.value)}
+              inputProps={{ 'aria-label': 'Quiet-hour behavior' }}
+            >
+              {(meta?.quietHourBehaviors || [
+                { value: 'defer', label: 'Defer' },
+                { value: 'expire', label: 'Expire' },
+              ]).map((item) => (
+                <MenuItem key={item.value} value={item.value}>
+                  {item.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          {form.timingMode === 'same_moment'
+            ? 'Same Moment Worldwide sends at one instant. Use this for live lessons.'
+            : 'Recipient Local Time delivers at this clock time in each family’s timezone.'}{' '}
+          Quiet hours are 8:00 PM–7:00 AM local. Defer waits until 7:00 AM; Expire drops stale live alerts.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <TextField
             label="Send date"
             type="date"
@@ -177,12 +223,15 @@ const NotificationCampaignForm = ({
             disabled={!canMutate}
           />
           <FormControl sx={{ minWidth: 240, flex: 1 }} disabled={!canMutate}>
-            <InputLabel id="notification-timezone">Timezone</InputLabel>
+            <InputLabel id="notification-timezone">
+              {form.timingMode === 'same_moment' ? 'Timezone' : 'Reference timezone'}
+            </InputLabel>
             <Select
               labelId="notification-timezone"
-              label="Timezone"
+              label={form.timingMode === 'same_moment' ? 'Timezone' : 'Reference timezone'}
               value={form.timezone || ''}
               onChange={(e) => updateField('timezone', e.target.value)}
+              inputProps={{ 'aria-label': 'Timezone' }}
             >
               {timezones.map((zone) => (
                 <MenuItem key={zone} value={zone}>
@@ -191,6 +240,29 @@ const NotificationCampaignForm = ({
               ))}
             </Select>
           </FormControl>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            label="Expires date (optional)"
+            type="date"
+            value={form.expiresDate || ''}
+            onChange={(e) => updateField('expiresDate', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: 1, minWidth: 180 }}
+            inputProps={{ 'aria-label': 'Expiration date' }}
+            disabled={!canMutate}
+            helperText="Leave blank for normal notifications."
+          />
+          <TextField
+            label="Expires time (optional)"
+            type="time"
+            value={form.expiresTime || ''}
+            onChange={(e) => updateField('expiresTime', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ flex: 1, minWidth: 140 }}
+            inputProps={{ 'aria-label': 'Expiration time', step: 60 }}
+            disabled={!canMutate}
+          />
         </Box>
         <TextField
           label="Test user id (optional)"

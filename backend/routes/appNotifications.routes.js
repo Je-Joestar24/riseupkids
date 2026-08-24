@@ -4,6 +4,7 @@ const { protect, authorize } = require('../middleware/auth');
 const {
   registerDeviceToken,
   unregisterDeviceToken,
+  reportTimezone,
 } = require('../controllers/appNotifications.controller');
 
 /**
@@ -15,5 +16,6 @@ router.use(authorize('parent', 'admin'));
 
 router.post('/device-tokens', registerDeviceToken);
 router.delete('/device-tokens', unregisterDeviceToken);
+router.post('/timezone', reportTimezone);
 
 module.exports = router;

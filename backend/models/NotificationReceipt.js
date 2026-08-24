@@ -60,10 +60,20 @@ const notificationReceiptSchema = new mongoose.Schema(
     },
     pushResult: {
       type: String,
-      enum: ['queued', 'sent', 'failed', 'skipped'],
+      enum: ['queued', 'sending', 'sent', 'failed', 'skipped', 'expired'],
       default: 'queued',
     },
     failureReason: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    deliverAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+    timezone: {
       type: String,
       default: null,
       trim: true,
@@ -77,5 +87,10 @@ const notificationReceiptSchema = new mongoose.Schema(
 );
 
 notificationReceiptSchema.index({ campaign: 1, userId: 1, isTest: 1 });
+notificationReceiptSchema.index(
+  { campaign: 1, userId: 1 },
+  { unique: true, partialFilterExpression: { isTest: false } }
+);
+notificationReceiptSchema.index({ pushResult: 1, deliverAt: 1, isTest: 1 });
 
 module.exports = mongoose.model('NotificationReceipt', notificationReceiptSchema);

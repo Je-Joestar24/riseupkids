@@ -3,6 +3,7 @@ import { api } from './api';
 export interface DevicePushTokenPayload {
   platform: 'ios' | 'android';
   token: string;
+  timezone?: string | null;
 }
 
 export const devicePushTokenService = {
@@ -11,4 +12,6 @@ export const devicePushTokenService = {
 
   unregister: (token: string) =>
     api.delete('/notifications/device-tokens', { data: { token } }),
+
+  reportTimezone: (timezone: string) => api.post('/notifications/timezone', { timezone }),
 };

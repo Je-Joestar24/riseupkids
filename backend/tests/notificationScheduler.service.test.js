@@ -23,7 +23,8 @@ jest.mock('../services/notificationSchedulerLock.service', () => ({
 }));
 
 jest.mock('../services/notificationSend.services', () => ({
-  sendCampaignNow: jest.fn(),
+  sendScheduledCampaign: jest.fn(),
+  processDueQueuedReceipts: jest.fn().mockResolvedValue([]),
 }));
 
 const fs = require('node:fs');
@@ -33,7 +34,7 @@ const {
   acquireNotificationSchedulerLock,
   releaseNotificationSchedulerLock,
 } = require('../services/notificationSchedulerLock.service');
-const { sendCampaignNow } = require('../services/notificationSend.services');
+const { sendScheduledCampaign } = require('../services/notificationSend.services');
 const {
   createCampaign,
   scheduleCampaign,
@@ -81,7 +82,7 @@ describe('Notification schedule and cancel (Phase 2)', () => {
     expect(created.status).toBe('draft');
     expect(created.sendAt).toBeUndefined();
     expect(NotificationReceipt.create).not.toHaveBeenCalled();
-    expect(sendCampaignNow).not.toHaveBeenCalled();
+    expect(sendScheduledCampaign).not.toHaveBeenCalled();
   });
 
   it('schedules in a named timezone and stores sendAt + timezone (2.2)', async () => {
@@ -103,7 +104,32 @@ describe('Notification schedule and cancel (Phase 2)', () => {
     expect(scheduled.sendAt.toISOString()).toBe('2026-08-20T12:00:00.000Z');
     expect(scheduled.sendLocalDate).toBe('2026-08-20');
     expect(scheduled.sendLocalTime).toBe('09:00');
+    expect(scheduled.timingMode).toBe('same_moment');
+    expect(scheduled.quietHourBehavior).toBe('defer');
     expect(scheduled.scheduledBy).toBe(adminId);
+  });
+
+  it('schedules recipient local time from the earliest worldwide wall clock', async () => {
+    const doc = mockDoc({
+      _id: 'camp-local',
+      status: 'draft',
+      localizations: [{ languageCode: 'en', title: 'Hi', message: 'There' }],
+    });
+    NotificationCampaign.findById.mockResolvedValue(doc);
+
+    const scheduled = await scheduleCampaign(
+      'camp-local',
+      {
+        sendDate: '2026-08-20',
+        sendTime: '16:00',
+        timezone: 'America/Sao_Paulo',
+        timingMode: 'recipient_local',
+      },
+      adminId
+    );
+
+    expect(scheduled.timingMode).toBe('recipient_local');
+    expect(scheduled.sendAt.toISOString()).toBe('2026-08-20T02:00:00.000Z');
   });
 
   it('reschedules a scheduled campaign without sending early (2.5)', async () => {
@@ -124,7 +150,7 @@ describe('Notification schedule and cancel (Phase 2)', () => {
 
     expect(doc.status).toBe('scheduled');
     expect(doc.sendAt.toISOString()).toBe('2026-08-21T13:00:00.000Z');
-    expect(sendCampaignNow).not.toHaveBeenCalled();
+    expect(sendScheduledCampaign).not.toHaveBeenCalled();
   });
 
   it('cancels a scheduled campaign so the scheduler skips it (2.6)', async () => {
@@ -140,7 +166,7 @@ describe('Notification schedule and cancel (Phase 2)', () => {
 
     expect(cancelled.status).toBe('cancelled');
     expect(NotificationReceipt.create).not.toHaveBeenCalled();
-    expect(sendCampaignNow).not.toHaveBeenCalled();
+    expect(sendScheduledCampaign).not.toHaveBeenCalled();
   });
 
   it('rejects edit and cancel after sent (2.7)', async () => {
@@ -166,7 +192,7 @@ describe('Notification scheduler job', () => {
     jest.clearAllMocks();
     acquireNotificationSchedulerLock.mockResolvedValue(true);
     releaseNotificationSchedulerLock.mockResolvedValue(undefined);
-    sendCampaignNow.mockResolvedValue({ status: 'sent' });
+    sendScheduledCampaign.mockResolvedValue({ status: 'sent' });
   });
 
   it('only selects scheduled campaigns whose sendAt is due', async () => {
@@ -178,7 +204,7 @@ describe('Notification scheduler job', () => {
     await findDueCampaigns(now);
 
     expect(NotificationCampaign.find).toHaveBeenCalledWith({
-      status: 'scheduled',
+      status: { $in: ['scheduled', 'sending'] },
       sendAt: { $lte: now },
     });
   });
@@ -189,7 +215,7 @@ describe('Notification scheduler job', () => {
       'utf8'
     );
     expect(hasHardCodedWeeklyCadence(source)).toBe(false);
-    expect(source).toContain("status: 'scheduled'");
+    expect(source).toContain('scheduled');
     expect(source).toContain('sendAt');
     expect(source).not.toMatch(/Monday|0 0 \* \* 1/i);
   });
@@ -209,11 +235,11 @@ describe('Notification scheduler job', () => {
     const first = runDueNotifications();
     const second = await runDueNotifications();
     expect(second).toEqual({ skipped: true, reason: 'already_running' });
-    expect(sendCampaignNow).not.toHaveBeenCalled();
+    expect(sendScheduledCampaign).not.toHaveBeenCalled();
 
     release();
     await first;
-    expect(sendCampaignNow).toHaveBeenCalledTimes(1);
+    expect(sendScheduledCampaign).toHaveBeenCalledTimes(1);
     expect(releaseNotificationSchedulerLock).toHaveBeenCalled();
   });
 
@@ -222,6 +248,6 @@ describe('Notification scheduler job', () => {
     const result = await runDueNotifications();
     expect(result.skipped).toBe(true);
     expect(result.reason).toBe('lock_not_acquired');
-    expect(sendCampaignNow).not.toHaveBeenCalled();
+    expect(sendScheduledCampaign).not.toHaveBeenCalled();
   });
 });

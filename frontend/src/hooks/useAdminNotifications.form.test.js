@@ -3,6 +3,8 @@ import {
   buildEmptyForm,
   campaignToForm,
   DEFAULT_NOTIFICATION_TIMEZONE,
+  describeCampaignSendResult,
+  describeTestSendResult,
   formToPayload,
   formToSchedulePayload,
   formatCampaignSchedule,
@@ -95,10 +97,36 @@ describe('Admin notification form helpers', () => {
     expect(form.sendDate).toBe('2026-08-20');
     expect(form.sendTime).toBe('09:00');
     expect(form.timezone).toBe('America/Sao_Paulo');
+    expect(form.timingMode).toBe('recipient_local');
+    expect(form.quietHourBehavior).toBe('defer');
     expect(formToSchedulePayload(form)).toEqual({
       sendDate: '2026-08-20',
       sendTime: '09:00',
       timezone: 'America/Sao_Paulo',
+      timingMode: 'recipient_local',
+      quietHourBehavior: 'defer',
+    });
+  });
+
+  it('includes same-moment, expire, and optional expiration on the schedule payload', () => {
+    expect(
+      formToSchedulePayload({
+        sendDate: '2026-08-20',
+        sendTime: '16:00',
+        timezone: 'America/Sao_Paulo',
+        timingMode: 'same_moment',
+        quietHourBehavior: 'expire',
+        expiresDate: '2026-08-20',
+        expiresTime: '16:30',
+      })
+    ).toEqual({
+      sendDate: '2026-08-20',
+      sendTime: '16:00',
+      timezone: 'America/Sao_Paulo',
+      timingMode: 'same_moment',
+      quietHourBehavior: 'expire',
+      expiresDate: '2026-08-20',
+      expiresTime: '16:30',
     });
   });
 
@@ -116,10 +144,10 @@ describe('Admin notification form helpers', () => {
     expect(
       formatCampaignSchedule({
         sendLocalDate: '2026-08-20',
-        sendLocalTime: '09:00',
-        timezone: 'America/Sao_Paulo',
+        sendLocalTime: '16:00',
+        timingMode: 'recipient_local',
       })
-    ).toBe('2026-08-20 09:00 (America/Sao_Paulo)');
+    ).toBe('2026-08-20 16:00 (recipient local time)');
   });
 
   it('allows edit for draft and scheduled, not after send', () => {
@@ -127,5 +155,27 @@ describe('Admin notification form helpers', () => {
     expect(isEditableCampaignStatus('scheduled')).toBe(true);
     expect(isEditableCampaignStatus('sent')).toBe(false);
     expect(isEditableCampaignStatus('cancelled')).toBe(false);
+  });
+
+  it('does not treat a skipped send as a successful push', () => {
+    expect(
+      describeCampaignSendResult({
+        status: 'failed',
+        lastError: 'no_device_token',
+        delivery: { targeted: 2, sent: 0, skipped: 2, failed: 0 },
+      })
+    ).toEqual({
+      type: 'warning',
+      message: 'Send finished, but no parent phones are registered for push yet.',
+    });
+  });
+
+  it('warns when a test send has no registered device', () => {
+    expect(
+      describeTestSendResult({
+        targeted: 1,
+        receipts: [{ pushResult: 'skipped', failureReason: 'no_device_token' }],
+      })
+    ).toMatchObject({ type: 'warning' });
   });
 });

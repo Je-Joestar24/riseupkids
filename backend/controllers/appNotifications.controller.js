@@ -1,4 +1,5 @@
 const devicePushTokenService = require('../services/devicePushToken.services');
+const { reportUserTimezone } = require('../services/userTimezone.services');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
@@ -15,6 +16,7 @@ const registerDeviceToken = async (req, res) => {
       userId: req.user._id,
       platform: req.body?.platform,
       token: req.body?.token,
+      timezone: req.body?.timezone,
     });
     return res.status(200).json({
       success: true,
@@ -43,7 +45,25 @@ const unregisterDeviceToken = async (req, res) => {
   }
 };
 
+const reportTimezone = async (req, res) => {
+  try {
+    const timezone = await reportUserTimezone({
+      userId: req.user._id,
+      timezone: req.body?.timezone,
+    });
+    return res.status(200).json({
+      success: true,
+      message: timezone ? 'Timezone updated' : 'Timezone unchanged',
+      data: { timezone },
+    });
+  } catch (error) {
+    console.error('[app-notifications] reportTimezone:', error);
+    return handleError(res, error, 'Failed to update timezone');
+  }
+};
+
 module.exports = {
   registerDeviceToken,
   unregisterDeviceToken,
+  reportTimezone,
 };

@@ -128,6 +128,30 @@ const notificationCampaignSchema = new mongoose.Schema(
       default: null,
       trim: true,
     },
+    timingMode: {
+      type: String,
+      enum: ['recipient_local', 'same_moment'],
+      default: 'same_moment',
+    },
+    quietHourBehavior: {
+      type: String,
+      enum: ['defer', 'expire'],
+      default: 'defer',
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
+    expiresLocalDate: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    expiresLocalTime: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     lastError: {
       type: String,
       default: null,
@@ -137,6 +161,8 @@ const notificationCampaignSchema = new mongoose.Schema(
       targeted: { type: Number, default: 0 },
       sent: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
+      skipped: { type: Number, default: 0 },
+      expired: { type: Number, default: 0 },
       opened: { type: Number, default: 0 },
     },
   },
