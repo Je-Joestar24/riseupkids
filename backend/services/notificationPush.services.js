@@ -29,7 +29,7 @@ function buildPushPayload({ title, message, destination, campaignId, childId, is
     channelId: ANDROID_CHANNEL_ID,
     priority: 'high',
     ttl: 3600,
-    interruptionLevel: 'timeSensitive',
+    interruptionLevel: 'time-sensitive',
     data,
   };
 }
@@ -37,6 +37,63 @@ function buildPushPayload({ title, message, destination, campaignId, childId, is
 function isInvalidTokenTicket(ticket) {
   const errorCode = ticket?.details?.error || ticket?.details?.errorCode;
   return ticket?.status === 'error' && INVALID_TOKEN_ERRORS.has(errorCode);
+}
+
+function clientKindKey(row) {
+  if (row?.clientKind === 'expo-go' || row?.clientKind === 'standalone') return row.clientKind;
+  return 'unknown';
+}
+
+function isMixedExperienceError(error) {
+  const text = `${error?.message || ''} ${JSON.stringify(error?.expoErrors || [])}`;
+  return /PUSH_TOO_MANY_EXPERIENCE/i.test(text);
+}
+
+function errorTicket(error) {
+  return {
+    status: 'error',
+    message: error?.message || 'provider_error',
+    details: { error: 'provider_error' },
+  };
+}
+
+/**
+ * Expo rejects a batch that mixes Expo Go tokens with standalone/preview tokens.
+ * Send each experience separately, and retry one-by-one if a mixed batch still 400s.
+ */
+async function sendTicketsForTokens(tokens, payload, send) {
+  const groups = new Map();
+  tokens.forEach((row) => {
+    const key = clientKindKey(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const ticketsByToken = new Map();
+
+  const sendGroup = async (group) => {
+    const messages = group.map((row) => ({ to: row.token, ...payload }));
+    try {
+      const tickets = await send(messages);
+      group.forEach((row, index) => {
+        ticketsByToken.set(row.token, tickets[index] || errorTicket());
+      });
+    } catch (error) {
+      if (group.length > 1 && (isMixedExperienceError(error) || clientKindKey(group[0]) === 'unknown')) {
+        for (const row of group) {
+          await sendGroup([row]);
+        }
+        return;
+      }
+      group.forEach((row) => ticketsByToken.set(row.token, errorTicket(error)));
+    }
+  };
+
+  for (const group of groups.values()) {
+    await sendGroup(group);
+  }
+
+  return tokens.map((row) => ticketsByToken.get(row.token) || errorTicket());
 }
 
 /**
@@ -59,18 +116,8 @@ async function deliverPush(
   }
 
   const payload = buildPushPayload({ title, message, destination, campaignId, childId, isTest });
-  const messages = tokens.map((row) => ({
-    to: row.token,
-    ...payload,
-  }));
-
-  let tickets = [];
-  try {
-    const send = sendMessages || sendExpoPushMessages;
-    tickets = await send(messages);
-  } catch (error) {
-    return { status: 'failed', reason: error.message || 'provider_error', payload };
-  }
+  const send = sendMessages || sendExpoPushMessages;
+  const tickets = await sendTicketsForTokens(tokens, payload, send);
 
   const markInvalid = invalidateToken || markTokenInvalid;
   let sentCount = 0;

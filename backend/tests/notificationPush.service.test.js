@@ -41,6 +41,7 @@ describe('Notification push (Phase 3)', () => {
     expect(payload.data.isTest).toBe('false');
     expect(payload.channelId).toBe('riseupkids-default');
     expect(payload.priority).toBe('high');
+    expect(payload.interruptionLevel).toBe('time-sensitive');
     expect(payload.data).not.toHaveProperty('null');
     expect(Object.values(payload.data).every((value) => typeof value === 'string')).toBe(true);
   });
@@ -95,5 +96,66 @@ describe('Notification push (Phase 3)', () => {
     expect(result.failedCount).toBe(1);
     expect(markTokenInvalid).toHaveBeenCalledWith('ExponentPushToken[bad]', 'invalid_token');
     expect(markTokenInvalid).not.toHaveBeenCalledWith('ExponentPushToken[good]', expect.anything());
+  });
+
+  it('sends Expo Go and standalone tokens in separate Expo requests', async () => {
+    listActiveTokensForUser.mockResolvedValue([
+      { token: 'ExponentPushToken[go]', platform: 'ios', userId: parentId, clientKind: 'expo-go' },
+      { token: 'ExponentPushToken[apk]', platform: 'android', userId: parentId, clientKind: 'standalone' },
+    ]);
+    const sendMessages = jest.fn().mockResolvedValue([{ status: 'ok' }]);
+
+    const result = await deliverPush(
+      {
+        userId: parentId,
+        title: 'Story Time',
+        message: 'Ready',
+        destination: { kind: 'home' },
+        campaignId: 'camp-4',
+      },
+      { sendMessages }
+    );
+
+    expect(result.status).toBe('sent');
+    expect(sendMessages).toHaveBeenCalledTimes(2);
+    expect(sendMessages.mock.calls[0][0]).toHaveLength(1);
+    expect(sendMessages.mock.calls[1][0]).toHaveLength(1);
+    expect(sendMessages.mock.calls.map((call) => call[0][0].to).sort()).toEqual([
+      'ExponentPushToken[apk]',
+      'ExponentPushToken[go]',
+    ]);
+  });
+
+  it('retries mixed-experience batches one token at a time', async () => {
+    listActiveTokensForUser.mockResolvedValue([
+      { token: 'ExponentPushToken[go]', platform: 'ios', userId: parentId },
+      { token: 'ExponentPushToken[apk]', platform: 'android', userId: parentId },
+    ]);
+    const mixed = Object.assign(new Error('PUSH_TOO_MANY_EXPERIENCE_IDS: mixed experiences'), {
+      expoErrors: [{ code: 'PUSH_TOO_MANY_EXPERIENCE_IDS' }],
+    });
+    const sendMessages = jest
+      .fn()
+      .mockRejectedValueOnce(mixed)
+      .mockResolvedValueOnce([{ status: 'ok' }])
+      .mockResolvedValueOnce([{ status: 'ok' }]);
+
+    const result = await deliverPush(
+      {
+        userId: parentId,
+        title: 'Story Time',
+        message: 'Ready',
+        destination: { kind: 'home' },
+        campaignId: 'camp-5',
+      },
+      { sendMessages }
+    );
+
+    expect(result.status).toBe('sent');
+    expect(result.sentCount).toBe(2);
+    expect(sendMessages).toHaveBeenCalledTimes(3);
+    expect(sendMessages.mock.calls[0][0]).toHaveLength(2);
+    expect(sendMessages.mock.calls[1][0]).toHaveLength(1);
+    expect(sendMessages.mock.calls[2][0]).toHaveLength(1);
   });
 });
