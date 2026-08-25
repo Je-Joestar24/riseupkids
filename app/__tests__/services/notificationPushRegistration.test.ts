@@ -48,6 +48,7 @@ describe('notificationPushRegistration', () => {
       expect.objectContaining({
         platform: 'ios',
         token: 'ExponentPushToken[parent-ios]',
+        clientKind: expect.any(String),
       })
     );
   });

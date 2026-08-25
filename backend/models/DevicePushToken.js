@@ -22,10 +22,10 @@ const devicePushTokenSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    timezone: {
+    clientKind: {
       type: String,
+      enum: ['expo-go', 'standalone'],
       default: null,
-      trim: true,
     },
     invalid: {
       type: Boolean,

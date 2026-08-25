@@ -38,8 +38,11 @@ describe('Notification push (Phase 3)', () => {
     expect(payload.data.contentId).toBe('cms-22');
     expect(payload.data.campaignId).toBe('camp-1');
     expect(payload.data.childId).toBe('child-9');
+    expect(payload.data.isTest).toBe('false');
     expect(payload.channelId).toBe('riseupkids-default');
     expect(payload.priority).toBe('high');
+    expect(payload.data).not.toHaveProperty('null');
+    expect(Object.values(payload.data).every((value) => typeof value === 'string')).toBe(true);
   });
 
   it('parent vs children audience resolves to parent devices (3.6)', async () => {

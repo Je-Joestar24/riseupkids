@@ -191,4 +191,36 @@ describe('notification delivery timing', () => {
     });
     expect(sendAt.toISOString()).toBe(kiritimati.toISOString());
   });
+
+  it('does not apply Sao Paulo quiet hours when the family timezone is still unknown', () => {
+    const brazilNight = wallTimeToUtc({
+      sendDate: '2026-08-20',
+      sendTime: '22:00',
+      timezone: 'America/Sao_Paulo',
+    });
+    expect(
+      resolveDeliveryDecision({
+        campaign: { timingMode: 'same_moment', quietHourBehavior: 'defer', sendAt: brazilNight },
+        timezone: null,
+        now: brazilNight,
+        trigger: 'send_now',
+      }).action
+    ).toBe('send');
+  });
+
+  it('sends admin tests immediately even during quiet hours', () => {
+    const now = wallTimeToUtc({
+      sendDate: '2026-08-20',
+      sendTime: '22:00',
+      timezone: 'America/Sao_Paulo',
+    });
+    expect(
+      resolveDeliveryDecision({
+        campaign: { timingMode: 'same_moment', quietHourBehavior: 'defer', sendAt: now },
+        timezone: 'America/Sao_Paulo',
+        now,
+        trigger: 'test',
+      }).action
+    ).toBe('send');
+  });
 });

@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { devicePushTokenService } from '@/services/devicePushTokenService';
 import { bootstrapPushNotifications } from '@/services/notificationPushBootstrap';
 import { getDeviceTimeZone } from '@/utils/deviceTimeZone';
+import { getExpoProjectId, getPushClientKind } from '@/utils/expoPushProject';
 import {
   NOTIFICATION_PERMISSION_ASKED_KEY,
   ensureNotificationPermission,
@@ -95,7 +95,7 @@ export async function registerDeviceForPushNotifications(deps?: {
     return { registered: false, reason: decision.shouldOpenSettings ? 'permission_denied' : 'permission_pending' };
   }
 
-  const projectId = deps?.projectId || Constants.expoConfig?.extra?.eas?.projectId;
+  const projectId = deps?.projectId || getExpoProjectId();
   try {
     const tokenResult = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
@@ -106,11 +106,20 @@ export async function registerDeviceForPushNotifications(deps?: {
     }
 
     const register = deps?.registerToken || devicePushTokenService.register;
-    await register({ platform, token, timezone: getDeviceTimeZone() });
+    await register({
+      platform,
+      token,
+      timezone: getDeviceTimeZone(),
+      clientKind: getPushClientKind(),
+    });
     return { registered: true };
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'token_register_failed';
-    console.warn('[notifications] token register failed:', reason);
-    return { registered: false, reason };
+    const fcmHint =
+      platform === 'android' && getPushClientKind() === 'standalone'
+        ? ' Preview Android needs Firebase FCM (google-services.json + FCM V1 on expo.dev), then a new preview build.'
+        : '';
+    console.warn('[notifications] token register failed:', reason + fcmHint);
+    return { registered: false, reason: reason + fcmHint };
   }
 }

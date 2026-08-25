@@ -179,9 +179,19 @@ const sendNow = async (req, res) => {
 const sendTest = async (req, res) => {
   try {
     const result = await sendCampaignTest(req.params.id, req.user?._id, req.body?.userId);
+    const delivered = (result.receipts || []).some((row) => row.pushResult === 'sent');
+    const queued = (result.receipts || []).some((row) => row.pushResult === 'queued');
+    let message = 'Test notification sent';
+    if (!delivered && queued) {
+      message = 'Test is waiting for quiet hours (7:00 AM local)';
+    } else if (!delivered) {
+      message = result.receipts?.[0]?.failureReason
+        ? `Test did not reach a phone (${result.receipts[0].failureReason})`
+        : 'Test did not reach a phone';
+    }
     return res.status(200).json({
-      success: true,
-      message: 'Test notification sent',
+      success: delivered,
+      message,
       data: result,
     });
   } catch (error) {

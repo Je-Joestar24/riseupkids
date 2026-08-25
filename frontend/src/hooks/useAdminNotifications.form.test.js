@@ -178,4 +178,13 @@ describe('Admin notification form helpers', () => {
       })
     ).toMatchObject({ type: 'warning' });
   });
+
+  it('does not call a quiet-hour wait a successful test send', () => {
+    expect(
+      describeTestSendResult({
+        targeted: 1,
+        receipts: [{ pushResult: 'queued', failureReason: 'quiet_hours_defer' }],
+      })
+    ).toMatchObject({ type: 'info' });
+  });
 });

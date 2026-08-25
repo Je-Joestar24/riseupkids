@@ -186,6 +186,20 @@ describe('Notification send (Phase 2)', () => {
     expect(result.targeted).toBe(1);
   });
 
+  it('sends a test immediately during quiet hours', async () => {
+    const doc = campaignDoc({ status: 'scheduled', quietHourBehavior: 'defer' });
+    mockLoad(doc);
+    listCampaignRecipients.mockResolvedValue([
+      { userId: 'parent-1', childId: null, preferredLanguage: 'en', timezone: 'America/Sao_Paulo' },
+    ]);
+    const night = new Date('2026-08-21T01:00:00.000Z');
+
+    const result = await sendCampaignTest('camp-1', adminId, 'parent-1', { now: night });
+
+    expect(deliverPush).toHaveBeenCalledTimes(1);
+    expect(result.receipts[0].pushResult).toBe('sent');
+  });
+
   it('defers a send-now during quiet hours until 07:00 local', async () => {
     const doc = campaignDoc({ status: 'sending', quietHourBehavior: 'defer' });
     mockLoad(campaignDoc({ quietHourBehavior: 'defer' }));

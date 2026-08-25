@@ -5,20 +5,32 @@ const INVALID_TOKEN_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials
 
 const ANDROID_CHANNEL_ID = 'riseupkids-default';
 
+function asDataValue(value) {
+  if (value == null || value === '') return undefined;
+  return String(value);
+}
+
 function buildPushPayload({ title, message, destination, campaignId, childId, isTest }) {
+  const data = {};
+  const campaign = asDataValue(campaignId);
+  const destinationKind = asDataValue(destination?.kind);
+  const contentId = asDataValue(destination?.contentId);
+  const child = asDataValue(childId);
+  if (campaign) data.campaignId = campaign;
+  if (destinationKind) data.destinationKind = destinationKind;
+  if (contentId) data.contentId = contentId;
+  if (child) data.childId = child;
+  data.isTest = isTest ? 'true' : 'false';
+
   return {
     title: String(title || '').trim(),
     body: String(message || '').trim(),
     sound: 'default',
     channelId: ANDROID_CHANNEL_ID,
     priority: 'high',
-    data: {
-      campaignId: campaignId ? String(campaignId) : null,
-      destinationKind: destination?.kind || null,
-      contentId: destination?.contentId || null,
-      childId: childId ? String(childId) : null,
-      isTest: Boolean(isTest),
-    },
+    ttl: 3600,
+    interruptionLevel: 'timeSensitive',
+    data,
   };
 }
 

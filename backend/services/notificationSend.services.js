@@ -411,8 +411,8 @@ async function processDueQueuedReceipts(now = new Date()) {
 
 async function sendCampaignTest(id, adminId, testUserId, options = {}) {
   const campaign = await loadCampaign(id);
-  if (!EDITABLE_STATUSES.includes(campaign.status) && campaign.status !== 'sending') {
-    throw httpError('Tests can only be sent for draft or scheduled campaigns');
+  if (campaign.status === 'cancelled') {
+    throw httpError('Tests cannot be sent for a cancelled campaign');
   }
   assertSendableContent(campaign);
 

@@ -27,7 +27,12 @@ async function sendExpoPushMessages(messages, { request } = {}) {
   }
   const post = request || defaultExpoRequest;
   const body = await post(EXPO_PUSH_URL, messages, headers);
-  return Array.isArray(body?.data) ? body.data : [];
+  if (Array.isArray(body?.errors) && body.errors.length) {
+    console.error('[notifications] expo push errors:', JSON.stringify(body.errors));
+  }
+  if (Array.isArray(body?.data)) return body.data;
+  if (Array.isArray(body)) return body;
+  return [];
 }
 
 module.exports = {

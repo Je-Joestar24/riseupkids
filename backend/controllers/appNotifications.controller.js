@@ -17,6 +17,7 @@ const registerDeviceToken = async (req, res) => {
       platform: req.body?.platform,
       token: req.body?.token,
       timezone: req.body?.timezone,
+      clientKind: req.body?.clientKind,
     });
     return res.status(200).json({
       success: true,

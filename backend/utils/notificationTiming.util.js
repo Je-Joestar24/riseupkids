@@ -141,7 +141,9 @@ function resolveDeliveryDecision({ campaign, timezone, now, trigger }) {
     return { action: 'expire', reason: 'expired', sendAt: null, timezone: zone };
   }
 
-  if (isInQuietHours(at, zone)) {
+  const knownTimezone = Boolean(String(timezone || '').trim());
+  const applyQuietHours = knownTimezone && trigger !== 'test';
+  if (applyQuietHours && isInQuietHours(at, zone)) {
     if (quietBehavior === 'expire') {
       return { action: 'expire', reason: 'quiet_hours_expire', sendAt: null, timezone: zone };
     }

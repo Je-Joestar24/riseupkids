@@ -31,17 +31,41 @@ async function getParentUsers(userIds) {
   return User.find(query).select('_id preferredLanguage language isActive role timezone').lean();
 }
 
+const TEST_USER_SELECT = '_id preferredLanguage language isActive role timezone';
+
+async function loadUserById(id) {
+  if (!id) return null;
+  try {
+    return await User.findById(id).select(TEST_USER_SELECT).lean();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Admin test id may be a parent User or a ChildProfile. Push always targets the parent.
+ */
+async function resolveTestParentUser(testUserId) {
+  const user = await loadUserById(testUserId);
+  if (user) return user;
+
+  let child = null;
+  try {
+    child = await ChildProfile.findById(testUserId).select('_id parent preferences').lean();
+  } catch {
+    child = null;
+  }
+  if (!child?.parent) return null;
+  return loadUserById(child.parent);
+}
+
 /**
  * V1 targeting: push/inbox is always a parent user.
  * Children audience still delivers to the parent, with optional childId + child language.
  */
 async function listCampaignRecipients(audience, { testUserId } = {}) {
   if (testUserId) {
-    const parents = await getParentUsers([testUserId]);
-    const adminFallback = parents.length
-      ? parents
-      : await User.find({ _id: testUserId }).select('_id preferredLanguage language isActive role timezone').lean();
-    const user = adminFallback[0];
+    const user = await resolveTestParentUser(testUserId);
     if (!user) {
       throw httpError('Test user not found', 404);
     }
@@ -86,4 +110,5 @@ async function listCampaignRecipients(audience, { testUserId } = {}) {
 module.exports = {
   listCampaignRecipients,
   recipientLanguage,
+  resolveTestParentUser,
 };

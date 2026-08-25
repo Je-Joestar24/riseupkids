@@ -268,7 +268,7 @@ const NotificationCampaignForm = ({
           label="Test user id (optional)"
           value={form.testUserId || ''}
           onChange={(e) => updateField('testUserId', e.target.value)}
-          helperText="Leave blank to send the test to the designated test account or your admin user."
+          helperText="Use the parent User id (or a child id — we resolve the parent). Send test delivers immediately so you can check the phone. Quiet hours still apply to Send now and Schedule."
           fullWidth
           disabled={!canMutate}
           inputProps={{ 'aria-label': 'Test user id' }}

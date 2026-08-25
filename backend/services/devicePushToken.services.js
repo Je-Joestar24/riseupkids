@@ -27,7 +27,7 @@ function normalizeToken(token) {
  * Register or refresh a parent-device Expo push token.
  * One row per user + token. Refresh updates lastSeen and clears invalid.
  */
-async function registerDevicePushToken({ userId, platform, token, timezone }) {
+async function registerDevicePushToken({ userId, platform, token, timezone, clientKind }) {
   if (!userId) {
     throw httpError('A parent user is required to register a device token');
   }
@@ -41,6 +41,7 @@ async function registerDevicePushToken({ userId, platform, token, timezone }) {
     existing.invalid = false;
     existing.invalidReason = null;
     if (timezone) existing.timezone = timezone;
+    if (clientKind === 'expo-go' || clientKind === 'standalone') existing.clientKind = clientKind;
     await existing.save();
     if (timezone) {
       await reportUserTimezone({ userId, timezone });
@@ -56,6 +57,7 @@ async function registerDevicePushToken({ userId, platform, token, timezone }) {
     stolen.invalid = false;
     stolen.invalidReason = null;
     if (timezone) stolen.timezone = timezone;
+    if (clientKind === 'expo-go' || clientKind === 'standalone') stolen.clientKind = clientKind;
     await stolen.save();
     if (timezone) {
       await reportUserTimezone({ userId, timezone });
@@ -70,6 +72,7 @@ async function registerDevicePushToken({ userId, platform, token, timezone }) {
     lastSeenAt: new Date(),
     invalid: false,
     timezone: timezone || null,
+    clientKind: clientKind === 'expo-go' || clientKind === 'standalone' ? clientKind : null,
   });
   if (timezone) {
     await reportUserTimezone({ userId, timezone });

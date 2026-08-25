@@ -4,6 +4,7 @@ export interface DevicePushTokenPayload {
   platform: 'ios' | 'android';
   token: string;
   timezone?: string | null;
+  clientKind?: 'expo-go' | 'standalone';
 }
 
 export const devicePushTokenService = {
