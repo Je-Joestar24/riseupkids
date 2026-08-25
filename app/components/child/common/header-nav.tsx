@@ -1,6 +1,6 @@
 /**
  * Child Header Navigation
- * Two columns: (1) flex area with logo centered in the left side, (2) points button sized to content
+ * Two columns: (1) flex area with logo centered, (2) notification bell + points
  * Total stars are read from exploreStore (single source of truth).
  * Initial load fetches once; subsequent rewards update locally via applyChildStarReward.
  */
@@ -11,6 +11,7 @@ import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
+import { NotificationBellButton } from '@/components/notifications/notification-bell-button';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
@@ -51,15 +52,21 @@ export function HeaderNav({ childId }: HeaderNavProps) {
           />
         </View>
 
-        {/* Column 2: only as wide as its contents */}
-        <Pressable
-          onPress={handlePointsPress}
-          style={({ pressed }) => [styles.pointsButton, pressed && styles.pointsButtonPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Points">
-          <ThemedText style={styles.starEmoji}>⭐</ThemedText>
-          <ThemedText style={styles.pointsText}>{totalStars ?? 0}</ThemedText>
-        </Pressable>
+        {/* Column 2: bell + points */}
+        <View style={styles.actions}>
+          <NotificationBellButton
+            onPress={() => router.push({ pathname: '/parent/notifications', params: { childId } } as never)}
+            accessibilityLabel="Notifications"
+          />
+          <Pressable
+            onPress={handlePointsPress}
+            style={({ pressed }) => [styles.pointsButton, pressed && styles.pointsButtonPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Points">
+            <ThemedText style={styles.starEmoji}>⭐</ThemedText>
+            <ThemedText style={styles.pointsText}>{totalStars ?? 0}</ThemedText>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -94,6 +101,11 @@ const styles = StyleSheet.create({
   },
   logo: {
     height: 75,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
   },
   pointsButton: {
     flexDirection: 'row',

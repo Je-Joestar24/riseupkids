@@ -25,6 +25,7 @@ import { ChildAddModal } from '@/components/parents/child/child-add-modal';
 import { ChildDeleteModal } from '@/components/parents/child/child-delete-modal';
 import { ChildHeader } from '@/components/parents/child/child-header';
 import { ChildList } from '@/components/parents/child/child-list';
+import { NotificationBellButton } from '@/components/notifications/notification-bell-button';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
@@ -133,13 +134,19 @@ export default function SelectChildScreen() {
               accessibilityLabel="Rise Up Kids Logo"
             />
           </View>
-          <Pressable
-            onPress={() => router.push('/parent/settings' as never)}
-            style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Account settings">
-            <MaterialIcons name="settings" size={28} color={colors.primary} />
-          </Pressable>
+          <View style={styles.topActions}>
+            <NotificationBellButton
+              onPress={() => router.push('/parent/notifications' as never)}
+              accessibilityLabel="Notifications"
+            />
+            <Pressable
+              onPress={() => router.push('/parent/settings' as never)}
+              style={({ pressed }) => [styles.settingsButton, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityLabel="Account settings">
+              <MaterialIcons name="settings" size={28} color={colors.primary} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Card */}
@@ -255,10 +262,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   settingsButton: {
+    padding: spacing[2],
+  },
+  topActions: {
     position: 'absolute',
     right: 0,
     top: spacing[2],
-    padding: spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   pressed: {
     opacity: 0.8,

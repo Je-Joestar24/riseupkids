@@ -71,6 +71,12 @@ export type {
   TotalStarsForVideoTypeResponse,
   VideoTypeProgressResponse,
 } from './exploreService';
+export { notificationInboxService } from './notificationInboxService';
+export type {
+  NotificationInboxItem,
+  NotificationInboxDestination,
+  NotificationInboxPagination,
+} from './notificationInboxService';
 export { kidswallService, toErrorMessage } from './kidswallService';
 export type {
   KidsWallApiResponse,

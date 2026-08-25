@@ -1,9 +1,18 @@
 const devicePushTokenService = require('../services/devicePushToken.services');
+const notificationInboxService = require('../services/notificationInbox.services');
 const { reportUserTimezone } = require('../services/userTimezone.services');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
-  const status = error.statusCode || (/required|invalid|must/i.test(message) ? 400 : 500);
+  const status =
+    error.statusCode ||
+    (/not found/i.test(message)
+      ? 404
+      : /not allowed|cannot open another/i.test(message)
+        ? 403
+        : /required|invalid|must/i.test(message)
+          ? 400
+          : 500);
   return res.status(status).json({
     success: false,
     message,
@@ -63,8 +72,69 @@ const reportTimezone = async (req, res) => {
   }
 };
 
+const listInbox = async (req, res) => {
+  try {
+    const result = await notificationInboxService.listInbox(req.user._id, req.query);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification inbox loaded',
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    console.error('[app-notifications] listInbox:', error);
+    return handleError(res, error, 'Failed to load notification inbox');
+  }
+};
+
+const getUnreadCount = async (req, res) => {
+  try {
+    const result = await notificationInboxService.getUnreadCount(req.user._id);
+    return res.status(200).json({
+      success: true,
+      message: 'Unread notification count loaded',
+      data: result,
+    });
+  } catch (error) {
+    console.error('[app-notifications] getUnreadCount:', error);
+    return handleError(res, error, 'Failed to load unread notification count');
+  }
+};
+
+const markInboxItemRead = async (req, res) => {
+  try {
+    const item = await notificationInboxService.markInboxItemRead(req.user._id, req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification marked as read',
+      data: item,
+    });
+  } catch (error) {
+    console.error('[app-notifications] markInboxItemRead:', error);
+    return handleError(res, error, 'Failed to mark notification as read');
+  }
+};
+
+const markAllInboxRead = async (req, res) => {
+  try {
+    const result = await notificationInboxService.markAllInboxRead(req.user._id);
+    return res.status(200).json({
+      success: true,
+      message: 'All notifications marked as read',
+      data: result,
+    });
+  } catch (error) {
+    console.error('[app-notifications] markAllInboxRead:', error);
+    return handleError(res, error, 'Failed to mark notifications as read');
+  }
+};
+
 module.exports = {
   registerDeviceToken,
   unregisterDeviceToken,
   reportTimezone,
+  listInbox,
+  getUnreadCount,
+  markInboxItemRead,
+  markAllInboxRead,
 };

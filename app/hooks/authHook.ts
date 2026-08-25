@@ -7,6 +7,7 @@ import { useCallback } from 'react';
 
 import { useUI } from '@/hooks/uiHook';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useNotificationInboxStore } from '@/store/notificationInboxStore';
 import { useParentChildStore } from '@/store/parentChildStore';
 import { authService } from '@/services/authService';
 
@@ -42,6 +43,7 @@ export function useAuth() {
   const logout = useCallback(async () => {
     await storeLogout();
     useParentChildStore.getState().reset();
+    useNotificationInboxStore.getState().reset();
   }, [storeLogout]);
 
   const hydrate = useCallback(async () => {

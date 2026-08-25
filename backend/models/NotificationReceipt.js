@@ -92,5 +92,7 @@ notificationReceiptSchema.index(
   { unique: true, partialFilterExpression: { isTest: false } }
 );
 notificationReceiptSchema.index({ pushResult: 1, deliverAt: 1, isTest: 1 });
+notificationReceiptSchema.index({ userId: 1, isTest: 1, createdAt: -1 });
+notificationReceiptSchema.index({ userId: 1, isTest: 1, readAt: 1 });
 
 module.exports = mongoose.model('NotificationReceipt', notificationReceiptSchema);
