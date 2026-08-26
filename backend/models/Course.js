@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { organizeCourseContentsBySteps } = require('../utils/courseContentsBySteps.util');
 
 /**
  * Course Model (Content Collection)
@@ -151,45 +152,7 @@ courseSchema.virtual('contentCount').get(function () {
  * Returns: { step: 1, groups: { book: [...], activity: [...] } }
  */
 courseSchema.methods.getContentsBySteps = function () {
-  if (!this.contents || this.contents.length === 0) {
-    return [];
-  }
-
-  const stepsMap = new Map();
-
-  this.contents.forEach((content) => {
-    const step = content.step || 1;
-
-    if (!stepsMap.has(step)) {
-      stepsMap.set(step, {
-        step,
-        groups: {
-          book: [],
-          activity: [],
-          video: [],
-          audioAssignment: [],
-          chant: [],
-        },
-      });
-    }
-
-    const stepData = stepsMap.get(step);
-    if (stepData.groups[content.contentType]) {
-      stepData.groups[content.contentType].push(content);
-    }
-  });
-
-  // Convert map to array and sort by step
-  const stepsArray = Array.from(stepsMap.values()).sort((a, b) => a.step - b.step);
-
-  // Sort content within each group by order
-  stepsArray.forEach((stepData) => {
-    Object.keys(stepData.groups).forEach((contentType) => {
-      stepData.groups[contentType].sort((a, b) => a.order - b.order);
-    });
-  });
-
-  return stepsArray;
+  return organizeCourseContentsBySteps(this.contents);
 };
 
 // Pre-save hook: Ensure unique content items and auto-sort by step -> contentType -> order

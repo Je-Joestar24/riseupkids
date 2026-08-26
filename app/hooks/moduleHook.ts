@@ -11,6 +11,7 @@
 import { useCallback, useMemo } from 'react';
 
 import { useModuleStore } from '@/store/moduleStore';
+import type { FetchModuleDetailsOptions } from '@/store/moduleStore';
 import type {
   PopulatedContentItem,
   ContentType,
@@ -18,6 +19,7 @@ import type {
   CourseProgressDoc,
 } from '@/services/moduleService';
 import { CONTENT_TYPES } from '@/services/moduleService';
+import { pickModuleDetailsForCourse } from '@/utils/moduleCache';
 
 // ---------------------------------------------------------------------------
 // Helpers: filter contents by type
@@ -201,7 +203,11 @@ export interface UseModuleReturn {
   isLoadingBookReadings: boolean;
   error: string | null;
   // Actions
-  fetchModuleDetails: (courseId: string, childId: string) => Promise<unknown>;
+  fetchModuleDetails: (
+    courseId: string,
+    childId: string,
+    options?: FetchModuleDetailsOptions
+  ) => Promise<unknown>;
   refreshVideoWatches: (childId: string) => Promise<void>;
   refreshBookReadings: (childId: string) => Promise<void>;
   updateContentProgress: (
@@ -233,8 +239,16 @@ export interface UseModuleReturn {
   ) => 'not_started' | 'in_progress' | 'completed' | null;
 }
 
-export function useModule(): UseModuleReturn {
-  const details = useModuleStore((s) => s.details);
+/** Stable empty list so Zustand-derived contents do not allocate a new [] every render. */
+const EMPTY_CONTENTS: PopulatedContentItem[] = [];
+
+export function useModule(
+  childId?: string | null,
+  courseId?: string | null
+): UseModuleReturn {
+  const details = useModuleStore((s) =>
+    pickModuleDetailsForCourse(s.details, s.detailsByKey, childId, courseId)
+  );
   const videoWatchesByVideoId = useModuleStore((s) => s.videoWatchesByVideoId);
   const bookReadingsByBookId = useModuleStore((s) => s.bookReadingsByBookId);
   const isLoading = useModuleStore((s) => s.isLoading);
@@ -254,7 +268,7 @@ export function useModule(): UseModuleReturn {
   const course = details?.course ?? null;
   const progress = details?.progress ?? null;
   const contents = useMemo(
-    () => course?.contents ?? [],
+    () => course?.contents ?? EMPTY_CONTENTS,
     [course?.contents]
   );
 

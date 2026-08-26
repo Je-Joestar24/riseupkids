@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import type { ChildCourseWithProgress } from '@/services/journeyService';
+import { useModuleStore } from '@/store/moduleStore';
 import { isJourneyModuleLocked } from '@/utils/journeyModuleAccess';
 
 import { API_BASE_URL } from '@/config';
@@ -117,6 +118,10 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
         const handlePress = () => {
           if (isLocked || !childId || !courseId) return;
           if (status === 'completed' || status === 'in_progress' || status === 'not_started') {
+            if (coverUrl) {
+              void Image.prefetch(coverUrl).catch(() => undefined);
+            }
+            useModuleStore.getState().prefetchModuleDetails(courseId, childId);
             router.push(`/child/${childId}/module?courseId=${courseId}` as never);
           }
         };

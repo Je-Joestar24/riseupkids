@@ -1,14 +1,16 @@
 /**
  * Module Store
  *
- * Centralized state for the child module (course detail) screen.
- * - Holds course details with populated contents and progress
- * - Caches video watch and book reading status for the current child
- * - All API calls go through moduleService; store stays the single source of truth
+ * Session cache for the child module (course detail) screen.
+ * Stale-while-revalidate: a cached course paints immediately; refresh does
+ * not flash the skeleton. Inflight requests are deduped so journey-card
+ * prefetch and the module screen share one network call.
  */
 
+import { Image } from 'react-native';
 import { create } from 'zustand';
 
+import { getCoverImageUrl } from '@/components/child/module/module-utils';
 import { moduleService } from '@/services/moduleService';
 import type {
   ModuleDetailsPayload,
@@ -18,63 +20,97 @@ import type {
   ApiResponse,
 } from '@/services/moduleService';
 import { isJourneyModuleLocked } from '@/utils/journeyModuleAccess';
+import {
+  moduleCacheKey,
+  shouldShowModuleLoading,
+} from '@/utils/moduleCache';
+
+export interface FetchModuleDetailsOptions {
+  silent?: boolean;
+  force?: boolean;
+}
+
+const inflightByKey = new Map<string, Promise<ModuleDetailsPayload | null>>();
+
+const LOCKED_MODULE_MESSAGE =
+  'This course is locked. Complete previous courses first.';
+
+function normalizeId(id: string | undefined): string {
+  return id != null ? String(id) : '';
+}
+
+function prefetchModuleCover(details: ModuleDetailsPayload | null): void {
+  const course = details?.course;
+  if (!course) return;
+  const url = getCoverImageUrl(course.coverImage ?? course.coverImagePath ?? null);
+  if (url) {
+    void Image.prefetch(url).catch(() => undefined);
+  }
+}
+
+function isLockedDetails(details: ModuleDetailsPayload): boolean {
+  return isJourneyModuleLocked({
+    status: details.status ?? details.progress?.status,
+    accessible: details.accessible,
+    accessOverride: details.accessOverride,
+    accessReason: details.accessReason,
+  });
+}
 
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
 export interface ModuleState {
-  /** Full module details (course + contents + progress). Null when no module open. */
+  /** Details currently shown (may lag the route by one paint). */
   details: ModuleDetailsPayload | null;
+  /** Cached details keyed by childId:courseId. */
+  detailsByKey: Record<string, ModuleDetailsPayload>;
+  /** Last fetch target; used so stale responses do not overwrite a newer course. */
+  activeKey: string | null;
   /** Video watch status by video ID (normalized key = string). */
   videoWatchesByVideoId: Record<string, VideoWatchStatus>;
   /** Book reading status by book ID (normalized key = string). */
   bookReadingsByBookId: Record<string, BookReadingStatus>;
-  /** Loading details (fetch module or refresh). */
   isLoading: boolean;
-  /** Loading video/book sub-fetches (optional, for granular UI). */
   isLoadingVideoWatches: boolean;
   isLoadingBookReadings: boolean;
-  /** Last error message. */
   error: string | null;
 }
 
 export interface ModuleActions {
-  /** Fetch full module details for a course + child. Clears previous details. */
   fetchModuleDetails: (
     courseId: string,
-    childId: string
+    childId: string,
+    options?: FetchModuleDetailsOptions
   ) => Promise<ModuleDetailsPayload | null>;
-  /** Refresh only video watches for child (e.g. after marking a video watched). */
+  prefetchModuleDetails: (courseId: string, childId: string) => void;
   refreshVideoWatches: (childId: string) => Promise<void>;
-  /** Refresh only book readings for child. */
   refreshBookReadings: (childId: string) => Promise<void>;
-  /** Update content progress then refresh details so progress is up to date. */
   updateContentProgress: (
     courseId: string,
     childId: string,
     contentId: string,
     contentType: ContentType
   ) => Promise<boolean>;
-  /** Mark course as completed then refresh details. */
   markCourseCompleted: (
     courseId: string,
     childId: string
   ) => Promise<boolean>;
-  /** Mark video watched then refresh video watches. */
   markVideoWatched: (
     videoId: string,
     childId: string,
     completionPercentage?: number
   ) => Promise<ApiResponse<unknown> | null>;
-  /** Clear module state (e.g. on leave). */
+  /** Clear the on-screen module without dropping the session cache. */
   clearModule: () => void;
-  /** Clear error. */
   clearError: () => void;
 }
 
 const initialState: ModuleState = {
   details: null,
+  detailsByKey: {},
+  activeKey: null,
   videoWatchesByVideoId: {},
   bookReadingsByBookId: {},
   isLoading: false,
@@ -83,51 +119,101 @@ const initialState: ModuleState = {
   error: null,
 };
 
-function normalizeId(id: string | undefined): string {
-  return id != null ? String(id) : '';
-}
-
 export const useModuleStore = create<ModuleState & ModuleActions>((set, get) => ({
   ...initialState,
 
-  fetchModuleDetails: async (courseId, childId) => {
-    set({ isLoading: true, error: null });
-    try {
-      const res = await moduleService.getCourseDetailsForChild(courseId, childId);
-      const details = res?.success ? res.data ?? null : null;
+  fetchModuleDetails: async (courseId, childId, options = {}) => {
+    if (!courseId || !childId) return null;
 
-      if (
-        details &&
-        isJourneyModuleLocked({
-          status: details.status ?? details.progress?.status,
-          accessible: details.accessible,
-          accessOverride: details.accessOverride,
-          accessReason: details.accessReason,
-        })
-      ) {
-        set({
-          details: null,
-          isLoading: false,
-          error: 'This course is locked. Complete previous courses first.',
-        });
-        return null;
-      }
-
-      set({
-        details: details ?? null,
-        isLoading: false,
-        error: null,
-      });
-      if (details && childId) {
-        get().refreshVideoWatches(childId).catch(() => {});
-        get().refreshBookReadings(childId).catch(() => {});
-      }
-      return details ?? null;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      set({ error: msg, isLoading: false });
-      return null;
+    const key = moduleCacheKey(childId, courseId);
+    const existingInflight = inflightByKey.get(key);
+    if (existingInflight && !options.force) {
+      return existingInflight;
     }
+    if (existingInflight && options.force) {
+      try {
+        await existingInflight;
+      } catch {
+        // continue with a fresh request after the in-flight one settles
+      }
+    }
+
+    const cached = get().detailsByKey[key];
+    const showLoading = shouldShowModuleLoading(Boolean(cached), {
+      silent: options.silent,
+    });
+
+    set({
+      activeKey: key,
+      details: cached ?? null,
+      isLoading: showLoading,
+      error: null,
+    });
+
+    const request = (async () => {
+      try {
+        const res = await moduleService.getCourseDetailsForChild(courseId, childId);
+        const details = res?.success ? res.data ?? null : null;
+
+        if (details && isLockedDetails(details)) {
+          set((s) => {
+            const nextCache = { ...s.detailsByKey };
+            delete nextCache[key];
+            const viewingThis = s.activeKey === key;
+            return {
+              detailsByKey: nextCache,
+              details: viewingThis ? null : s.details,
+              isLoading: viewingThis ? false : s.isLoading,
+              error: viewingThis ? LOCKED_MODULE_MESSAGE : s.error,
+            };
+          });
+          return null;
+        }
+
+        set((s) => {
+          const viewingThis = s.activeKey === key;
+          return {
+            detailsByKey: details
+              ? { ...s.detailsByKey, [key]: details }
+              : s.detailsByKey,
+            details: viewingThis ? details ?? null : s.details,
+            isLoading: viewingThis ? false : s.isLoading,
+            error: viewingThis ? null : s.error,
+          };
+        });
+
+        if (details) {
+          prefetchModuleCover(details);
+          if (childId && get().activeKey === key) {
+            get().refreshVideoWatches(childId).catch(() => undefined);
+            get().refreshBookReadings(childId).catch(() => undefined);
+          }
+        }
+        return details ?? null;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        set((s) => {
+          const viewingThis = s.activeKey === key;
+          return {
+            error: viewingThis ? msg : s.error,
+            isLoading: viewingThis ? false : s.isLoading,
+          };
+        });
+        return get().detailsByKey[key] ?? null;
+      } finally {
+        inflightByKey.delete(key);
+      }
+    })();
+
+    inflightByKey.set(key, request);
+    return request;
+  },
+
+  prefetchModuleDetails: (courseId, childId) => {
+    if (!courseId || !childId) return;
+    const key = moduleCacheKey(childId, courseId);
+    if (inflightByKey.has(key)) return;
+    void get().fetchModuleDetails(courseId, childId);
   },
 
   refreshVideoWatches: async (childId) => {
@@ -175,7 +261,10 @@ export const useModuleStore = create<ModuleState & ModuleActions>((set, get) => 
         contentId,
         contentType
       );
-      await get().fetchModuleDetails(courseId, childId);
+      await get().fetchModuleDetails(courseId, childId, {
+        silent: true,
+        force: true,
+      });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -187,7 +276,10 @@ export const useModuleStore = create<ModuleState & ModuleActions>((set, get) => 
   markCourseCompleted: async (courseId, childId) => {
     try {
       await moduleService.markCourseCompleted(courseId, childId);
-      await get().fetchModuleDetails(courseId, childId);
+      await get().fetchModuleDetails(courseId, childId, {
+        silent: true,
+        force: true,
+      });
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -212,6 +304,12 @@ export const useModuleStore = create<ModuleState & ModuleActions>((set, get) => 
     }
   },
 
-  clearModule: () => set(initialState),
+  clearModule: () =>
+    set({
+      details: null,
+      activeKey: null,
+      isLoading: false,
+      error: null,
+    }),
   clearError: () => set({ error: null }),
 }));

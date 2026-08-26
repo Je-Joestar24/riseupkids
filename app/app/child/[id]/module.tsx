@@ -119,7 +119,6 @@ export default function ChildModuleScreen() {
     isLoading,
     error,
     fetchModuleDetails,
-    clearModule,
     refreshVideoWatches,
     updateContentProgress,
     getBookProgressCircles,
@@ -128,7 +127,7 @@ export default function ChildModuleScreen() {
     isVideoCompleted,
     isChantCompleted,
     getAudioStatus,
-  } = useModule();
+  } = useModule(childId, courseId);
 
   const { coursesWithProgress } = useJourney(childId);
 
@@ -180,7 +179,7 @@ export default function ChildModuleScreen() {
     async (payload: CmsSessionPayload) => {
       if (!cmsModalBook || !childId || !courseId) return;
       if (cmsModalSource === 'videoFollowUp') {
-        await fetchModuleDetails(courseId, childId);
+        await fetchModuleDetails(courseId, childId, { silent: true, force: true });
         return;
       }
       const libraryBookId = getContentId(cmsModalBook);
@@ -230,7 +229,7 @@ export default function ChildModuleScreen() {
         if (completionRes?.success) {
           await updateContentProgress(courseId, childId, libraryBookId, 'book');
         }
-        await fetchModuleDetails(courseId, childId);
+        await fetchModuleDetails(courseId, childId, { silent: true, force: true });
       }, 'CMS');
     },
     [
@@ -304,7 +303,7 @@ export default function ChildModuleScreen() {
   const handleVideoComplete = useCallback(
     (completedVideo: PopulatedContentItem, completionInfo?: VideoCompletionInfo) => {
       if (childId) refreshVideoWatches(childId);
-      fetchModuleDetails(courseId!, childId!);
+      void fetchModuleDetails(courseId!, childId!, { silent: true, force: true });
       setVideoModal(null);
 
       if (completionInfo?.deferredCompletion) {
@@ -372,16 +371,13 @@ export default function ChildModuleScreen() {
 
   const fetch = useCallback(() => {
     if (courseId && childId) {
-      fetchModuleDetails(courseId, childId);
+      void fetchModuleDetails(courseId, childId);
     }
   }, [courseId, childId, fetchModuleDetails]);
 
   useEffect(() => {
     fetch();
-    return () => {
-      clearModule();
-    };
-  }, [fetch, clearModule]);
+  }, [fetch]);
 
   useOnNetworkReconnect(() => {
     fetch();
@@ -395,18 +391,7 @@ export default function ChildModuleScreen() {
     );
   }
 
-  if ((isLoading && !course) || (isNetworkError(error) && !course)) {
-    return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        <ModuleShellSkeletalLoading childId={childId} />
-      </ScrollView>
-    );
-  }
-
-  if (error && !course) {
+  if (error && !course && !isNetworkError(error)) {
     return (
       <View style={[styles.centered, styles.container]}>
         <ChildNetworkRetry
@@ -422,7 +407,14 @@ export default function ChildModuleScreen() {
   }
 
   if (!course) {
-    return null;
+    return (
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}>
+        <ModuleShellSkeletalLoading childId={childId} />
+      </ScrollView>
+    );
   }
 
   return (
@@ -490,7 +482,7 @@ export default function ChildModuleScreen() {
         childId={childId ?? null}
         courseId={courseId ?? null}
         onAfterComplete={() => {
-          fetchModuleDetails(courseId!, childId!);
+          void fetchModuleDetails(courseId!, childId!, { silent: true, force: true });
         }}
       />
       <AudioModal
@@ -500,7 +492,7 @@ export default function ChildModuleScreen() {
         childId={childId ?? null}
         courseId={courseId ?? null}
         onAfterApproved={() => {
-          fetchModuleDetails(courseId!, childId!);
+          void fetchModuleDetails(courseId!, childId!, { silent: true, force: true });
         }}
       />
       <Html5Modal
@@ -516,7 +508,9 @@ export default function ChildModuleScreen() {
         bookId={html5Book && isHtml5Book(html5Book) ? getContentId(html5Book) : null}
         closeOnResultContinue={isPendingHtml5VideoFollowUp}
         onAfterComplete={() => {
-          if (courseId && childId) fetchModuleDetails(courseId, childId);
+          if (courseId && childId) {
+            void fetchModuleDetails(courseId, childId, { silent: true, force: true });
+          }
           if (isPendingHtml5VideoFollowUp) {
             closeHtml5FollowUp();
           }

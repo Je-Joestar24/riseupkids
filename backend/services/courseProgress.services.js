@@ -1,5 +1,7 @@
-const { Course, CourseProgress, ChildProfile, Activity, Book, Media, AudioAssignment, Chant, VideoWatch } = require('../models');
+const { Course, CourseProgress, ChildProfile, VideoWatch } = require('../models');
 const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
+const { organizeCourseContentsBySteps } = require('../utils/courseContentsBySteps.util');
+const { populateCourseContents } = require('../utils/populateCourseContents.util');
 
 /** Once a module reaches this % under automatic rules, keep it open (do not re-lock). */
 const MODULE_ACCESS_AUTO_KEEP_OPEN_PCT = 75;
@@ -49,15 +51,18 @@ const countInProgressCourses = async (childId) => {
  * @param {String} courseId - Course's MongoDB ID
  * @returns {Object} Access information with accessible flag and reason
  */
-const checkCourseAccess = async (childId, courseId) => {
-  const course = await Course.findById(courseId);
+const checkCourseAccess = async (childId, courseId, preloaded = {}) => {
+  const course = preloaded.course || (await Course.findById(courseId));
   if (!course) {
     throw new Error('Course not found');
   }
 
-  const progress = await CourseProgress.findOne({ child: childId, course: courseId })
-    .select('accessOverride status progressPercentage')
-    .lean();
+  const progress =
+    preloaded.progress !== undefined
+      ? preloaded.progress
+      : await CourseProgress.findOne({ child: childId, course: courseId })
+          .select('accessOverride status progressPercentage')
+          .lean();
   const override = getProgressOverride(progress);
 
   if (override === 'force_unlock') {
@@ -991,122 +996,34 @@ const getCourseProgress = async (childId, courseId) => {
  * @throws {Error} If course or child not found
  */
 const getCourseDetailsForChild = async (childId, courseId) => {
-  // Get child profile
-  const childProfile = await ChildProfile.findById(childId);
+  const [childProfile, course, existingProgress] = await Promise.all([
+    ChildProfile.findById(childId).lean(),
+    Course.findOne({
+      _id: courseId,
+      isArchived: false,
+    }).lean(),
+    CourseProgress.findOne({
+      child: childId,
+      course: courseId,
+    }).lean(),
+  ]);
+
   if (!childProfile) {
     throw new Error('Child profile not found');
   }
-
-  // Get course
-  const course = await Course.findOne({
-    _id: courseId,
-    isArchived: false,
-  }).lean();
 
   if (!course) {
     throw new Error('Course not found');
   }
 
-  // Get course progress
-  let progress = await CourseProgress.findOne({
-    child: childId,
-    course: courseId,
-  }).lean();
+  let progress = existingProgress;
 
-  // Check access
-  const accessCheck = await checkCourseAccess(childId, courseId);
+  const [accessCheck, populatedContents] = await Promise.all([
+    checkCourseAccess(childId, courseId, { course, progress }),
+    populateCourseContents(course.contents),
+  ]);
 
-  // Populate contents based on their types
-  const populatedContents = [];
-
-  for (const contentItem of course.contents || []) {
-    let contentData = null;
-
-    try {
-      if (contentItem.contentType === 'activity') {
-        const activity = await Activity.findById(contentItem.contentId)
-          .populate('scormFile', 'type title url mimeType size')
-          .populate('badgeAwarded', 'name description icon image category rarity')
-          .lean();
-        contentData = activity ? { ...activity, _contentType: 'activity' } : null;
-      } else if (contentItem.contentType === 'book') {
-        const book = await Book.findById(contentItem.contentId)
-          .populate('scormFile', 'type title url mimeType size')
-          .populate('cmsBookId', 'title description status language version isArchived')
-          .populate('badgeAwarded', 'name description icon image category rarity')
-          .lean();
-        contentData = book ? { ...book, _contentType: 'book' } : null;
-      } else if (contentItem.contentType === 'video') {
-        const video = await Media.findOne({
-          _id: contentItem.contentId,
-          type: 'video',
-        })
-          .populate('scormFile', 'type title url mimeType size')
-          .populate('cmsBookId', 'title description status language version isArchived pages')
-          .populate('badgeAwarded', 'name description icon image category rarity')
-          .lean();
-        if (video) {
-          contentData = {
-            ...video,
-            _contentType: 'video',
-            coverImage: video.thumbnail || video.coverImage, // Map thumbnail to coverImage
-          };
-        }
-      } else if (contentItem.contentType === 'audioAssignment') {
-        const audio = await AudioAssignment.findById(contentItem.contentId)
-          .populate('referenceAudio', 'type title url mimeType size duration')
-          .populate('scormFile', 'type title url mimeType size')
-          .populate('badgeAwarded', 'name description icon image category rarity')
-          .lean();
-        contentData = audio ? { ...audio, _contentType: 'audioAssignment' } : null;
-      } else if (contentItem.contentType === 'chant') {
-        const chant = await Chant.findById(contentItem.contentId)
-          .populate('audio', 'type title url mimeType size duration')
-          .populate({
-            path: 'instructionVideo',
-            select: 'type title url mimeType size duration embedUrl cloudUrl filePath videoSource',
-          })
-          .populate('scormFile', 'type title url mimeType size')
-          .populate('badgeAwarded', 'name description icon image category rarity')
-          .lean();
-        contentData = chant ? { ...chant, _contentType: 'chant' } : null;
-      }
-
-      if (contentData) {
-        populatedContents.push({
-          ...contentData,
-          _order: contentItem.order,
-          _step: contentItem.step || 1,
-          _addedAt: contentItem.addedAt,
-          // Include original contentId and contentType for reference
-          _contentId: contentItem.contentId,
-          _contentType: contentItem.contentType,
-        });
-      }
-    } catch (error) {
-      console.error(`Error populating content ${contentItem.contentId} (${contentItem.contentType}):`, error);
-      // Continue with other contents even if one fails
-    }
-  }
-
-  // Sort by: step -> contentType -> order
-  populatedContents.sort((a, b) => {
-    const stepA = a._step || 1;
-    const stepB = b._step || 1;
-    if (stepA !== stepB) {
-      return stepA - stepB;
-    }
-    const typeA = a._contentType || '';
-    const typeB = b._contentType || '';
-    if (typeA !== typeB) {
-      return typeA.localeCompare(typeB);
-    }
-    return (a._order || 0) - (b._order || 0);
-  });
-
-  // Get organized by steps structure
-  const courseDoc = await Course.findById(courseId);
-  const contentsBySteps = courseDoc ? courseDoc.getContentsBySteps() : [];
+  const contentsBySteps = organizeCourseContentsBySteps(course.contents);
 
   // Live progress vs current course.contents (ignore orphans from removed CMS items)
   let liveProgress = computeCourseContentProgress(
@@ -1165,7 +1082,7 @@ const getCourseDetailsForChild = async (childId, courseId) => {
       contents: populatedContents,
       contentsBySteps,
     },
-    child: childProfile.toObject(),
+    child: childProfile,
     progress: progress
       ? { ...progress, progressPercentage: liveProgress.progressPercentage }
       : null,
