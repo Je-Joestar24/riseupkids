@@ -130,7 +130,6 @@ export function buildBunnyEmbedWebViewUrl(
     if (playsinline) u.searchParams.set('playsinline', 'true');
     if (autoplay) u.searchParams.set('autoplay', 'true');
     if (preload) u.searchParams.set('preload', 'true');
-    if (muted) u.searchParams.set('muted', 'true');
     if (loop) u.searchParams.set('loop', 'true');
     if (disableIosPlayer) u.searchParams.set('disableIosPlayer', 'true');
     if (disableAirplay) u.searchParams.set('disableAirplay', 'true');
@@ -139,9 +138,15 @@ export function buildBunnyEmbedWebViewUrl(
       u.searchParams.set('chromecast', 'false');
     }
 
+    // Watch-only must override stored dashboard URLs that include muted=true.
+    if (muted) {
+      u.searchParams.set('muted', 'true');
+    } else if (preset === 'watchOnly' || options.muted === false) {
+      u.searchParams.set('muted', 'false');
+    }
+
     // Explicit false overrides when caller opts out (rare).
     if (options.autoplay === false) setBoolParam(u, 'autoplay', false);
-    if (options.muted === false) setBoolParam(u, 'muted', false);
     if (options.loop === false) setBoolParam(u, 'loop', false);
 
     return u.toString();

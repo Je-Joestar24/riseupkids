@@ -136,9 +136,9 @@ export function BunnyEmbedWebView({
   }, [validEmbed, playbackPreset, reloadToken]);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
+    if (keepMuted) return;
     void ensureCmsPlaybackAudioMode();
-  }, []);
+  }, [keepMuted]);
 
   useEffect(() => {
     if (!webLoading || playbackError) return;

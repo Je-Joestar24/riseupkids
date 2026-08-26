@@ -34,7 +34,17 @@ describe('buildBunnyEmbedTogglePlaybackScript', () => {
   it('unmutes watch-only videos after a muted fallback play', () => {
     const script = buildBunnyEmbedTogglePlaybackScript({ keepMuted: false, allowPause: true });
     expect(script).toContain('media.muted = false');
+    expect(script).toContain('media.volume = 1');
     expect(script).toContain("method: 'unmute'");
+  });
+
+  it('unmutes watch-only media even when autoplay already started muted', () => {
+    const installer = buildBunnyEmbedPlayWallInstallerScript({
+      keepMuted: false,
+      allowPause: true,
+    });
+    expect(installer).toContain('playAllBunnyMedia()');
+    expect(installer).toContain('media.muted = false');
   });
 });
 

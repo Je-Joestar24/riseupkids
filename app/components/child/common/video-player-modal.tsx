@@ -44,6 +44,7 @@ import type { PopulatedContentItem } from '@/services/moduleService';
 import { resolveModuleVideoPlayback } from '@/utils/moduleVideoPlayback';
 import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import { CMS_PLAYER_MODAL_ORIENTATIONS } from '@/utils/cmsPlayerOrientation';
+import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 
 /** Minimal video shape for explore (url pre-built by caller) */
 export interface ExploreVideoInput {
@@ -147,6 +148,7 @@ export function VideoPlayerModal({
 
   useEffect(() => {
     if (open && video) {
+      void ensureCmsPlaybackAudioMode();
       if (isBunnyEmbed) {
         setVideoUrl(null);
       } else {
@@ -476,6 +478,8 @@ export function VideoPlayerModal({
                       resizeMode={ResizeMode.CONTAIN}
                       useNativeControls={false}
                       shouldPlay
+                      isMuted={false}
+                      volume={1}
                       isLooping={false}
                       onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
                     />

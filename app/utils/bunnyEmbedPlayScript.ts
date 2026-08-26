@@ -57,15 +57,20 @@ media-controller {
 `;
 
 function buildPlaybackControlJs(keepMuted: boolean, allowPause: boolean): string {
-  const mutedSetup = keepMuted ? `media.muted = true;` : '';
+  const mutedSetup = keepMuted
+    ? `media.muted = true;`
+    : `try { media.muted = false; media.volume = 1; } catch (eUnmuteSetup) {}`;
+  const unmuteAfterPlay = keepMuted
+    ? ''
+    : `try { media.muted = false; media.volume = 1; } catch (eUnmutePlay) {}`;
   const playCatch = keepMuted
     ? `p.catch(function () {});`
-    : `p.catch(function () {
+    : `p.then(function () { ${unmuteAfterPlay} }).catch(function () {
             try {
               media.muted = true;
               var p2 = media.play();
               if (p2 && typeof p2.then === 'function') {
-                p2.then(function () { media.muted = false; }).catch(function () {});
+                p2.then(function () { media.muted = false; media.volume = 1; }).catch(function () {});
               }
             } catch (e2) {}
           });`;
@@ -155,8 +160,10 @@ function buildPlaybackControlJs(keepMuted: boolean, allowPause: boolean): string
         ${mutedSetup}
         if (media.ended) return;
         var p = media.play();
-        if (p && typeof p.catch === 'function') {
+        if (p && typeof p.then === 'function') {
           ${playCatch}
+        } else {
+          ${unmuteAfterPlay}
         }
       } catch (e) {}
     }
@@ -307,6 +314,7 @@ export function buildBunnyEmbedPlayWallInstallerScript(
       }
       hideBunnyChrome();
       mountWall();
+      ${keepMuted ? '' : 'try { playAllBunnyMedia(); } catch (ePlay) {}'}
       if (!window.__riseUpKidsBunnyGestureBound) {
         window.__riseUpKidsBunnyGestureBound = true;
         document.addEventListener('touchstart', function (e) {

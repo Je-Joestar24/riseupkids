@@ -29,6 +29,7 @@ describe('Bunny embed watch-only e2e contract', () => {
     expect(params.get('autoplay')).toBe('true');
     expect(params.get('preload')).toBe('true');
     expect(params.get('playsinline')).toBe('true');
+    expect(params.get('muted')).toBe('false');
     expect(source!.headers.Referer).toBe(REFERER);
   });
 

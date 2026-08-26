@@ -39,10 +39,19 @@ describe('buildBunnyEmbedWebViewUrl', () => {
     expect(parsed.searchParams.get('playsinline')).toBe('true');
     expect(parsed.searchParams.get('disableIosPlayer')).toBe('true');
     expect(parsed.searchParams.get('disableAirplay')).toBe('true');
-    expect(parsed.searchParams.get('muted')).toBeNull();
+    expect(parsed.searchParams.get('muted')).toBe('false');
     expect(parsed.searchParams.get('loop')).toBeNull();
     expect(parsed.searchParams.get('showSpeed')).toBe('false');
     expect(parsed.searchParams.get('chromecast')).toBe('false');
+  });
+
+  it('watchOnly strips muted=true from stored embed URLs so sound plays', () => {
+    const url = buildBunnyEmbedWebViewUrl(
+      `${IFRAME_EMBED}?autoplay=true&muted=true`,
+      { preset: 'watchOnly' }
+    );
+    expect(new URL(url).searchParams.get('muted')).toBe('false');
+    expect(new URL(url).searchParams.get('autoplay')).toBe('true');
   });
 
   it('backgroundLoop forces muted autoplay loop', () => {
