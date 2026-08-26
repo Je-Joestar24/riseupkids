@@ -5,7 +5,7 @@
  */
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,11 +17,15 @@ import {
 import { ExploreVideoPlayerModal } from '@/components/child/common/explore-video-player-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ContentsEmpty } from '@/components/child/contents/contents-empty';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
-import type { ExploreContentItem } from '@/services/exploreService';
+import type { ExploreContentItem, ExploreWatchStatus } from '@/services/exploreService';
+import { pickCachedExploreVideos, useExploreStore } from '@/store/exploreStore';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { isNetworkError, toFriendlyLoadError } from '@/utils/networkError';
 
 export interface ContentsCardsProps {
   childId: string;
@@ -40,21 +44,63 @@ function truncateDescription(text: string | null | undefined, maxLen = 150): str
   return text.substring(0, maxLen) + '...';
 }
 
+type CardWatchStatus = {
+  isWatched: boolean;
+  watchCount: number;
+  starsAwarded: boolean;
+};
+
+function toCardWatchStatus(status: ExploreWatchStatus): CardWatchStatus {
+  return {
+    isWatched: !!(status.starsAwarded ?? (status.currentWatchCount ?? 0) > 0),
+    watchCount: status.currentWatchCount ?? 0,
+    starsAwarded: status.starsAwarded ?? false,
+  };
+}
+
+function watchStatusesFromCache(
+  childId: string,
+  videos: ExploreContentItem[]
+): Record<string, CardWatchStatus> {
+  const cache = useExploreStore.getState().watchStatusCache;
+  const map: Record<string, CardWatchStatus> = {};
+  for (const video of videos) {
+    const id = String(video._id ?? '');
+    if (!id) continue;
+    const status = cache[`${childId}_${id}`];
+    if (status) map[id] = toCardWatchStatus(status);
+  }
+  return map;
+}
+
+function initialCachedVideos(videoType: string): ExploreContentItem[] {
+  return pickCachedExploreVideos(
+    useExploreStore.getState().contentByType,
+    videoType,
+    100
+  );
+}
+
 export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
   const { fetchByType, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
-  const [videos, setVideos] = useState<ExploreContentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [watchStatuses, setWatchStatuses] = useState<
-    Record<
-      string,
-      { isWatched: boolean; watchCount: number; starsAwarded: boolean }
-    >
-  >({});
+  const [videos, setVideos] = useState<ExploreContentItem[]>(() =>
+    initialCachedVideos(videoType)
+  );
+  const [loading, setLoading] = useState(() => initialCachedVideos(videoType).length === 0);
+  const [watchStatuses, setWatchStatuses] = useState<Record<string, CardWatchStatus>>(() =>
+    watchStatusesFromCache(childId, initialCachedVideos(videoType))
+  );
 
   const [selected, setSelected] = useState<ExploreContentItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useOnNetworkReconnect(() => {
+    setReloadKey((n) => n + 1);
+  });
 
   useEffect(() => {
     if (!childId || !videoType) {
@@ -62,14 +108,36 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const cached = pickCachedExploreVideos(
+      useExploreStore.getState().contentByType,
+      videoType,
+      100
+    );
+    if (cached.length) {
+      setVideos(cached);
+      setWatchStatuses(watchStatusesFromCache(childId, cached));
+      setLoading(false);
+      setError(null);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
     fetchByType('video', { videoType, page: 1, limit: 100 })
       .then((list) => {
         if (cancelled) return;
-        setVideos(Array.isArray(list) ? list : []);
+        const next = Array.isArray(list) ? list : [];
+        setVideos(next);
+        setError(null);
+        for (const item of next) {
+          const url = getCoverImageUrl(item.coverImage);
+          if (url) void Image.prefetch(url).catch(() => undefined);
+        }
       })
-      .catch(() => {
-        if (!cancelled) setVideos([]);
+      .catch((err) => {
+        if (cancelled) return;
+        if (cached.length) return;
+        setVideos([]);
+        setError(toFriendlyLoadError(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -77,26 +145,31 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
     return () => {
       cancelled = true;
     };
-  }, [childId, videoType, fetchByType]);
+  }, [childId, videoType, fetchByType, getCoverImageUrl, reloadKey]);
 
   useEffect(() => {
     if (!childId || videos.length === 0) return;
     let cancelled = false;
     const loadStatuses = async () => {
+      const cachedStatuses = watchStatusesFromCache(childId, videos);
+      if (Object.keys(cachedStatuses).length) {
+        setWatchStatuses((prev) => ({ ...cachedStatuses, ...prev }));
+      }
+      const missing = videos.filter((v) => {
+        const id = String(v._id ?? '');
+        return Boolean(id && !cachedStatuses[id]);
+      });
+      if (!missing.length) return;
       const entries = await Promise.all(
-        videos.map(async (v) => {
+        missing.map(async (v) => {
           const id = String(v._id ?? '');
-          if (!id) return [id, null] as const;
           try {
             const status = await getExploreVideoWatchStatus(id);
             return [
               id,
-              {
-                isWatched:
-                  !!(status?.starsAwarded ?? (status?.currentWatchCount ?? 0) > 0),
-                watchCount: status?.currentWatchCount ?? 0,
-                starsAwarded: status?.starsAwarded ?? false,
-              },
+              status
+                ? toCardWatchStatus(status)
+                : { isWatched: false, watchCount: 0, starsAwarded: false },
             ] as const;
           } catch {
             return [
@@ -107,11 +180,13 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
         })
       );
       if (cancelled) return;
-      const map: Record<string, { isWatched: boolean; watchCount: number; starsAwarded: boolean }> = {};
-      entries.forEach(([id, s]) => {
-        if (id && s) map[id] = s;
+      setWatchStatuses((prev) => {
+        const map = { ...prev };
+        entries.forEach(([id, s]) => {
+          if (id && s) map[id] = s;
+        });
+        return map;
       });
-      setWatchStatuses(map);
     };
     loadStatuses();
     return () => {
@@ -159,12 +234,23 @@ export function ContentsCards({ childId, videoType }: ContentsCardsProps) {
     [selected, getExploreVideoWatchStatus, videoType]
   );
 
-  if (loading) {
+  if (loading || (error && videos.length === 0 && isNetworkError(error))) {
     return (
       <View style={styles.loadingWrap}>
         <ActivityIndicator size="large" color={colors.secondary} />
         <ThemedText style={styles.loadingText}>Loading videos...</ThemedText>
       </View>
+    );
+  }
+
+  if (error && videos.length === 0) {
+    return (
+      <ChildNetworkRetry
+        title="Could not load"
+        message={error}
+        retrying={loading}
+        onRetry={() => setReloadKey((n) => n + 1)}
+      />
     );
   }
 

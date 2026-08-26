@@ -11,6 +11,12 @@ import axios, {
 } from 'axios';
 
 import { API_BASE_URL } from '@/config';
+import { useNetworkStore } from '@/store/networkStore';
+import {
+  ApiRequestError,
+  isNetworkError,
+  NETWORK_UNAVAILABLE_MESSAGE,
+} from '@/utils/networkError';
 import { getAuthToken } from './tokenBridge';
 
 const instance: AxiosInstance = axios.create({
@@ -36,9 +42,18 @@ function withFormDataSafeConfig(config?: AxiosRequestConfig, data?: unknown): Ax
 instance.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (isNetworkError(error)) {
+      useNetworkStore.getState().reportOffline();
+      return Promise.reject(
+        new ApiRequestError(NETWORK_UNAVAILABLE_MESSAGE, { isNetworkError: true })
+      );
+    }
+    const status = error.response?.status as number | undefined;
     const message =
       error.response?.data?.message ?? error.message ?? 'Request failed';
-    return Promise.reject(new Error(message));
+    return Promise.reject(
+      new ApiRequestError(String(message), { isNetworkError: false, status })
+    );
   }
 );
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { homeService } from '@/services/homeService';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
 
 type Meeting = any;
 type YouTubeLive = any;
@@ -55,6 +56,10 @@ export function useHomeData(childId?: string | null): UseHomeDataState {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useOnNetworkReconnect(() => {
+    void refresh();
+  });
 
   return useMemo(
     () => ({

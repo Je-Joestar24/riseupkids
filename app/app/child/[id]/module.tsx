@@ -50,6 +50,7 @@ import {
   MODULE_PAGE_BACKGROUND,
 } from '@/components/child/module/module-utils';
 import { ModuleVideos } from '@/components/child/module/module-videos';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -69,6 +70,8 @@ import {
   parseBookCompletionStarPayload,
   runBackgroundAfterStarReward,
 } from '@/utils/bookCompletionStarReward';
+import { isNetworkError } from '@/utils/networkError';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
 
 function getContentId(item: PopulatedContentItem): string {
   return String(item._contentId ?? item._id ?? '');
@@ -101,6 +104,7 @@ export default function ChildModuleScreen() {
     launchUrl: html5LaunchUrl,
     loading: html5Loading,
     error: html5Error,
+    refetch: refetchHtml5,
   } = useHtml5Modal();
 
   const {
@@ -379,6 +383,10 @@ export default function ChildModuleScreen() {
     };
   }, [fetch, clearModule]);
 
+  useOnNetworkReconnect(() => {
+    fetch();
+  });
+
   if (!childId || !courseId) {
     return (
       <View style={[styles.centered, styles.container]}>
@@ -387,7 +395,7 @@ export default function ChildModuleScreen() {
     );
   }
 
-  if (isLoading && !course) {
+  if ((isLoading && !course) || (isNetworkError(error) && !course)) {
     return (
       <ScrollView
         style={styles.container}
@@ -401,7 +409,14 @@ export default function ChildModuleScreen() {
   if (error && !course) {
     return (
       <View style={[styles.centered, styles.container]}>
-        <ThemedText style={styles.errorText}>{error}</ThemedText>
+        <ChildNetworkRetry
+          title="Could not load"
+          message={error}
+          retrying={isLoading}
+          onRetry={() => {
+            if (courseId && childId) void fetchModuleDetails(courseId, childId);
+          }}
+        />
       </View>
     );
   }
@@ -495,6 +510,7 @@ export default function ChildModuleScreen() {
         title={html5Book?.title ?? undefined}
         loading={html5Loading}
         error={html5Error}
+        onRetry={refetchHtml5}
         courseId={courseId ?? null}
         childId={childId ?? null}
         bookId={html5Book && isHtml5Book(html5Book) ? getContentId(html5Book) : null}

@@ -21,6 +21,9 @@ import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
 import type { ExploreContentItem } from '@/services/exploreService';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { isNetworkError, toFriendlyLoadError } from '@/utils/networkError';
 
 export interface ReplaysCardsProps {
   childId: string;
@@ -49,15 +52,26 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
 
   const [selected, setSelected] = useState<ExploreContentItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useOnNetworkReconnect(() => {
+    setReloadKey((n) => n + 1);
+  });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const list = await fetchByType('video', { videoType: 'replay', page: 1, limit: 60 });
         if (cancelled) return;
         setVideos(Array.isArray(list) ? list : []);
+      } catch (err) {
+        if (cancelled) return;
+        setVideos([]);
+        setError(toFriendlyLoadError(err));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -65,7 +79,7 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
     return () => {
       cancelled = true;
     };
-  }, [fetchByType]);
+  }, [fetchByType, reloadKey]);
 
   useEffect(() => {
     if (!childId || videos.length === 0) return;
@@ -115,8 +129,19 @@ export function ReplaysCards({ childId }: ReplaysCardsProps) {
     }
   }, [selected, getExploreVideoWatchStatus]);
 
-  if (loading) {
+  if (loading || (error && !videos.length && isNetworkError(error))) {
     return <ReplaysCardsSkeleton />;
+  }
+
+  if (error && !videos.length) {
+    return (
+      <ChildNetworkRetry
+        title="Could not load"
+        message={error}
+        retrying={loading}
+        onRetry={() => setReloadKey((n) => n + 1)}
+      />
+    );
   }
 
   if (!videos.length) {

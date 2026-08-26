@@ -28,6 +28,7 @@ import {
 import { WebView } from 'react-native-webview';
 
 import { ThemedText } from '@/components/themed-text';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
 import { Quicksand } from '@/constants/theme';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
@@ -35,6 +36,7 @@ import { spacing } from '@/config/theme/spacing';
 import { moduleService } from '@/services/moduleService';
 import { useExploreStore } from '@/store/exploreStore';
 import { useUiStore } from '@/store/uiStore';
+import { isNetworkError } from '@/utils/networkError';
 
 /** Pass threshold: score / maxScore >= 75% */
 const PASS_THRESHOLD = 75;
@@ -105,6 +107,7 @@ export interface Html5ModalProps {
     onAfterComplete?: () => void;
     /** Video follow-ups should return to the parent flow after any result, even when the score did not pass. */
     closeOnResultContinue?: boolean;
+    onRetry?: () => void;
 }
 
 function computePassAndProgress(score: number | null, maxScore: number | null): { passed: boolean; progress: number } {
@@ -129,6 +132,7 @@ export function Html5Modal({
     bookId,
     onAfterComplete,
     closeOnResultContinue = false,
+    onRetry,
 }: Html5ModalProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [result, setResult] = useState<Html5Result | null>(null);
@@ -405,19 +409,22 @@ export function Html5Modal({
                     </View>
                 )}
 
-                {error && (
+                {error && isNetworkError(error) && !launchUrl && (
                     <View style={styles.centered}>
-                        <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.error} />
-                        <ThemedText style={styles.errorText}>{error}</ThemedText>
-                        <Pressable
-                            onPress={onClose}
-                            style={({ pressed }) => [styles.doneButton, pressed && styles.doneButtonPressed]}
-                            accessibilityRole="button"
-                            accessibilityLabel="Close"
-                        >
-                            <ThemedText style={styles.doneButtonText}>Close</ThemedText>
-                        </Pressable>
+                        <ActivityIndicator size="large" color={colors.secondary} />
+                        <ThemedText style={styles.loadingText}>Loading…</ThemedText>
                     </View>
+                )}
+
+                {error && !isNetworkError(error) && (
+                    <ChildNetworkRetry
+                        title="Could not load"
+                        message={error}
+                        retrying={Boolean(externalLoading)}
+                        onRetry={() => (onRetry ? onRetry() : onClose())}
+                        secondaryLabel="Close"
+                        onSecondary={onClose}
+                    />
                 )}
 
                 {launchUrl && !error && (

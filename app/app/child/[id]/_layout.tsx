@@ -4,15 +4,22 @@
  */
 
 import { Stack, useLocalSearchParams, usePathname } from 'expo-router';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { FooterNavigation } from '@/components/child/common/footer-navigation';
 import { HeaderNav } from '@/components/child/common/header-nav';
 import { colors } from '@/config';
+import { useJourneyStore } from '@/store/journeyStore';
 
 export default function ChildLayout() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!id) return;
+    useJourneyStore.getState().prefetchChildCourses(id);
+  }, [id]);
 
   if (!id) return null;
   const isStarCamRoute = pathname?.includes('/star-cam');

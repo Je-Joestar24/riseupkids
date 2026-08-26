@@ -12,19 +12,20 @@ import { JourneyCards } from '@/components/child/journey/journey-cards';
 import { JourneyHeader } from '@/components/child/journey/journey-header';
 import { JourneySkeletalLoading } from '@/components/child/journey/journey-skeletal-loading';
 import { JourneySummary } from '@/components/child/journey/journey-summary';
-import { ThemedText } from '@/components/themed-text';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useJourney } from '@/hooks/journeyHook';
+import { isNetworkError } from '@/utils/networkError';
 
 export default function ChildJourneyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { loading, error, courseProgress, coursesWithProgress, refresh } = useJourney(id);
 
-  // Refresh when returning to journey so admin lock/unlock shows without app restart
+  // Background refresh on focus so admin lock/unlock updates without a skeleton flash
   useFocusEffect(
     React.useCallback(() => {
-      void refresh();
+      void refresh({ silent: true });
     }, [refresh])
   );
 
@@ -33,10 +34,27 @@ export default function ChildJourneyScreen() {
     (courseProgress.inProgressCount > 0 ? 1 : 0);
   const totalSteps = Math.max(courseProgress.totalCourses, 1);
 
-  if (error && !loading) {
+  if (error && !loading && coursesWithProgress.length === 0) {
+    if (isNetworkError(error)) {
+      return (
+        <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}>
+          <JourneySkeletalLoading />
+        </ScrollView>
+      );
+    }
     return (
       <View style={[styles.centered, styles.container]}>
-        <ThemedText style={styles.errorText}>{error}</ThemedText>
+        <ChildNetworkRetry
+          title="Could not load"
+          message={error}
+          retrying={loading}
+          onRetry={() => {
+            void refresh({ silent: false });
+          }}
+        />
       </View>
     );
   }
@@ -80,10 +98,5 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  errorText: {
-    color: colors.textInverse,
-    textAlign: 'center',
-    padding: spacing[5],
   },
 });

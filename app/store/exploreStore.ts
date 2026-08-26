@@ -32,6 +32,36 @@ export function exploreCacheKey(
   return `${type}_${videoType}_${page}_${limit}`;
 }
 
+/**
+ * Pick the best cached video list for a type. Prefers the requested limit,
+ * then the longest matching cached page (Explore collections use limit 20,
+ * the detail screen uses 100).
+ */
+export function pickCachedExploreVideos(
+  contentByType: Record<string, ExploreContentItem[]>,
+  videoType: string,
+  preferredLimit = 100
+): ExploreContentItem[] {
+  const preferredKey = exploreCacheKey('video', {
+    videoType,
+    page: 1,
+    limit: preferredLimit,
+  });
+  const preferred = contentByType[preferredKey];
+  if (preferred?.length) return preferred;
+
+  const prefix = `video_${videoType}_`;
+  let best: ExploreContentItem[] = [];
+  for (const [key, list] of Object.entries(contentByType)) {
+    if (!key.startsWith(prefix) || !Array.isArray(list)) continue;
+    if (list.length > best.length) best = list;
+  }
+  return best;
+}
+
+const fetchByTypeInflight = new Map<string, Promise<ExploreContentItem[]>>();
+const watchStatusInflight = new Map<string, Promise<ExploreWatchStatus | null>>();
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -160,31 +190,43 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
 
   fetchByType: async (type, params = {}) => {
     const key = exploreCacheKey(type, params);
-    set((s) => ({
-      loadingByType: { ...s.loadingByType, [key]: true },
-      error: null,
-    }));
-    try {
-      const res = await exploreService.getByType(type, params);
-      const data = res?.success && Array.isArray(res.data) ? res.data : [];
-      const pagination = res?.pagination;
+    const existing = fetchByTypeInflight.get(key);
+    if (existing) return existing;
+
+    const request = (async () => {
       set((s) => ({
-        contentByType: { ...s.contentByType, [key]: data },
-        contentByTypePagination: pagination
-          ? { ...s.contentByTypePagination, [key]: pagination }
-          : s.contentByTypePagination,
-        loadingByType: { ...s.loadingByType, [key]: false },
+        loadingByType: { ...s.loadingByType, [key]: true },
         error: null,
       }));
-      return data;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      set((s) => ({
-        loadingByType: { ...s.loadingByType, [key]: false },
-        error: msg,
-      }));
-      return [];
-    }
+      try {
+        const res = await exploreService.getByType(type, params);
+        const data = res?.success && Array.isArray(res.data) ? res.data : [];
+        const pagination = res?.pagination;
+        set((s) => ({
+          contentByType: { ...s.contentByType, [key]: data },
+          contentByTypePagination: pagination
+            ? { ...s.contentByTypePagination, [key]: pagination }
+            : s.contentByTypePagination,
+          loadingByType: { ...s.loadingByType, [key]: false },
+          error: null,
+        }));
+        return data;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        set((s) => ({
+          loadingByType: { ...s.loadingByType, [key]: false },
+          error: msg,
+        }));
+        const cached = get().contentByType[key] ?? [];
+        if (cached.length) return cached;
+        throw err instanceof Error ? err : new Error(msg);
+      } finally {
+        fetchByTypeInflight.delete(key);
+      }
+    })();
+
+    fetchByTypeInflight.set(key, request);
+    return request;
   },
 
   fetchById: async (contentId) => {
@@ -295,21 +337,34 @@ export const useExploreStore = create<ExploreState & ExploreActions>((set, get) 
     const key = `${childId}_${exploreContentId}`;
     const cached = get().watchStatusCache[key];
     if (cached !== undefined) return cached;
-    try {
-      const res = await exploreService.getExploreVideoWatchStatus(exploreContentId, childId);
-      const status = res?.success && res.data ? res.data : null;
-      if (status) {
-        set((s) => ({
-          watchStatusCache: { ...s.watchStatusCache, [key]: status },
-          errorWatch: null,
-        }));
+    const existing = watchStatusInflight.get(key);
+    if (existing) return existing;
+
+    const request = (async () => {
+      try {
+        const res = await exploreService.getExploreVideoWatchStatus(
+          exploreContentId,
+          childId
+        );
+        const status = res?.success && res.data ? res.data : null;
+        if (status) {
+          set((s) => ({
+            watchStatusCache: { ...s.watchStatusCache, [key]: status },
+            errorWatch: null,
+          }));
+        }
+        return status;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        set({ errorWatch: msg });
+        throw err;
+      } finally {
+        watchStatusInflight.delete(key);
       }
-      return status;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      set({ errorWatch: msg });
-      throw err;
-    }
+    })();
+
+    watchStatusInflight.set(key, request);
+    return request;
   },
 
   getVideoTypeProgress: async (childId, videoType) => {

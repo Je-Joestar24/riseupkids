@@ -13,6 +13,7 @@ import { ExploreStarCam } from '@/components/child/explore/explore-starcam';
 import { ExploreVideoCollection } from '@/components/child/explore/explore-video-collection';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
+import { useExploreStore } from '@/store/exploreStore';
 
 export default function ChildExploreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,6 +23,11 @@ export default function ChildExploreScreen() {
   const handleVideoTypePress = useCallback(
     (videoType: string) => {
       if (!childId) return;
+      void useExploreStore.getState().fetchByType('video', {
+        videoType,
+        page: 1,
+        limit: 100,
+      }).catch(() => undefined);
       router.push(
         `/child/${childId}/explore-content?videoType=${encodeURIComponent(videoType)}` as never
       );

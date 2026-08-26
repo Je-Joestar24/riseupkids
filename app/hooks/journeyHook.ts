@@ -1,22 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
+import type { ChildCourseWithProgress } from '@/services/journeyService';
+import { useJourneyStore } from '@/store/journeyStore';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
 import {
-  type ChildCourseWithProgress,
-  journeyService,
-} from '@/services/journeyService';
+  deriveJourneySummary,
+  type JourneySummaryProgress,
+} from '@/utils/journeySummary';
 
-/** Summary stats derived from course progress for journey-summary integration */
-export interface JourneySummaryProgress {
-  totalCourses: number;
-  completedCount: number;
-  inProgressCount: number;
-  notStartedCount: number;
-  lockedCount: number;
-  /** Average progress across all courses (0–100) */
-  overallPercentage: number;
-  /** Courses list for cards; progress embedded per item */
-  coursesWithProgress: ChildCourseWithProgress[];
-}
+export type { JourneySummaryProgress };
+
+/** Stable empty list so Zustand getSnapshot does not return a new [] every render. */
+const EMPTY_COURSES: ChildCourseWithProgress[] = [];
 
 export interface UseJourneyState {
   loading: boolean;
@@ -25,100 +20,63 @@ export interface UseJourneyState {
   coursesWithProgress: ChildCourseWithProgress[];
   /** Summary-ready progress (for journey-summary) */
   courseProgress: JourneySummaryProgress;
-  refresh: () => Promise<void>;
-}
-
-const emptySummary: JourneySummaryProgress = {
-  totalCourses: 0,
-  completedCount: 0,
-  inProgressCount: 0,
-  notStartedCount: 0,
-  lockedCount: 0,
-  overallPercentage: 0,
-  coursesWithProgress: [],
-};
-
-function deriveSummary(courses: ChildCourseWithProgress[]): JourneySummaryProgress {
-  if (!courses.length) {
-    return { ...emptySummary };
-  }
-
-  let completedCount = 0;
-  let inProgressCount = 0;
-  let notStartedCount = 0;
-  let lockedCount = 0;
-  let totalPct = 0;
-
-  for (const item of courses) {
-    if (item.status === 'completed') completedCount++;
-    else if (item.status === 'in_progress') inProgressCount++;
-    else if (item.status === 'not_started') notStartedCount++;
-    else lockedCount++;
-    totalPct += item.progressPercentage ?? 0;
-  }
-
-  const overallPercentage =
-    courses.length > 0 ? Math.round(totalPct / courses.length) : 0;
-
-  return {
-    totalCourses: courses.length,
-    completedCount,
-    inProgressCount,
-    notStartedCount,
-    lockedCount,
-    overallPercentage,
-    coursesWithProgress: courses,
-  };
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
 }
 
 export function useJourney(childId: string | null | undefined): UseJourneyState {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [coursesWithProgress, setCoursesWithProgress] = useState<
-    ChildCourseWithProgress[]
-  >([]);
+  const cachedCourses = useJourneyStore((s) =>
+    childId ? s.coursesByChildId[childId] : undefined
+  );
+  const coursesWithProgress = cachedCourses ?? EMPTY_COURSES;
+  const hasCache = cachedCourses !== undefined;
+  const storeLoading = useJourneyStore((s) =>
+    childId ? s.loadingByChildId[childId] === true : false
+  );
+  const error = useJourneyStore((s) =>
+    childId ? (s.errorByChildId[childId] ?? null) : null
+  );
+  const fetchChildCourses = useJourneyStore((s) => s.fetchChildCourses);
 
-  const refresh = useCallback(async () => {
-    if (!childId) {
-      setCoursesWithProgress([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const res = await journeyService.getChildCoursesWithProgress(childId);
-      const list = res?.data ?? [];
-      setCoursesWithProgress(list);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : 'Failed to load journey courses'
-      );
-      setCoursesWithProgress([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [childId]);
+  const refresh = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!childId) return;
+      const cached =
+        useJourneyStore.getState().coursesByChildId[childId] !== undefined;
+      await fetchChildCourses(childId, {
+        silent: options?.silent ?? cached,
+      });
+    },
+    [childId, fetchChildCourses]
+  );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!childId) return;
+    const cached =
+      useJourneyStore.getState().coursesByChildId[childId] !== undefined;
+    if (cached) return;
+    void fetchChildCourses(childId);
+  }, [childId, fetchChildCourses]);
+
+  useOnNetworkReconnect(() => {
+    if (!childId) return;
+    const cached =
+      useJourneyStore.getState().coursesByChildId[childId] !== undefined;
+    void fetchChildCourses(childId, { silent: cached });
+  });
 
   const courseProgress = useMemo(
-    () => deriveSummary(coursesWithProgress),
+    () => deriveJourneySummary(coursesWithProgress),
     [coursesWithProgress]
   );
 
   return useMemo(
     () => ({
-      loading,
+      loading: storeLoading && !hasCache,
       error,
       coursesWithProgress,
       courseProgress,
       refresh,
     }),
-    [loading, error, coursesWithProgress, courseProgress, refresh]
+    [storeLoading, hasCache, error, coursesWithProgress, courseProgress, refresh]
   );
 }

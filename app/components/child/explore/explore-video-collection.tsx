@@ -21,7 +21,9 @@ import {
   type ExploreVideoType,
 } from '@/constants/explore';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
-import { useExploreStore } from '@/store/exploreStore';
+import { pickCachedExploreVideos, useExploreStore } from '@/store/exploreStore';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { isNetworkError, toFriendlyLoadError } from '@/utils/networkError';
 import { ExploreVideoCollectionSkeleton } from './explore-skeletal-loading';
 
 export interface ExploreVideoCollectionProps {
@@ -98,6 +100,26 @@ function VideoCollectionCard({
   );
 }
 
+function collectionDataFromStore(childId: string): Record<string, CollectionData> {
+  const store = useExploreStore.getState();
+  const next: Record<string, CollectionData> = {};
+  for (const videoType of COLLECTION_VIDEO_TYPES) {
+    const key = `${childId}_${videoType}`;
+    const progress = store.progressByVideoType[key];
+    const totalStars = store.totalStarsByVideoType[key];
+    if (progress === undefined && totalStars === undefined) continue;
+    const viewedVideos = progress?.viewedVideos ?? 0;
+    const list = pickCachedExploreVideos(store.contentByType, videoType, 20);
+    next[videoType] = {
+      totalStars: totalStars ?? 0,
+      totalVideos: progress?.totalVideos || list.length,
+      viewedVideos,
+      hasStarted: viewedVideos > 0,
+    };
+  }
+  return next;
+}
+
 export function ExploreVideoCollection({
   childId,
   onVideoTypePress,
@@ -105,41 +127,70 @@ export function ExploreVideoCollection({
   const { fetchByType } = useExplore();
   const { getVideoTypeProgress, getTotalStarsForVideoType } = useExploreVideoWatch(childId);
   const lastExploreStarsAwardedAt = useExploreStore((s) => s.lastExploreStarsAwardedAt);
-  const [dataByType, setDataByType] = useState<Record<string, CollectionData>>({});
-  const [loading, setLoading] = useState(true);
+  const [dataByType, setDataByType] = useState<Record<string, CollectionData>>(() =>
+    childId ? collectionDataFromStore(childId) : {}
+  );
+  const [loading, setLoading] = useState(() => {
+    if (!childId) return false;
+    return Object.keys(collectionDataFromStore(childId)).length === 0;
+  });
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!childId) {
       setLoading(false);
       return;
     }
-    setLoading(true);
-    const next: Record<string, CollectionData> = {};
-    for (const videoType of COLLECTION_VIDEO_TYPES) {
-      try {
-        const [list, progress, totalStars] = await Promise.all([
-          fetchByType('video', { videoType, page: 1, limit: 20 }),
-          getVideoTypeProgress(videoType),
-          getTotalStarsForVideoType(videoType),
-        ]);
-        const totalVideos = progress.totalVideos || (Array.isArray(list) ? list.length : 0);
-        const viewedVideos = progress.viewedVideos ?? 0;
-        next[videoType] = {
-          totalStars,
-          totalVideos,
-          viewedVideos,
-          hasStarted: viewedVideos > 0,
-        };
-      } catch {
-        next[videoType] = {
-          totalStars: 0,
-          totalVideos: 0,
-          viewedVideos: 0,
-          hasStarted: false,
-        };
-      }
+    const hasExisting = Object.keys(collectionDataFromStore(childId)).length > 0;
+    if (!hasExisting) setLoading(true);
+    setError(null);
+
+    let networkFailure: string | null = null;
+    const results = await Promise.all(
+      COLLECTION_VIDEO_TYPES.map(async (videoType) => {
+        try {
+          const [list, progress, totalStars] = await Promise.all([
+            fetchByType('video', { videoType, page: 1, limit: 20 }),
+            getVideoTypeProgress(videoType),
+            getTotalStarsForVideoType(videoType),
+          ]);
+          const totalVideos = progress.totalVideos || (Array.isArray(list) ? list.length : 0);
+          const viewedVideos = progress.viewedVideos ?? 0;
+          return [
+            videoType,
+            {
+              totalStars,
+              totalVideos,
+              viewedVideos,
+              hasStarted: viewedVideos > 0,
+            },
+          ] as const;
+        } catch (err) {
+          if (isNetworkError(err)) {
+            networkFailure = toFriendlyLoadError(err);
+          }
+          return [
+            videoType,
+            {
+              totalStars: 0,
+              totalVideos: 0,
+              viewedVideos: 0,
+              hasStarted: false,
+            },
+          ] as const;
+        }
+      })
+    );
+    const allEmpty = results.every(
+      ([, data]) => data.totalVideos === 0 && data.totalStars === 0 && !data.hasStarted
+    );
+    if (networkFailure && !hasExisting && allEmpty) {
+      setError(networkFailure);
+      setDataByType({});
+      setLoading(false);
+      return;
     }
-    setDataByType(next);
+    setDataByType(Object.fromEntries(results));
     setLoading(false);
   }, [childId, fetchByType, getVideoTypeProgress, getTotalStarsForVideoType]);
 
@@ -147,11 +198,15 @@ export function ExploreVideoCollection({
     load();
   }, [load]);
 
+  useOnNetworkReconnect(() => {
+    void load();
+  });
+
   useEffect(() => {
     if (lastExploreStarsAwardedAt != null) load();
   }, [lastExploreStarsAwardedAt]);
 
-  if (loading) {
+  if (loading || isNetworkError(error)) {
     return <ExploreVideoCollectionSkeleton />;
   }
 

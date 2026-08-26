@@ -6,6 +6,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PopulatedContentItem } from '@/services/moduleService';
 import { getLaunchUrl } from '@/services/html5Service';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { toFriendlyLoadError } from '@/utils/networkError';
 
 export function isHtml5Book(book: PopulatedContentItem | null | undefined): boolean {
   if (!book) return false;
@@ -56,7 +58,7 @@ export function useHtml5LaunchUrl(
       })
       .catch((e) => {
         setLaunchUrl(null);
-        setError(e?.message ?? 'Failed to load content');
+        setError(toFriendlyLoadError(e));
       })
       .finally(() => {
         setLoading(false);
@@ -66,6 +68,10 @@ export function useHtml5LaunchUrl(
   useEffect(() => {
     fetchUrl();
   }, [fetchUrl]);
+
+  useOnNetworkReconnect(() => {
+    fetchUrl();
+  });
 
   return { launchUrl, loading, error, refetch: fetchUrl };
 }
@@ -78,6 +84,7 @@ export interface UseHtml5ModalResult {
   launchUrl: string | null;
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }
 
 export function useHtml5Modal(): UseHtml5ModalResult {
@@ -86,7 +93,7 @@ export function useHtml5Modal(): UseHtml5ModalResult {
 
   const packageId = selectedBook?.html5PackageId ?? null;
   const entryPoint = selectedBook?.html5EntryPoint ?? null;
-  const { launchUrl, loading, error } = useHtml5LaunchUrl(packageId, entryPoint);
+  const { launchUrl, loading, error, refetch } = useHtml5LaunchUrl(packageId, entryPoint);
 
   const openModal = useCallback((content: PopulatedContentItem) => {
     if (!isHtml5PlayableContent(content)) return;
@@ -107,5 +114,6 @@ export function useHtml5Modal(): UseHtml5ModalResult {
     launchUrl,
     loading,
     error,
+    refetch,
   };
 }

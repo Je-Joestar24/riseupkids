@@ -19,10 +19,13 @@ import {
 import { AccumulateStat } from '@/components/child/home/accumulate-stat';
 import { LiveClasses } from '@/components/child/home/live-classes';
 import { StartLearning } from '@/components/child/home/start-learning';
+import { ChildNetworkRetry } from '@/components/child/common/child-network-retry';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useHomeData } from '@/hooks/homeHook';
 import { parentChildService } from '@/services/parentChildService';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { isNetworkError, toFriendlyLoadError } from '@/utils/networkError';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SELECTED_CHILD_KEY = '@riseupkids_selectedChild';
@@ -37,6 +40,7 @@ export default function ChildHomeScreen() {
     stats?: { currentStreak?: number; totalBadges?: number; badges?: unknown[]; totalStars?: number };
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const homeData = useHomeData(id);
 
   useFocusEffect(
@@ -45,41 +49,64 @@ export default function ChildHomeScreen() {
     }, [homeData.refresh])
   );
 
-  useEffect(() => {
-    const load = async () => {
-      if (!id) {
-        setLoading(false);
-        return;
-      }
-      try {
-        const stored = await AsyncStorage.getItem(SELECTED_CHILD_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed._id === id) {
-            setChild(parsed);
-            setLoading(false);
-            return;
-          }
+  const loadChild = useCallback(async () => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const stored = await AsyncStorage.getItem(SELECTED_CHILD_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed._id === id) {
+          setChild(parsed);
+          setLoading(false);
+          return;
         }
-        const res = await parentChildService.getChildById(id);
-        setChild(res?.data ?? null);
-      } catch {
-        setChild(null);
-      } finally {
-        setLoading(false);
       }
-    };
-    load();
+      const res = await parentChildService.getChildById(id);
+      setChild(res?.data ?? null);
+    } catch (err) {
+      setChild(null);
+      setLoadError(toFriendlyLoadError(err));
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    void loadChild();
+  }, [loadChild]);
+
+  useOnNetworkReconnect(() => {
+    void loadChild();
+  });
 
   const handleStartLearning = () => {
     if (id) router.push(`/child/${id}/journey` as never);
   };
 
-  if (loading) {
+  if (loading || (isNetworkError(loadError) && !child)) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={colors.secondary} />
+      </View>
+    );
+  }
+
+  if (!child && loadError) {
+    return (
+      <View style={[styles.centered, styles.container]}>
+        <ChildNetworkRetry
+          title="Could not load"
+          message={loadError}
+          retrying={loading}
+          onRetry={() => {
+            void loadChild();
+          }}
+        />
       </View>
     );
   }

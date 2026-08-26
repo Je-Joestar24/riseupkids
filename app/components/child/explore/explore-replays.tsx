@@ -18,6 +18,9 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useExplore, useExploreVideoWatch } from '@/hooks/exploreHook';
 import type { ExploreContentItem } from '@/services/exploreService';
+import { exploreCacheKey, useExploreStore } from '@/store/exploreStore';
+import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
+import { isNetworkError, toFriendlyLoadError } from '@/utils/networkError';
 import { ExploreReplaysSkeleton } from './explore-skeletal-loading';
 import { ExploreReplaysCard } from './explore-replays-card';
 
@@ -30,15 +33,22 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
   const { fetchByType, getCoverImageUrl, isLoadingByType } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
-  const [replayContent, setReplayContent] = useState<ExploreContentItem[]>([]);
+  const cacheKey = { videoType: 'replay', page: 1, limit: 4 };
+  const loading = isLoadingByType('video', cacheKey);
+  const loadedRef = useRef(false);
+  const [replayContent, setReplayContent] = useState<ExploreContentItem[]>(() =>
+    useExploreStore.getState().getCachedByType(exploreCacheKey('video', cacheKey))
+  );
   const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [selectedContent, setSelectedContent] = useState<ExploreContentItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const loadedRef = useRef(false);
-
-  const cacheKey = { videoType: 'replay', page: 1, limit: 4 };
-  const loading = isLoadingByType('video', cacheKey);
+  const [isInitialLoad, setIsInitialLoad] = useState(
+    () =>
+      useExploreStore.getState().getCachedByType(exploreCacheKey('video', cacheKey))
+        .length === 0
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (loadedRef.current) return;
@@ -48,7 +58,15 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
         const list = await fetchByType('video', { ...cacheKey });
         if (cancelled) return;
         setReplayContent(Array.isArray(list) ? list : []);
+        setError(null);
         loadedRef.current = true;
+      } catch (err) {
+        if (cancelled) return;
+        const cached = useExploreStore
+          .getState()
+          .getCachedByType(exploreCacheKey('video', cacheKey));
+        if (cached.length) return;
+        setError(toFriendlyLoadError(err));
       } finally {
         if (!cancelled) setIsInitialLoad(false);
       }
@@ -56,25 +74,30 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
     return () => {
       cancelled = true;
     };
-  }, [fetchByType]);
+  }, [fetchByType, retryKey]);
 
   useEffect(() => {
     if (!childId || replayContent.length === 0) return;
     let cancelled = false;
     (async () => {
+      const entries = await Promise.all(
+        replayContent.map(async (c) => {
+          const id = c._id?.toString?.() ?? '';
+          if (!id) return ['', 0] as const;
+          try {
+            const status = await getExploreVideoWatchStatus(id);
+            return [id, status?.currentWatchCount ?? 0] as const;
+          } catch {
+            return [id, 0] as const;
+          }
+        })
+      );
+      if (cancelled) return;
       const map: Record<string, number> = {};
-      for (const c of replayContent) {
-        const id = c._id?.toString?.() ?? '';
-        if (!id) continue;
-        try {
-          const status = await getExploreVideoWatchStatus(id);
-          if (cancelled) return;
-          map[id] = status?.currentWatchCount ?? 0;
-        } catch {
-          map[id] = 0;
-        }
-      }
-      if (!cancelled) setViewCounts((prev) => ({ ...prev, ...map }));
+      entries.forEach(([id, count]) => {
+        if (id) map[id] = count;
+      });
+      setViewCounts((prev) => ({ ...prev, ...map }));
     })();
     return () => {
       cancelled = true;
@@ -103,8 +126,15 @@ export function ExploreReplays({ childId }: ExploreReplaysProps) {
     }
   }, [selectedContent, childId, getExploreVideoWatchStatus]);
 
+  useOnNetworkReconnect(() => {
+    loadedRef.current = false;
+    setIsInitialLoad(true);
+    setError(null);
+    setRetryKey((n) => n + 1);
+  });
+
   const showReplaysSkeleton =
-    (isInitialLoad || loading) && replayContent.length === 0;
+    (isInitialLoad || loading || isNetworkError(error)) && replayContent.length === 0;
 
   if (showReplaysSkeleton) {
     return <ExploreReplaysSkeleton />;
