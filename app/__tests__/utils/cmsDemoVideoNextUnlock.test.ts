@@ -60,82 +60,41 @@ describe('shouldUnlockCmsContentNextFromAudio page binding', () => {
 });
 
 describe('shouldUnlockCmsDemoNextFromVideo', () => {
-  it('locks file videos until the first watch finishes', () => {
-    expect(
-      shouldUnlockCmsDemoNextFromVideo({
-        pageId: 'demo-1',
-        playbackPageId: 'demo-1',
-        hasVideoUrl: true,
-        canDetectEnded: true,
-        alreadyPlayed: false,
-        videoFailedOrSkipped: false,
-        positionSec: 2,
-        durationSec: 20,
-        didJustFinish: false,
-      })
-    ).toBe(false);
-  });
+  const midWatch = {
+    pageId: 'demo-1',
+    playbackPageId: 'demo-1',
+    hasVideoUrl: true,
+    canDetectEnded: true,
+    alreadyPlayed: false,
+    videoFailedOrSkipped: false,
+    positionSec: 2,
+    durationSec: 20,
+    didJustFinish: false,
+  };
 
-  it('unlocks after the demo video finishes', () => {
+  it('does not wait for long demo videos to finish before Next', () => {
+    expect(shouldUnlockCmsDemoNextFromVideo(midWatch)).toBe(true);
     expect(
       shouldUnlockCmsDemoNextFromVideo({
-        pageId: 'demo-1',
-        playbackPageId: 'demo-1',
-        hasVideoUrl: true,
-        canDetectEnded: true,
-        alreadyPlayed: false,
-        videoFailedOrSkipped: false,
-        positionSec: 20,
-        durationSec: 20,
+        ...midWatch,
         didJustFinish: true,
+        positionSec: 20,
       })
     ).toBe(true);
   });
 
-  it('unlocks previously played demo pages immediately', () => {
+  it('still unlocks stream embeds and failed playback', () => {
     expect(
       shouldUnlockCmsDemoNextFromVideo({
-        pageId: 'demo-1',
-        playbackPageId: '',
-        hasVideoUrl: true,
-        canDetectEnded: true,
-        alreadyPlayed: true,
-        videoFailedOrSkipped: false,
-        positionSec: 0,
-        durationSec: 20,
-        didJustFinish: false,
-      })
-    ).toBe(true);
-  });
-
-  it('does not trap kids on stream embeds that cannot report ended', () => {
-    expect(
-      shouldUnlockCmsDemoNextFromVideo({
-        pageId: 'demo-1',
-        playbackPageId: 'demo-1',
-        hasVideoUrl: true,
+        ...midWatch,
         canDetectEnded: false,
-        alreadyPlayed: false,
-        videoFailedOrSkipped: false,
-        positionSec: 0,
         durationSec: null,
-        didJustFinish: false,
       })
     ).toBe(true);
-  });
-
-  it('unlocks when video playback fails', () => {
     expect(
       shouldUnlockCmsDemoNextFromVideo({
-        pageId: 'demo-1',
-        playbackPageId: 'demo-1',
-        hasVideoUrl: true,
-        canDetectEnded: true,
-        alreadyPlayed: false,
+        ...midWatch,
         videoFailedOrSkipped: true,
-        positionSec: 0,
-        durationSec: null,
-        didJustFinish: false,
       })
     ).toBe(true);
   });

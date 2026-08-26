@@ -1,12 +1,14 @@
 /**
  * Shared Bunny Stream WebView settings and inline player for React Native.
- * Child default: watch-only (no touch on player, autoplay, no native fullscreen).
+ * Child default: hide Bunny chrome, autoplay, no native fullscreen.
+ * Invisible wall tap toggles play/pause (in-page gesture so iOS can resume).
  * @see docs/BUNNY_EMBED_WATCH_ONLY_PLAN.md
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   View,
@@ -19,6 +21,16 @@ import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
+import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
+import {
+  BUNNY_EMBED_IOS_INSTALLER_RETRY_MS,
+  BUNNY_EMBED_LOADING_TIMEOUT_MS,
+  buildBunnyEmbedPlayWallInstallerScript,
+  buildBunnyEmbedTogglePlaybackScript,
+  isBunnyEmbedPlayWallReadyMessage,
+  isFatalBunnyEmbedHttpError,
+  shouldUncoverBunnyWebViewForGestures,
+} from '@/utils/bunnyEmbedPlayScript';
 import {
   buildBunnyEmbedWebViewUrl,
   looksLikeBunnyExploreEmbedUrl,
@@ -61,11 +73,37 @@ export function BunnyEmbedWebView({
   interactionMode = 'watchOnly',
   playbackPreset = 'watchOnly',
 }: BunnyEmbedWebViewProps) {
+  const webViewRef = useRef<WebView>(null);
   const [webLoading, setWebLoading] = useState(true);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [playWallReady, setPlayWallReady] = useState(false);
 
   const blockTouch = shouldBlockBunnyTouch(interactionMode);
+  const keepMuted = playbackPreset === 'backgroundLoop';
+  const allowPause = playbackPreset !== 'backgroundLoop';
+  const togglePlaybackScript = useMemo(
+    () => buildBunnyEmbedTogglePlaybackScript({ keepMuted, allowPause }),
+    [keepMuted, allowPause]
+  );
+  const playWallInstallerScript = useMemo(
+    () => buildBunnyEmbedPlayWallInstallerScript({ keepMuted, allowPause }),
+    [keepMuted, allowPause]
+  );
+
+  /**
+   * iOS: uncover WKWebView as soon as load finishes. A native overlay both
+   * steals the user gesture and can pause inline video. Android waits until
+   * the in-page wall is installed. CMS background stays covered.
+   */
+  const passTouchesToInPageWall = shouldUncoverBunnyWebViewForGestures({
+    blockTouch,
+    allowPause,
+    playWallReady,
+    isLoading: webLoading,
+    hasError: Boolean(playbackError),
+    platformOs: Platform.OS,
+  });
 
   const webViewProps = useMemo(
     () => buildBunnyEmbedWebViewProps(interactionMode, allowNativeFullscreen),
@@ -94,12 +132,55 @@ export function BunnyEmbedWebView({
   useEffect(() => {
     setWebLoading(true);
     setPlaybackError(null);
+    setPlayWallReady(false);
   }, [validEmbed, playbackPreset, reloadToken]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    void ensureCmsPlaybackAudioMode();
+  }, []);
+
+  useEffect(() => {
+    if (!webLoading || playbackError) return;
+    const timer = setTimeout(() => {
+      setWebLoading(false);
+    }, BUNNY_EMBED_LOADING_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [webLoading, playbackError, reloadToken]);
+
+  useEffect(() => {
+    if (!blockTouch || webLoading || playbackError) return;
+    const delays =
+      Platform.OS === 'ios' ? BUNNY_EMBED_IOS_INSTALLER_RETRY_MS : ([] as const);
+    const timers = delays.map((ms) =>
+      setTimeout(() => {
+        webViewRef.current?.injectJavaScript(playWallInstallerScript);
+      }, ms)
+    );
+    return () => {
+      timers.forEach(clearTimeout);
+    };
+  }, [blockTouch, webLoading, playbackError, playWallInstallerScript, reloadToken]);
+
+  const injectTogglePlayback = useCallback(() => {
+    webViewRef.current?.injectJavaScript(togglePlaybackScript);
+  }, [togglePlaybackScript]);
+
+  const handleWallPress = useCallback(() => {
+    injectTogglePlayback();
+  }, [injectTogglePlayback]);
+
+  const handleWebViewMessage = useCallback((event: { nativeEvent: { data: string } }) => {
+    if (isBunnyEmbedPlayWallReadyMessage(event.nativeEvent.data)) {
+      setPlayWallReady(true);
+    }
+  }, []);
 
   const handleLoadEnd = useCallback(() => {
     setWebLoading(false);
+    webViewRef.current?.injectJavaScript(playWallInstallerScript);
     onLoadEnd?.();
-  }, [onLoadEnd]);
+  }, [onLoadEnd, playWallInstallerScript]);
 
   const reportError = useCallback(
     (message?: string) => {
@@ -116,9 +197,20 @@ export function BunnyEmbedWebView({
     reportError();
   }, [reportError]);
 
-  const handleHttpError = useCallback(() => {
-    reportError('The video could not load (network error). Check your connection and try again.');
-  }, [reportError]);
+  const handleHttpError = useCallback(
+    (event: { nativeEvent: { statusCode?: number; url?: string } }) => {
+      if (
+        isFatalBunnyEmbedHttpError(
+          event.nativeEvent.url,
+          event.nativeEvent.statusCode,
+          validEmbed
+        )
+      ) {
+        reportError('The video could not load (network error). Check your connection and try again.');
+      }
+    },
+    [reportError, validEmbed]
+  );
 
   const handleRenderProcessGone = useCallback(() => {
     reportError('Playback stopped unexpectedly. Tap Try again.');
@@ -143,10 +235,18 @@ export function BunnyEmbedWebView({
   return (
     <View style={[styles.fill, style]} collapsable={false}>
       <WebView
+        ref={webViewRef}
         key={`bunny-embed-${reloadToken}`}
         {...webViewProps}
         source={webViewSource}
         style={styles.webView}
+        injectedJavaScript={blockTouch ? playWallInstallerScript : undefined}
+        scrollEnabled={false}
+        bounces={false}
+        overScrollMode="never"
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
+        onMessage={handleWebViewMessage}
         onLoadEnd={handleLoadEnd}
         onError={handleError}
         onHttpError={handleHttpError}
@@ -155,13 +255,15 @@ export function BunnyEmbedWebView({
         accessibilityElementsHidden={blockTouch}
         importantForAccessibility={blockTouch ? 'no-hide-descendants' : 'auto'}
       />
-      {blockTouch ? (
-        <View
+      {blockTouch && !passTouchesToInPageWall ? (
+        <Pressable
           style={styles.touchBlocker}
           pointerEvents="auto"
+          onPressIn={handleWallPress}
+          onPress={handleWallPress}
           accessible
-          accessibilityRole="image"
-          accessibilityLabel={`${title}. Video is playing. Controls are disabled.`}
+          accessibilityRole="button"
+          accessibilityLabel={allowPause ? `Play or pause ${title}` : `Play ${title}`}
         />
       ) : null}
       {playbackError ? (

@@ -13,6 +13,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  StatusBar,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -34,6 +35,7 @@ import { typography } from '@/config/theme/typography';
 import { useContentProgress } from '@/hooks/contentProgressHook';
 import { useExploreVideoWatch } from '@/hooks/exploreHook';
 import { useVideoPlayerFullscreen } from '@/hooks/useVideoPlayerFullscreen';
+import { useVideoFullscreenStage } from '@/hooks/useVideoFullscreenStage';
 import { moduleService } from '@/services/moduleService';
 import { useExploreStore } from '@/store/exploreStore';
 import { isExploreContentAlreadyWatched } from '@/utils/exploreWatchStatus';
@@ -140,14 +142,8 @@ export function VideoPlayerModal({
   } | null>(null);
   const { isFullscreen, enterFullscreen, exitFullscreen } = useVideoPlayerFullscreen(open);
   const { width: winW, height: winH } = useWindowDimensions();
-  const fullscreenStageStyle = useMemo(() => {
-    if (!isFullscreen || !(winW > 0) || !(winH > 0)) return null;
-    const byWidthH = (winW * 9) / 16;
-    if (byWidthH <= winH) {
-      return { width: winW, height: byWidthH };
-    }
-    return { width: (winH * 16) / 9, height: winH };
-  }, [isFullscreen, winW, winH]);
+  const { stageStyle: fullscreenStageStyle, onViewportLayout, overlayShiftStyle } =
+    useVideoFullscreenStage(isFullscreen);
 
   useEffect(() => {
     if (open && video) {
@@ -385,6 +381,7 @@ export function VideoPlayerModal({
         visible={Boolean(showVideoView)}
         transparent
         animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : undefined}
         supportedOrientations={
           Platform.OS === 'ios' ? [...CMS_PLAYER_MODAL_ORIENTATIONS] : undefined
         }
@@ -392,12 +389,21 @@ export function VideoPlayerModal({
         statusBarTranslucent
         navigationBarTranslucent={Platform.OS === 'android'}
         onShow={() => {
+          if (isFullscreen) {
+            StatusBar.setHidden(true, 'slide');
+          }
           if (Platform.OS === 'android') {
             restoreAndroidImmersiveDefault();
           }
         }}>
-        <View style={[styles.overlay, isFullscreen && styles.overlayFullscreen]}>
-          {isFullscreen && Platform.OS === 'android' ? (
+        <View
+          style={[
+            styles.overlay,
+            isFullscreen && styles.overlayFullscreen,
+            overlayShiftStyle,
+          ]}
+        >
+          {isFullscreen ? (
             <View style={styles.whiteFill} pointerEvents="none" />
           ) : null}
           <View style={[styles.card, isFullscreen && styles.cardFullscreen]}>
@@ -434,6 +440,7 @@ export function VideoPlayerModal({
             <View
               style={[styles.videoContainer, isFullscreen && styles.videoContainerFullscreen]}
               collapsable={false}
+              onLayout={isFullscreen ? onViewportLayout : undefined}
             >
               <View
                 style={
@@ -654,7 +661,7 @@ const styles = StyleSheet.create({
   overlayFullscreen: {
     backgroundColor: '#ffffff',
     padding: 0,
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     alignItems: 'stretch',
   },
   whiteFill: {

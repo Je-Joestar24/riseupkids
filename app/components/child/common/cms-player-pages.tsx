@@ -279,8 +279,7 @@ export function CmsDemoPage({
     durationSec: playerDurationSec,
     didJustFinish,
   });
-  const waitingOnVideo = hasVideoUrl && !videoAlreadyPlayed && !videoUnlocked;
-  const nextLocked = Boolean(isNextDisabled ?? isPreloading) || waitingOnVideo;
+  const nextLocked = Boolean(isNextDisabled ?? isPreloading);
 
   useEffect(() => {
     playedNotifiedRef.current = false;
@@ -299,29 +298,27 @@ export function CmsDemoPage({
   }, [pageId]);
 
   useEffect(() => {
-    if (!videoUnlocked || playedNotifiedRef.current) return;
-    if (videoAlreadyPlayed) return;
-    playedNotifiedRef.current = true;
+    if (playedNotifiedRef.current || videoAlreadyPlayed) return;
     if (!hasVideoUrl) {
+      playedNotifiedRef.current = true;
       onVideoPlayed?.('no_media');
       return;
     }
     if (videoFailedOrSkipped) {
+      playedNotifiedRef.current = true;
       onVideoPlayed?.(videoSkipReason || 'playback_error');
       return;
     }
-    if (!canDetectEnded) {
-      onVideoPlayed?.('undetectable_stream');
-      return;
+    if (didJustFinish) {
+      playedNotifiedRef.current = true;
+      onVideoPlayed?.('video_finished');
     }
-    onVideoPlayed?.('video_finished');
   }, [
-    videoUnlocked,
     videoAlreadyPlayed,
     hasVideoUrl,
     videoFailedOrSkipped,
-    canDetectEnded,
     videoSkipReason,
+    didJustFinish,
     onVideoPlayed,
   ]);
 
@@ -421,17 +418,16 @@ export function CmsDemoPage({
         style={({ pressed }) => [
           styles.demoPlay,
           (pressed || nextLocked || !hasNext) && styles.pressed,
-          waitingOnVideo && styles.nextWaiting,
         ]}
         accessibilityRole="button"
         accessibilityLabel={
-          waitingOnVideo ? 'Next, watching video' : nextLocked ? 'Next, loading' : 'Play demo and continue to interactive'
+          nextLocked ? 'Next, loading interactive page' : 'Continue to interactive'
         }
         accessibilityState={{ disabled: nextLocked || !hasNext }}
       >
         <Image
           source={cmsLocalUiAssets.demoPlayButton}
-          style={[styles.btnImg, waitingOnVideo && styles.nextWaitingImg]}
+          style={styles.btnImg}
           resizeMode="contain"
           accessibilityLabel="Play demo"
         />

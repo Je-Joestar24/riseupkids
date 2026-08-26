@@ -1,13 +1,13 @@
 /**
- * CMS demo/tutorial video Next unlock — first watch must finish.
- * Stream embeds with no ended event, errors, and already-played flags must not trap kids.
+ * CMS demo/tutorial Next unlock.
+ * Demo videos can be unexpectedly long — Next is not gated on watching to the end.
+ * The player modal still locks Next until the following (interactive) page media is ready.
  */
 
 import {
   CMS_CONTENT_AUDIO_SAFETY_UNLOCK_MS,
   CMS_CONTENT_AUDIO_STALL_POSITION_SEC,
   CMS_CONTENT_AUDIO_UNLOCK_REMAINING_SEC,
-  isCmsPlaybackBoundToPage,
 } from '@/utils/cmsContentAudioNextUnlock';
 
 export const CMS_DEMO_VIDEO_UNLOCK_REMAINING_SEC = CMS_CONTENT_AUDIO_UNLOCK_REMAINING_SEC;
@@ -45,35 +45,9 @@ export function shouldSafetyUnlockCmsDemoVideo(options: {
 }
 
 /**
- * Whether Next may unlock from the *video* gate alone.
- * Media preload gate is applied separately by the modal.
+ * Video-end gate is intentionally open: kids may skip long demos.
+ * Next is still blocked separately until the next page's media is ready.
  */
-export function shouldUnlockCmsDemoNextFromVideo(input: CmsDemoVideoNextUnlockInput): boolean {
-  if (input.alreadyPlayed) return true;
-  if (!input.hasVideoUrl) return true;
-  if (input.videoFailedOrSkipped) return true;
-
-  if (!isCmsPlaybackBoundToPage(input.pageId, input.playbackPageId)) {
-    return false;
-  }
-
-  // Stream-only / Bunny: we cannot observe ended — do not lock forever.
-  if (!input.canDetectEnded) return true;
-
-  if (input.didJustFinish) return true;
-
-  const unlockRemaining = input.unlockRemainingSec ?? CMS_DEMO_VIDEO_UNLOCK_REMAINING_SEC;
-  const duration = input.durationSec;
-  const position = input.positionSec;
-
-  if (
-    typeof duration === 'number' &&
-    duration > 0 &&
-    typeof position === 'number' &&
-    Number.isFinite(position)
-  ) {
-    return duration - position <= unlockRemaining;
-  }
-
-  return false;
+export function shouldUnlockCmsDemoNextFromVideo(_input: CmsDemoVideoNextUnlockInput): boolean {
+  return true;
 }

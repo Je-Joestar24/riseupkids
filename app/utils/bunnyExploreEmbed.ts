@@ -134,6 +134,10 @@ export function buildBunnyEmbedWebViewUrl(
     if (loop) u.searchParams.set('loop', 'true');
     if (disableIosPlayer) u.searchParams.set('disableIosPlayer', 'true');
     if (disableAirplay) u.searchParams.set('disableAirplay', 'true');
+    if (preset === 'watchOnly' || preset === 'backgroundLoop') {
+      u.searchParams.set('showSpeed', 'false');
+      u.searchParams.set('chromecast', 'false');
+    }
 
     // Explicit false overrides when caller opts out (rare).
     if (options.autoplay === false) setBoolParam(u, 'autoplay', false);

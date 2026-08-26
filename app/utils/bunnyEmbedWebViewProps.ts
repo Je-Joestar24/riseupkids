@@ -16,6 +16,7 @@ export const BUNNY_EMBED_WEBVIEW_PROPS = {
   allowsFullscreenVideo: false,
   allowsInlineMediaPlayback: true,
   mediaPlaybackRequiresUserAction: false,
+  allowsAirPlayForMediaPlayback: false,
   javaScriptEnabled: true,
   domStorageEnabled: true,
   mixedContentMode: 'always' as const,
@@ -23,6 +24,7 @@ export const BUNNY_EMBED_WEBVIEW_PROPS = {
   setSupportMultipleWindows: false,
   bounces: false,
   scalesPageToFit: true,
+  automaticallyAdjustContentInsets: false,
 };
 
 export function buildBunnyEmbedWebViewProps(
@@ -36,5 +38,12 @@ export function buildBunnyEmbedWebViewProps(
   return {
     ...BUNNY_EMBED_WEBVIEW_PROPS,
     allowsFullscreenVideo: nativeFs && Platform.OS !== 'web',
+    allowsAirPlayForMediaPlayback: false,
+    ...(Platform.OS === 'ios'
+      ? {
+          contentInsetAdjustmentBehavior: 'never' as const,
+          dataDetectorTypes: 'none' as const,
+        }
+      : {}),
   };
 }

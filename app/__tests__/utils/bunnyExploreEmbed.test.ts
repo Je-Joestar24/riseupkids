@@ -41,6 +41,8 @@ describe('buildBunnyEmbedWebViewUrl', () => {
     expect(parsed.searchParams.get('disableAirplay')).toBe('true');
     expect(parsed.searchParams.get('muted')).toBeNull();
     expect(parsed.searchParams.get('loop')).toBeNull();
+    expect(parsed.searchParams.get('showSpeed')).toBe('false');
+    expect(parsed.searchParams.get('chromecast')).toBe('false');
   });
 
   it('backgroundLoop forces muted autoplay loop', () => {

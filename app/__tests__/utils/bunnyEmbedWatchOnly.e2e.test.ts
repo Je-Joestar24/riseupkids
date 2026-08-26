@@ -4,6 +4,11 @@
  * docs/BUNNY_EMBED_WATCH_ONLY_PLAN.md.
  */
 
+import {
+  BUNNY_EMBED_PLAY_WALL_ID,
+  buildBunnyEmbedPlayWallInstallerScript,
+  buildBunnyEmbedTogglePlaybackScript,
+} from '@/utils/bunnyEmbedPlayScript';
 import { buildBunnyEmbedWebViewProps } from '@/utils/bunnyEmbedWebViewProps';
 import {
   buildBunnyEmbedWebViewUrl,
@@ -35,6 +40,7 @@ describe('Bunny embed watch-only e2e contract', () => {
     expect(props.allowsFullscreenVideo).toBe(false);
     expect(props.mediaPlaybackRequiresUserAction).toBe(false);
     expect(props.allowsInlineMediaPlayback).toBe(true);
+    expect(props.allowsAirPlayForMediaPlayback).toBe(false);
 
     const url = buildBunnyEmbedWebViewUrl(EMBED, { preset: 'watchOnly' });
     const params = new URL(url).searchParams;
@@ -52,6 +58,21 @@ describe('Bunny embed watch-only e2e contract', () => {
 
     const props = buildBunnyEmbedWebViewProps('watchOnly', false);
     expect(props.allowsFullscreenVideo).toBe(false);
+  });
+
+  it('toggles playback from the invisible wall and hides Bunny default controls', () => {
+    expect(shouldBlockBunnyTouch('watchOnly')).toBe(true);
+
+    const toggle = buildBunnyEmbedTogglePlaybackScript({ keepMuted: false, allowPause: true });
+    expect(toggle).toContain('media.play()');
+    expect(toggle).toContain('media.pause()');
+    expect(toggle).toContain('media-controller');
+
+    const installer = buildBunnyEmbedPlayWallInstallerScript({ keepMuted: false, allowPause: true });
+    expect(installer).toContain(BUNNY_EMBED_PLAY_WALL_ID);
+    expect(installer).toContain('media-control-bar');
+    expect(installer).toContain('ontouchstart');
+    expect(installer).toContain("addEventListener('touchstart'");
   });
 
   it('rejects bad embeds so the UI can show a controlled error instead of loading garbage', () => {
