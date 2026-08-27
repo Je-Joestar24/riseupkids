@@ -6,10 +6,12 @@ import {
   PeopleOutlined,
   MenuBookOutlined,
   WallpaperOutlined,
+  NotificationsNoneOutlined,
 } from '@mui/icons-material';
 import DashboardList from '../../components/admin/dashboard/DashboardList';
 import DashboardLeadsList from '../../components/admin/dashboard/DashboardLeadsList';
 import DashboardSchoolProspectsList from '../../components/admin/dashboard/DashboardSchoolProspectsList';
+import NotificationsAnalyticsPanel from '../../components/admin/notifications/NotificationsAnalyticsPanel';
 
 /**
  * AdminDashboard Page
@@ -39,6 +41,12 @@ const AdminDashboard = () => {
       description: 'Review and moderate Kids Wall posts.',
       icon: <WallpaperOutlined sx={{ fontSize: 34 }} />,
       path: '/admin/kids-wall',
+    },
+    {
+      title: 'Notifications',
+      description: 'See delivery mix, opens, and send campaigns.',
+      icon: <NotificationsNoneOutlined sx={{ fontSize: 34 }} />,
+      path: '/admin/notifications',
     },
   ];
 
@@ -119,6 +127,9 @@ const AdminDashboard = () => {
         ))}
       </Grid>
 
+      <Box sx={{ mt: 3 }}>
+        <NotificationsAnalyticsPanel />
+      </Box>
 
       <Box
         sx={{

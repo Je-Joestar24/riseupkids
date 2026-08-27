@@ -57,4 +57,12 @@ describe('adminNotificationsService Phase 2 endpoints', () => {
     expect(api.get).toHaveBeenCalledWith('/admin/notifications/camp-1/analytics');
     expect(api.delete).toHaveBeenCalledWith('/admin/notifications/images/media-9');
   });
+
+  it('loads the notification dashboard with range and type filters', async () => {
+    api.get.mockResolvedValue({ data: { success: true, data: { delivery: { sent: 4 } } } });
+    await adminNotificationsService.getDashboard({ range: '7d', type: 'story_time' });
+    expect(api.get).toHaveBeenCalledWith('/admin/notifications/dashboard', {
+      params: { range: '7d', type: 'story_time' },
+    });
+  });
 });

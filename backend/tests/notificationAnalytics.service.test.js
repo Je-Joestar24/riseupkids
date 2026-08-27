@@ -6,6 +6,7 @@
 jest.mock('../models', () => ({
   NotificationCampaign: {
     findById: jest.fn(),
+    find: jest.fn(),
     updateOne: jest.fn(),
     exists: jest.fn(),
   },
@@ -22,6 +23,9 @@ const { NotificationCampaign, NotificationReceipt, Media } = require('../models'
 const {
   summarizeReceipts,
   getCampaignAnalytics,
+  getDashboardAnalytics,
+  buildDashboardAnalytics,
+  parseDashboardFilters,
   recordInboxOpens,
   deleteNotificationImage,
   normalizeFailureReason,
@@ -201,5 +205,86 @@ describe('Notification analytics (Phase 5)', () => {
     });
     expect(media.isActive).toBe(false);
     expect(media.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('builds filterable dashboard mix, trend, and type totals without inventing opens', () => {
+    const now = new Date('2026-08-27T12:00:00.000Z');
+    const filters = parseDashboardFilters({ range: '7d', type: 'story_time' }, now);
+    const result = buildDashboardAnalytics({
+      filters,
+      campaigns: [
+        { _id: 'c1', type: 'story_time', audience: 'all', status: 'sent' },
+        { _id: 'c2', type: 'live_lesson', audience: 'all', status: 'sent' },
+      ],
+      receipts: [
+        {
+          campaign: 'c1',
+          isTest: false,
+          pushResult: 'sent',
+          createdAt: '2026-08-25T10:00:00.000Z',
+          readAt: '2026-08-26T11:00:00.000Z',
+        },
+        {
+          campaign: 'c1',
+          isTest: false,
+          pushResult: 'failed',
+          failureReason: 'invalid_token',
+          createdAt: '2026-08-25T10:00:00.000Z',
+        },
+        {
+          campaign: 'c2',
+          isTest: false,
+          pushResult: 'sent',
+          createdAt: '2026-08-25T10:00:00.000Z',
+          readAt: '2026-08-26T11:00:00.000Z',
+        },
+        {
+          campaign: 'c1',
+          isTest: true,
+          pushResult: 'sent',
+          createdAt: '2026-08-25T10:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(result.delivery).toMatchObject({ targeted: 2, sent: 1, failed: 1, opened: 1 });
+    expect(result.openRate).toBe(0.5);
+    expect(result.mix.find((item) => item.key === 'sent').value).toBe(1);
+    expect(result.byType).toEqual([
+      { type: 'story_time', targeted: 2, sent: 1, opened: 1, failed: 1 },
+    ]);
+    const daySent = result.trend.find((row) => row.date === '2026-08-25');
+    const dayOpened = result.trend.find((row) => row.date === '2026-08-26');
+    expect(daySent).toMatchObject({ sent: 1, failed: 1, opened: 0 });
+    expect(dayOpened).toMatchObject({ sent: 0, opened: 1 });
+  });
+
+  it('loads dashboard analytics from production receipts in the selected window', async () => {
+    const now = new Date('2026-08-27T12:00:00.000Z');
+    NotificationReceipt.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          campaign: 'c1',
+          isTest: false,
+          pushResult: 'sent',
+          createdAt: '2026-08-20T10:00:00.000Z',
+          readAt: null,
+        },
+      ]),
+    });
+    NotificationCampaign.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([{ _id: 'c1', type: 'mini_mission', audience: 'parents', status: 'sent' }]),
+    });
+
+    const result = await getDashboardAnalytics({ range: '30d' }, now);
+    expect(result.delivery.sent).toBe(1);
+    expect(result.delivery.opened).toBe(0);
+    expect(result.trend).toHaveLength(31);
+    expect(NotificationReceipt.find).toHaveBeenCalledWith({
+      isTest: { $ne: true },
+      createdAt: { $gte: expect.any(Date), $lte: expect.any(Date) },
+    });
   });
 });

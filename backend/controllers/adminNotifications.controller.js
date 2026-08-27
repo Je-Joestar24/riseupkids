@@ -167,6 +167,20 @@ const getAnalytics = async (req, res) => {
   }
 };
 
+const getDashboard = async (req, res) => {
+  try {
+    const data = await notificationAnalyticsService.getDashboardAnalytics(req.query);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification dashboard loaded',
+      data,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] getDashboard:', error);
+    return handleError(res, error, 'Failed to load notification dashboard');
+  }
+};
+
 const scheduleCampaign = async (req, res) => {
   try {
     const campaign = await notificationCampaignService.scheduleCampaign(
@@ -248,6 +262,7 @@ module.exports = {
   uploadImage,
   deleteImage,
   getAnalytics,
+  getDashboard,
   scheduleCampaign,
   cancelCampaign,
   sendNow,

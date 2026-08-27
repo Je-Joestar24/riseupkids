@@ -37,6 +37,7 @@ describe('adminNotifications.routes – protection + endpoints', () => {
       router.stack.some((layer) => layer.route && layer.route.path === path && layer.route.methods[method]);
 
     expect(has('/meta', 'get')).toBe(true);
+    expect(has('/dashboard', 'get')).toBe(true);
     expect(has('/images', 'post')).toBe(true);
     expect(has('/images/:mediaId', 'delete')).toBe(true);
     expect(has('/', 'get')).toBe(true);

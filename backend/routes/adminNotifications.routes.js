@@ -13,6 +13,7 @@ const {
   uploadImage,
   deleteImage,
   getAnalytics,
+  getDashboard,
   scheduleCampaign,
   cancelCampaign,
   sendNow,
@@ -27,6 +28,7 @@ router.use(protect);
 router.use(authorize('admin'));
 
 router.get('/meta', getMeta);
+router.get('/dashboard', getDashboard);
 router.post('/images', uploadNotificationImage, uploadImage);
 router.delete('/images/:mediaId', deleteImage);
 router.get('/', listCampaigns);

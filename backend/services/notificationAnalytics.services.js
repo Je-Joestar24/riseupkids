@@ -157,9 +157,136 @@ async function deleteNotificationImage(mediaId) {
   return { deleted: true, mediaId: asId(media._id) };
 }
 
+const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90 };
+
+function parseDashboardFilters(query = {}, now = new Date()) {
+  const range = RANGE_DAYS[query.range] ? query.range : '30d';
+  const to = query.to ? new Date(query.to) : new Date(now);
+  if (Number.isNaN(to.getTime())) throw httpError('Invalid to date');
+  const from = query.from
+    ? new Date(query.from)
+    : new Date(to.getTime() - RANGE_DAYS[range] * 24 * 60 * 60 * 1000);
+  if (Number.isNaN(from.getTime())) throw httpError('Invalid from date');
+  if (from.getTime() > to.getTime()) throw httpError('from must be before to');
+  return {
+    range,
+    from,
+    to,
+    type: String(query.type || '').trim() || '',
+    status: String(query.status || '').trim() || '',
+    audience: String(query.audience || '').trim() || '',
+  };
+}
+
+function utcDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function eachUtcDay(from, to) {
+  const days = [];
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+  const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate()));
+  while (cursor.getTime() <= end.getTime()) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
+function buildDashboardAnalytics({ receipts = [], campaigns = [], filters }) {
+  const campaignMap = new Map(campaigns.map((row) => [asId(row._id), row]));
+  const filtered = receipts.filter((row) => {
+    if (row.isTest) return false;
+    const campaign = campaignMap.get(asId(row.campaign));
+    if (!campaign) return false;
+    if (filters.type && campaign.type !== filters.type) return false;
+    if (filters.status && campaign.status !== filters.status) return false;
+    if (filters.audience && campaign.audience !== filters.audience) return false;
+    return true;
+  });
+
+  const { delivery, failureCounts } = summarizeReceipts(filtered);
+  const mix = [
+    { key: 'sent', label: 'Sent', value: delivery.sent },
+    { key: 'failed', label: 'Failed', value: delivery.failed },
+    { key: 'skipped', label: 'Skipped', value: delivery.skipped },
+    { key: 'expired', label: 'Expired', value: delivery.expired },
+  ];
+
+  const days = eachUtcDay(filters.from, filters.to);
+  const trendMap = Object.fromEntries(days.map((date) => [date, { date, sent: 0, opened: 0, failed: 0 }]));
+  filtered.forEach((row) => {
+    const sentDay = utcDateKey(row.createdAt);
+    if (sentDay && trendMap[sentDay]) {
+      if (row.pushResult === 'sent') trendMap[sentDay].sent += 1;
+      if (row.pushResult === 'failed') trendMap[sentDay].failed += 1;
+    }
+    if (row.readAt) {
+      const openDay = utcDateKey(row.readAt);
+      if (openDay && trendMap[openDay]) trendMap[openDay].opened += 1;
+    }
+  });
+
+  const byTypeMap = {};
+  filtered.forEach((row) => {
+    const type = campaignMap.get(asId(row.campaign))?.type || 'unknown';
+    if (!byTypeMap[type]) {
+      byTypeMap[type] = { type, targeted: 0, sent: 0, opened: 0, failed: 0 };
+    }
+    byTypeMap[type].targeted += 1;
+    if (row.pushResult === 'sent') byTypeMap[type].sent += 1;
+    if (row.pushResult === 'failed') byTypeMap[type].failed += 1;
+    if (row.readAt) byTypeMap[type].opened += 1;
+  });
+
+  return {
+    filters: {
+      range: filters.range,
+      from: filters.from.toISOString(),
+      to: filters.to.toISOString(),
+      type: filters.type || null,
+      status: filters.status || null,
+      audience: filters.audience || null,
+    },
+    delivery,
+    openRate: delivery.targeted ? Number((delivery.opened / delivery.targeted).toFixed(4)) : 0,
+    mix,
+    trend: days.map((date) => trendMap[date]),
+    byType: Object.values(byTypeMap).sort((a, b) => b.targeted - a.targeted),
+    failureCounts,
+  };
+}
+
+async function getDashboardAnalytics(query = {}, now = new Date()) {
+  const filters = parseDashboardFilters(query, now);
+  const receipts = await NotificationReceipt.find({
+    isTest: { $ne: true },
+    createdAt: { $gte: filters.from, $lte: filters.to },
+  })
+    .select('campaign pushResult failureReason readAt createdAt isTest')
+    .lean();
+
+  const campaignIds = [...new Set((receipts || []).map((row) => asId(row.campaign)).filter(Boolean))];
+  const campaignQuery = { _id: { $in: campaignIds } };
+  if (filters.type) campaignQuery.type = filters.type;
+  if (filters.status) campaignQuery.status = filters.status;
+  if (filters.audience) campaignQuery.audience = filters.audience;
+
+  const campaigns = campaignIds.length
+    ? await NotificationCampaign.find(campaignQuery).select('_id type audience status').lean()
+    : [];
+
+  return buildDashboardAnalytics({ receipts: receipts || [], campaigns: campaigns || [], filters });
+}
+
 module.exports = {
   summarizeReceipts,
   getCampaignAnalytics,
+  getDashboardAnalytics,
+  buildDashboardAnalytics,
+  parseDashboardFilters,
   recordInboxOpens,
   assertNotificationImageDeletable,
   deleteNotificationImage,

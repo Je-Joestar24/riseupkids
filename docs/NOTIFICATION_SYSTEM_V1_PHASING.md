@@ -352,6 +352,7 @@ Manual: dismiss the system push, open the bell, confirm the same campaign is the
 - Unused draft images can be deactivated (`DELETE /api/admin/notifications/images/:mediaId`). Images used on a sent receipt or sent campaign return `409`.
 - Failed deliveries expose a reason when known (`invalid_token`, `provider_error`, `missing_localization`, `job_failed`)
 - Analytics and image delete stay on the admin router (`protect` + `authorize('admin')` → `403` for parent/teacher)
+- Admin dashboard charts: `GET /api/admin/notifications/dashboard` with range / type / status / audience filters (vertical bar + sent/opened line, Send test excluded). Campaigns stay on the Notifications page.
 
 **Estimate:** 20–28 hours
 

@@ -82,6 +82,15 @@ const adminNotificationsService = {
     }
   },
 
+  getDashboard: async (params = {}) => {
+    try {
+      const response = await api.get(`${BASE}/dashboard`, { params });
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to load notification dashboard');
+    }
+  },
+
   uploadImage: async (file) => {
     try {
       const formData = new FormData();
