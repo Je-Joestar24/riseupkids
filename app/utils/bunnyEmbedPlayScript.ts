@@ -8,6 +8,9 @@
 export const BUNNY_EMBED_PLAY_WALL_ID = 'riseup-kids-bunny-play-wall';
 export const BUNNY_EMBED_HIDE_STYLE_ID = 'riseup-kids-bunny-hide-ui';
 export const BUNNY_EMBED_PLAY_WALL_READY_MESSAGE = 'BUNNY_PLAY_WALL_READY';
+export const BUNNY_EMBED_PLAYBACK_STATE_MESSAGE = 'BUNNY_PLAYBACK_STATE';
+/** Play/pause hint overlay stays visible this long, then hides. */
+export const BUNNY_EMBED_PLAYBACK_HINT_MS = 1000;
 
 export interface BunnyEmbedPlayScriptOptions {
   /** CMS background loops must stay muted. Watch-only child videos play with sound. */
@@ -97,10 +100,25 @@ function buildPlaybackControlJs(keepMuted: boolean, allowPause: boolean): string
         }
         return false;
       }
+      function notifyPlaybackState(playing) {
+        try {
+          if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: '${BUNNY_EMBED_PLAYBACK_STATE_MESSAGE}',
+              playing: !!playing
+            }));
+          }
+        } catch (eNotify) {}
+      }
       function toggleBunnyPlayback() {
         var list = findAllMedia();
-        if (anyPaused(list)) playAllBunnyMedia();
-        else pauseAllBunnyMedia();
+        if (anyPaused(list)) {
+          playAllBunnyMedia();
+          notifyPlaybackState(true);
+        } else {
+          pauseAllBunnyMedia();
+          notifyPlaybackState(false);
+        }
       }
       window.__riseUpKidsPlayBunnyEmbed = playAllBunnyMedia;
       window.__riseUpKidsToggleBunnyEmbed = toggleBunnyPlayback;
@@ -237,7 +255,7 @@ function buildHideControlsJs(): string {
   `;
 }
 
-/** Injected on overlay tap ‚Äî toggles or resumes Bunny playback immediately. */
+/** Injected on overlay tap ù toggles or resumes Bunny playback immediately. */
 export function buildBunnyEmbedTogglePlaybackScript(
   options: BunnyEmbedPlayScriptOptions = {}
 ): string {
@@ -338,6 +356,19 @@ export function isBunnyEmbedPlayWallReadyMessage(data: string): boolean {
     return parsed?.type === BUNNY_EMBED_PLAY_WALL_READY_MESSAGE;
   } catch {
     return false;
+  }
+}
+
+/** True = now playing, false = now paused, null = not a playback-state message. */
+export function parseBunnyEmbedPlaybackStateMessage(data: string): boolean | null {
+  if (!data) return null;
+  try {
+    const parsed = JSON.parse(data) as { type?: string; playing?: unknown };
+    if (parsed?.type !== BUNNY_EMBED_PLAYBACK_STATE_MESSAGE) return null;
+    if (typeof parsed.playing !== 'boolean') return null;
+    return parsed.playing;
+  } catch {
+    return null;
   }
 }
 

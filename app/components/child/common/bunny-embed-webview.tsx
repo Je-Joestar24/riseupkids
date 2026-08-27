@@ -16,11 +16,13 @@ import {
 import { WebView } from 'react-native-webview';
 
 import { BUNNY_EMBED_REFERER } from '@/config';
+import { BunnyEmbedPlaybackHintOverlay } from '@/components/child/common/bunny-embed-playback-hint';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
+import { useBunnyEmbedPlaybackHint } from '@/hooks/useBunnyEmbedPlaybackHint';
 import { ensureCmsPlaybackAudioMode } from '@/utils/cmsPlaybackAudio';
 import {
   BUNNY_EMBED_IOS_INSTALLER_RETRY_MS,
@@ -29,6 +31,7 @@ import {
   buildBunnyEmbedTogglePlaybackScript,
   isBunnyEmbedPlayWallReadyMessage,
   isFatalBunnyEmbedHttpError,
+  parseBunnyEmbedPlaybackStateMessage,
   shouldUncoverBunnyWebViewForGestures,
 } from '@/utils/bunnyEmbedPlayScript';
 import {
@@ -78,6 +81,7 @@ export function BunnyEmbedWebView({
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [playWallReady, setPlayWallReady] = useState(false);
+  const { hint, showHint, clearHint } = useBunnyEmbedPlaybackHint();
 
   const blockTouch = shouldBlockBunnyTouch(interactionMode);
   const keepMuted = playbackPreset === 'backgroundLoop';
@@ -133,7 +137,8 @@ export function BunnyEmbedWebView({
     setWebLoading(true);
     setPlaybackError(null);
     setPlayWallReady(false);
-  }, [validEmbed, playbackPreset, reloadToken]);
+    clearHint();
+  }, [validEmbed, playbackPreset, reloadToken, clearHint]);
 
   useEffect(() => {
     if (keepMuted) return;
@@ -171,10 +176,15 @@ export function BunnyEmbedWebView({
   }, [injectTogglePlayback]);
 
   const handleWebViewMessage = useCallback((event: { nativeEvent: { data: string } }) => {
-    if (isBunnyEmbedPlayWallReadyMessage(event.nativeEvent.data)) {
+    const data = event.nativeEvent.data;
+    if (isBunnyEmbedPlayWallReadyMessage(data)) {
       setPlayWallReady(true);
+      return;
     }
-  }, []);
+    if (!allowPause) return;
+    const playing = parseBunnyEmbedPlaybackStateMessage(data);
+    if (playing !== null) showHint(playing);
+  }, [allowPause, showHint]);
 
   const handleLoadEnd = useCallback(() => {
     setWebLoading(false);
@@ -266,6 +276,7 @@ export function BunnyEmbedWebView({
           accessibilityLabel={allowPause ? `Play or pause ${title}` : `Play ${title}`}
         />
       ) : null}
+      {allowPause ? <BunnyEmbedPlaybackHintOverlay hint={hint} /> : null}
       {playbackError ? (
         <View style={styles.errorBanner}>
           <ThemedText style={styles.errorText}>{playbackError}</ThemedText>

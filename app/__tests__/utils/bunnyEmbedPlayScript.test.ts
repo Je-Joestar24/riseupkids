@@ -4,10 +4,13 @@ import {
   BUNNY_EMBED_LOADING_TIMEOUT_MS,
   BUNNY_EMBED_PLAY_WALL_ID,
   BUNNY_EMBED_PLAY_WALL_READY_MESSAGE,
+  BUNNY_EMBED_PLAYBACK_HINT_MS,
+  BUNNY_EMBED_PLAYBACK_STATE_MESSAGE,
   buildBunnyEmbedPlayWallInstallerScript,
   buildBunnyEmbedTogglePlaybackScript,
   isBunnyEmbedPlayWallReadyMessage,
   isFatalBunnyEmbedHttpError,
+  parseBunnyEmbedPlaybackStateMessage,
   shouldUncoverBunnyWebViewForGestures,
 } from '@/utils/bunnyEmbedPlayScript';
 
@@ -20,6 +23,9 @@ describe('buildBunnyEmbedTogglePlaybackScript', () => {
     expect(script).toContain("postMethod('pause')");
     expect(script).toContain('media-controller');
     expect(script).toContain('__riseUpKidsToggleBunnyEmbed');
+    expect(script).toContain('BUNNY_PLAYBACK_STATE');
+    expect(script).toContain('notifyPlaybackState(true)');
+    expect(script).toContain('notifyPlaybackState(false)');
     expect(script).toContain('true;');
   });
 
@@ -29,6 +35,7 @@ describe('buildBunnyEmbedTogglePlaybackScript', () => {
     expect(script).not.toContain('media.muted = false');
     expect(script).not.toContain('media.pause()');
     expect(script).not.toContain("method: 'unmute'");
+    expect(script).not.toContain('notifyPlaybackState');
   });
 
   it('unmutes watch-only videos after a muted fallback play', () => {
@@ -70,6 +77,34 @@ describe('BUNNY_EMBED_HIDE_CONTROLS_CSS', () => {
     expect(BUNNY_EMBED_HIDE_CONTROLS_CSS).toContain('bunny-media-control-bar');
     expect(BUNNY_EMBED_HIDE_CONTROLS_CSS).toContain('media-fullscreen-button');
     expect(BUNNY_EMBED_HIDE_CONTROLS_CSS).toContain('display: none !important');
+  });
+});
+
+describe('parseBunnyEmbedPlaybackStateMessage', () => {
+  it('reads playing and paused tap hints', () => {
+    expect(
+      parseBunnyEmbedPlaybackStateMessage(
+        JSON.stringify({ type: BUNNY_EMBED_PLAYBACK_STATE_MESSAGE, playing: true })
+      )
+    ).toBe(true);
+    expect(
+      parseBunnyEmbedPlaybackStateMessage(
+        JSON.stringify({ type: BUNNY_EMBED_PLAYBACK_STATE_MESSAGE, playing: false })
+      )
+    ).toBe(false);
+  });
+
+  it('ignores other webview messages', () => {
+    expect(parseBunnyEmbedPlaybackStateMessage('')).toBeNull();
+    expect(
+      parseBunnyEmbedPlaybackStateMessage(
+        JSON.stringify({ type: BUNNY_EMBED_PLAY_WALL_READY_MESSAGE })
+      )
+    ).toBeNull();
+  });
+
+  it('hides the play/pause hint after one second', () => {
+    expect(BUNNY_EMBED_PLAYBACK_HINT_MS).toBe(1000);
   });
 });
 
