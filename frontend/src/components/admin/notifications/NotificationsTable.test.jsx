@@ -49,6 +49,30 @@ describe('NotificationsTable Phase 2 actions', () => {
     expect(onEdit).toHaveBeenCalledTimes(1);
   });
 
+  it('shows targeted, sent, failed, and opens from delivery (5.4)', () => {
+    wrap(
+      <NotificationsTable
+        rows={[
+          row({
+            status: 'sent',
+            sendAt: '2026-08-20T12:00:00.000Z',
+            delivery: { targeted: 10, sent: 8, failed: 1, opened: 3 },
+          }),
+        ]}
+      />
+    );
+
+    expect(screen.getByText('Targeted')).toBeInTheDocument();
+    expect(screen.getByText('Sent')).toBeInTheDocument();
+    expect(screen.getByText('Failed')).toBeInTheDocument();
+    expect(screen.getByText('Opens')).toBeInTheDocument();
+    expect(screen.getByText('Send date')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('3')).toBeInTheDocument();
+  });
+
   it('does not allow edit or cancel after a campaign is sent', () => {
     wrap(
       <NotificationsTable

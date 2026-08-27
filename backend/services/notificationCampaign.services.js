@@ -119,14 +119,21 @@ function assertEditable(campaign) {
   }
 }
 
+const AUDIT_POPULATE = [
+  { path: 'createdBy', select: 'name email' },
+  { path: 'updatedBy', select: 'name email' },
+  { path: 'scheduledBy', select: 'name email' },
+  { path: 'sentBy', select: 'name email' },
+];
+
 async function populateCampaign(doc) {
   if (!doc) return null;
   if (typeof doc.populate === 'function') {
-    return doc.populate([LOCALIZATION_POPULATE, { path: 'createdBy', select: 'name email' }]);
+    return doc.populate([LOCALIZATION_POPULATE, ...AUDIT_POPULATE]);
   }
   return NotificationCampaign.findById(doc._id)
     .populate(LOCALIZATION_POPULATE)
-    .populate({ path: 'createdBy', select: 'name email' });
+    .populate(AUDIT_POPULATE);
 }
 
 async function createCampaign(payload, adminId) {
@@ -179,7 +186,7 @@ async function listCampaigns(query = {}) {
       .skip((page - 1) * limit)
       .limit(limit)
       .populate(LOCALIZATION_POPULATE)
-      .populate({ path: 'createdBy', select: 'name email' })
+      .populate(AUDIT_POPULATE)
       .lean(),
     NotificationCampaign.countDocuments(filter),
   ]);
@@ -198,7 +205,7 @@ async function listCampaigns(query = {}) {
 async function getCampaignById(id) {
   const campaign = await NotificationCampaign.findById(id)
     .populate(LOCALIZATION_POPULATE)
-    .populate({ path: 'createdBy', select: 'name email' });
+    .populate(AUDIT_POPULATE);
   if (!campaign) {
     throw httpError('Notification campaign not found', 404);
   }

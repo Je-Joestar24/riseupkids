@@ -73,6 +73,15 @@ const adminNotificationsService = {
     }
   },
 
+  getAnalytics: async (id) => {
+    try {
+      const response = await api.get(`${BASE}/${id}/analytics`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to load notification analytics');
+    }
+  },
+
   uploadImage: async (file) => {
     try {
       const formData = new FormData();
@@ -83,6 +92,15 @@ const adminNotificationsService = {
       return response.data;
     } catch (error) {
       unwrapError(error, 'Failed to upload notification image');
+    }
+  },
+
+  deleteImage: async (mediaId) => {
+    try {
+      const response = await api.delete(`${BASE}/images/${mediaId}`);
+      return response.data;
+    } catch (error) {
+      unwrapError(error, 'Failed to delete notification image');
     }
   },
 

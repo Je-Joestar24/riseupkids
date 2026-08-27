@@ -1,4 +1,5 @@
 const { NotificationReceipt } = require('../models');
+const { recordInboxOpens } = require('./notificationAnalytics.services');
 
 const INBOX_HIDDEN_RESULTS = new Set(['expired']);
 
@@ -101,18 +102,26 @@ async function markInboxItemRead(userId, receiptId, now = new Date()) {
   if (!row.readAt) {
     row.readAt = now;
     await row.save();
+    await recordInboxOpens([row]);
   }
   return serializeInboxItem(row.toObject ? row.toObject() : row);
 }
 
 async function markAllInboxRead(userId, now = new Date()) {
   if (!userId) throw httpError('A parent user is required', 401);
+  const unread = await NotificationReceipt.find({
+    ...inboxFilter(userId),
+    readAt: null,
+  })
+    .select('_id campaign isTest')
+    .lean();
   const result = await NotificationReceipt.updateMany(
     { ...inboxFilter(userId), readAt: null },
     { $set: { readAt: now } }
   );
+  await recordInboxOpens(unread);
   return {
-    updated: result.modifiedCount || result.nModified || 0,
+    updated: result.modifiedCount || result.nModified || unread.length,
     unreadCount: 0,
   };
 }

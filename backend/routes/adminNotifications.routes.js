@@ -11,6 +11,8 @@ const {
   duplicateCampaign,
   previewCampaign,
   uploadImage,
+  deleteImage,
+  getAnalytics,
   scheduleCampaign,
   cancelCampaign,
   sendNow,
@@ -26,9 +28,11 @@ router.use(authorize('admin'));
 
 router.get('/meta', getMeta);
 router.post('/images', uploadNotificationImage, uploadImage);
+router.delete('/images/:mediaId', deleteImage);
 router.get('/', listCampaigns);
 router.post('/', createCampaign);
 router.get('/:id/preview', previewCampaign);
+router.get('/:id/analytics', getAnalytics);
 router.post('/:id/duplicate', duplicateCampaign);
 router.post('/:id/schedule', scheduleCampaign);
 router.post('/:id/cancel', cancelCampaign);

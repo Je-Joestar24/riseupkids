@@ -38,12 +38,14 @@ describe('adminNotifications.routes – protection + endpoints', () => {
 
     expect(has('/meta', 'get')).toBe(true);
     expect(has('/images', 'post')).toBe(true);
+    expect(has('/images/:mediaId', 'delete')).toBe(true);
     expect(has('/', 'get')).toBe(true);
     expect(has('/', 'post')).toBe(true);
     expect(has('/:id', 'get')).toBe(true);
     expect(has('/:id', 'patch')).toBe(true);
     expect(has('/:id/duplicate', 'post')).toBe(true);
     expect(has('/:id/preview', 'get')).toBe(true);
+    expect(has('/:id/analytics', 'get')).toBe(true);
     expect(has('/:id/schedule', 'post')).toBe(true);
     expect(has('/:id/cancel', 'post')).toBe(true);
     expect(has('/:id/send-now', 'post')).toBe(true);

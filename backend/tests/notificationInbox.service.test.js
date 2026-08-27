@@ -12,6 +12,10 @@ jest.mock('../models', () => ({
   },
 }));
 
+jest.mock('../services/notificationAnalytics.services', () => ({
+  recordInboxOpens: jest.fn().mockResolvedValue(undefined),
+}));
+
 const { NotificationReceipt } = require('../models');
 const {
   listInbox,
@@ -115,6 +119,15 @@ describe('Notification inbox (Phase 4)', () => {
   });
 
   it('marks all current-user receipts read (4.5)', async () => {
+    NotificationReceipt.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'rec-1', campaign: 'camp-1', isTest: false },
+        { _id: 'rec-2', campaign: 'camp-1', isTest: false },
+        { _id: 'rec-3', campaign: 'camp-2', isTest: false },
+        { _id: 'rec-4', campaign: 'camp-2', isTest: false },
+      ]),
+    });
     NotificationReceipt.updateMany.mockResolvedValue({ modifiedCount: 4 });
     await expect(markAllInboxRead(parentA)).resolves.toEqual({ updated: 4, unreadCount: 0 });
     expect(NotificationReceipt.updateMany).toHaveBeenCalledWith(

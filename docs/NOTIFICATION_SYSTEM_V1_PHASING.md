@@ -1,6 +1,6 @@
 # Plan: Notification System V1 (Phasing)
 
-> **Status (August 2026):** Phase 1 implemented (admin campaign manager + tests). Phase 2 implemented (schedule / send now / test / cancel, timezone-aware scheduler, admin UI, unit + e2e tests). Phase 3 implemented (parent device tokens, Expo push payload/delivery with mocked provider in CI, permission helper, deep-link parser, unit + e2e tests). Phase 4 implemented (parent inbox API, unread badge, bell + history in the app, unit + e2e tests). Real iOS/Android closed-app device QA remains a manual checklist. Phase 5 not started.  
+> **Status (August 2026):** Phase 1 implemented (admin campaign manager + tests). Phase 2 implemented (schedule / send now / test / cancel, timezone-aware scheduler, admin UI, unit + e2e tests). Phase 3 implemented (parent device tokens, Expo push payload/delivery with mocked provider in CI, permission helper, deep-link parser, unit + e2e tests). Phase 4 implemented (parent inbox API, unread badge, bell + history in the app, unit + e2e tests). Phase 5 implemented (receipt-backed analytics, audit fields, admin delivery columns, sent-image protection, unit + e2e tests). Real iOS/Android closed-app device QA remains a manual checklist.  
 > **Source:** Client email to Jejomar (Rise Up Kids — Notification System V1 Specifications)  
 > **Scope:** LMS backend + Admin web (`frontend/`) + mobile app (`app/`)  
 > **Out of scope:** Sales site (`riseupkids-sale`), checkout, automated streak/progress/inactivity triggers (design for later, do not build now)
@@ -340,18 +340,24 @@ Manual: dismiss the system push, open the bell, confirm the same campaign is the
 
 ### Phase 5 — Analytics, audit, hardening
 
+**Status:** Implemented (August 2026) — receipt-backed delivery totals, in-app opens, audit actors, admin list columns, sent-image snapshot protection. Manual device check still required after backend deploy.
+
 **Value:** “Did it send? Did families open it?”
 
-- Per campaign: targeted, sent, failed, opened/clicked if the provider gives it
-- Admin history columns from the spec
-- Audit: who created / edited / scheduled / sent, and when
-- Sent-image safety (history does not break if CMS image is later replaced)
+- Per campaign: `GET /api/admin/notifications/:id/analytics` totals from production receipts (`targeted`, `sent`, `failed`, `skipped`, `expired`, `opened`)
+- Opened increments only when a parent marks the inbox row read (`readAt`). Send does not invent an open rate.
+- Admin list columns: internal name, type, audience, send date, status, languages, targeted, sent, failed, opens
+- Audit: `createdBy`, `updatedBy`, `scheduledBy`, `sentBy` + timestamps
+- Receipt stores `imageUrl` / `imageMediaId` at send time. Replacing the campaign image later does not change history.
+- Unused draft images can be deactivated (`DELETE /api/admin/notifications/images/:mediaId`). Images used on a sent receipt or sent campaign return `409`.
+- Failed deliveries expose a reason when known (`invalid_token`, `provider_error`, `missing_localization`, `job_failed`)
+- Analytics and image delete stay on the admin router (`protect` + `authorize('admin')` → `403` for parent/teacher)
 
 **Estimate:** 20–28 hours
 
 #### Written tests (Phase 5)
 
-Create `backend/tests/notificationAnalytics.service.test.js`. Regression: re-run Phase 1–4 test files.
+Create `backend/tests/notificationAnalytics.service.test.js` and `backend/tests/notificationAnalytics.e2e.test.js`. Regression: re-run Phase 1–4 test files.
 
 | # | Test | Expected |
 |---|------|----------|
@@ -363,6 +369,8 @@ Create `backend/tests/notificationAnalytics.service.test.js`. Regression: re-run
 | 5.6 | Deleting unused draft image is allowed; deleting a sent snapshot is blocked or history still resolves | History never 404s |
 | 5.7 | Failed deliveries expose a reason when known | `invalid_token`, `provider_error`, `missing_localization`, `job_failed` |
 | 5.8 | Non-admin cannot read analytics | `403` |
+
+Automated coverage: `backend/tests/notificationAnalytics.service.test.js`, `backend/tests/notificationAnalytics.e2e.test.js` (mocked send → analytics match receipts → inbox mark-read increments opens → Media URL change does not change receipt `imageUrl` → sent image delete `409`, unused draft allowed), `backend/tests/adminNotifications.routes.test.js` (analytics + image delete on the admin router), `frontend/src/components/admin/notifications/NotificationsTable.test.jsx`, `frontend/src/services/adminNotificationsService.test.js`.
 
 Manual: send a small test campaign, confirm admin row matches device reality (sent vs opened).
 
@@ -421,7 +429,7 @@ Keep the same campaign + send service. Do **not** start a second notification ar
 | 2 | `backend/tests/notificationScheduler.service.test.js` |
 | 3 | `backend/tests/devicePushToken.service.test.js`, `backend/tests/notificationPush.service.test.js`, `backend/tests/notificationPush.e2e.test.js`, `app/__tests__/services/notificationPermission.test.ts` |
 | 4 | `backend/tests/notificationInbox.service.test.js`, `backend/tests/notificationInbox.e2e.test.js`, `app/__tests__/utils/notificationCenter.test.ts`, `app/__tests__/services/notificationInboxService.test.ts`, `app/__tests__/services/notificationInbox.e2e.test.ts` |
-| 5 | `backend/tests/notificationAnalytics.service.test.js` + re-run Phase 1–4 |
+| 5 | `backend/tests/notificationAnalytics.service.test.js`, `backend/tests/notificationAnalytics.e2e.test.js` + re-run Phase 1–4 |
 
 Phase 3 still needs a real iOS and Android pass for closed-app delivery. That does not replace the mocked CI tests.
 

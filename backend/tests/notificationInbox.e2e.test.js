@@ -14,6 +14,7 @@ function matchesReceipt(row, query = {}) {
   if (query.isTest?.$ne === true && row.isTest) return false;
   if (query.pushResult && typeof query.pushResult === 'string' && row.pushResult !== query.pushResult) return false;
   if (query.pushResult?.$nin && query.pushResult.$nin.includes(row.pushResult)) return false;
+  if (query.imageMediaId && String(row.imageMediaId) !== String(query.imageMediaId)) return false;
   if (query.readAt === null && row.readAt) return false;
   return true;
 }
@@ -37,6 +38,9 @@ function createQuery(rows) {
       current = current.slice(count);
       return api;
     },
+    select() {
+      return api;
+    },
     limit(count) {
       current = current.slice(0, count);
       return api;
@@ -51,6 +55,7 @@ jest.mock('../models', () => ({
   NotificationCampaign: {
     findById: jest.fn(),
     findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
   },
   NotificationReceipt: {
     create: jest.fn(),
@@ -115,6 +120,7 @@ describe('Notification inbox e2e (Phase 4)', () => {
     const doc = campaignDoc();
     NotificationCampaign.findById.mockReturnValue({ populate: jest.fn().mockResolvedValue(doc) });
     NotificationCampaign.findOneAndUpdate.mockReturnValue({ populate: jest.fn().mockResolvedValue(doc) });
+    NotificationCampaign.updateOne.mockResolvedValue({ modifiedCount: 1 });
     deliverPush.mockResolvedValue({ status: 'skipped', reason: 'no_device_token' });
     listCampaignRecipients.mockResolvedValue([
       { userId: parentA, childId: childA, preferredLanguage: 'en', timezone: 'America/Sao_Paulo' },

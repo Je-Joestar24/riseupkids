@@ -63,9 +63,21 @@ const NotificationsTable = ({
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Internal name</TableCell>
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Type</TableCell>
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Audience</TableCell>
-          <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Languages</TableCell>
+          <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Send date</TableCell>
           <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Status</TableCell>
-          <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Scheduled for</TableCell>
+          <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>Languages</TableCell>
+          <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+            Targeted
+          </TableCell>
+          <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+            Sent
+          </TableCell>
+          <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+            Failed
+          </TableCell>
+          <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
+            Opens
+          </TableCell>
           <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}>
             Actions
           </TableCell>
@@ -74,6 +86,7 @@ const NotificationsTable = ({
       <TableBody>
         {rows.map((row) => {
           const languages = (row.localizations || []).map((item) => item.languageCode).join(', ');
+          const delivery = row.delivery || {};
           return (
             <TableRow key={row._id} hover>
               <TableCell>
@@ -87,12 +100,24 @@ const NotificationsTable = ({
               <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', textTransform: 'capitalize' }}>
                 {row.audience}
               </TableCell>
-              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif' }}>{languages || '—'}</TableCell>
+              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', whiteSpace: 'nowrap' }}>
+                {formatCampaignSchedule(row)}
+              </TableCell>
               <TableCell>
                 <Chip size="small" label={row.status} color={STATUS_COLOR[row.status] || 'default'} />
               </TableCell>
-              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif', whiteSpace: 'nowrap' }}>
-                {formatCampaignSchedule(row)}
+              <TableCell sx={{ fontFamily: 'Quicksand, sans-serif' }}>{languages || '—'}</TableCell>
+              <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                {delivery.targeted ?? 0}
+              </TableCell>
+              <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                {delivery.sent ?? 0}
+              </TableCell>
+              <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                {delivery.failed ?? 0}
+              </TableCell>
+              <TableCell align="right" sx={{ fontFamily: 'Quicksand, sans-serif' }}>
+                {delivery.opened ?? 0}
               </TableCell>
               <TableCell align="right">
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>

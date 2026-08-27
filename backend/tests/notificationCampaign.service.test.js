@@ -118,6 +118,8 @@ describe('Notification campaign service', () => {
     expect(saved.localizations).toHaveLength(3);
     expect(saved.localizations.map((row) => row.languageCode).sort()).toEqual(['en', 'es', 'pt']);
     expect(saved.status).toBe('draft');
+    expect(saved.createdBy).toBe(adminId);
+    expect(saved.updatedBy).toBe(adminId);
     expect(created.localizations).toHaveLength(3);
   });
 

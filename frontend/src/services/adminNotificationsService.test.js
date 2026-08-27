@@ -5,6 +5,7 @@ vi.mock('../api/axios', () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -44,5 +45,16 @@ describe('adminNotificationsService Phase 2 endpoints', () => {
       userId: 'user-test',
     });
     expect(api.post).toHaveBeenNthCalledWith(3, '/admin/notifications/camp-1/cancel');
+  });
+
+  it('loads campaign analytics and deletes unused images', async () => {
+    api.get.mockResolvedValue({ data: { success: true, data: { delivery: { sent: 2 } } } });
+    api.delete.mockResolvedValue({ data: { success: true, data: { deleted: true } } });
+
+    await adminNotificationsService.getAnalytics('camp-1');
+    await adminNotificationsService.deleteImage('media-9');
+
+    expect(api.get).toHaveBeenCalledWith('/admin/notifications/camp-1/analytics');
+    expect(api.delete).toHaveBeenCalledWith('/admin/notifications/images/media-9');
   });
 });

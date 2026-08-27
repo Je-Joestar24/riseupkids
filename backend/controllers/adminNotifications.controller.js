@@ -1,9 +1,18 @@
 const notificationCampaignService = require('../services/notificationCampaign.services');
+const notificationAnalyticsService = require('../services/notificationAnalytics.services');
 const { sendCampaignNow, sendCampaignTest } = require('../services/notificationSend.services');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
-  const status = error.statusCode || (/not found/i.test(message) ? 404 : /required|invalid|must|duplicate|cannot|only /i.test(message) ? 400 : 500);
+  const status =
+    error.statusCode ||
+    (/not found/i.test(message)
+      ? 404
+      : /cannot be deleted|conflict/i.test(message)
+        ? 409
+        : /required|invalid|must|duplicate|cannot|only /i.test(message)
+          ? 400
+          : 500);
   return res.status(status).json({
     success: false,
     message,
@@ -130,6 +139,34 @@ const uploadImage = async (req, res) => {
   }
 };
 
+const deleteImage = async (req, res) => {
+  try {
+    const data = await notificationAnalyticsService.deleteNotificationImage(req.params.mediaId);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification image deleted',
+      data,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] deleteImage:', error);
+    return handleError(res, error, 'Failed to delete notification image');
+  }
+};
+
+const getAnalytics = async (req, res) => {
+  try {
+    const data = await notificationAnalyticsService.getCampaignAnalytics(req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: 'Notification analytics loaded',
+      data,
+    });
+  } catch (error) {
+    console.error('[admin-notifications] getAnalytics:', error);
+    return handleError(res, error, 'Failed to load notification analytics');
+  }
+};
+
 const scheduleCampaign = async (req, res) => {
   try {
     const campaign = await notificationCampaignService.scheduleCampaign(
@@ -209,6 +246,8 @@ module.exports = {
   duplicateCampaign,
   previewCampaign,
   uploadImage,
+  deleteImage,
+  getAnalytics,
   scheduleCampaign,
   cancelCampaign,
   sendNow,
