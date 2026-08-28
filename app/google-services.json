@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "837566379248",
+    "project_id": "rise-up-kids-a8f51",
+    "storage_bucket": "rise-up-kids-a8f51.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:837566379248:android:fb037225347ca10246fe35",
+        "android_client_info": {
+          "package_name": "com.riseupkids.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA92evbc31zu0Xn_wDkfrbBbZlJIvXpInE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
