@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { API_BASE_URL, APP_VERSION } from '@/config';
 import { getExpoProjectId, getPushClientKind } from '@/utils/expoPushProject';
 
+/** Only the exact string "true" enables the overlay. Missing / false / commented / any other value → off. */
 export function isPushDebugEnvEnabled(
   raw: string | undefined = process.env.EXPO_PUBLIC_PUSH_DEBUG
 ): boolean {
@@ -14,6 +15,10 @@ export function isPushDebugEnvEnabled(
 }
 
 export const PUSH_DEBUG_ENABLED = isPushDebugEnvEnabled();
+
+export function shouldShowPushDebug(): boolean {
+  return isPushDebugEnvEnabled();
+}
 
 export function redactExpoPushToken(token?: string | null): string | null {
   const value = String(token || '').trim();

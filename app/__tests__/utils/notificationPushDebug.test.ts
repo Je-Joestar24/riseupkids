@@ -16,12 +16,14 @@ describe('notificationPushDebug', () => {
   });
 
   it('enables the overlay only when the flag is exactly true', () => {
-    delete process.env.EXPO_PUBLIC_PUSH_DEBUG;
-    expect(isPushDebugEnvEnabled()).toBe(false);
-    process.env.EXPO_PUBLIC_PUSH_DEBUG = 'false';
-    expect(isPushDebugEnvEnabled()).toBe(false);
-    process.env.EXPO_PUBLIC_PUSH_DEBUG = 'true';
-    expect(isPushDebugEnvEnabled()).toBe(true);
+    expect(isPushDebugEnvEnabled(undefined)).toBe(false);
+    expect(isPushDebugEnvEnabled('')).toBe(false);
+    expect(isPushDebugEnvEnabled('false')).toBe(false);
+    expect(isPushDebugEnvEnabled('FALSE')).toBe(false);
+    expect(isPushDebugEnvEnabled('0')).toBe(false);
+    expect(isPushDebugEnvEnabled('#EXPO_PUBLIC_PUSH_DEBUG=true')).toBe(false);
+    expect(isPushDebugEnvEnabled('true')).toBe(true);
+    expect(isPushDebugEnvEnabled(' TRUE ')).toBe(true);
   });
 
   it('redacts the Expo token so the overlay never shows the full value', () => {

@@ -160,7 +160,7 @@ export async function registerDeviceForPushNotifications(deps?: {
     const reason = error instanceof Error ? error.message : 'token_register_failed';
     const fcmHint =
       platform === 'android' && clientKind === 'standalone'
-        ? ' Preview Android needs Firebase FCM (google-services.json + FCM V1 on expo.dev), then a new preview build.'
+        ? ' Preview Android needs Firebase FCM (google-services.json baked into a new EAS build with --clear-cache). Uninstall the old APK first.'
         : '';
     console.warn('[notifications] token register failed:', reason + fcmHint);
     recordPushDebug({

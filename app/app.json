@@ -53,6 +53,7 @@
       "favicon": "./assets/images/icon1024.png"
     },
     "plugins": [
+      "./plugins/withAndroidGoogleServices",
       [
         "expo-notifications",
         {

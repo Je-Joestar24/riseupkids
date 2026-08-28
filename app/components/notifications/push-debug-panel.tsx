@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Quicksand } from '@/constants/theme';
 import {
   getPushDebugSnapshot,
-  isPushDebugEnvEnabled,
+  shouldShowPushDebug,
   subscribePushDebug,
   type PushDebugSnapshot,
 } from '@/utils/notificationPushDebug';
@@ -40,7 +40,7 @@ export function PushDebugPanel() {
     return subscribePushDebug(() => setSnapshot(getPushDebugSnapshot()));
   }, []);
 
-  if (!isPushDebugEnvEnabled()) return null;
+  if (!shouldShowPushDebug()) return null;
 
   if (minimized) {
     return (
