@@ -2,9 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 import { devicePushTokenService } from '@/services/devicePushTokenService';
+import { loadExpoNotificationsModule } from '@/services/expoNotificationsModule';
 import { bootstrapPushNotifications } from '@/services/notificationPushBootstrap';
 import { getDeviceTimeZone } from '@/utils/deviceTimeZone';
-import { getExpoProjectId, getPushClientKind } from '@/utils/expoPushProject';
+import {
+  EXPO_GO_ANDROID_REMOTE_PUSH_REASON,
+  getExpoProjectId,
+  getPushClientKind,
+  isRemotePushAvailable,
+  type PushClientKind,
+} from '@/utils/expoPushProject';
+import { redactExpoPushToken, recordPushDebug } from '@/utils/notificationPushDebug';
 import {
   NOTIFICATION_PERMISSION_ASKED_KEY,
   ensureNotificationPermission,
@@ -47,13 +55,12 @@ function toPermissionStatus(result: {
   };
 }
 
-async function loadNotificationsModule(): Promise<NotificationsModule | null> {
-  try {
-    const Notifications = await import('expo-notifications');
-    return Notifications;
-  } catch {
-    return null;
-  }
+async function loadNotificationsModule(
+  platform: string,
+  clientKind: PushClientKind
+): Promise<NotificationsModule | null> {
+  const loaded = await loadExpoNotificationsModule({ platform, clientKind });
+  return (loaded as NotificationsModule | null) ?? null;
 }
 
 /**
@@ -65,14 +72,31 @@ export async function registerDeviceForPushNotifications(deps?: {
   registerToken?: typeof devicePushTokenService.register;
   platform?: typeof Platform.OS;
   projectId?: string;
+  clientKind?: PushClientKind;
 }): Promise<{ registered: boolean; reason?: string }> {
   const platform = deps?.platform ?? Platform.OS;
+  const clientKind = deps?.clientKind ?? getPushClientKind();
   if (platform !== 'ios' && platform !== 'android') {
+    recordPushDebug({ registered: 'false', reason: 'unsupported_platform', permission: 'n/a' });
     return { registered: false, reason: 'unsupported_platform' };
   }
 
-  const Notifications = deps?.notifications === undefined ? await loadNotificationsModule() : deps.notifications;
+  if (!isRemotePushAvailable(platform, clientKind)) {
+    recordPushDebug({
+      registered: 'false',
+      permission: 'n/a',
+      reason: EXPO_GO_ANDROID_REMOTE_PUSH_REASON,
+      tokenPreview: 'none',
+    });
+    return { registered: false, reason: EXPO_GO_ANDROID_REMOTE_PUSH_REASON };
+  }
+
+  const Notifications =
+    deps?.notifications === undefined
+      ? await loadNotificationsModule(platform, clientKind)
+      : deps.notifications;
   if (!Notifications) {
+    recordPushDebug({ registered: 'false', reason: 'notifications_unavailable', permission: 'n/a' });
     return { registered: false, reason: 'notifications_unavailable' };
   }
 
@@ -92,7 +116,14 @@ export async function registerDeviceForPushNotifications(deps?: {
   });
 
   if (!decision.granted) {
-    return { registered: false, reason: decision.shouldOpenSettings ? 'permission_denied' : 'permission_pending' };
+    const reason = decision.shouldOpenSettings ? 'permission_denied' : 'permission_pending';
+    recordPushDebug({
+      registered: 'false',
+      permission: 'denied',
+      reason,
+      tokenPreview: 'none',
+    });
+    return { registered: false, reason };
   }
 
   const projectId = deps?.projectId || getExpoProjectId();
@@ -102,6 +133,12 @@ export async function registerDeviceForPushNotifications(deps?: {
     );
     const token = tokenResult?.data;
     if (!token) {
+      recordPushDebug({
+        registered: 'false',
+        permission: 'granted',
+        reason: 'missing_token',
+        tokenPreview: 'none',
+      });
       return { registered: false, reason: 'missing_token' };
     }
 
@@ -110,16 +147,28 @@ export async function registerDeviceForPushNotifications(deps?: {
       platform,
       token,
       timezone: getDeviceTimeZone(),
-      clientKind: getPushClientKind(),
+      clientKind,
+    });
+    recordPushDebug({
+      registered: 'true',
+      permission: 'granted',
+      reason: 'none',
+      tokenPreview: redactExpoPushToken(token) || 'none',
     });
     return { registered: true };
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'token_register_failed';
     const fcmHint =
-      platform === 'android' && getPushClientKind() === 'standalone'
+      platform === 'android' && clientKind === 'standalone'
         ? ' Preview Android needs Firebase FCM (google-services.json + FCM V1 on expo.dev), then a new preview build.'
         : '';
     console.warn('[notifications] token register failed:', reason + fcmHint);
+    recordPushDebug({
+      registered: 'false',
+      permission: 'granted',
+      reason: reason + fcmHint,
+      tokenPreview: 'none',
+    });
     return { registered: false, reason: reason + fcmHint };
   }
 }

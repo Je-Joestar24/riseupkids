@@ -89,6 +89,7 @@ async function sendPush({ campaign, recipient, snapshot, isTest }) {
       childId: recipient.childId || null,
       title: snapshot.title,
       message: snapshot.message,
+      imageUrl: snapshot.imageUrl || null,
       destination: campaign.destination,
       campaignId: campaign._id,
       isTest,
@@ -128,6 +129,7 @@ async function deliverDueQueuedReceipt(receipt, campaign, now) {
   const snapshot = {
     title: claimed.title,
     message: claimed.message,
+    imageUrl: claimed.imageUrl || null,
   };
   const pushResult = await sendPush({
     campaign,

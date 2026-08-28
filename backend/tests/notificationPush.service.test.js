@@ -46,6 +46,34 @@ describe('Notification push (Phase 3)', () => {
     expect(Object.values(payload.data).every((value) => typeof value === 'string')).toBe(true);
   });
 
+  it('attaches the campaign image to the Expo payload when one was uploaded', () => {
+    const payload = buildPushPayload({
+      title: 'Mini Mission',
+      message: 'Find 7 objects',
+      imageUrl: 'https://cdn.example/mission.png',
+    });
+
+    expect(payload.image).toBe('https://cdn.example/mission.png');
+    expect(payload.richContent).toEqual({ image: 'https://cdn.example/mission.png' });
+  });
+
+  it('falls back to the Play Store app icon when the campaign has no image', () => {
+    const previous = process.env.BACKEND_BASE_URL;
+    process.env.BACKEND_BASE_URL = 'https://api.riseup.kids';
+    try {
+      const payload = buildPushPayload({
+        title: 'Story Time is waiting!',
+        message: 'A new adventure is ready.',
+      });
+
+      expect(payload.image).toBe('https://api.riseup.kids/notification-assets/app-icon-1024x1024.png');
+      expect(payload.richContent.image).toBe('https://api.riseup.kids/notification-assets/app-icon-1024x1024.png');
+    } finally {
+      if (previous === undefined) delete process.env.BACKEND_BASE_URL;
+      else process.env.BACKEND_BASE_URL = previous;
+    }
+  });
+
   it('parent vs children audience resolves to parent devices (3.6)', async () => {
     listActiveTokensForUser.mockResolvedValue([
       { token: 'ExponentPushToken[parent-phone]', platform: 'ios', userId: parentId },

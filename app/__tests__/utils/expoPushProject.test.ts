@@ -1,4 +1,4 @@
-import { getExpoProjectId, getPushClientKind } from '@/utils/expoPushProject';
+import { getExpoProjectId, getPushClientKind, isRemotePushAvailable } from '@/utils/expoPushProject';
 
 describe('expoPushProject', () => {
   it('prefers EAS config project id for standalone preview tokens', () => {
@@ -13,5 +13,11 @@ describe('expoPushProject', () => {
   it('marks Expo Go separately from a preview/store build', () => {
     expect(getPushClientKind({ appOwnership: 'expo' })).toBe('expo-go');
     expect(getPushClientKind({ appOwnership: 'standalone' })).toBe('standalone');
+  });
+
+  it('does not allow remote push in Android Expo Go (SDK 53+)', () => {
+    expect(isRemotePushAvailable('android', 'expo-go')).toBe(false);
+    expect(isRemotePushAvailable('android', 'standalone')).toBe(true);
+    expect(isRemotePushAvailable('ios', 'expo-go')).toBe(true);
   });
 });

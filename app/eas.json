@@ -14,7 +14,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api",
+        "EXPO_PUBLIC_PUSH_DEBUG": "true"
       }
     },
     "production-apk": {

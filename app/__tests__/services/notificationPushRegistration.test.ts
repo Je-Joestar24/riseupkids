@@ -66,6 +66,7 @@ describe('notificationPushRegistration', () => {
     const result = await registerDeviceForPushNotifications({
       notifications,
       platform: 'android',
+      clientKind: 'standalone',
       registerToken: devicePushTokenService.register,
     });
 
@@ -86,11 +87,34 @@ describe('notificationPushRegistration', () => {
     const result = await registerDeviceForPushNotifications({
       notifications,
       platform: 'android',
+      clientKind: 'standalone',
       registerToken: devicePushTokenService.register,
     });
 
     expect(result.registered).toBe(false);
     expect(result.reason).toContain('FCM is not configured');
+    expect(devicePushTokenService.register).not.toHaveBeenCalled();
+  });
+
+  it('skips Android Expo Go instead of calling the removed remote-push API', async () => {
+    const notifications = {
+      getPermissionsAsync: jest.fn(),
+      requestPermissionsAsync: jest.fn(),
+      getExpoPushTokenAsync: jest.fn(),
+      setNotificationHandler: jest.fn(),
+      setNotificationChannelAsync: jest.fn(),
+    };
+
+    const result = await registerDeviceForPushNotifications({
+      notifications,
+      platform: 'android',
+      clientKind: 'expo-go',
+      registerToken: devicePushTokenService.register,
+    });
+
+    expect(result.registered).toBe(false);
+    expect(result.reason).toMatch(/expo_go_android_no_remote_push/);
+    expect(notifications.getExpoPushTokenAsync).not.toHaveBeenCalled();
     expect(devicePushTokenService.register).not.toHaveBeenCalled();
   });
 });

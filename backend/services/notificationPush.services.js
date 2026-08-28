@@ -4,13 +4,26 @@ const { sendExpoPushMessages } = require('./notificationPush.client');
 const INVALID_TOKEN_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials']);
 
 const ANDROID_CHANNEL_ID = 'riseupkids-default';
+const DEFAULT_PUSH_IMAGE_PATH = '/notification-assets/app-icon-1024x1024.png';
 
 function asDataValue(value) {
   if (value == null || value === '') return undefined;
   return String(value);
 }
 
-function buildPushPayload({ title, message, destination, campaignId, childId, isTest }) {
+function getDefaultPushImageUrl(env = process.env) {
+  const base = String(env.BACKEND_BASE_URL || env.APP_URL || '').replace(/\/$/, '');
+  if (!base) return undefined;
+  return `${base}${DEFAULT_PUSH_IMAGE_PATH}`;
+}
+
+function resolvePushImageUrl(imageUrl, env = process.env) {
+  const custom = String(imageUrl || '').trim();
+  if (custom) return custom;
+  return getDefaultPushImageUrl(env);
+}
+
+function buildPushPayload({ title, message, destination, campaignId, childId, isTest, imageUrl }) {
   const data = {};
   const campaign = asDataValue(campaignId);
   const destinationKind = asDataValue(destination?.kind);
@@ -22,7 +35,7 @@ function buildPushPayload({ title, message, destination, campaignId, childId, is
   if (child) data.childId = child;
   data.isTest = isTest ? 'true' : 'false';
 
-  return {
+  const payload = {
     title: String(title || '').trim(),
     body: String(message || '').trim(),
     sound: 'default',
@@ -32,6 +45,14 @@ function buildPushPayload({ title, message, destination, campaignId, childId, is
     interruptionLevel: 'time-sensitive',
     data,
   };
+
+  const image = resolvePushImageUrl(imageUrl);
+  if (image) {
+    payload.image = image;
+    payload.richContent = { image };
+  }
+
+  return payload;
 }
 
 function isInvalidTokenTicket(ticket) {
@@ -101,7 +122,7 @@ async function sendTicketsForTokens(tokens, payload, send) {
  * One token failure does not abort the rest.
  */
 async function deliverPush(
-  { userId, childId, title, message, destination, campaignId, isTest },
+  { userId, childId, title, message, destination, campaignId, isTest, imageUrl },
   { sendMessages, listTokens, invalidateToken } = {}
 ) {
   if (!userId) {
@@ -115,7 +136,7 @@ async function deliverPush(
     return { status: 'skipped', reason: 'no_device_token' };
   }
 
-  const payload = buildPushPayload({ title, message, destination, campaignId, childId, isTest });
+  const payload = buildPushPayload({ title, message, destination, campaignId, childId, isTest, imageUrl });
   const send = sendMessages || sendExpoPushMessages;
   const tickets = await sendTicketsForTokens(tokens, payload, send);
 
@@ -158,5 +179,7 @@ async function deliverPush(
 module.exports = {
   buildPushPayload,
   deliverPush,
+  getDefaultPushImageUrl,
+  resolvePushImageUrl,
   INVALID_TOKEN_ERRORS,
 };

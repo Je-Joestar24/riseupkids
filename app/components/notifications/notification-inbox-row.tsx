@@ -7,6 +7,10 @@ import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import type { NotificationInboxItem } from '@/services/notificationInboxService';
 import { formatInboxDate } from '@/utils/notificationCenter';
+import {
+  getNotificationInboxImageSource,
+  hasCampaignInboxImage,
+} from '@/utils/notificationInboxImage';
 
 interface NotificationInboxRowProps {
   item: NotificationInboxItem;
@@ -20,11 +24,12 @@ export function NotificationInboxRow({ item, onPress }: NotificationInboxRowProp
       style={({ pressed }) => [styles.card, item.isUnread && styles.unreadCard, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={item.title}>
-      {item.imageUrl ? (
-        <Image source={{ uri: item.imageUrl }} style={styles.image} accessibilityLabel="" />
-      ) : (
-        <View style={styles.imagePlaceholder} />
-      )}
+      <Image
+        source={getNotificationInboxImageSource(item.imageUrl)}
+        style={styles.image}
+        resizeMode={hasCampaignInboxImage(item.imageUrl) ? 'cover' : 'contain'}
+        accessibilityLabel={hasCampaignInboxImage(item.imageUrl) ? '' : 'Rise Up Kids logo'}
+      />
       <View style={styles.body}>
         <ThemedText style={styles.title}>{item.title}</ThemedText>
         <ThemedText style={styles.message} numberOfLines={3}>
@@ -54,12 +59,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   image: {
-    width: 64,
-    height: 64,
-    borderRadius: radii.md,
-    backgroundColor: colors.bgTertiary,
-  },
-  imagePlaceholder: {
     width: 64,
     height: 64,
     borderRadius: radii.md,

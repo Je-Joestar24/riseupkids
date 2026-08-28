@@ -26,6 +26,7 @@ import { useNotificationPushBootstrap } from '@/hooks/useNotificationPushBootstr
 import { useNotificationPushRegistration } from '@/hooks/useNotificationPushRegistration';
 import { useNotificationTapRouting } from '@/hooks/useNotificationTapRouting';
 import { useStartupPermissions } from '@/hooks/useStartupPermissions';
+import { PushDebugPanel } from '@/components/notifications/push-debug-panel';
 import { setTokenGetter } from '@/services/tokenBridge';
 import { useAuthStore } from '@/store/useAuthStore';
 import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
@@ -96,6 +97,7 @@ export default function RootLayout() {
         <LegalAcceptanceGate visible={!hasAccepted} onAccept={accept} />
         <GlobalDialog />
         <GlobalNetworkModal />
+        <PushDebugPanel />
         <StatusBar style="auto" hidden={Platform.OS === 'android'} />
       </ThemeProvider>
     </SafeAreaProvider>
