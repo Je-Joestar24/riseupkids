@@ -13,3 +13,15 @@ ProfileSidebar.jsx
 
 # Dependencies (EAS runs npm install)
 **/node_modules/
+
+# Native folders must NOT be uploaded. If android/ is in the archive, EAS
+# skips prebuild and never applies google-services.json (FirebaseApp stays
+# uninitialized). Expo then generates android/ on the builder (CNG).
+app/android/
+app/ios/
+android/
+ios/
+
+# Keep the public Firebase client config (required to mint Android push tokens).
+!app/google-services.json
+!google-services.json

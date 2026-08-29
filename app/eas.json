@@ -17,8 +17,7 @@
         "key": "android-fcm-cng-prebuild-v5"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api",
-        "EXPO_PUBLIC_PUSH_DEBUG": "true"
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
       }
     },
     "production-apk": {
