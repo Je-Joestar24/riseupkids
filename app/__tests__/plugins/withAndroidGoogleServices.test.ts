@@ -18,24 +18,17 @@ buildscript {
     expect(ensureClassPath(next)).toBe(next);
   });
 
-  it('appends the Google Services plugin to the app module', () => {
+  it('appends the Google Services plugin to a Groovy app module', () => {
     const input = `apply plugin: "com.android.application"\n`;
     const next = ensureApplyPlugin(input);
     expect(next).toContain("apply plugin: 'com.google.gms.google-services'");
     expect(ensureApplyPlugin(next)).toBe(next);
   });
 
-  it('initializes FirebaseApp in MainApplication when missing', () => {
-    const { ensureFirebaseInit } = require('../../plugins/withAndroidGoogleServices');
-    const next = ensureFirebaseInit(`
-import android.app.Application
-class MainApplication : Application() {
-  override fun onCreate() {
-    super.onCreate()
-  }
-}
-`);
-    expect(next).toContain('import com.google.firebase.FirebaseApp');
-    expect(next).toContain('FirebaseApp.initializeApp(this)');
+  it('adds the Google Services plugin id to a Kotlin DSL plugins block', () => {
+    const input = `plugins {\n    id("com.android.application")\n    id("org.jetbrains.kotlin.android")\n}\n`;
+    const next = ensureApplyPlugin(input);
+    expect(next).toContain('id("com.google.gms.google-services")');
+    expect(ensureApplyPlugin(next)).toBe(next);
   });
 });

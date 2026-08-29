@@ -1,4 +1,5 @@
 import {
+  EXPO_DEFAULT_NOTIFICATION_CHANNEL,
   FOREGROUND_NOTIFICATION_BEHAVIOR,
   RISEUPKIDS_NOTIFICATION_CHANNEL,
   bootstrapPushNotifications,
@@ -17,7 +18,17 @@ describe('notificationPushBootstrap', () => {
     expect(Notifications.setNotificationHandler).toHaveBeenCalledTimes(1);
     const handler = Notifications.setNotificationHandler.mock.calls[0][0];
     await expect(handler.handleNotification()).resolves.toEqual(FOREGROUND_NOTIFICATION_BEHAVIOR);
-    expect(Notifications.setNotificationChannelAsync).toHaveBeenCalledWith(
+    expect(Notifications.setNotificationChannelAsync).toHaveBeenNthCalledWith(
+      1,
+      EXPO_DEFAULT_NOTIFICATION_CHANNEL,
+      expect.objectContaining({
+        name: 'default',
+        importance: 5,
+        sound: 'default',
+      })
+    );
+    expect(Notifications.setNotificationChannelAsync).toHaveBeenNthCalledWith(
+      2,
       RISEUPKIDS_NOTIFICATION_CHANNEL,
       expect.objectContaining({
         name: 'Rise Up Kids',

@@ -16,9 +16,14 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native build folders
+# Native build folders — EAS must run `expo prebuild` so google-services.json
+# is copied and `com.google.gms.google-services` is applied. Uploading a local
+# android/ folder skips that and Firebase never initializes.
 ios/
 android/
+
+# Public Firebase client file (required for Android FCM token minting).
+!google-services.json
 
 # Debug and logs
 *.log

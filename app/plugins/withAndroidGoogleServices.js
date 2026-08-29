@@ -1,22 +1,17 @@
 const fs = require('fs');
-const path = require('path');
 const {
   AndroidConfig,
   withAppBuildGradle,
-  withDangerousMod,
-  withMainApplication,
   withProjectBuildGradle,
-  withStringsXml,
 } = require('expo/config-plugins');
 
 const {
   findGoogleServicesFile,
   parseGoogleServicesClient,
-  firebaseResourceStrings,
   toFcmDebugProbe,
 } = require('./androidGoogleServicesPath');
 
-const CLASS_PATH = "com.google.gms:google-services:4.4.2";
+const CLASS_PATH = 'com.google.gms:google-services:4.4.2';
 const APPLY_LINE = "apply plugin: 'com.google.gms.google-services'";
 
 function readParsedGoogleServices(projectRoot) {
@@ -28,6 +23,10 @@ function readParsedGoogleServices(projectRoot) {
   };
 }
 
+/**
+ * Expo's built-in GoogleServices helpers only edit Groovy Gradle files.
+ * SDK templates are Groovy; still apply classpath/plugin for Kotlin DSL too.
+ */
 function ensureClassPath(contents) {
   if (contents.includes('com.google.gms:google-services')) return contents;
   if (contents.includes('buildscript')) {
@@ -41,89 +40,52 @@ function ensureClassPath(contents) {
 
 function ensureApplyPlugin(contents) {
   if (/com\.google\.gms\.google-services/.test(contents)) return contents;
+  if (/id\(["']com\.android\.application["']\)/.test(contents)) {
+    return contents.replace(
+      /id\(["']com\.android\.application["']\)/,
+      (match) => `${match}\n    id("com.google.gms.google-services")`
+    );
+  }
   return `${contents.trimEnd()}\n${APPLY_LINE}\n`;
 }
 
-function ensureFirebaseInit(contents) {
-  if (contents.includes('FirebaseApp.initializeApp')) return contents;
-  let next = contents;
-  if (!next.includes('com.google.firebase.FirebaseApp')) {
-    if (next.includes('import android.app.Application')) {
-      next = next.replace(
-        'import android.app.Application',
-        'import android.app.Application\nimport com.google.firebase.FirebaseApp'
-      );
-    } else {
-      next = `import com.google.firebase.FirebaseApp\n${next}`;
-    }
-  }
-  return next.replace(
-    'super.onCreate()',
-    'super.onCreate()\n    if (FirebaseApp.getApps(this).isEmpty()) {\n      FirebaseApp.initializeApp(this)\n    }'
-  );
-}
-
 /**
- * Copy google-services.json, write Firebase resource strings, apply the Google
- * Services Gradle plugin, and initialize FirebaseApp. Without google_app_id in
- * Android resources, expo-notifications cannot mint an Android push token.
+ * Official Expo FCM wiring for managed / CNG builds:
+ * https://docs.expo.dev/push-notifications/fcm-credentials/
+ * https://docs.expo.dev/push-notifications/push-notifications-setup/
+ *
+ * 1. android.googleServicesFile in app.json
+ * 2. Copy google-services.json to android/app/
+ * 3. classpath + apply plugin com.google.gms.google-services
+ * Firebase then starts via FirebaseInitProvider. Do not skip prebuild.
  */
 function withAndroidGoogleServices(config) {
   const projectRoot = config._internal?.projectRoot || process.cwd();
-  const { parsed } = readParsedGoogleServices(projectRoot);
+  const { source, parsed } = readParsedGoogleServices(projectRoot);
+  if (!source || !parsed) {
+    throw new Error(
+      '[notifications] google-services.json was not found next to app.json. Put it at app/google-services.json. EAS must run prebuild (do not upload a local android/ folder).'
+    );
+  }
+
   config.android = config.android || {};
   config.android.googleServicesFile = config.android.googleServicesFile || './google-services.json';
   config.extra = config.extra || {};
   config.extra.fcm = toFcmDebugProbe(parsed);
 
+  config = AndroidConfig.GoogleServices.withClassPath(config);
+  config = AndroidConfig.GoogleServices.withApplyPlugin(config);
+  config = AndroidConfig.GoogleServices.withGoogleServicesFile(config);
+
   config = withProjectBuildGradle(config, (mod) => {
-    if (mod.modResults.language === 'groovy') {
-      mod.modResults.contents = ensureClassPath(mod.modResults.contents);
-    }
+    mod.modResults.contents = ensureClassPath(mod.modResults.contents);
     return mod;
   });
 
   config = withAppBuildGradle(config, (mod) => {
-    if (mod.modResults.language === 'groovy') {
-      mod.modResults.contents = ensureApplyPlugin(mod.modResults.contents);
-    }
+    mod.modResults.contents = ensureApplyPlugin(mod.modResults.contents);
     return mod;
   });
-
-  config = withStringsXml(config, (mod) => {
-    const found = readParsedGoogleServices(mod.modRequest.projectRoot);
-    if (!found.parsed) {
-      throw new Error(
-        '[notifications] google-services.json was not found next to app.json. Put it at app/google-services.json and rebuild with eas build --clear-cache.'
-      );
-    }
-    mod.modResults = AndroidConfig.Strings.setStringItem(
-      firebaseResourceStrings(found.parsed),
-      mod.modResults
-    );
-    return mod;
-  });
-
-  config = withMainApplication(config, (mod) => {
-    mod.modResults.contents = ensureFirebaseInit(mod.modResults.contents);
-    return mod;
-  });
-
-  config = withDangerousMod(config, [
-    'android',
-    async (mod) => {
-      const found = readParsedGoogleServices(mod.modRequest.projectRoot);
-      if (!found.source) {
-        throw new Error(
-          '[notifications] google-services.json was not found next to app.json. Put it at app/google-services.json and rebuild with eas build --clear-cache.'
-        );
-      }
-      const dest = path.join(mod.modRequest.platformProjectRoot, 'app', 'google-services.json');
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      fs.copyFileSync(found.source, dest);
-      return mod;
-    },
-  ]);
 
   return config;
 }
@@ -131,4 +93,3 @@ function withAndroidGoogleServices(config) {
 module.exports = withAndroidGoogleServices;
 module.exports.ensureClassPath = ensureClassPath;
 module.exports.ensureApplyPlugin = ensureApplyPlugin;
-module.exports.ensureFirebaseInit = ensureFirebaseInit;

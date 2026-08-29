@@ -91,8 +91,8 @@ export function PushDebugPanel() {
       </View>
       <Text style={styles.hint}>
         If clientKind is expo-go on Android, Expo Go cannot receive remote push (SDK 53+). Use a
-        preview APK. fcmFile must be true and match com.riseupkids.app. Then registered true and a
-        token. This is not a backend or store-approval wait.
+        preview APK. fcmFile true only means the JSON was in JS config. registered true and a token
+        mean native Firebase started. This is not a backend or store-approval wait.
       </Text>
       <ScrollView style={styles.scroll} nestedScrollEnabled>
         {rows.map((row) => (

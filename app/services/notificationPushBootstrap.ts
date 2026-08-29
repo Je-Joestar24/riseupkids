@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 
 export const RISEUPKIDS_NOTIFICATION_CHANNEL = 'riseupkids-default';
+/** Expo docs require a channel named `default` before getExpoPushTokenAsync on Android 13+. */
+export const EXPO_DEFAULT_NOTIFICATION_CHANNEL = 'default';
 
 type NotificationsLike = {
   setNotificationHandler: (handler: {
@@ -48,11 +50,18 @@ export async function bootstrapPushNotifications(
 
   const importance =
     Notifications.AndroidImportance?.MAX ?? Notifications.AndroidImportance?.HIGH ?? 5;
-
-  await Notifications.setNotificationChannelAsync(RISEUPKIDS_NOTIFICATION_CHANNEL, {
+  const channelConfig = {
     name: 'Rise Up Kids',
     importance,
     vibrationPattern: [0, 250, 250, 250],
     sound: 'default',
+  };
+
+  // Official setup: create a channel before requesting the push token.
+  // https://docs.expo.dev/push-notifications/push-notifications-setup/
+  await Notifications.setNotificationChannelAsync(EXPO_DEFAULT_NOTIFICATION_CHANNEL, {
+    ...channelConfig,
+    name: 'default',
   });
+  await Notifications.setNotificationChannelAsync(RISEUPKIDS_NOTIFICATION_CHANNEL, channelConfig);
 }
