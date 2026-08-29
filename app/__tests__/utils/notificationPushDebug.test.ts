@@ -1,4 +1,5 @@
 import {
+  getFcmBuildProbe,
   getPushDebugSnapshot,
   isPushDebugEnvEnabled,
   redactExpoPushToken,
@@ -31,6 +32,30 @@ describe('notificationPushDebug', () => {
     expect(redactExpoPushToken('ExponentPushToken[abcdefghijklmnop]')).not.toBe(
       'ExponentPushToken[abcdefghijklmnop]'
     );
+  });
+
+  it('exposes whether google-services.json was baked into the build, without the API key', () => {
+    expect(
+      getFcmBuildProbe({
+        fcm: {
+          fileFound: 'true',
+          packageName: 'com.riseupkids.app',
+          firebaseProjectId: 'rise-up-kids-a8f51',
+          googleAppId: '1:123:android:abc',
+        },
+      })
+    ).toEqual({
+      fcmFile: 'true',
+      fcmPackage: 'com.riseupkids.app',
+      fcmProject: 'rise-up-kids-a8f51',
+      fcmAppId: '1:123:android:abc',
+    });
+    expect(getFcmBuildProbe({})).toEqual({
+      fcmFile: 'unknown',
+      fcmPackage: 'missing',
+      fcmProject: 'missing',
+      fcmAppId: 'missing',
+    });
   });
 
   it('records registration status for the debug panel', () => {

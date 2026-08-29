@@ -17,9 +17,10 @@ import {
 
 function DebugRow({ label, value }: { label: string; value: string }) {
   const alert =
-    label === 'registered' && value === 'false' ||
-    label === 'clientKind' && value === 'standalone' ||
-    label === 'reason' && value !== 'waiting' && value !== 'none';
+    (label === 'fcmFile' && value !== 'true') ||
+    (label === 'registered' && value === 'false') ||
+    (label === 'clientKind' && value === 'standalone') ||
+    (label === 'reason' && value !== 'waiting' && value !== 'none');
 
   return (
     <View style={styles.row}>
@@ -59,6 +60,10 @@ export function PushDebugPanel() {
     { label: 'clientKind', value: snapshot.clientKind },
     { label: 'platform', value: snapshot.platform },
     { label: 'projectId', value: snapshot.projectId },
+    { label: 'fcmFile', value: snapshot.fcmFile },
+    { label: 'fcmPackage', value: snapshot.fcmPackage },
+    { label: 'fcmProject', value: snapshot.fcmProject },
+    { label: 'fcmAppId', value: snapshot.fcmAppId },
     { label: 'registered', value: snapshot.registered },
     { label: 'permission', value: snapshot.permission },
     { label: 'tokenPreview', value: snapshot.tokenPreview },
@@ -86,7 +91,8 @@ export function PushDebugPanel() {
       </View>
       <Text style={styles.hint}>
         If clientKind is expo-go on Android, Expo Go cannot receive remote push (SDK 53+). Use a
-        development or preview APK. That build must say standalone, registered true, and show a token.
+        preview APK. fcmFile must be true and match com.riseupkids.app. Then registered true and a
+        token. This is not a backend or store-approval wait.
       </Text>
       <ScrollView style={styles.scroll} nestedScrollEnabled>
         {rows.map((row) => (

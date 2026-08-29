@@ -24,4 +24,18 @@ buildscript {
     expect(next).toContain("apply plugin: 'com.google.gms.google-services'");
     expect(ensureApplyPlugin(next)).toBe(next);
   });
+
+  it('initializes FirebaseApp in MainApplication when missing', () => {
+    const { ensureFirebaseInit } = require('../../plugins/withAndroidGoogleServices');
+    const next = ensureFirebaseInit(`
+import android.app.Application
+class MainApplication : Application() {
+  override fun onCreate() {
+    super.onCreate()
+  }
+}
+`);
+    expect(next).toContain('import com.google.firebase.FirebaseApp');
+    expect(next).toContain('FirebaseApp.initializeApp(this)');
+  });
 });

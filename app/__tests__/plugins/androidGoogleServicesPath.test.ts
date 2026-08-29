@@ -23,4 +23,39 @@ describe('androidGoogleServicesPath', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ruk-gs-empty-'));
     expect(findGoogleServicesFile(dir, {})).toBeNull();
   });
+
+  it('reads package and project from google-services.json without exposing the API key', () => {
+    const {
+      parseGoogleServicesClient,
+      toFcmDebugProbe,
+      firebaseResourceStrings,
+    } = require('../../plugins/androidGoogleServicesPath');
+    const parsed = parseGoogleServicesClient(
+      JSON.stringify({
+        project_info: {
+          project_number: '123',
+          project_id: 'demo-project',
+          storage_bucket: 'demo-project.appspot.com',
+        },
+        client: [
+          {
+            client_info: {
+              mobilesdk_app_id: '1:123:android:abc',
+              android_client_info: { package_name: 'com.riseupkids.app' },
+            },
+            api_key: [{ current_key: 'secret-key' }],
+          },
+        ],
+      })
+    );
+    expect(parsed.packageName).toBe('com.riseupkids.app');
+    expect(toFcmDebugProbe(parsed)).toEqual({
+      fileFound: 'true',
+      packageName: 'com.riseupkids.app',
+      firebaseProjectId: 'demo-project',
+      googleAppId: '1:123:android:abc',
+    });
+    expect(JSON.stringify(toFcmDebugProbe(parsed))).not.toContain('secret-key');
+    expect(firebaseResourceStrings(parsed).some((row) => row.$.name === 'google_app_id')).toBe(true);
+  });
 });

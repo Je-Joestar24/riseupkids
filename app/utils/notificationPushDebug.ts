@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 import { API_BASE_URL, APP_VERSION } from '@/config';
@@ -20,6 +21,21 @@ export function shouldShowPushDebug(): boolean {
   return isPushDebugEnvEnabled();
 }
 
+export function getFcmBuildProbe(
+  extra: { fcm?: { fileFound?: string; packageName?: string; firebaseProjectId?: string; googleAppId?: string } } | undefined =
+    Constants.expoConfig?.extra as
+      | { fcm?: { fileFound?: string; packageName?: string; firebaseProjectId?: string; googleAppId?: string } }
+      | undefined
+) {
+  const fcm = extra?.fcm;
+  return {
+    fcmFile: fcm?.fileFound || 'unknown',
+    fcmPackage: fcm?.packageName || 'missing',
+    fcmProject: fcm?.firebaseProjectId || 'missing',
+    fcmAppId: fcm?.googleAppId || 'missing',
+  };
+}
+
 export function redactExpoPushToken(token?: string | null): string | null {
   const value = String(token || '').trim();
   if (!value) return null;
@@ -39,6 +55,10 @@ export type PushDebugSnapshot = {
   permission: string;
   tokenPreview: string;
   reason: string;
+  fcmFile: string;
+  fcmPackage: string;
+  fcmProject: string;
+  fcmAppId: string;
 };
 
 const EMPTY: PushDebugSnapshot = {
@@ -53,6 +73,7 @@ const EMPTY: PushDebugSnapshot = {
   permission: 'n/a',
   tokenPreview: 'none',
   reason: 'waiting',
+  ...getFcmBuildProbe(),
 };
 
 let snapshot: PushDebugSnapshot = { ...EMPTY };
@@ -81,6 +102,7 @@ export function recordPushDebug(partial: Partial<PushDebugSnapshot>) {
     api: API_BASE_URL,
     clientKind: getPushClientKind(),
     projectId: getExpoProjectId() || snapshot.projectId || 'missing',
+    ...getFcmBuildProbe(),
   };
   emit();
 }
