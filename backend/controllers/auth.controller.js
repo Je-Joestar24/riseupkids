@@ -3,18 +3,21 @@ const accountDeletionService = require('../services/accountDeletion.service');
 const { subscribeToFlodesk } = require('../services/flodeskService');
 
 /**
- * @desc    Register a new user (admin or parent only) and subscribe to Flodesk
+ * @desc    Register a new PARENT account and subscribe to Flodesk
  * @route   POST /api/auth/register
  * @access  Public
  *
+ * SECURITY: this is a public, unauthenticated endpoint. It can only ever create a `parent`
+ * account — any `role`/`linkedParent` sent in the body is ignored. Admin, teacher, and
+ * content_creator accounts are created by an admin from the admin panel, never here.
  * Saves user to MongoDB, then calls Flodesk subscribe. Registration succeeds even if Flodesk fails.
  *
  * Request body:
- * { "name": "John Doe", "email": "john@example.com", "password": "password123", "role": "parent" }
+ * { "name": "John Doe", "email": "john@example.com", "password": "password123" }
  */
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, linkedParent } = req.body;
+    const { name, email, password } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -23,13 +26,7 @@ const registerUser = async (req, res) => {
       });
     }
 
-    const result = await authService.register({
-      name,
-      email,
-      password,
-      role: role || 'parent',
-      linkedParent,
-    });
+    const result = await authService.register({ name, email, password });
 
     try {
       await subscribeToFlodesk(result.user.email);
@@ -60,13 +57,13 @@ const registerUser = async (req, res) => {
  * 
  * Note: Children are NOT User accounts. They are created as ChildProfile records only.
  * Children don't have passwords or tokens - parent logs in and selects a child.
- * 
+ * Always creates a `parent` account — role cannot be chosen by the caller (see registerUser above).
+ *
  * Request body:
  * {
  *   "name": "John Doe",
  *   "email": "john@example.com",
- *   "password": "password123",
- *   "role": "parent" // or "admin" only. Teachers must be created by an admin. (children cannot be registered here)
+ *   "password": "password123"
  * }
  */
 const register = registerUser;

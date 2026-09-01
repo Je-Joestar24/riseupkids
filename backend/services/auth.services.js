@@ -106,29 +106,26 @@ const generateToken = (userId) => {
 
 /**
  * Register/Signup Service
- * 
- * Creates a new user account via public registration (admin or parent only)
+ *
+ * Creates a new PARENT account via public self-registration.
+ * SECURITY: public registration can only ever create a `parent` account — the role is never
+ * taken from client input. Admin, teacher, and content_creator accounts can only be created by
+ * an existing admin (see `parents.services.js` / `teachers.controller.js`).
  * Note: Children are NOT User records - they are created as ChildProfile records only
- * 
+ *
  * @param {Object} userData - User registration data
  * @param {String} userData.name - User's full name
  * @param {String} userData.email - User's email address
  * @param {String} userData.password - User's password
- * @param {String} userData.role - User's role (admin or parent only)
  * @returns {Object} User object with token
  * @throws {Error} If validation fails or user already exists
  */
 const register = async (userData) => {
-  const { name, email, password, role } = userData;
+  const { name, email, password } = userData;
 
   // Validate required fields
   if (!name || !email || !password) {
     throw new Error('Please provide name, email, and password');
-  }
-
-  // Validate role - only admin and parent can be created via public registration
-  if (!['admin', 'parent'].includes(role)) {
-    throw new Error('Invalid role. Must be admin or parent. Teachers and content creators must be created by an admin. Children are created as ChildProfile records, not User accounts.');
   }
 
   // Check if user already exists
@@ -137,12 +134,13 @@ const register = async (userData) => {
     throw new Error('User already exists with this email');
   }
 
-  // Create user (only admin or parent)
+  // Public self-registration is ALWAYS a parent account. Never accept `role` from the caller —
+  // that was RUK-SEC-002 (anyone could register as admin).
   const user = await User.create({
     name,
     email: email.toLowerCase(),
     password,
-    role,
+    role: 'parent',
   });
 
   // Generate token

@@ -12,6 +12,36 @@ const path = require('path');
 const fs = require('fs-extra');
 
 // ============================================================
+// Path-safety helpers (RUK-SEC-001)
+// ============================================================
+
+/**
+ * Reject a `path`/`entryPoint` query value that could escape the SCORM uploads root
+ * (path traversal, absolute paths, Windows drive letters, NUL bytes). String-level prefilter —
+ * the authoritative check is `isWithinRoot` against the resolved path, below.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isSafeScormRelativePath(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  if (value.includes('\0')) return false;
+  const normalized = value.replace(/\\/g, '/');
+  if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)) return false;
+  return !normalized.split('/').includes('..');
+}
+
+/**
+ * True if `candidate` resolves to `root` itself or somewhere underneath it.
+ * @param {string} candidate
+ * @param {string} root - Already-resolved absolute path
+ * @returns {boolean}
+ */
+function isWithinRoot(candidate, root) {
+  const resolved = path.resolve(candidate);
+  return resolved === root || resolved.startsWith(root + path.sep);
+}
+
+// ============================================================
 // Helper Functions for Completion Check
 // ============================================================
 
@@ -436,41 +466,51 @@ const getProgress = async (req, res) => {
 /**
  * @desc    Get SCORM wrapper HTML with API injected
  * @route   GET /api/scorm/:contentId/wrapper
- * @access  Private
- * 
+ * @access  Private — requires a valid `token` query param (this endpoint is loaded as an
+ *          iframe `src`, so it cannot carry an `Authorization` header; the query-string token
+ *          is the auth mechanism, and it is now mandatory — RUK-SEC-001).
+ *
  * Query parameters:
  * - contentType: 'audioAssignment', 'chant', 'book', or 'video'
- * - entryPoint: Entry point HTML file (e.g., 'index.html')
- * - path: Relative path to SCORM content from uploads directory
- * - token: Auth token for API calls
+ * - entryPoint: Entry point HTML file (e.g., 'index.html') — must be a relative path, no '..'
+ * - path: Relative path to SCORM content from uploads directory — must be a relative path, no '..'
+ * - token: Auth token for API calls (required)
  */
 const getWrapper = async (req, res) => {
   try {
     const { contentId } = req.params;
     const { contentType, entryPoint, path: scormPath, token, fromS3 } = req.query;
-    
-    let userId = null;
-    if (token) {
-      try {
-        const jwt = require('jsonwebtoken');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.id;
-      } catch (err) {
-        console.warn('Invalid token in wrapper request:', err.message);
-      }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
     }
-    
+
+    let userId = null;
+    try {
+      const jwt = require('jsonwebtoken');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.id;
+    } catch (err) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token.',
+      });
+    }
+
     if (!contentType || !['audioAssignment', 'chant', 'book', 'video'].includes(contentType)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid contentType. Must be "audioAssignment", "chant", "book", or "video"',
       });
     }
-    
-    if (!entryPoint) {
+
+    if (!entryPoint || !isSafeScormRelativePath(entryPoint)) {
       return res.status(400).json({
         success: false,
-        message: 'entryPoint is required',
+        message: 'entryPoint is required and must be a relative path within the SCORM package',
       });
     }
 
@@ -499,23 +539,34 @@ const getWrapper = async (req, res) => {
       scormHtml = await resp.text();
       var scormBasePath = content.scormBaseUrl.replace(/\/$/, '') + '/';
     } else {
-      if (!scormPath) {
+      if (!scormPath || !isSafeScormRelativePath(scormPath)) {
         return res.status(400).json({
           success: false,
-          message: 'path is required when not using S3',
+          message: 'path is required and must be a relative path within the SCORM uploads directory',
         });
       }
       const cleanPath = scormPath.startsWith('scorm/') ? scormPath.replace(/^scorm\//, '') : scormPath;
-      const scormBasePathForFiles = path.join(__dirname, '../uploads/scorm', cleanPath);
+
+      const scormRoot = path.resolve(__dirname, '../uploads/scorm');
+      const scormBasePathForFiles = path.join(scormRoot, cleanPath);
       const scormHtmlPath = path.join(scormBasePathForFiles, entryPoint);
-      
+
+      // Authoritative guard: reject anything that resolves outside the SCORM uploads root,
+      // even if it slipped past the string-based check above (RUK-SEC-001).
+      if (!isWithinRoot(scormBasePathForFiles, scormRoot) || !isWithinRoot(scormHtmlPath, scormRoot)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid path',
+        });
+      }
+
       if (!(await fs.pathExists(scormHtmlPath))) {
         return res.status(404).json({
           success: false,
           message: 'SCORM HTML file not found',
         });
       }
-      
+
       scormHtml = await fs.readFile(scormHtmlPath, 'utf-8');
       var scormBasePath = `/scorm/${cleanPath}`;
     }
@@ -2174,4 +2225,7 @@ module.exports = {
   recordLastVideoWatch,
   // checkCompletion - DEPRECATED: Moved to courseProgress controller
   // Use POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete instead
+  // Exported for direct unit testing (RUK-SEC-001 path-safety guards)
+  isSafeScormRelativePath,
+  isWithinRoot,
 };

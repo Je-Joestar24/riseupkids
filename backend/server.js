@@ -12,6 +12,8 @@ dotenv.config();
 // Prefer IPv4 for DNS lookups — on some Windows networks IPv6 DNS (e.g. router ::1) refuses
 // Node's SRV resolution while `nslookup` still works, causing querySrv ECONNREFUSED.
 dns.setDefaultResultOrder('ipv4first');
+// Fail fast on a missing/weak JWT_SECRET (RUK-SEC-003) — every auth token in the app depends on it.
+require('./config/jwtSecret').assertStrongJwtSecret();
 const mailConfig = require('./config/mail');
 const { startDeletionScheduler, stopDeletionScheduler } = require('./jobs/deletionScheduler');
 const { startNotificationScheduler, stopNotificationScheduler } = require('./jobs/notificationScheduler');

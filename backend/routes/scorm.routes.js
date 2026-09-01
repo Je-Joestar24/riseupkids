@@ -39,13 +39,15 @@ router.get('/:contentId/progress', protect, scormController.getProgress);
 /**
  * @route   GET /api/scorm/:contentId/wrapper
  * @desc    Get SCORM wrapper HTML with API injected
- * @access  Public (token passed in query string for security)
- * 
+ * @access  Private — `token` query param is required (401 without it). Not `protect`-gated at
+ *          the route level because this URL is loaded as an iframe `src`, which cannot carry an
+ *          `Authorization` header; the controller verifies the query-string token itself.
+ *
  * Query params:
  * - contentType: 'audioAssignment' | 'chant' | 'book' | 'video'
- * - entryPoint: Entry point HTML file (e.g., 'index.html')
- * - path: Relative path to SCORM content
- * - token: Auth token (passed from launch endpoint)
+ * - entryPoint: Entry point HTML file (e.g., 'index.html') — relative path only, no '..'
+ * - path: Relative path to SCORM content — relative path only, no '..'
+ * - token: Auth token (passed from launch endpoint) — required
  */
 router.get('/:contentId/wrapper', scormController.getWrapper);
 
