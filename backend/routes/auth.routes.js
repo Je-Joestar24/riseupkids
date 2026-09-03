@@ -17,6 +17,11 @@ const {
   resetPassword,
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth');
+const {
+  loginLimiter,
+  registerLimiter,
+  passwordResetLimiter,
+} = require('../middleware/rateLimit');
 
 /**
  * Authentication Routes
@@ -36,16 +41,18 @@ const { protect } = require('../middleware/auth');
  * - POST /logout - Logout user
  * - PUT /update-profile - Update user profile
  * - PUT /change-password - Change user password
+ *
+ * Public POST routes are per-IP rate limited (RUK-SEC-007) — see middleware/rateLimit.js.
  */
 
-// Public routes
-router.post('/register', registerUser);
-router.post('/subscribe-flodesk', subscribeFlodesk);
-router.post('/login', login);
-router.post('/verify-login-otp', verifyLoginOtp);
-router.post('/resend-login-otp', resendLoginOtp);
-router.post('/forgot-password', forgotPassword);
-router.post('/reset-password', resetPassword);
+// Public routes (rate limited)
+router.post('/register', registerLimiter, registerUser);
+router.post('/subscribe-flodesk', registerLimiter, subscribeFlodesk);
+router.post('/login', loginLimiter, login);
+router.post('/verify-login-otp', loginLimiter, verifyLoginOtp);
+router.post('/resend-login-otp', passwordResetLimiter, resendLoginOtp);
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
+router.post('/reset-password', passwordResetLimiter, resetPassword);
 router.get('/terms', getTerms);
 
 // Protected routes (require authentication)

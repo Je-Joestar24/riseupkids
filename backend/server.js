@@ -78,6 +78,21 @@ const errorHandler = require('./middleware/errorHandler');
 // Initialize Express app
 const app = express();
 
+// Trust the reverse proxy in front of the API so `req.ip` is the real client IP, not the proxy.
+// This matters for per-IP rate limiting (middleware/rateLimit.js) and any IP-based auditing.
+// TRUST_PROXY = number of proxy hops (default 1 = a single nginx). Set to 0 / "false" if the API
+// is exposed directly with no proxy. A wrong value here either lumps all users into one rate-limit
+// bucket (too low) or lets clients spoof X-Forwarded-For (too high) — confirm your setup.
+const trustProxyRaw = (process.env.TRUST_PROXY ?? '1').trim().toLowerCase();
+const trustProxy =
+  trustProxyRaw === 'false' || trustProxyRaw === '0'
+    ? false
+    : Number.isFinite(parseInt(trustProxyRaw, 10))
+      ? parseInt(trustProxyRaw, 10)
+      : 1;
+app.set('trust proxy', trustProxy);
+console.log(`[Server] trust proxy = ${JSON.stringify(trustProxy)} (from TRUST_PROXY="${process.env.TRUST_PROXY ?? '(unset, default 1)'}")`);
+
 // Middleware
 // CORS: enforced by browsers (Expo web, WebView). Native built apps (APK/IPA) often send no Origin or Origin: null.
 // - Production with CORS_ORIGIN: allow listed origins + no origin / null (so native app builds are not blocked).
