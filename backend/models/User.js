@@ -88,6 +88,26 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+    /**
+     * Failed-password login tracking for temporary account lockout (RUK-SEC-007).
+     * All `select: false` — never returned in normal user responses. Managed by
+     * services/loginLockout.service.js.
+     */
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    lastFailedLoginAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     /** Which payment provider the user's current subscription/purchase is with. */
     paymentProvider: {
       type: String,

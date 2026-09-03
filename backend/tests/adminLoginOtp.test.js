@@ -208,13 +208,14 @@ describe('auth.services – admin login OTP', () => {
 
       const result = await verifyLoginOtp('  Admin@Example.COM  ', '654 321');
 
+      // looked up by user (not by code) so wrong guesses can be counted (RUK-SEC-007)
       expect(LoginOtpToken.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'admin123',
-          code: '654321',
           expiresAt: expect.any(Object),
         })
       );
+      expect(LoginOtpToken.findOne.mock.calls[0][0]).not.toHaveProperty('code');
       expect(LoginOtpToken.deleteOne).toHaveBeenCalledWith({ _id: 'otp789' });
       expect(admin.lastLogin).toBeInstanceOf(Date);
       expect(admin.save).toHaveBeenCalled();

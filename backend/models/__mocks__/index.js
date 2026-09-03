@@ -26,12 +26,21 @@ const User = {
   findById: jest.fn().mockImplementation(() => ({
     select: jest.fn().mockResolvedValue(getMockUserResult()),
   })),
+  // Used by loginLockout.service.js (failed-login lockout). No-op by default.
+  updateOne: jest.fn().mockResolvedValue({ acknowledged: true, modifiedCount: 1 }),
+  find: jest.fn().mockImplementation(() => ({
+    select: jest.fn().mockReturnThis(),
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue([]),
+  })),
 };
 
 const PasswordResetToken = {
   deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
   create: jest.fn().mockResolvedValue({}),
   findOne: jest.fn().mockResolvedValue(null),
+  updateOne: jest.fn().mockResolvedValue({ acknowledged: true, modifiedCount: 1 }),
   deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
 };
 
@@ -39,6 +48,7 @@ const LoginOtpToken = {
   deleteMany: jest.fn().mockResolvedValue({ deletedCount: 0 }),
   create: jest.fn().mockResolvedValue({}),
   findOne: jest.fn().mockResolvedValue(null),
+  updateOne: jest.fn().mockResolvedValue({ acknowledged: true, modifiedCount: 1 }),
   deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
 };
 

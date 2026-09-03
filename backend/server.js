@@ -51,6 +51,7 @@ const accountDeletionRoutes = require('./routes/accountDeletion.routes');
 const moduleAccessRoutes = require('./routes/moduleAccess.routes');
 const adminNotificationsRoutes = require('./routes/adminNotifications.routes');
 const appNotificationsRoutes = require('./routes/appNotifications.routes');
+const adminAccountSecurityRoutes = require('./routes/adminAccountSecurity.routes');
 const badgeRoutes = require('./routes/badge.routes');
 const googleMeetRoutes = require('./routes/googleMeet.routes');
 const meetingRoutes = require('./routes/meeting.routes');
@@ -232,6 +233,7 @@ app.use('/api/admin/deletion-requests', accountDeletionRoutes);
 app.use('/api/admin/module-access', moduleAccessRoutes);
 app.use('/api/admin/notifications', adminNotificationsRoutes);
 app.use('/api/notifications', appNotificationsRoutes);
+app.use('/api/admin/account-security', adminAccountSecurityRoutes);
 
 // Root route
 app.get('/', (req, res) => {

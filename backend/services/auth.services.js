@@ -4,12 +4,42 @@ const { User, PasswordResetToken, LoginOtpToken } = require('../models');
 const { ChildProfile, ChildStats } = require('../models');
 const mailService = require('./mail');
 const legalContent = require('./legalContent.service');
+const {
+  isAccountLocked,
+  registerFailedLogin,
+  clearFailedLogins,
+} = require('./loginLockout.service');
 
 /** Expiry for admin login OTP codes (10 minutes) */
 const LOGIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
 
 /** Expiry for password-reset OTP codes (16 minutes) */
 const RESET_CODE_EXPIRY_MS = 16 * 60 * 1000;
+
+/** Message returned once a code has been guessed wrong too many times (RUK-SEC-007). */
+const TOO_MANY_CODE_ATTEMPTS_MESSAGE = 'Too many attempts. Please request a new code.';
+
+/** Parse a positive-integer env var, else the fallback. */
+const envInt = (name, fallback) => {
+  const n = parseInt(process.env[name] || '', 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+};
+
+/** Wrong-guess caps before the 6-digit code is destroyed (RUK-SEC-007). Env-tunable. */
+const maxLoginOtpAttempts = () => envInt('LOGIN_OTP_MAX_ATTEMPTS', 5);
+const maxResetCodeAttempts = () => envInt('PASSWORD_RESET_CODE_MAX_ATTEMPTS', 5);
+
+/**
+ * Constant-time 6-digit code comparison (avoids leaking match progress via response timing).
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+const codesMatch = (a, b) => {
+  const ba = Buffer.from(String(a || ''));
+  const bb = Buffer.from(String(b || ''));
+  return ba.length > 0 && ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
 
 /**
  * Normalize a 6-digit OTP from user input (strips non-digits).
@@ -171,7 +201,9 @@ const login = async (email, password) => {
     throw new Error('Please provide email and password');
   }
 
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+  const user = await User.findOne({ email: email.toLowerCase() }).select(
+    '+password +failedLoginAttempts +lockUntil +lastFailedLoginAt'
+  );
 
   if (!user) {
     throw new Error('Invalid credentials');
@@ -181,10 +213,29 @@ const login = async (email, password) => {
     throw new Error('Account is inactive. Please contact administrator.');
   }
 
-  const isMatch = await user.matchPassword(password);
-  if (!isMatch) {
+  // RUK-SEC-007: reject a locked account BEFORE checking the password, with the same generic
+  // error as a wrong password so it can't be probed. Real reason is logged, not returned.
+  if (isAccountLocked(user)) {
+    console.warn(
+      `[Auth:lockout] Login attempt on locked account ${user.email} (locked until ${new Date(user.lockUntil).toISOString()})`
+    );
     throw new Error('Invalid credentials');
   }
+
+  const isMatch = await user.matchPassword(password);
+  if (!isMatch) {
+    const { attempts, justLocked, lockUntil } = await registerFailedLogin(user);
+    if (justLocked) {
+      console.warn(
+        `[Auth:lockout] Account ${user.email} locked after ${attempts} failed login attempts` +
+          (lockUntil ? ` (until ${new Date(lockUntil).toISOString()})` : '')
+      );
+    }
+    throw new Error('Invalid credentials');
+  }
+
+  // Correct password — wipe any accumulated failed-attempt / lock state.
+  await clearFailedLogins(user);
 
   if (user.role === 'child') {
     throw new Error('Children do not have login accounts. Please login as a parent and select a child profile.');
@@ -228,12 +279,23 @@ const verifyLoginOtp = async (email, code) => {
     throw new Error('Invalid or expired verification code');
   }
 
+  // Find the active challenge by user (NOT by code) so we can count wrong guesses (RUK-SEC-007).
+  // issueAdminLoginOtp deleteMany's prior tokens, so there is at most one active row per user.
   const token = await LoginOtpToken.findOne({
     userId: user._id,
-    code: codeStr,
     expiresAt: { $gt: new Date() },
   });
   if (!token) {
+    throw new Error('Invalid or expired verification code');
+  }
+
+  if (!codesMatch(token.code, codeStr)) {
+    const attempts = (token.attempts || 0) + 1;
+    if (attempts >= maxLoginOtpAttempts()) {
+      await LoginOtpToken.deleteOne({ _id: token._id });
+      throw new Error(TOO_MANY_CODE_ATTEMPTS_MESSAGE);
+    }
+    await LoginOtpToken.updateOne({ _id: token._id }, { $set: { attempts } });
     throw new Error('Invalid or expired verification code');
   }
 
@@ -422,22 +484,39 @@ const resetPassword = async (email, code, newPassword) => {
     throw new Error('Password must be at least 6 characters');
   }
 
-  const user = await User.findOne({ email: normalized }).select('+password');
+  const user = await User.findOne({ email: normalized }).select(
+    '+password +failedLoginAttempts +lockUntil +lastFailedLoginAt'
+  );
   if (!user) {
     throw new Error('Invalid or expired reset code');
   }
 
+  // Find the active reset code by user (NOT by code) so we can count wrong guesses (RUK-SEC-007).
+  // forgotPassword deleteMany's prior tokens, so there is at most one active row per user.
   const token = await PasswordResetToken.findOne({
     userId: user._id,
-    code: codeStr,
     expiresAt: { $gt: new Date() },
   });
   if (!token) {
     throw new Error('Invalid or expired reset code');
   }
 
+  if (!codesMatch(token.code, codeStr)) {
+    const attempts = (token.attempts || 0) + 1;
+    if (attempts >= maxResetCodeAttempts()) {
+      await PasswordResetToken.deleteOne({ _id: token._id });
+      throw new Error(TOO_MANY_CODE_ATTEMPTS_MESSAGE);
+    }
+    await PasswordResetToken.updateOne({ _id: token._id }, { $set: { attempts } });
+    throw new Error('Invalid or expired reset code');
+  }
+
   user.password = newPassword;
   await user.save();
+
+  // A successful reset also clears any lockout — otherwise the user resets their password and is
+  // still locked out (RUK-SEC-007).
+  await clearFailedLogins(user);
 
   await PasswordResetToken.deleteOne({ _id: token._id });
 };
@@ -453,5 +532,8 @@ module.exports = {
   getTermsContent,
   forgotPassword,
   resetPassword,
+  // exported for tests / reuse
+  TOO_MANY_CODE_ATTEMPTS_MESSAGE,
+  codesMatch,
 };
 

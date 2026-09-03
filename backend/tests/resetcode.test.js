@@ -124,13 +124,15 @@ describe('auth.services – reset code (forgot password)', () => {
 
       await resetPassword('user@example.com', '123 456', 'newPass123');
 
+      // looked up by user (not by code) so wrong guesses can be counted (RUK-SEC-007)
       expect(PasswordResetToken.findOne).toHaveBeenCalledWith(
         expect.objectContaining({
           userId: 'user456',
-          code: '123456',
           expiresAt: expect.any(Object),
         })
       );
+      expect(PasswordResetToken.findOne.mock.calls[0][0]).not.toHaveProperty('code');
+      expect(validUser.save).toHaveBeenCalled(); // code matched via codesMatch, reset proceeded
     });
 
     it('throws when user does not exist', async () => {

@@ -25,6 +25,11 @@ const loginOtpTokenSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    /** Wrong-code guesses against this token (RUK-SEC-007). The token is destroyed once this hits the cap. */
+    attempts: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

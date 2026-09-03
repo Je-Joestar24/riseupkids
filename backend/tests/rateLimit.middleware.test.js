@@ -5,7 +5,13 @@
 const express = require('express');
 const request = require('supertest');
 
-const { makeAuthLimiter, loginLimiter, registerLimiter, passwordResetLimiter } = require('../middleware/rateLimit');
+const {
+  makeAuthLimiter,
+  loginLimiter,
+  registerLimiter,
+  passwordResetLimiter,
+  publicFormLimiter,
+} = require('../middleware/rateLimit');
 
 /** Minimal app: one limited POST route + one unlimited GET route. */
 function buildApp(limiter, { trustProxy } = {}) {
@@ -89,14 +95,13 @@ describe('rateLimit middleware — core behaviour', () => {
 });
 
 describe('rateLimit middleware — the exported limiters used by auth.routes.js', () => {
-  it('loginLimiter / registerLimiter / passwordResetLimiter are distinct express middleware', () => {
-    for (const mw of [loginLimiter, registerLimiter, passwordResetLimiter]) {
+  it('the exported limiters are all distinct express middleware', () => {
+    const all = [loginLimiter, registerLimiter, passwordResetLimiter, publicFormLimiter];
+    for (const mw of all) {
       expect(typeof mw).toBe('function');
       expect(mw.length).toBe(3); // (req, res, next)
     }
-    expect(loginLimiter).not.toBe(registerLimiter);
-    expect(registerLimiter).not.toBe(passwordResetLimiter);
-    expect(loginLimiter).not.toBe(passwordResetLimiter);
+    expect(new Set(all).size).toBe(all.length); // no two are the same instance
   });
 
   it('the exported loginLimiter actually blocks after enough requests, and registerLimiter keeps its own separate counter', async () => {

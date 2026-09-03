@@ -75,10 +75,21 @@ const passwordResetLimiter = makeAuthLimiter({
   limit: envInt('AUTH_PASSWORD_RESET_MAX', 10),
 });
 
+/**
+ * Unauthenticated public lead/contact forms (RUK-SEC-022): the sales-site "invitation" and
+ * "school application" forms. They write to the DB and push to a third-party email service, so
+ * they're a spam / cost-amplification target. A person submits once; a school NAT a handful.
+ */
+const publicFormLimiter = makeAuthLimiter({
+  windowMs: envInt('PUBLIC_FORM_WINDOW_MS', 60 * MINUTE),
+  limit: envInt('PUBLIC_FORM_MAX', 8),
+});
+
 module.exports = {
   makeAuthLimiter,
   rateLimitHandler,
   loginLimiter,
   registerLimiter,
   passwordResetLimiter,
+  publicFormLimiter,
 };
