@@ -94,30 +94,19 @@ const trustProxy =
 app.set('trust proxy', trustProxy);
 console.log(`[Server] trust proxy = ${JSON.stringify(trustProxy)} (from TRUST_PROXY="${process.env.TRUST_PROXY ?? '(unset, default 1)'}")`);
 
-// Middleware
-// CORS: enforced by browsers (Expo web, WebView). Native built apps (APK/IPA) often send no Origin or Origin: null.
-// - Production with CORS_ORIGIN: allow listed origins + no origin / null (so native app builds are not blocked).
-// - Development: allow localhost, 127.0.0.1, Expo origins, and no origin.
-const corsOptions = {
-  origin: (origin, callback) => {
-    const noOrigin = origin === undefined || origin === null || origin === '' || String(origin) === 'null';
-    if (process.env.CORS_ORIGIN) {
-      const allowed = process.env.CORS_ORIGIN.split(',').map((o) => o.trim());
-      if (noOrigin || allowed.includes(origin)) return callback(null, true);
-      return callback(null, false);
-    }
-    if (process.env.NODE_ENV === 'production') {
-      return callback(new Error('CORS_ORIGIN must be set in production'), false);
-    }
-    const allowedDev =
-      noOrigin ||
-      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
-      /^https:\/\/(.*\.)?(expo\.run|expo\.dev)$/.test(origin);
-    callback(null, allowedDev);
-  },
-  credentials: true,
-};
-app.use(cors(corsOptions));
+// Request id (RUK-SEC-011) — every response carries X-Request-Id; production 5xx bodies reference it.
+app.use(require('./middleware/requestId'));
+
+// Security response headers (RUK-SEC-009). See config/securityHeaders.js for the rationale.
+app.use(require('./config/securityHeaders').buildHelmet());
+
+// CORS (RUK-SEC-025). See config/cors.js. Refuses to start in production/staging without CORS_ORIGIN.
+const { buildCorsOptions, assertCorsConfig } = require('./config/cors');
+assertCorsConfig();
+if (!process.env.CORS_ORIGIN) {
+  console.warn('[Server] CORS_ORIGIN not set — allowing only localhost origins (development only).');
+}
+app.use(cors(buildCorsOptions()));
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Stripe webhook route needs raw body BEFORE express.json()
@@ -235,30 +224,15 @@ app.use('/api/admin/notifications', adminNotificationsRoutes);
 app.use('/api/notifications', appNotificationsRoutes);
 app.use('/api/admin/account-security', adminAccountSecurityRoutes);
 
-// Root route
+// Root route — minimal in production/staging (RUK-SEC-031), verbose in development.
 app.get('/', (req, res) => {
+  if (['production', 'staging'].includes((process.env.NODE_ENV || '').toLowerCase())) {
+    return res.json({ status: 'ok' });
+  }
   res.json({
     message: 'Welcome to Rise Up Kids API',
-    version: '1.0.0',
     status: 'running',
-      endpoints: {
-      api: '/api',
-      auth: '/api/auth',
-      parents: '/api/parents',
-      children: '/api/children',
-      courses: '/api/courses',
-      courseProgress: '/api/course-progress',
-      activities: '/api/activities',
-      books: '/api/books',
-      videos: '/api/videos',
-      audioAssignments: '/api/audio-assignments',
-      chants: '/api/chants',
-      scorm: '/api/scorm',
-      kidsWall: '/api/kids-wall',
-      videoWatch: '/api/video-watch',
-      bookReading: '/api/book-reading',
-      explore: '/api/explore'
-    }
+    endpoints: { api: '/api', auth: '/api/auth', health: '/api/health' },
   });
 });
 
@@ -319,7 +293,10 @@ const startServer = async () => {
   process.once('SIGINT', () => shutdown('SIGINT'));
 };
 
-startServer();
+// Only boot (connect DB, start schedulers, listen) when run directly — not when `require`d by a test.
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
 

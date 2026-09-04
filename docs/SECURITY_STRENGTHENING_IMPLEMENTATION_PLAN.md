@@ -3,9 +3,10 @@
 > **Status (September 2026):** Chunk 1 (written audit) **delivered** — see [SECURITY_AUDIT_2026.md](SECURITY_AUDIT_2026.md).
 > * *2026-09-01* — Fix-first items 1–3 (the 3 Critical findings) shipped and tested. Committed as `8fa5e19`.
 > * *2026-09-02* — Chunk 2: **per-IP rate limiting on all public auth endpoints** (RUK-SEC-007 part 1; also closed RUK-SEC-029). Committed `b0bce52`.
-> * *2026-09-03* — **Chunk 2 completed**: per-account lockout, 6-digit code caps, and public-form rate limiting. pm2 confirmed `fork` mode → no shared limiter store needed. Not yet committed.
+> * *2026-09-03* — **Chunk 2 completed**: per-account lockout, 6-digit code caps, and public-form rate limiting. pm2 confirmed `fork` mode → no shared limiter store needed. Committed `ca16129`.
+> * *2026-09-04* — **Chunk 3 completed (API side)**: `helmet` security headers + HSTS, generic production `5xx` + request-id correlation, CORS fail-closed (no expo wildcard), trimmed info/health endpoints. 36 tests incl. a real-server e2e; live `curl -I` verified. Static-site (CloudFront) headers deferred to Chunk 13. Not yet committed.
 >
-> **Chunk 2 is done. Next: Chunk 3 — security headers + production error hygiene.** Outstanding client actions: **(1) set/rotate a strong `JWT_SECRET` on the production server** — the API now refuses to start without one — **(2) confirm the reverse-proxy hop count** for `TRUST_PROXY` (default 1 = single nginx).
+> **Chunks 1–3 done. Next: Chunk 4 — secret management & repo hygiene** (full git-history secret scan; `.env` file hardening on the VPS; the `JWT_SECRET` startup check already landed in the critical fixes). Outstanding client actions: **(1) set/rotate a strong `JWT_SECRET` on the production server** — the API now refuses to start without one — **(2) confirm the reverse-proxy hop count** for `TRUST_PROXY` (default 1 = single nginx) — **(3) optionally set `HSTS_MAX_AGE`** (defaults to a safe 1 day; raise once confident).
 > **Source:** "Rise Up Kids — Security Strengthening Implementation Plan" (client PDF, 5-phase draft) + client follow-up email (COPPA/privacy, backup/recovery, webhook protections, logging hygiene, mobile security).
 > **Scope:** `backend/` (Express + MongoDB API), `frontend/` (Vite admin/web LMS), `app/` (Expo React Native), `riseupkids-sale/` (marketing site submodule), plus organizational and infrastructure controls.
 > **Audience:** Engineering + client review.
@@ -272,7 +273,21 @@ The audit has no runtime change to test, but every finding must be **evidence-ba
 
 **PDF:** Phase 1 — Helmet security headers, hide detailed production error messages. Phase 3 — review CORS. Phase 4 — HSTS (header portion here; transport enforcement in Chunk 13).
 
-### Work
+> **Done — API side (2026-09-04).** Closes RUK-SEC-009 (API), RUK-SEC-011, RUK-SEC-025, RUK-SEC-031.
+> * `helmet` on the API (`backend/config/securityHeaders.js`): `nosniff`, `Referrer-Policy: no-referrer`, `Cross-Origin-Resource-Policy: cross-origin`, HSTS (max-age from `HSTS_MAX_AGE`, default 1 day, `=0` disables with no deploy), `X-Powered-By` removed. **CSP off** (JSON API; CSP belongs on the CloudFront sites). **Frame headers off** (a JSON API can't be clickjacked; the legacy content player frames HTML from this origin).
+> * `errorHandler.js` rewritten: production `5xx` → generic message + `requestId`; full detail to the server log under that id; `4xx` unchanged. New `middleware/requestId.js` (UUID + `X-Request-Id`). `notFound.js` fixed to return a real `404` with a generic body.
+> * CORS → `backend/config/cors.js`: `*.expo.dev` / `*.expo.run` wildcard removed; dev fallback is localhost-only; production/staging still refuse to start without `CORS_ORIGIN`.
+> * `GET /`, `GET /api/health`, `POST /api` trimmed in production/staging.
+> * `server.js` now only boots when run directly (`require.main === module`), so it can be loaded in tests.
+> * 36 tests incl. `securityHeaders.e2e.test.js` (drives the real `server.js` app over HTTP) + a live `curl -I` check. Full suite 750 pass.
+>
+> **Still to do here / deferred:**
+> * **Static-site headers (RUK-SEC-009 remainder)** — the admin (`app.riseup.kids`) and sales (`riseup.kids`) sites are static on CloudFront; their headers + CSP go on a **CloudFront Response Headers Policy**. Needs AWS console access — folded into **Chunk 13**.
+> * Nginx-level headers for any non-helmet path — Chunk 13.
+> * Controller-level `catch` blocks that still echo `error.message` (payments/diagnostics) — bundle with **Chunk 6** logging.
+> * `X-Content-Type-Options` is now on `/uploads` `/scorm` `/html5` via app-wide helmet; directory-listing check — Chunk 13.
+
+### Work (original plan — kept for reference; see the "Done" box above for what actually shipped)
 
 - Add `helmet` with: `Content-Security-Policy` (start report-only, tune for admin SPA + SCORM/HTML5 iframes), `X-Content-Type-Options`, `X-Frame-Options`/`frame-ancestors`, `Referrer-Policy`, `Cross-Origin-*` policies, `Strict-Transport-Security` (long max-age + preload — only after Chunk 13 confirms HTTPS everywhere; ship report-only / short max-age first).
 - Frontend admin (`frontend/`) and marketing site (`riseupkids-sale/web/`): these are static S3 + CloudFront, so `helmet` can't help. Attach a **CloudFront Response Headers Policy** (CSP, `X-Content-Type-Options`, `Referrer-Policy`, `frame-ancestors`, HSTS) to each distribution, plus a `<meta http-equiv="Content-Security-Policy">` fallback in `index.html`. If the API is proxied by nginx, add the same headers there for any non-helmet paths.

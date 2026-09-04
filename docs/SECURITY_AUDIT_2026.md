@@ -4,9 +4,9 @@
 > Every finding here has an **owning chunk (2–14)**. No code was changed to produce this document.
 > **Date:** 2026-09-01 · **Auditor:** Engineering (internal) · **Status:** Delivered, pending client review of severity + ordering.
 
-## Remediation status update — 2026-09-03
+## Remediation status update — 2026-09-04
 
-All three **Critical** findings are **fixed and verified**. Progress has also started on the High/Medium backlog. Details, diffs-in-words, and test evidence are inline on each finding below (search "**Status:**").
+All three **Critical** findings are **fixed and verified**, and Chunks 2 and 3 are complete. Details, diffs-in-words, and test evidence are inline on each finding below (search "**Status:**").
 
 | ID | Sev | Fix | Verified by |
 |----|-----|-----|-------------|
@@ -16,9 +16,9 @@ All three **Critical** findings are **fixed and verified**. Progress has also st
 | **RUK-SEC-007** | High | **Closed.** (a) Per-IP rate limiting on all public auth endpoints — generic `429` + `Retry-After`. (b) Per-account lockout: exponential silent temporary lock after repeated wrong passwords, auto-unlock, admin list/unlock endpoints. (c) 6-digit code caps: the admin OTP / password-reset code is destroyed after 5 wrong guesses. (pm2 is `fork` mode — no shared limiter store needed.) | 67 tests, including three full-stack `supertest` e2e suites (one against the real router, two against the whole stack + a real in-memory MongoDB) |
 | **RUK-SEC-029** | Medium | `app.set('trust proxy', …)` now driven by `TRUST_PROXY` env (default 1) so the rate limiter keys on the real client IP | Covered by the RUK-SEC-007 e2e tests (per-IP isolation via `X-Forwarded-For`) |
 
-**Also fixed:** RUK-SEC-022 — all three unauthenticated public write endpoints (`subscribe-flodesk`, `/api/invitation`, `/api/school-application`) are now per-IP rate limited. A bot check (CAPTCHA) stays a recommended later enhancement.
-
-**Still open on RUK-SEC-007 (Chunk 2):** per-token attempt caps on the 6-digit OTP / reset codes, and a shared Redis/Mongo store for the *rate limiter* under pm2 cluster mode. (Per-account lockout landed 2026-09-03.)
+**Also fixed:**
+* RUK-SEC-022 — all three unauthenticated public write endpoints (`subscribe-flodesk`, `/api/invitation`, `/api/school-application`) are now per-IP rate limited. A bot check (CAPTCHA) stays a recommended later enhancement.
+* **Chunk 3 (2026-09-04):** RUK-SEC-009 (API security headers via `helmet` + HSTS), RUK-SEC-011 (generic production `5xx` + request-id correlation), RUK-SEC-025 (CORS fail-closed, no expo wildcard), RUK-SEC-031 (trimmed info/health endpoints). The static-site (CloudFront) headers for RUK-SEC-009 remain a Chunk 13 item.
 
 **Client actions required:**
 1. **Set (or confirm) a real, random `JWT_SECRET` on the production server (`openssl rand -hex 32`) before deploying** — the API will otherwise refuse to start. If there's any chance the current secret is the shipped example value, also rotate the other secrets in that `.env` (RUK-SEC-001 may have exposed them prior to that fix).
@@ -52,7 +52,7 @@ RUK-SEC-001 alone was enough to compromise the entire platform (read `.env` → 
 - No live secrets were found in a quick git-history scan (full entropy scan still pending — Chunk 4).
 - Admin management routes (`/api/parents`, `/api/teachers`, `/api/admin/*`) are correctly gated with `authorize('admin')`.
 
-**Counts (as originally assessed):** 3 Critical · 10 High · 16 Medium · 7 Low/Info (36 total). **As of 2026-09-03 (Chunk 2 complete):** 0 Critical open (3 fixed) · **9 High open** (RUK-SEC-007 closed) · **14 Medium open** (RUK-SEC-029 and RUK-SEC-022 closed) · 7 Low/Info open. → **6 findings fixed, 30 remaining.**
+**Counts (as originally assessed):** 3 Critical · 10 High · 16 Medium · 7 Low/Info (36 total). **As of 2026-09-04 (Chunks 2 + 3 complete):** 0 Critical open · **7 High open** (RUK-SEC-007 + RUK-SEC-009 + RUK-SEC-011 closed) · **13 Medium open** (RUK-SEC-029, -022, -025 closed) · **6 Low/Info open** (RUK-SEC-031 closed). → **10 findings fixed, 26 remaining.**
 
 ---
 
@@ -319,12 +319,14 @@ Severity uses CVSS-style reasoning (impact × exploitability × exposure). "Owni
 - **Fix:** Every child-scoped route must resolve `childId` and assert the caller is authorised for that specific child (parent-owns, or an explicit teacher↔child assignment), regardless of role. Add `authorize(...)` to the routes. Build the IDOR matrix (Chunk 12) and test every row.
 - **Owning chunk:** **12**.
 
-### RUK-SEC-009 — No security headers, CSP, or HSTS · **HIGH**
+### RUK-SEC-009 — No security headers, CSP, or HSTS · **HIGH** · **Status: FIXED on the API (2026-09-04); the static-site headers remain a Chunk 13 item**
 
 - **Where:** [`backend/server.js:102`](../backend/server.js) — `helmet` absent. Static sites (`frontend`, sales) have no CloudFront response-headers policy documented.
 - **Impact:** No `X-Content-Type-Options`, `X-Frame-Options`/`frame-ancestors` (clickjacking of the admin SPA), `Referrer-Policy` (leaks tokens-in-URLs — see RUK-SEC-004/024), `Content-Security-Policy` (weak XSS containment), or `Strict-Transport-Security` (no protection against SSL-strip / the historic `http://<ip>:5000` path).
 - **Fix:** `helmet` on the API (CSP report-only → enforce), CloudFront Response Headers Policies on both static distributions, HSTS after Chunk 13 verifies HTTPS everywhere.
 - **Owning chunk:** **3** (+ **13** for edge).
+
+**What shipped (2026-09-04):** `helmet` on the API via `backend/config/securityHeaders.js`. Every response now carries `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Cross-Origin-Resource-Policy: cross-origin` (so `app.riseup.kids` can still call `api.riseup.kids`), `Strict-Transport-Security` (max-age from `HSTS_MAX_AGE`, default 1 day — conservative and self-healing; `HSTS_MAX_AGE=0` disables it with no deploy), and helmet's other defaults; `X-Powered-By` is removed. **CSP is deliberately off** — the API returns JSON, and the HTML pages (admin + sales) are static on CloudFront; their CSP belongs there. **Frame protection is deliberately off** on the API — a JSON API can't be clickjacked and the legacy content-player still frames HTML from this origin; the admin-SPA frame policy is a CloudFront item (Chunk 13). Verified live (`curl -I` against a running production-mode server) and by `backend/tests/securityHeaders.test.js` + `backend/tests/securityHeaders.e2e.test.js` (the latter drives the real `server.js` app).
 
 ### RUK-SEC-010 — Sensitive data in application logs at scale · **HIGH**
 
@@ -333,12 +335,14 @@ Severity uses CVSS-style reasoning (impact × exploitability × exposure). "Owni
 - **Fix:** Structured logger (`pino`) with a central redaction serializer; remove the `JSON.stringify` debug dumps; `pino-http` config that omits `Authorization`/`Cookie` and token-bearing query params; CI gate against new raw `console.*`.
 - **Owning chunk:** **6**.
 
-### RUK-SEC-011 — Production error responses leak internal messages · **HIGH**
+### RUK-SEC-011 — Production error responses leak internal messages · **HIGH** · **Status: FIXED (2026-09-04) — the central handler; controller-level `catch` blocks that echo `error.message` are a follow-up**
 
 - **Where:** [`backend/middleware/errorHandler.js:26`](../backend/middleware/errorHandler.js) — `res.status(...).json({ message: error.message || 'Server Error', ...(dev && stack) })`. Many controllers also return `error.message` directly in `catch` blocks (e.g. `paypalService` `describeAxiosError` bubbles full PayPal API response text; `pagseguro` diagnostics).
 - **Impact:** 500s return raw exception text (DB errors, third-party API errors incl. partial payloads, file paths). Aids reconnaissance and can echo secrets embedded in error strings.
 - **Fix:** In production return a generic message + `code` + `requestId`; log full detail server-side under that `requestId`. Keep 4xx validation messages.
 - **Owning chunk:** **3**.
+
+**What shipped (2026-09-04):** `errorHandler.js` rewritten — in production/staging a `5xx` returns only `{ success: false, message: 'Something went wrong. Please try again.', requestId }`; the full error (stack, DB detail) goes to the server log keyed by that id. `4xx` validation messages are unchanged (they are user-facing). New `backend/middleware/requestId.js` puts a UUID on every request and echoes it in the `X-Request-Id` header. `notFound.js` fixed to return a real `404` with a generic body (it previously fell through to a `500` and echoed the requested URL). Tests: `backend/tests/errorHandler.test.js`, `backend/tests/requestId.middleware.test.js`, plus the e2e. **Follow-up (not this chunk):** the payment/diagnostic controllers still build detailed `error.message` strings in their own `catch` blocks — those should route through the central handler or be genericised (bundle with Chunk 6 logging work).
 
 ### RUK-SEC-012 — Client-side token storage is not secure · **HIGH**
 
@@ -452,12 +456,14 @@ Two distinct sub-issues, different owners:
 - **Fix:** Add `protect` to `/:id/launch`; make `/:id/bridge-status` `authorize('admin')` or remove it (it is a debugging aid).
 - **Owning chunk:** **3** / **12**.
 
-### RUK-SEC-025 — Permissive CORS in the development branch; correctness depends on env · **MEDIUM**
+### RUK-SEC-025 — Permissive CORS in the development branch; correctness depends on env · **MEDIUM** · **Status: FIXED (2026-09-04)**
 
 - **Where:** [`backend/server.js:83-101`](../backend/server.js) — when `CORS_ORIGIN` is unset and `NODE_ENV !== 'production'`, any `localhost`/`127.0.0.1` origin and any `*.expo.run`/`*.expo.dev` origin is allowed with `credentials: true`. Prod safety relies entirely on `NODE_ENV=production` **and** `CORS_ORIGIN` being set (it throws only if `NODE_ENV==='production'` and `CORS_ORIGIN` missing).
 - **Impact:** A misconfigured `NODE_ENV` (e.g. unset) on the prod box silently enables the permissive branch.
 - **Fix:** Fail closed unless `CORS_ORIGIN` is explicitly set, regardless of `NODE_ENV`; tighten allowed methods/headers; document the null-origin allowance for native builds as an accepted risk.
 - **Owning chunk:** **3**.
+
+**What shipped (2026-09-04):** CORS moved to `backend/config/cors.js`. The `*.expo.dev` / `*.expo.run` wildcard is **gone** — with `CORS_ORIGIN` unset the only fallback is `http(s)://localhost` / `127.0.0.1` (development convenience). `production`/`staging` still refuse to start without `CORS_ORIGIN`. The null-origin allowance for native app builds is kept and documented. Tests: `backend/tests/cors.config.test.js` + the e2e (real server rejects `x.expo.dev` and `evil.example.com`, allows the two listed origins). **Client note:** the production `CORS_ORIGIN` currently contains two `exp://192.168.x.x:8081` developer-LAN entries — harmless but they don't belong in production; trim next time the env file is edited.
 
 ### RUK-SEC-026 — Account-deletion purge gaps · **MEDIUM (COPPA/LGPD)**
 
@@ -494,11 +500,13 @@ Two distinct sub-issues, different owners:
 - **Fix:** `crypto.randomUUID()`. (Compounds RUK-SEC-005.)
 - **Owning chunk:** **12**.
 
-### RUK-SEC-031 — Information disclosure on root / info / health endpoints · **LOW**
+### RUK-SEC-031 — Information disclosure on root / info / health endpoints · **LOW** · **Status: FIXED (2026-09-04)**
 
 - **Where:** [`backend/server.js:220`](../backend/server.js) `GET /` lists every endpoint; [`backend/routes/api.js`](../backend/routes/api.js) `POST /api` returns feature/role detail, `GET /api/health` returns `process.uptime()`.
 - **Fix:** Minimal health response; drop the endpoint catalogue in production.
 - **Owning chunk:** **3**.
+
+**What shipped (2026-09-04):** in `production`/`staging`, `GET /` and `GET /api/health` return `{ status: 'ok' }` and `POST /api` returns `{ success: true, message: 'Rise Up Kids API' }` — no endpoint catalogue, no version, no uptime. Development keeps the verbose responses. Tests: `backend/tests/apiInfo.routes.test.js` + the e2e.
 
 ### RUK-SEC-032 — Push debug overlay enabled on the EAS `preview` profile · **LOW/INFO**
 
