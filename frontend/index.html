@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/lms-logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- RUK-SEC-013 partial mitigation — meta-tag CSP; can't set X-Frame-Options/HSTS/frame-ancestors
+         here, those need the CloudFront Response Headers Policy (see docs/CLOUDFRONT_RESPONSE_HEADERS_POLICY.md) -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https://api.riseup.kids https://*.cloudfront.net; frame-src 'self' https: blob:; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
     <title>Rise Up Kids - Learning Management System</title>
     <!-- Quicksand Font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

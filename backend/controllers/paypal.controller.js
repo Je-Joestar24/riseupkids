@@ -19,6 +19,7 @@ const {
   currencyToPlanRegion,
   tierKeyToPlanKidsLimit,
 } = require('../services/paypalService');
+const { safeErrorMessage } = require('../utils/safeErrorMessage');
 
 /**
  * POST /api/paypal/create-order
@@ -88,10 +89,10 @@ exports.createOrder = async (req, res, next) => {
       orderID,
     });
   } catch (error) {
-    console.error('[PayPal] Create order error:', error.message);
+    console.error('[PayPal] Create order error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to create PayPal order.',
+      message: safeErrorMessage(error, 'Failed to create PayPal order.'),
     });
   }
 };
@@ -163,10 +164,10 @@ exports.captureOrder = async (req, res, next) => {
       message: result.alreadyCaptured ? 'Order was already captured; subscription updated.' : 'Order captured and subscription activated.',
     });
   } catch (error) {
-    console.error('[PayPal] Capture order error:', error.message);
+    console.error('[PayPal] Capture order error:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Failed to capture PayPal order.',
+      message: safeErrorMessage(error, 'Failed to capture PayPal order.'),
     });
   }
 };

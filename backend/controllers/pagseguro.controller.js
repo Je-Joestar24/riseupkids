@@ -22,6 +22,7 @@ const {
 const { processWebhookNotification } = require('../services/pagseguroWebhook.service');
 const { activateUserFromPagseguroCheckout } = require('../services/pagseguroActivation.service');
 const { buildVerificationDiagnostics } = require('../services/pagseguroDiagnostics.service');
+const { safeErrorMessage } = require('../utils/safeErrorMessage');
 
 /** Internal only — set PAGSEGURO_DEBUG=true on EC2 to log verify/webhook diagnostics. */
 function logPagseguroDiagnostics(label, data) {
@@ -226,9 +227,15 @@ exports.getCheckoutDetails = async (req, res, next) => {
       apiCheckout = await getPagbankCheckout(checkoutId.trim());
     } catch (err) {
       const status = err.statusCode === 404 ? 404 : 502;
+      // getPagbankCheckout() bundles the raw PagBank API error (status, body) into err.message —
+      // safe to log, not safe to return to the browser (RUK-SEC-011 follow-up).
+      console.error('[PagSeguro] checkout verification failed:', err);
       return res.status(status).json({
         success: false,
-        message: err.message || 'Unable to verify checkout with PagBank.',
+        message: safeErrorMessage(
+          err,
+          status === 404 ? 'Checkout session not found.' : 'Unable to verify checkout with PagBank.'
+        ),
       });
     }
 
