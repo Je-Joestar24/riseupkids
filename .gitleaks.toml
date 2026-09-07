@@ -1,0 +1,45 @@
+# gitleaks config (v8) — RUK-SEC-034 / Chunk 4.
+# Used by the .githooks/pre-commit hook (if gitleaks is installed) and by the Chunk 5 CI check.
+# Extends the default ruleset; the allowlist below is for values that scanned as secrets but
+# are safe by design or are test fixtures. Every entry has a reason.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known-safe matches — reviewed 2026-09-07"
+
+paths = [
+  # Placeholders only, by design.
+  '''(.*/)?\.env\.example$''',
+  '''(.*/)?\.env\.[^/]+\.example$''',
+  '''app/google-services\.json\.example$''',
+  # Client-side Firebase config: the Android API key ships in the APK and is restricted by
+  # package name + signing cert in Google Cloud. Not a server secret. Tracked copy is being
+  # removed in Chunk 4; keep the allowlist so historical scans don't flag it.
+  '''app/google-services\.json$''',
+  # Test suites use fabricated tokens / keys / ObjectIds.
+  '''backend/tests/''',
+  '''frontend/src/.*\.test\.(js|jsx)$''',
+  '''app/__tests__/''',
+  # Stripe/PayPal price & product IDs — non-sensitive identifiers referenced by client code too.
+  '''backend/config/stripeFamilyPlanPrices\.json$''',
+  '''backend/config/pagseguroFamilyPlanPrices\.json$''',
+  '''backend/config/paypalFamilyPlanPrices\.json$''',
+]
+
+regexes = [
+  # Stripe/PayPal PUBLISHABLE keys are meant to be shipped to the browser.
+  '''pk_(live|test)_[0-9A-Za-z]+''',
+  # Documentation showing key *formats*, not real keys.
+  '''sk_test_your_stripe_secret_key''',
+  '''whsec_your_webhook_secret''',
+]
+
+stopwords = [
+  "example",
+  "placeholder",
+  "your_",
+  "REPLACE_WITH",
+  "changeme",
+]

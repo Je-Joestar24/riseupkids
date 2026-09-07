@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Secret-scan the staged change before every commit (RUK-SEC-034 / Chunk 4).
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+#
+# Two layers:
+#   1. A dependency-free regex sweep of staged content (always runs).
+#   2. `gitleaks protect --staged` if gitleaks is installed (deeper, uses .gitleaks.toml).
+#
+# Bypass in a genuine emergency with `git commit --no-verify` — but treat any hit as real
+# until proven otherwise, and rotate anything that was already pushed.
+
+set -u
+RED=$'\e[31m'; YEL=$'\e[33m'; RST=$'\e[0m'
+fail=0
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged_files" ] && exit 0
+
+# --- Refuse to track an environment file (only *.example is allowed) --------------
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    *.example) : ;;
+    .env|*/.env|*.env|.env.*|*/.env.*)
+      echo "${RED}Refusing to commit an environment file: $f${RST}"
+      fail=1
+      ;;
+  esac
+done <<< "$staged_files"
+
+# --- Built-in regex sweep of ADDED lines -----------------------------------------
+# High-signal patterns only, to keep false positives near zero.
+patterns='(AKIA|ASIA)[0-9A-Z]{16}|sk_live_[0-9A-Za-z]{20,}|rk_live_[0-9A-Za-z]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[0-9A-Za-z-]{10,}|ghp_[0-9A-Za-z]{36}|glpat-[0-9A-Za-z_-]{20}|mongodb\+srv://[^ :@/]+:[^ :@/]+@'
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  case "$f" in
+    *.example|.githooks/pre-commit|.gitleaks.toml) continue ;;
+  esac
+  hits=$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -nE "$patterns")
+  if [ -n "$hits" ]; then
+    echo "${RED}Possible secret in staged change: $f${RST}"
+    echo "$hits" | sed 's/^/    /'
+    fail=1
+  fi
+done <<< "$staged_files"
+
+# --- gitleaks, if installed ------------------------------------------------------
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-banner -c .gitleaks.toml || fail=1
+else
+  echo "${YEL}note: gitleaks not installed — ran the built-in sweep only."
+  echo "      install for deeper coverage: https://github.com/gitleaks/gitleaks#installing${RST}"
+fi
+
+if [ "$fail" -ne 0 ]; then
+  echo "${RED}commit blocked. If this is a false positive, add it to .gitleaks.toml or use --no-verify.${RST}"
+  exit 1
+fi
+exit 0

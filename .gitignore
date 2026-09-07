@@ -1,0 +1,49 @@
+# Root .gitignore — applies to every workspace (backend/, frontend/, app/, riseupkids-sale/).
+# Each workspace also has its own .gitignore; this is the shared safety net, mainly so a
+# secret-bearing .env can never be committed from any directory.
+
+# --- Secrets / environment ---
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Google / Firebase client config (ships in the app build; supplied at build time, not via git)
+google-services.json
+GoogleService-Info.plist
+# Server-side credential files — must never be committed
+*serviceAccount*.json
+*service-account*.json
+gcp-*.json
+*.pem
+*.p8
+*.p12
+*.key
+
+# --- Dependencies ---
+node_modules/
+
+# --- Build output ---
+dist/
+build/
+.expo/
+web-build/
+*.tsbuildinfo
+
+# --- Test / coverage ---
+coverage/
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Editor / OS ---
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- Local tooling ---
+.claude/

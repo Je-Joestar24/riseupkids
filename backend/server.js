@@ -257,6 +257,11 @@ const connectDB = async () => {
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
+  // Fail fast with one consolidated list of any missing required env vars (RUK-SEC-034).
+  // Runs only on a real boot, not when this module is `require`d by a test.
+  const { checkEnv, reportEnv } = require('./scripts/check-env');
+  reportEnv(checkEnv(), { exitOnFailure: true });
+
   await connectDB();
   startDeletionScheduler();
   startNotificationScheduler();

@@ -1,0 +1,30 @@
+{
+  "_comment": "Template only. Copy to app/google-services.json and fill from the Firebase console (Project settings > Your apps > Android > google-services.json). Referenced by app.json -> android.googleServicesFile. For EAS builds, upload the real file as a secret file: eas secret:create --scope project --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json (and switch app.json to app.config.js reading process.env.GOOGLE_SERVICES_JSON if you want it fully out of the working tree).",
+  "project_info": {
+    "project_number": "REPLACE_WITH_PROJECT_NUMBER",
+    "project_id": "REPLACE_WITH_PROJECT_ID",
+    "storage_bucket": "REPLACE_WITH_STORAGE_BUCKET"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "REPLACE_WITH_MOBILESDK_APP_ID",
+        "android_client_info": {
+          "package_name": "com.riseupkids.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

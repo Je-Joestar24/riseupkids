@@ -522,11 +522,22 @@ Two distinct sub-issues, different owners:
 - **Fix:** Raise to 12 (re-hash on next successful login).
 - **Owning chunk:** **10**.
 
-### RUK-SEC-034 — Config hygiene: real IDs in `.env.example`; full history scan pending · **INFO**
+### RUK-SEC-034 — Config hygiene: real IDs in `.env.example`; full history scan pending · **INFO** · **Status: FIXED (2026-09-07)**
 
 - **Where:** [`backend/.env.example:62-70`](../backend/.env.example) contains real Flodesk segment IDs. `backend/STRIPE_LOCAL_SETUP.md` documents key formats. Quick history scan found **no live secrets**, but an entropy-based `gitleaks`/`trufflehog` pass over all workspaces + the submodule history has not been run.
 - **Fix:** Replace real IDs with placeholders; run the full history scan and rotate anything confirmed (Chunk 4).
 - **Owning chunk:** **4**.
+
+**What shipped (2026-09-07):**
+- **Full-history secret scan** — `detect-secrets` over every tracked file plus a pattern sweep of the entire commit history of the main repo and the `riseupkids-sale` submodule. **No true secret found anywhere in history or working tree** — no AWS keys, no Stripe/PayPal/PagBank *secret* keys, no Mongo credentials, no private keys, no SMTP passwords, no tokens. `backend/.env` has never been tracked.
+- **One low-severity item:** `app/google-services.json` was tracked. It ships inside the Android app by design (the key is restricted by package name + signing cert in Google Cloud), so it is not a classic secret — but it was still untracked, replaced with a `.example`, and `.gitignore`d. **Client action:** confirm in Google Cloud Console that this Android API key has Application + API restrictions; rotating is optional.
+- **`riseupkids-sale/web/.env` was tracked** — it holds only a Stripe *publishable* key and PayPal *client IDs* (public by design), so nothing leaked, but it was untracked and `.gitignore`d.
+- **`.env.example` brought current** — added the previously-undocumented AWS, PayPal, Google Vision, YouTube/Google OAuth, Expo-push, and scheduler sections (placeholders only); real Flodesk segment IDs replaced with placeholders; `app/.env.example` similarly completed.
+- **Root `.gitignore` added** (there was none) covering `.env`, credential file types, build output, and local tooling across all workspaces.
+- **`backend/scripts/check-env.js`** — one consolidated "these required vars are missing" failure at startup (and runnable standalone before a deploy), instead of a different runtime error per unset var. Covers hard requirements, prod-only requirements, and feature-gated requirements (SMTP, Vision, PagBank). 13 tests.
+- **Pre-commit secret-scan hook** (`.githooks/pre-commit` + `.gitleaks.toml`) — a dependency-free regex sweep of staged content plus `gitleaks protect` when installed; also refuses to commit any `.env`. Enable per clone with `git config core.hooksPath .githooks`.
+
+**Still open (needs the client / their server):** `.env` file-permission hardening on the EC2 box (`chmod 600`, dedicated deploy user, pm2 ecosystem file) and the staging-vs-production credential-isolation decision — both tracked under Chunk 4's remaining checklist and Chunk 13.
 
 ### RUK-SEC-035 — Organizational controls not verified · **INFO**
 

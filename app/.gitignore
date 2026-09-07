@@ -18,6 +18,11 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Google / Firebase config — bundled into the build, supplied at build time (EAS secret file
+# or a local copy), not committed. See docs for the API-key restriction checklist.
+google-services.json
+GoogleService-Info.plist
+
 # Metro
 .metro-health-check*
 
