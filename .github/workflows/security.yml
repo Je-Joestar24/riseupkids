@@ -1,0 +1,88 @@
+name: security
+
+# Checks only — never deploys (RUK-SEC-013 / Chunk 5).
+# Layers: dependency audit, secret scan (full history), static analysis (semgrep),
+# and dependency-review on PRs.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC — catches newly disclosed advisories
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-audit:
+    name: npm audit (${{ matrix.workspace }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { workspace: backend, dir: backend }
+          - { workspace: frontend, dir: frontend }
+          - { workspace: app, dir: app }
+          - { workspace: sales, dir: riseupkids-sale/web }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Report everything, then fail only on Critical for now. The High backlog is tracked in
+      # docs/DEPENDENCY_AND_SCANNING_SCHEDULE.md; tighten to --audit-level=high once triaged.
+      - name: Audit (report)
+        working-directory: ${{ matrix.dir }}
+        run: npm audit || true
+      - name: Audit (fail on critical)
+        working-directory: ${{ matrix.dir }}
+        run: npm audit --audit-level=critical
+
+  gitleaks:
+    name: secret scan (full history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+          # GITLEAKS_LICENSE is only needed for gitleaks-action on GitHub *organizations*.
+          # If the client's org requires it, add it as a repo secret; otherwise this runs free.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  semgrep:
+    name: static analysis (semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      # Registry rulesets gate the build.
+      - name: Semgrep (OWASP + Node)
+        run: semgrep scan --config "p/owasp-top-ten" --config "p/nodejsscan" --error --metrics off
+      # Project rules are additive; report-only until a clean run is confirmed, then add --error.
+      - name: Semgrep (project rules)
+        run: semgrep scan --config .semgrep.yml --metrics off
+
+  dependency-review:
+    name: dependency review (PR only)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

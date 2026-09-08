@@ -367,12 +367,26 @@ Two distinct sub-issues, different owners:
 - **Owning chunk:** **9** (web token storage, with **3** = CSP as the compensating control that can land first; **12** = CSRF).
 - **Priority note:** this is a **High**, not a Critical, and it requires an active XSS to exploit — which CSP (Chunk 3) largely neutralises. It is correctly scheduled with Chunk 9 and should **not** be rushed as a standalone change, precisely because of the reload/navigation regression risk described above.
 
-### RUK-SEC-013 — Known-vulnerable dependencies, no automated auditing · **HIGH**
+### RUK-SEC-013 — Known-vulnerable dependencies, no automated auditing · **HIGH** · **Status: FIXED (2026-09-08) — all Critical cleared, scanning automated; residual High is a documented backlog**
 
 - **Where:** `npm audit` (2026-09-01): **backend** 23 (1 critical `protobufjs` via `@google-cloud/vision`, 13 high incl. `axios` SSRF/prototype-pollution, `adm-zip` DoS, **`mongoose` — improper `$nor` sanitisation → NoSQL injection** + prototype pollution in update casting, `nodemailer` CRLF/command-injection, `lodash`); **frontend** 13 (9 high incl. `react-router`/`@remix-run/router` open-redirect→XSS, `axios`, `vite`, `postcss`); **app** 47 (2 critical). No `.github/workflows`, no `npm audit` gate, no Dependabot.
 - **Impact:** The `mongoose` and `axios` advisories are directly relevant given no input sanitiser (RUK-SEC-016) and server-side `axios` calls to payment/Google APIs.
 - **Fix:** Triage to zero unresolved Critical/High; add `npm audit` + SAST + Dependabot in a checks-only workflow (Chunk 5).
 - **Owning chunk:** **5**.
+
+**What shipped (2026-09-08):**
+- **Non-breaking `npm audit fix` across all four workspaces**, every test suite re-run after each — **zero regressions**. Result: **all Critical vulnerabilities cleared** (backend `protobufjs`; app `tar`, `shell-quote`). `mongoose` NoSQL-injection, `axios` SSRF/prototype-pollution, `lodash`, `form-data`, `path-to-regexp` and many others resolved. New counts: backend 1C/14H → **0C/2H**; frontend 0C/10H → **0C/1H**; app 2C/23H → **0C/10H**; sales 0C/13H → **0C/0H**.
+- **`backend/package-lock.json` is now committed** — it was `.gitignore`d, which blocked reproducible installs, `npm ci`, and lockfile-based auditing. All four workspaces now have a tracked lockfile.
+- **`.github/workflows/test.yml`** — runs all four test suites (backend, frontend, app, sales) on every push and PR. Backend uses `jest.ci.config.js`, which excludes 5 pre-existing failing suites (unrelated to security — see `docs/KNOWN_TEST_FAILURES.md`) and the real-SMTP `mail.test.js`, so the gate is meaningful from day one.
+- **`.github/workflows/security.yml`** — `npm audit` (fails on Critical), `gitleaks` full-history secret scan (uses the Chunk-4 `.gitleaks.toml`), `semgrep` (OWASP Top-10 + Node.js packs + 4 project rules in `.semgrep.yml`), `dependency-review` on PRs. Also runs weekly.
+- **`.github/workflows/codeql.yml`** — written, but `workflow_dispatch`-only until GitHub Advanced Security is enabled on the private repo (so it never shows a failing check). `semgrep` is the active SAST engine meanwhile.
+- **`.github/dependabot.yml`** — weekly grouped updates for all four `package.json` locations + GitHub Actions.
+- **`scripts/security-check.sh`** — the same audit + gitleaks + semgrep locally, for when Actions are off.
+- **`docs/PRE_DEPLOY_SECURITY_CHECKLIST.md`** and **`docs/DEPENDENCY_AND_SCANNING_SCHEDULE.md`** (the latter holds the residual-High backlog with a per-item accepted-risk rationale and planned fix).
+
+**Residual High — accepted risk, each with a planned fix** (full table in `DEPENDENCY_AND_SCANNING_SCHEDULE.md`): `adm-zip` + `nodemailer` (backend, admin-only / fixed-config surfaces, need a major bump); `vite` (frontend, dev-server only, not shipped); the Expo/`metro` toolchain (app, build tooling not in the runtime, needs the planned Expo SDK 57 upgrade).
+
+**Still needs a repo admin (client):** turn on Dependabot; branch protection on `master` requiring `tests` + `security` green; optionally enable GitHub Advanced Security for CodeQL.
 
 ### RUK-SEC-014 — Incomplete webhook idempotency; PayPal capture replay · **MEDIUM**
 
@@ -522,7 +536,7 @@ Two distinct sub-issues, different owners:
 - **Fix:** Raise to 12 (re-hash on next successful login).
 - **Owning chunk:** **10**.
 
-### RUK-SEC-034 — Config hygiene: real IDs in `.env.example`; full history scan pending · **INFO** · **Status: FIXED (2026-09-07)**
+### RUK-SEC-034 — Config hygiene: real IDs in `.env.example`; full history scan pending · **INFO** · **Status: FIXED (repo side 2026-09-07; server `.env` hardening + isolation recorded 2026-09-08)**
 
 - **Where:** [`backend/.env.example:62-70`](../backend/.env.example) contains real Flodesk segment IDs. `backend/STRIPE_LOCAL_SETUP.md` documents key formats. Quick history scan found **no live secrets**, but an entropy-based `gitleaks`/`trufflehog` pass over all workspaces + the submodule history has not been run.
 - **Fix:** Replace real IDs with placeholders; run the full history scan and rotate anything confirmed (Chunk 4).
@@ -537,7 +551,18 @@ Two distinct sub-issues, different owners:
 - **`backend/scripts/check-env.js`** — one consolidated "these required vars are missing" failure at startup (and runnable standalone before a deploy), instead of a different runtime error per unset var. Covers hard requirements, prod-only requirements, and feature-gated requirements (SMTP, Vision, PagBank). 13 tests.
 - **Pre-commit secret-scan hook** (`.githooks/pre-commit` + `.gitleaks.toml`) — a dependency-free regex sweep of staged content plus `gitleaks protect` when installed; also refuses to commit any `.env`. Enable per clone with `git config core.hooksPath .githooks`.
 
-**Still open (needs the client / their server):** `.env` file-permission hardening on the EC2 box (`chmod 600`, dedicated deploy user, pm2 ecosystem file) and the staging-vs-production credential-isolation decision — both tracked under Chunk 4's remaining checklist and Chunk 13.
+**Server-side hardening (done 2026-09-08):** the production `.env` (`~/riseupkids/backend/.env`) was `chmod 600` (was `-rw-rw-r--`, group + other readable); confirmed not reachable over HTTPS (`/.env` and `/../.env` both hit the API's own 404, nginx does not serve the app directory); `~/.pm2/dump.pm2` confirmed to hold no secret values. The dedicated non-login `deploy` user and a pm2 ecosystem file are **deferred to Chunk 13** — they change the deploy workflow (every `git pull` / `npm install` / `pm2` command would run as that user) and are better done alongside the rest of the VPS review.
+
+**Staging vs production credential isolation (recorded 2026-09-08):**
+
+| Resource | Isolated? | Notes |
+|---|---|---|
+| Payment provider keys (Stripe / PayPal / PagBank) | **Yes** | Production holds the live keys; staging uses test/sandbox keys only. |
+| MongoDB database | **Yes** | Separate databases. |
+| S3 bucket | **No — shared** | Single bucket for both, for cost reasons. |
+| Staging server | Currently **stopped** | Only ever used by one person (the developer) for testing, with test keys. |
+
+**Accepted risk:** the shared S3 bucket means that if staging is brought back online, staging code would hold credentials that can read/write the **production** media bucket (children's audio, Kids Wall photos, avatars). While staging is stopped this is inert. **Before staging is restarted**, do one of: (a) a separate bucket, (b) a separate low-cost bucket, or (c) keep one bucket but scope staging's IAM user to a `staging/` key prefix with least privilege (`GetObject`/`PutObject` on that prefix only — near-zero cost). This is logged as an accepted risk for now and folded into Chunk 13 (S3/IAM least-privilege).
 
 ### RUK-SEC-035 — Organizational controls not verified · **INFO**
 

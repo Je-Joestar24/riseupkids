@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
+# package-lock.json IS committed (RUK-SEC-013 / Chunk 5) — reproducible installs, `npm ci` in
+# CI, and `npm audit` / Dependabot need a committed lockfile.
 
 # Environment variables
 .env

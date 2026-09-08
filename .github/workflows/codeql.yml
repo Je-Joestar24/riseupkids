@@ -1,0 +1,41 @@
+name: codeql
+
+# READY BUT NOT YET ENABLED (RUK-SEC-013 / Chunk 5).
+#
+# CodeQL on a PRIVATE repo requires GitHub Advanced Security, which the repo
+# owner's org must turn on (Settings > Code security and analysis). Until then
+# this workflow is manual-only (`workflow_dispatch`) so it never produces a
+# failing check. `semgrep` in security.yml is the active SAST engine meanwhile.
+#
+# To enable once GHAS is on: add the push/pull_request triggers below.
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [master]
+  # pull_request:
+  #   branches: [master]
+  # schedule:
+  #   - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript-typescript']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@v3

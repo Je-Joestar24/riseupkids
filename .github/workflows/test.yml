@@ -1,0 +1,65 @@
+name: tests
+
+# Checks only — this workflow never deploys anything (RUK-SEC-013 / Chunk 5).
+# Deploys stay manual: build -> S3 -> CloudFront, and git pull -> npm install -> pm2 restart.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace-tests:
+    name: ${{ matrix.workspace }} tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - workspace: backend
+            dir: backend
+            test: npx jest --runInBand --ci --config jest.ci.config.js
+          - workspace: frontend
+            dir: frontend
+            test: npx vitest run
+          - workspace: app
+            dir: app
+            test: npx jest --ci
+          - workspace: sales
+            dir: riseupkids-sale/web
+            test: npx vitest run
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      # mongodb-memory-server downloads a mongod binary on first run (backend only).
+      - name: Cache mongodb-memory-server binary
+        if: matrix.workspace == 'backend'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}
+
+      - name: Install
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      - name: Test
+        working-directory: ${{ matrix.dir }}
+        run: ${{ matrix.test }}

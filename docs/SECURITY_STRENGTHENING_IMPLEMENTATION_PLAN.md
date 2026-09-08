@@ -7,7 +7,9 @@
 > * *2026-09-04* — **Chunk 3 completed (API side)**: `helmet` security headers + HSTS, generic production `5xx` + request-id correlation, CORS fail-closed (no expo wildcard), trimmed info/health endpoints. 36 tests incl. a real-server e2e; live `curl -I` verified. Static-site (CloudFront) headers deferred to Chunk 13. Not yet committed.
 > * *2026-09-04* — **Two Chunk-3 follow-ups pulled forward and shipped**: (1) payment-controller error responses (PayPal, PagBank) no longer echo raw third-party API error detail to the browser in production — 15 tests. (2) A `<meta http-equiv="Content-Security-Policy">` tag was added to the admin app and sales site (partial fix — a meta tag can't set `X-Frame-Options`/HSTS/`frame-ancestors`); verified with a real build + browser console check on every reachable page, zero violations; 2 regression tests added. The full CloudFront Response Headers Policy (JSON + AWS console steps) for the remaining header types is ready to paste at `docs/CLOUDFRONT_RESPONSE_HEADERS_POLICY.md`, still pending Chunk 13 (needs AWS console access).
 > * *2026-09-05* — Client rotated the production `JWT_SECRET` on the EC2 server (the main Chunk-4 client action).
-> * *2026-09-07* — **Chunk 4 (repo side) shipped**: full-history secret scan of the main repo + submodule (**no true secrets found**); `app/google-services.json` and `riseupkids-sale/web/.env` untracked + `.gitignore`d (both held only client-safe values); root `.gitignore` added; `.env.example` files brought current (AWS/PayPal/Vision/YouTube/Expo sections added, real Flodesk IDs → placeholders); `backend/scripts/check-env.js` startup guard (13 tests); pre-commit secret-scan hook (`.githooks/` + `.gitleaks.toml`). Closes RUK-SEC-034. **Still open in Chunk 4:** EC2 `.env` permission hardening + pm2 ecosystem file, and the staging/prod credential-isolation decision.
+> * *2026-09-07* — **Chunk 4 (repo side) shipped**: full-history secret scan of the main repo + submodule (**no true secrets found**); `app/google-services.json` and `riseupkids-sale/web/.env` untracked + `.gitignore`d (both held only client-safe values); root `.gitignore` added; `.env.example` files brought current (AWS/PayPal/Vision/YouTube/Expo sections added, real Flodesk IDs → placeholders); `backend/scripts/check-env.js` startup guard (13 tests); pre-commit secret-scan hook (`.githooks/` + `.gitleaks.toml`). Committed `333a2e5` + submodule bump `251b2ce`.
+> * *2026-09-08* — **Chunk 4 closed.** Production `.env` hardened on the EC2 box (`chmod 600`, confirmed not web-served, pm2 dump clean). Isolation recorded: payment keys + MongoDB separated (prod live / staging test); S3 bucket shared for cost — accepted as risk while staging is stopped, with a required fix (separate bucket or `staging/` IAM prefix) before staging restarts. Dedicated `deploy` user, pm2 ecosystem file, and the S3 split all folded into Chunk 13.
+> * *2026-09-08* — **Chunk 5 (repo side) shipped.** Non-breaking `npm audit fix` on all four workspaces, tests re-run after each — **zero regressions, all Critical cleared** (backend 1C/14H→0C/2H, frontend 0C/10H→0C/1H, app 2C/23H→0C/10H, sales 0C/13H→0C/0H). `backend/package-lock.json` un-ignored and committed. Added checks-only GitHub Actions (`test.yml`, `security.yml` = npm-audit + gitleaks + semgrep + dependency-review, `codeql.yml` ready for GHAS), `dependabot.yml`, `scripts/security-check.sh`, and `docs/PRE_DEPLOY_SECURITY_CHECKLIST.md` + `docs/DEPENDENCY_AND_SCANNING_SCHEDULE.md` (residual-High backlog with per-item accepted-risk). Closes RUK-SEC-013. **Needs a repo admin:** enable Dependabot + branch protection; optionally GHAS for CodeQL.
 >
 > **Chunks 1–3 done. Next: Chunk 4 — secret management & repo hygiene** (full git-history secret scan; `.env` file hardening on the VPS; the `JWT_SECRET` startup check already landed in the critical fixes). Outstanding client actions: **(1) set/rotate a strong `JWT_SECRET` on the production server** — the API now refuses to start without one — **(2) confirm the reverse-proxy hop count** for `TRUST_PROXY` (default 1 = single nginx) — **(3) optionally set `HSTS_MAX_AGE`** (defaults to a safe 1 day; raise once confident).
 > **Source:** "Rise Up Kids — Security Strengthening Implementation Plan" (client PDF, 5-phase draft) + client follow-up email (COPPA/privacy, backup/recovery, webhook protections, logging hygiene, mobile security).
@@ -351,9 +353,13 @@ The audit has no runtime change to test, but every finding must be **evidence-ba
 > * `backend/scripts/check-env.js` — one consolidated missing-vars failure at startup / pre-deploy, covering hard, prod-only and feature-gated (SMTP, Vision, PagBank) requirements. Wired into `startServer()` so it runs on a real boot but not when `server.js` is `require`d by a test. 13 tests (`tests/checkEnv.test.js`).
 > * `.githooks/pre-commit` + `.gitleaks.toml` — dependency-free staged-content regex sweep plus `gitleaks protect` when installed; refuses to commit any `.env`. Enable with `git config core.hooksPath .githooks`.
 >
+> **Server-side (done 2026-09-08):**
+> * EC2 `.env` set to `chmod 600` (was group/other-readable); confirmed not fetchable over HTTPS (`/.env` and `/../.env` → API 404, nginx doesn't serve the app dir); `~/.pm2/dump.pm2` confirmed to hold no secrets.
+> * **Isolation recorded** — payment keys and MongoDB are separated (prod = live, staging = test). S3 bucket is **shared** for cost; accepted as risk while staging is stopped, with a required fix (separate bucket or a `staging/` IAM prefix with least privilege) before staging is restarted. See RUK-SEC-034 in the audit.
+>
 > **Still to do here / deferred:**
-> * **EC2 `.env` hardening** — `chmod 600`, dedicated non-login `deploy` user, confirm it sits outside any nginx-served path, introduce a pm2 ecosystem file so env is loaded explicitly, confirm `~/.pm2/dump.pm2` doesn't hold secrets. Needs server access — client + Chunk 13.
-> * **Staging vs production credential isolation** — separate restricted payment keys / DB / S3 bucket, or a written accepted-risk note. Needs a client decision.
+> * **Dedicated `deploy` user + pm2 ecosystem file** — deferred to Chunk 13; changes the deploy workflow (all `git pull` / `npm install` / `pm2` commands run as that user), better done with the rest of the VPS review.
+> * **S3 staging/prod split or `staging/` IAM prefix** — folded into Chunk 13 (S3/IAM least-privilege); not needed while staging is offline.
 > * **`gitleaks` in CI** — folded into Chunk 5 (GitHub Actions, checks-only).
 
 ### Work
@@ -396,13 +402,15 @@ The audit has no runtime change to test, but every finding must be **evidence-ba
 
 ### Exit criteria
 
-- [ ] No unresolved critical secrets in history (all workspaces + submodule).
-- [ ] Any confirmed live leak rotated; rotation logged.
-- [ ] Weak-secret startup guard active.
-- [ ] `.env` on the VPS: `chmod 600`, dedicated user, outside served paths, not fetchable over HTTP.
-- [ ] pm2 loads env via an ecosystem file; no secrets in pm2 dump/logs.
-- [ ] `.env.example` files accurate; root `.gitignore` added.
-- [ ] Staging/production credential isolation documented (and true, or the shared-blast-radius risk is written down and accepted).
+- [x] No unresolved critical secrets in history (all workspaces + submodule). — full scan 2026-09-07, none found.
+- [x] Any confirmed live leak rotated; rotation logged. — none to rotate; client rotated `JWT_SECRET` 2026-09-05 as a precaution.
+- [x] Weak-secret startup guard active. — shipped in the fix-first pass 2026-09-01.
+- [x] `.env` on the VPS: `chmod 600`, outside served paths, not fetchable over HTTP. — done 2026-09-08. (Dedicated `deploy` user → Chunk 13.)
+- [ ] pm2 loads env via an ecosystem file; no secrets in pm2 dump/logs. — dump confirmed clean 2026-09-08; ecosystem file deferred to Chunk 13.
+- [x] `.env.example` files accurate; root `.gitignore` added. — done 2026-09-07.
+- [x] Staging/production credential isolation documented. — payment keys + Mongo separated; shared S3 bucket accepted as risk while staging is offline, fix required before restart (RUK-SEC-034).
+
+**Status:** Chunk 4 closed for now. Only the pm2 ecosystem file and the S3 split remain, both intentionally folded into Chunk 13.
 
 **Estimate:** 3–5 days (+ rotation coordination with client).
 
@@ -456,11 +464,13 @@ The audit has no runtime change to test, but every finding must be **evidence-ba
 
 ### Exit criteria
 
-- [ ] No unresolved critical dependency vulnerabilities (PDF exit criterion).
-- [ ] SAST + secret scan + `npm audit` run on every push/PR (and locally via `security:check`).
-- [ ] DAST runnable on demand + scheduled; first report triaged.
-- [ ] Dependabot active on all workspaces; update schedule documented with an owner.
-- [ ] `master` protected by required checks; pre-deploy checklist in use.
+- [x] No unresolved critical dependency vulnerabilities (PDF exit criterion). — all Critical cleared 2026-09-08; residual High is a documented accepted-risk backlog.
+- [x] SAST + secret scan + `npm audit` run on every push/PR (and locally via `scripts/security-check.sh`). — `security.yml` + the local script.
+- [ ] DAST runnable on demand + scheduled; first report triaged. — **deferred**: staging is stopped; revisit when it's back or agree a passive prod scan.
+- [~] Dependabot active on all workspaces; update schedule documented with an owner. — `dependabot.yml` + `DEPENDENCY_AND_SCANNING_SCHEDULE.md` shipped; **needs a repo admin to switch Dependabot on** and an owner assigned.
+- [~] `master` protected by required checks; pre-deploy checklist in use. — checklist shipped; **branch protection needs a repo admin**.
+
+**Status:** repo-side work done. Remaining items all need repo-admin access (Dependabot toggle, branch protection) or a DAST target (staging offline). DAST → follow-up; the admin toggles → client.
 
 **Estimate:** 4–5 days.
 

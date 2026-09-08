@@ -1,0 +1,56 @@
+# Project-specific static-analysis rules (RUK-SEC-013 / Chunk 5).
+# The bulk of coverage comes from the registry packs the workflow also loads
+# (p/owasp-top-ten, p/nodejsscan). These are Rise Up Kids-specific patterns the
+# audit called out.
+
+rules:
+  - id: ruk-raw-error-message-to-client
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      Returning a raw error/exception message to an HTTP client can leak internal
+      or third-party API detail (RUK-SEC-011). Use safeErrorMessage(err, fallback)
+      or next(error) and let the central handler produce a generic response.
+    patterns:
+      - pattern-either:
+          - pattern: "$RES.status(...).json({ ..., message: $ERR.message, ... })"
+          - pattern: "$RES.json({ ..., message: $ERR.message, ... })"
+          - pattern: "$RES.status(...).send($ERR.message)"
+      - metavariable-regex:
+          metavariable: $ERR
+          regex: "^(err|error|e)$"
+    paths:
+      exclude: ["**/*.test.js", "**/*.test.ts", "**/tests/**"]
+
+  - id: ruk-mongo-where-operator
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      $where / $function accept raw JS and are a NoSQL-injection sink if any part
+      is user-influenced. Use a normal query operator instead.
+    pattern-either:
+      - pattern: "$Q.find({ ..., $where: ... })"
+      - pattern: "$Q.find({ ..., $where: ... }, ...)"
+    paths:
+      exclude: ["**/*.test.js", "**/*.test.ts", "**/tests/**"]
+
+  - id: ruk-jwt-verify-without-algorithms
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: >
+      jwt.verify() without an explicit `algorithms` allowlist can accept a token
+      signed with an unexpected algorithm. Pass { algorithms: ['HS256'] }.
+    patterns:
+      - pattern: "$JWT.verify($TOKEN, $SECRET)"
+    paths:
+      exclude: ["**/*.test.js", "**/*.test.ts", "**/tests/**"]
+
+  - id: ruk-child-process-string-interpolation
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: >
+      exec()/execSync() with an interpolated string is a command-injection sink.
+      Use execFile()/spawn() with an argument array.
+    pattern-either:
+      - pattern: "$CP.exec(`...${...}...`, ...)"
+      - pattern: "$CP.execSync(`...${...}...`, ...)"
