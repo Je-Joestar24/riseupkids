@@ -22,6 +22,7 @@ const AccountDeletionRequest = require('../models/AccountDeletionRequest');
 const s3Service = require('./s3.service');
 const mailService = require('./mail');
 const { cancelSubscription } = require('./stripe.services');
+const logger = require('../config/logger');
 
 const CONFIRM_TEXT = 'DELETE';
 const DELETION_ESTIMATED_DAYS = Math.max(
@@ -85,7 +86,7 @@ async function sendDeletionRequestedEmail({ to, type, childDisplayName, estimate
       estimatedDays,
     });
   } catch (error) {
-    console.error('[AccountDeletion] Failed to send requested email:', error.message);
+    logger.error('[AccountDeletion] Failed to send requested email:', error.message);
   }
 }
 
@@ -97,7 +98,7 @@ async function sendDeletionCompletedEmail({ to, type, childDisplayName }) {
       childDisplayName,
     });
   } catch (error) {
-    console.error('[AccountDeletion] Failed to send completed email:', error.message);
+    logger.error('[AccountDeletion] Failed to send completed email:', error.message);
   }
 }
 

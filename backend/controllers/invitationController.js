@@ -1,4 +1,5 @@
 const { submitInvitationLead } = require('../services/lead.services');
+const logger = require('../config/logger');
 
 function normalizeLanguage(language) {
   if (!language || typeof language !== 'string') return null;
@@ -80,7 +81,7 @@ async function submitInvitation(req, res) {
       data: flodesk,
     });
   } catch (error) {
-    console.error('[Invitation] submitInvitation error:', error.message);
+    logger.error('[Invitation] submitInvitation error:', error.message);
     res.status(400).json({
       success: false,
       message: error.message || 'Invitation submission failed',

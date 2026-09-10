@@ -3,6 +3,7 @@ const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
+const logger = require('../config/logger');
 const {
   INSTRUCTION_VIDEO_POPULATE_SELECT,
   resolveInstructionVideoMedia,
@@ -348,7 +349,7 @@ const updateChant = async (chantId, userId, updateData, files = {}, user = null)
         }
         await Media.findByIdAndDelete(chant.audio);
       } catch (error) {
-        console.error('Error deleting previous chant audio:', error);
+        logger.error('Error deleting previous chant audio:', error);
       }
     }
 
@@ -376,14 +377,14 @@ const updateChant = async (chantId, userId, updateData, files = {}, user = null)
         }
         await Media.findByIdAndDelete(chant.scormFile);
       } catch (error) {
-        console.error('Error deleting previous chant SCORM file:', error);
+        logger.error('Error deleting previous chant SCORM file:', error);
       }
     }
 
     try {
       await s3Service.deleteByPrefix(`scorm/chant/${chant._id}`);
     } catch (error) {
-      console.error('Error deleting previous extracted chant SCORM package:', error);
+      logger.error('Error deleting previous extracted chant SCORM package:', error);
     }
 
     const { url: scormUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');
@@ -460,7 +461,7 @@ const deleteChant = async (chantId, user = null) => {
       if (audioMedia && audioMedia.filePath) await s3Service.deleteByKey(audioMedia.filePath);
       await Media.findByIdAndDelete(chant.audio);
     } catch (error) {
-      console.error('Error deleting audio:', error);
+      logger.error('Error deleting audio:', error);
     }
   }
 
@@ -474,7 +475,7 @@ const deleteChant = async (chantId, user = null) => {
       if (scormMedia && scormMedia.filePath) await s3Service.deleteByKey(scormMedia.filePath);
       await Media.findByIdAndDelete(chant.scormFile);
     } catch (error) {
-      console.error('Error deleting SCORM file:', error);
+      logger.error('Error deleting SCORM file:', error);
     }
   }
 
@@ -483,7 +484,7 @@ const deleteChant = async (chantId, user = null) => {
       const coverKey = s3Service.getS3KeyFromUrl(chant.coverImage);
       if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
-      console.error('Error deleting cover image:', error);
+      logger.error('Error deleting cover image:', error);
     }
   }
 

@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const crypto = require('crypto');
 const YouTubeIntegration = require('../models/YouTubeIntegration');
 const User = require('../models/User');
+const logger = require('../config/logger');
 
 /**
  * YouTube OAuth Service
@@ -133,7 +134,7 @@ const exchangeCodeForTokens = async (code, state) => {
     const userInfo = await oauth2.userinfo.get();
     connectedEmail = userInfo.data.email;
   } catch (error) {
-    console.warn('[YouTubeOAuth] Could not fetch user email:', error.message);
+    logger.warn('[YouTubeOAuth] Could not fetch user email:', error.message);
   }
 
   // Save or update SINGLE admin integration (not per-user)
@@ -197,7 +198,7 @@ const refreshAccessTokenIfNeeded = async () => {
 
     return integration;
   } catch (error) {
-    console.error('[YouTubeOAuth] Token refresh failed:', error);
+    logger.error('[YouTubeOAuth] Token refresh failed:', error);
     // Mark integration as inactive if refresh fails
     integration.isActive = false;
     await integration.save();
@@ -225,7 +226,7 @@ const revokeToken = async () => {
     // Revoke token with Google
     await oauth2Client.revokeCredentials();
   } catch (error) {
-    console.warn('[YouTubeOAuth] Token revocation failed (may already be revoked):', error.message);
+    logger.warn('[YouTubeOAuth] Token revocation failed (may already be revoked):', error.message);
   }
 
   // Delete integration

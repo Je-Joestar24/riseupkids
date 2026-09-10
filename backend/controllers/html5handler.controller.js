@@ -9,6 +9,7 @@ const html5handlerService = require('../services/html5handler.service');
 const axios = require('axios');
 const s3Service = require('../services/s3.service');
 const cloudfrontService = require('../services/cloudfront.service');
+const logger = require('../config/logger');
 
 /**
  * POST /api/html5handler/upload
@@ -45,7 +46,7 @@ const upload = async (req, res) => {
       data: { id, launchUrl, entryPoint: entryPoint || 'index.html' },
     });
   } catch (error) {
-    console.error('[html5handler] upload error:', error);
+    logger.error('[html5handler] upload error:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to upload HTML5 package',

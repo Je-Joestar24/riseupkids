@@ -35,8 +35,12 @@ patterns='(AKIA|ASIA)[0-9A-Z]{16}|sk_live_[0-9A-Za-z]{20,}|rk_live_[0-9A-Za-z]{2
 
 while IFS= read -r f; do
   [ -z "$f" ] && continue
+  # Skip the same paths .gitleaks.toml allowlists: templates, this hook, and test files
+  # (test fixtures legitimately contain fake secret-shaped strings).
   case "$f" in
     *.example|.githooks/pre-commit|.gitleaks.toml) continue ;;
+    *.test.js|*.test.ts|*.test.jsx|*.test.tsx|*.spec.js|*.spec.ts) continue ;;
+    */tests/*|*/__tests__/*|*/test/*) continue ;;
   esac
   hits=$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | grep -nE "$patterns")
   if [ -n "$hits" ]; then

@@ -1,5 +1,6 @@
 const starCamChildService = require('../services/starCamChild.service');
 const starCamDetectionService = require('../services/starCamDetection.service');
+const logger = require('../config/logger');
 
 function isStarCamDetectDebugEnabled() {
   return String(process.env.STARCAM_DETECT_DEBUG || '').toLowerCase() === 'true';
@@ -32,7 +33,7 @@ function logStarCamDetectRequest(req, stage, extra = {}) {
     ...extra,
   };
   // Keep logs structured for easy copy/paste while debugging endpoint payload issues.
-  console.log('[StarCamDetectDebug]', JSON.stringify(debugPayload));
+  logger.info('[StarCamDetectDebug]', JSON.stringify(debugPayload));
 }
 
 function buildVisionDebugDetails(error) {

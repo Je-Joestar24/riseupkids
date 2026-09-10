@@ -3,6 +3,7 @@ const path = require('path');
 const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
+const logger = require('../config/logger');
 
 /**
  * Create Activity Service
@@ -295,14 +296,14 @@ const updateActivity = async (activityId, userId, updateData, files = {}, user =
         }
         await Media.findByIdAndDelete(activity.scormFile);
       } catch (error) {
-        console.error('Error deleting previous SCORM file:', error);
+        logger.error('Error deleting previous SCORM file:', error);
       }
     }
 
     try {
       await s3Service.deleteByPrefix(`scorm/activity/${activity._id}`);
     } catch (error) {
-      console.error('Error deleting previous extracted SCORM package:', error);
+      logger.error('Error deleting previous extracted SCORM package:', error);
     }
 
     const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(scormFile, 'activities/scorm');

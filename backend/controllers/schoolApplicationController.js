@@ -1,3 +1,4 @@
+const logger = require('../config/logger');
 const {
   submitSchoolProspect,
   normalizeLanguage,
@@ -111,7 +112,7 @@ async function submitSchoolApplication(req, res) {
       },
     });
   } catch (error) {
-    console.error('[SchoolApplication] submitSchoolApplication error:', error.message);
+    logger.error('[SchoolApplication] submitSchoolApplication error:', error.message);
     return res.status(400).json({
       success: false,
       message: error.message || 'School application submission failed',

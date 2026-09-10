@@ -1,6 +1,7 @@
 const kidsWallService = require('../services/kidsWall.service');
 const kidsWallConsentService = require('../services/kidsWallConsent.service');
 const { ChildProfile } = require('../models');
+const logger = require('../config/logger');
 
 /**
  * @desc    Get all posts (feed) - shows all posts from all children, newest first
@@ -26,7 +27,7 @@ const getAllPosts = async (req, res) => {
       count: posts.length,
     });
   } catch (error) {
-    console.error('Error in getAllPosts:', error);
+    logger.error('Error in getAllPosts:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to retrieve posts',

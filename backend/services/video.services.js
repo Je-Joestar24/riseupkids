@@ -6,6 +6,7 @@ const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const { COURSE_VIDEO_MEDIA_TAG } = require('../constants/courseVideoMedia');
 const { isCourseVideoMedia } = require('../utils/courseVideoMedia.util');
+const logger = require('../config/logger');
 
 const applyVideoSharedReadFilter = (user, baseQuery = {}) =>
   applyCreatorSharedReadFilter(user, baseQuery, {
@@ -500,7 +501,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
         try {
           await s3Service.deleteByKey(video.filePath);
         } catch (error) {
-          console.error('Error deleting previous uploaded video:', error);
+          logger.error('Error deleting previous uploaded video:', error);
         }
       }
 
@@ -520,7 +521,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
       try {
         await s3Service.deleteByKey(video.filePath);
       } catch (error) {
-        console.error('Error deleting previous uploaded video:', error);
+        logger.error('Error deleting previous uploaded video:', error);
       }
     }
 
@@ -547,13 +548,13 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
         }
         await Media.findByIdAndDelete(video.scormFile);
       } catch (error) {
-        console.error('Error deleting previous SCORM file:', error);
+        logger.error('Error deleting previous SCORM file:', error);
       }
     }
     try {
       await s3Service.deleteByPrefix(`scorm/video/${video._id}`);
     } catch (error) {
-      console.error('Error deleting previous extracted SCORM package:', error);
+      logger.error('Error deleting previous extracted SCORM package:', error);
     }
 
     const scormFile = files.scormFile[0];
@@ -595,7 +596,7 @@ const updateVideo = async (videoId, userId, updateData, files = {}, user = null)
           try {
             await s3Service.deleteByPrefix(`html5/${video.html5PackageId}`);
           } catch (error) {
-            console.error('Error deleting previous HTML5 package:', error);
+            logger.error('Error deleting previous HTML5 package:', error);
           }
         }
         const html5File = files.html5File[0];
@@ -683,7 +684,7 @@ const deleteVideo = async (videoId, user = null) => {
       await s3Service.deleteByKey(video.filePath);
     }
   } catch (error) {
-    console.error('Error deleting video file from S3:', error);
+    logger.error('Error deleting video file from S3:', error);
   }
 
   if (video.scormFile) {
@@ -692,7 +693,7 @@ const deleteVideo = async (videoId, user = null) => {
       if (scormMedia && scormMedia.filePath) await s3Service.deleteByKey(scormMedia.filePath);
       await Media.findByIdAndDelete(video.scormFile);
     } catch (error) {
-      console.error('Error deleting SCORM file:', error);
+      logger.error('Error deleting SCORM file:', error);
     }
   }
 
@@ -700,7 +701,7 @@ const deleteVideo = async (videoId, user = null) => {
     try {
       await s3Service.deleteByPrefix(`html5/${video.html5PackageId}`);
     } catch (error) {
-      console.error('Error deleting HTML5 package:', error);
+      logger.error('Error deleting HTML5 package:', error);
     }
   }
 
@@ -709,7 +710,7 @@ const deleteVideo = async (videoId, user = null) => {
       const thumbKey = s3Service.getS3KeyFromUrl(video.thumbnail);
       if (thumbKey) await s3Service.deleteByKey(thumbKey);
     } catch (error) {
-      console.error('Error deleting thumbnail from S3:', error);
+      logger.error('Error deleting thumbnail from S3:', error);
     }
   }
 

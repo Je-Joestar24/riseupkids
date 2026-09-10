@@ -4,6 +4,7 @@ const s3Service = require('./s3.service');
 const { assertBunnyIframeEmbedUrl } = require('../utils/bunnyEmbed.util');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const { EXPLORE_VIDEO_MEDIA_TAG } = require('../constants/exploreVideoTypes');
+const logger = require('../config/logger');
 
 /** Fields returned on populated explore `videoFile` (upload + Bunny embed). */
 const VIDEO_FILE_POPULATE_SELECT =
@@ -475,7 +476,7 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
         try {
           await s3Service.deleteByKey(mediaRecord.filePath);
         } catch (error) {
-          console.error('Error deleting previous explore video:', error);
+          logger.error('Error deleting previous explore video:', error);
         }
       }
 
@@ -501,13 +502,13 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
       try {
         await s3Service.deleteByKey(mediaRecord.filePath);
       } catch (error) {
-        console.error('Error deleting previous explore video:', error);
+        logger.error('Error deleting previous explore video:', error);
       }
     } else if (content.videoFilePath) {
       try {
         await s3Service.deleteByKey(content.videoFilePath);
       } catch (error) {
-        console.error('Error deleting previous explore video path:', error);
+        logger.error('Error deleting previous explore video path:', error);
       }
     }
 
@@ -571,7 +572,7 @@ const updateExploreContent = async (contentId, userId, updateData, files = {}, u
         const oldKey = s3Service.getS3KeyFromUrl(content.coverImage);
         if (oldKey) await s3Service.deleteByKey(oldKey);
       } catch (error) {
-        console.error('Error deleting old cover image:', error);
+        logger.error('Error deleting old cover image:', error);
       }
     }
     const coverImage = files.coverImage[0];
@@ -621,7 +622,7 @@ const deleteExploreContent = async (contentId, user = null) => {
     try {
       await s3Service.deleteByKey(content.videoFilePath);
     } catch (error) {
-      console.error('Error deleting video file from S3:', error);
+      logger.error('Error deleting video file from S3:', error);
     }
   }
 
@@ -633,7 +634,7 @@ const deleteExploreContent = async (contentId, user = null) => {
       }
       await Media.findByIdAndDelete(content.videoFile);
     } catch (error) {
-      console.error('Error deleting media record:', error);
+      logger.error('Error deleting media record:', error);
     }
   }
 
@@ -642,7 +643,7 @@ const deleteExploreContent = async (contentId, user = null) => {
       const coverKey = s3Service.getS3KeyFromUrl(content.coverImage);
       if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
-      console.error('Error deleting cover image:', error);
+      logger.error('Error deleting cover image:', error);
     }
   }
 

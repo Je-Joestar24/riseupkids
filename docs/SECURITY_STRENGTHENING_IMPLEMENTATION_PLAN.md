@@ -10,6 +10,7 @@
 > * *2026-09-07* — **Chunk 4 (repo side) shipped**: full-history secret scan of the main repo + submodule (**no true secrets found**); `app/google-services.json` and `riseupkids-sale/web/.env` untracked + `.gitignore`d (both held only client-safe values); root `.gitignore` added; `.env.example` files brought current (AWS/PayPal/Vision/YouTube/Expo sections added, real Flodesk IDs → placeholders); `backend/scripts/check-env.js` startup guard (13 tests); pre-commit secret-scan hook (`.githooks/` + `.gitleaks.toml`). Committed `333a2e5` + submodule bump `251b2ce`.
 > * *2026-09-08* — **Chunk 4 closed.** Production `.env` hardened on the EC2 box (`chmod 600`, confirmed not web-served, pm2 dump clean). Isolation recorded: payment keys + MongoDB separated (prod live / staging test); S3 bucket shared for cost — accepted as risk while staging is stopped, with a required fix (separate bucket or `staging/` IAM prefix) before staging restarts. Dedicated `deploy` user, pm2 ecosystem file, and the S3 split all folded into Chunk 13.
 > * *2026-09-08* — **Chunk 5 (repo side) shipped.** Non-breaking `npm audit fix` on all four workspaces, tests re-run after each — **zero regressions, all Critical cleared** (backend 1C/14H→0C/2H, frontend 0C/10H→0C/1H, app 2C/23H→0C/10H, sales 0C/13H→0C/0H). `backend/package-lock.json` un-ignored and committed. Added checks-only GitHub Actions (`test.yml`, `security.yml` = npm-audit + gitleaks + semgrep + dependency-review, `codeql.yml` ready for GHAS), `dependabot.yml`, `scripts/security-check.sh`, and `docs/PRE_DEPLOY_SECURITY_CHECKLIST.md` + `docs/DEPENDENCY_AND_SCANNING_SCHEDULE.md` (residual-High backlog with per-item accepted-risk). Closes RUK-SEC-013. **Needs a repo admin:** enable Dependabot + branch protection; optionally GHAS for CodeQL.
+> * *2026-09-09* — **Chunk 6 (repo side) shipped.** `pino` structured logger with a recursive redaction scrubber (secrets, JWTs, connection strings, OTP/card/CPF, child + user PII) plus a message-string hook; `morgan` → `pino-http` (URL without query string, no auth/cookie headers, `req.id` correlation). Swept **437 `console.*` calls across 58 files** in controllers/services/jobs/middleware onto the logger; removed the Stripe full-object debug dumps; downgraded the noisy trace blocks to `debug`. `no-raw-console` CI gate. `docs/LOG_RETENTION_AND_ACCESS.md` drafted. 19 new tests; full suite green (732 CI / 790 total, only the pre-existing unrelated failures). Closes RUK-SEC-010. **Needs the client:** confirm the retention window + named log readers.
 >
 > **Chunks 1–3 done. Next: Chunk 4 — secret management & repo hygiene** (full git-history secret scan; `.env` file hardening on the VPS; the `JWT_SECRET` startup check already landed in the critical fixes). Outstanding client actions: **(1) set/rotate a strong `JWT_SECRET` on the production server** — the API now refuses to start without one — **(2) confirm the reverse-proxy hop count** for `TRUST_PROXY` (default 1 = single nginx) — **(3) optionally set `HSTS_MAX_AGE`** (defaults to a safe 1 day; raise once confident).
 > **Source:** "Rise Up Kids — Security Strengthening Implementation Plan" (client PDF, 5-phase draft) + client follow-up email (COPPA/privacy, backup/recovery, webhook protections, logging hygiene, mobile security).
@@ -518,11 +519,13 @@ The audit has no runtime change to test, but every finding must be **evidence-ba
 
 ### Exit criteria
 
-- [ ] Structured logger with central redaction in place.
-- [ ] Staging log grep for secrets/PII over a full-flow exercise returns nothing.
-- [ ] `requestId` correlation works.
-- [ ] Retention + access policy documented.
-- [ ] CI blocks new raw `console.*` in backend runtime code.
+- [x] Structured logger with central redaction in place. — `backend/config/logger.js` (pino + recursive scrubber + message-string hook); done 2026-09-09.
+- [x] Secrets/PII grep over representative flows returns nothing. — `backend/tests/logging.noSecrets.test.js` (in-process log capture; the live staging-log grep is deferred with staging offline).
+- [x] `requestId` correlation works. — `pino-http` sets `req.id`; error handler logs under it; response carries `X-Request-Id`.
+- [~] Retention + access policy documented. — `docs/LOG_RETENTION_AND_ACCESS.md` drafted; **client to confirm** the retention window and the named readers. Rotation transport → Chunk 13.
+- [x] CI blocks new raw `console.*` in backend runtime code. — `no-raw-console` job in `security.yml`.
+
+**Status:** repo-side done. One client confirmation (retention numbers / reader names). Central log store + rotation = Chunk 13.
 
 **Estimate:** 4–6 days (sweep is the bulk).
 

@@ -2,6 +2,7 @@ const { Course, CourseProgress, ChildProfile, VideoWatch } = require('../models'
 const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
 const { organizeCourseContentsBySteps } = require('../utils/courseContentsBySteps.util');
 const { populateCourseContents } = require('../utils/populateCourseContents.util');
+const logger = require('../config/logger');
 
 /** Once a module reaches this % under automatic rules, keep it open (do not re-lock). */
 const MODULE_ACCESS_AUTO_KEEP_OPEN_PCT = 75;
@@ -472,7 +473,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
           currentStep: 1,
         },
         { new: true }
-      ).catch((err) => console.error('Error updating progress to in_progress:', err));
+      ).catch((err) => logger.error('Error updating progress to in_progress:', err));
     } else {
       // Create new progress entry
       await CourseProgress.create({
@@ -482,7 +483,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
         progressPercentage: 0,
         startedAt: new Date(),
         currentStep: 1,
-      }).catch((err) => console.error('Error creating progress entry:', err));
+      }).catch((err) => logger.error('Error creating progress entry:', err));
     }
   }
 
@@ -494,7 +495,7 @@ const getChildCourses = async (childId, queryParams = {}) => {
         accessOverride: { $nin: ['force_unlock'] },
       },
       { status: 'locked' }
-    ).catch((err) => console.error('Error updating progress status to locked:', err));
+    ).catch((err) => logger.error('Error updating progress status to locked:', err));
   }
 
   // Filter by status if provided

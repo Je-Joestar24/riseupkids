@@ -2,6 +2,7 @@ const { AudioAssignment, Media, Badge } = require('../models');
 const path = require('path');
 const s3Service = require('./s3.service');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
+const logger = require('../config/logger');
 const {
   INSTRUCTION_VIDEO_POPULATE_SELECT,
   resolveInstructionVideoMedia,
@@ -327,7 +328,7 @@ const updateAudioAssignment = async (assignmentId, userId, updateData, files = {
         }
         await Media.findByIdAndDelete(audioAssignment.referenceAudio);
       } catch (error) {
-        console.error('Error deleting previous reference audio:', error);
+        logger.error('Error deleting previous reference audio:', error);
       }
     }
 
@@ -392,7 +393,7 @@ const deleteAudioAssignment = async (assignmentId, user = null) => {
       if (audioMedia && audioMedia.filePath) await s3Service.deleteByKey(audioMedia.filePath);
       await Media.findByIdAndDelete(audioAssignment.referenceAudio);
     } catch (error) {
-      console.error('Error deleting reference audio:', error);
+      logger.error('Error deleting reference audio:', error);
     }
   }
 
@@ -405,7 +406,7 @@ const deleteAudioAssignment = async (assignmentId, user = null) => {
       const coverKey = s3Service.getS3KeyFromUrl(audioAssignment.coverImage);
       if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
-      console.error('Error deleting cover image:', error);
+      logger.error('Error deleting cover image:', error);
     }
   }
 

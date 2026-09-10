@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const crypto = require('crypto');
 const GoogleIntegration = require('../models/GoogleIntegration');
 const User = require('../models/User');
+const logger = require('../config/logger');
 
 /**
  * Google OAuth Service
@@ -126,7 +127,7 @@ const exchangeCodeForTokens = async (code, state) => {
     const userInfo = await oauth2.userinfo.get();
     connectedEmail = userInfo.data.email;
   } catch (error) {
-    console.warn('[GoogleOAuth] Could not fetch user email:', error.message);
+    logger.warn('[GoogleOAuth] Could not fetch user email:', error.message);
   }
 
   // Save or update integration
@@ -190,7 +191,7 @@ const refreshAccessTokenIfNeeded = async (userId) => {
 
     return integration;
   } catch (error) {
-    console.error('[GoogleOAuth] Token refresh failed:', error);
+    logger.error('[GoogleOAuth] Token refresh failed:', error);
     // Mark integration as inactive if refresh fails
     integration.isActive = false;
     await integration.save();
@@ -219,7 +220,7 @@ const revokeToken = async (userId) => {
     // Revoke token with Google
     await oauth2Client.revokeCredentials();
   } catch (error) {
-    console.warn('[GoogleOAuth] Token revocation failed (may already be revoked):', error.message);
+    logger.warn('[GoogleOAuth] Token revocation failed (may already be revoked):', error.message);
   }
 
   // Delete integration

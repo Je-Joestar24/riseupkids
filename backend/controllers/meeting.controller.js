@@ -1,5 +1,6 @@
 const meetingService = require('../services/meeting.service');
 const { uploadCoverFromFiles } = require('../utils/coverImage.util');
+const logger = require('../config/logger');
 
 /**
  * Meeting Controller
@@ -47,7 +48,7 @@ const createManualMeeting = async (req, res) => {
       data: meeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error creating manual meeting:', error);
+    logger.error('[Meeting] Error creating manual meeting:', error);
     res.status(400).json({
       success: false,
       message: error.message || 'Failed to create meeting',
@@ -111,7 +112,7 @@ const getAllMeetings = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    console.error('[Meeting] Error fetching meetings:', error);
+    logger.error('[Meeting] Error fetching meetings:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch meetings',
@@ -138,7 +139,7 @@ const getUpcomingMeetings = async (req, res) => {
       data: meetings,
     });
   } catch (error) {
-    console.error('[Meeting] Error fetching upcoming meetings:', error);
+    logger.error('[Meeting] Error fetching upcoming meetings:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch upcoming meetings',
@@ -172,7 +173,7 @@ const getMeetingById = async (req, res) => {
       data: meeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error fetching meeting:', error);
+    logger.error('[Meeting] Error fetching meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,
@@ -217,7 +218,7 @@ const updateMeeting = async (req, res) => {
       data: updatedMeeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error updating meeting:', error);
+    logger.error('[Meeting] Error updating meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,
@@ -260,7 +261,7 @@ const archiveMeeting = async (req, res) => {
       data: archivedMeeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error archiving meeting:', error);
+    logger.error('[Meeting] Error archiving meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,
@@ -303,7 +304,7 @@ const restoreMeeting = async (req, res) => {
       data: restoredMeeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error restoring meeting:', error);
+    logger.error('[Meeting] Error restoring meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,
@@ -346,7 +347,7 @@ const cancelMeeting = async (req, res) => {
       data: cancelledMeeting,
     });
   } catch (error) {
-    console.error('[Meeting] Error cancelling meeting:', error);
+    logger.error('[Meeting] Error cancelling meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,
@@ -388,7 +389,7 @@ const deleteMeeting = async (req, res) => {
       message: 'Meeting deleted successfully',
     });
   } catch (error) {
-    console.error('[Meeting] Error deleting meeting:', error);
+    logger.error('[Meeting] Error deleting meeting:', error);
     if (error.message === 'Meeting not found') {
       return res.status(404).json({
         success: false,

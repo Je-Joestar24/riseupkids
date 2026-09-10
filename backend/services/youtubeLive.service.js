@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const youtubeOAuth = require('./youtubeOAuth.service');
+const logger = require('../config/logger');
 
 /**
  * YouTube Live Service
@@ -75,7 +76,7 @@ const createLiveStream = async (userId, streamData) => {
 
   // If OAuth is disabled, return mock stream
   if (!isOAuthEnabled()) {
-    console.log('[YouTubeLive] OAuth disabled - creating mock stream for testing');
+    logger.debug('[YouTubeLive] OAuth disabled - creating mock stream for testing');
     return createMockStream(streamData);
   }
 
@@ -96,7 +97,7 @@ const createLiveStream = async (userId, streamData) => {
   let allChannels = [];
 
   try {
-    console.log('\n========== YOUTUBE CHANNEL VERIFICATION ==========');
+    logger.debug('\n========== YOUTUBE CHANNEL VERIFICATION ==========');
     
     // Get channels the authenticated account OWNS (mine: true)
     const ownedChannelsResponse = await youtube.channels.list({
@@ -108,14 +109,14 @@ const createLiveStream = async (userId, streamData) => {
     const ownedChannels = ownedChannelsResponse.data.items || [];
     allChannels = [...ownedChannels];
     
-    console.log(`[YouTubeLive] Authenticated account OWNS ${ownedChannels.length} channel(s):`);
+    logger.debug(`[YouTubeLive] Authenticated account OWNS ${ownedChannels.length} channel(s):`);
     ownedChannels.forEach((channel, index) => {
       const isTarget = channel.id === channelId;
-      console.log(`\n  Owned Channel ${index + 1}:`);
-      console.log(`    - ID: ${channel.id}`);
-      console.log(`    - Name: ${channel.snippet?.title || 'Unknown'}`);
-      console.log(`    - Custom URL: ${channel.snippet?.customUrl || 'N/A'}`);
-      console.log(`    - Is Target Channel (${channelId}): ${isTarget ? '✅ YES' : '❌ NO'}`);
+      logger.debug(`\n  Owned Channel ${index + 1}:`);
+      logger.debug(`    - ID: ${channel.id}`);
+      logger.debug(`    - Name: ${channel.snippet?.title || 'Unknown'}`);
+      logger.debug(`    - Custom URL: ${channel.snippet?.customUrl || 'N/A'}`);
+      logger.debug(`    - Is Target Channel (${channelId}): ${isTarget ? '✅ YES' : '❌ NO'}`);
       
       if (isTarget) {
         targetChannel = channel;
@@ -125,9 +126,9 @@ const createLiveStream = async (userId, streamData) => {
     // Find default channel (first owned channel)
     if (ownedChannels.length > 0) {
       defaultChannel = ownedChannels[0];
-      console.log(`\n[YouTubeLive] Default channel (owned):`);
-      console.log(`  - ID: ${defaultChannel.id}`);
-      console.log(`  - Name: ${defaultChannel.snippet?.title || 'Unknown'}`);
+      logger.debug(`\n[YouTubeLive] Default channel (owned):`);
+      logger.debug(`  - ID: ${defaultChannel.id}`);
+      logger.debug(`  - Name: ${defaultChannel.snippet?.title || 'Unknown'}`);
     }
 
     // IMPORTANT: Check if target channel exists and account has access to it
@@ -142,12 +143,12 @@ const createLiveStream = async (userId, streamData) => {
 
         if (targetChannelResponse.data.items && targetChannelResponse.data.items.length > 0) {
           targetChannel = targetChannelResponse.data.items[0];
-          console.log(`\n✅ TARGET CHANNEL ACCESS VERIFIED:`);
-          console.log(`   Channel ID: ${targetChannel.id}`);
-          console.log(`   Channel Name: ${targetChannel.snippet?.title || 'Unknown'}`);
-          console.log(`   Custom URL: ${targetChannel.snippet?.customUrl || 'N/A'}`);
-          console.log(`   Subscribers: ${targetChannel.statistics?.subscriberCount || 'N/A'}`);
-          console.log(`   Account has access to this channel (as owner or manager)`);
+          logger.debug(`\n✅ TARGET CHANNEL ACCESS VERIFIED:`);
+          logger.debug(`   Channel ID: ${targetChannel.id}`);
+          logger.debug(`   Channel Name: ${targetChannel.snippet?.title || 'Unknown'}`);
+          logger.debug(`   Custom URL: ${targetChannel.snippet?.customUrl || 'N/A'}`);
+          logger.debug(`   Subscribers: ${targetChannel.statistics?.subscriberCount || 'N/A'}`);
+          logger.debug(`   Account has access to this channel (as owner or manager)`);
           
           // Add to allChannels if not already there
           if (!allChannels.find(c => c.id === channelId)) {
@@ -157,9 +158,9 @@ const createLiveStream = async (userId, streamData) => {
           throw new Error(`Channel ${channelId} not found or account does not have access`);
         }
       } catch (accessError) {
-        console.error(`\n❌ ERROR: Cannot access target channel ${channelId}`);
-        console.error(`   Error: ${accessError.message}`);
-        console.error(`   This means the account does not have manager/owner access to this channel.`);
+        logger.error(`\n❌ ERROR: Cannot access target channel ${channelId}`);
+        logger.error(`   Error: ${accessError.message}`);
+        logger.error(`   This means the account does not have manager/owner access to this channel.`);
         throw new Error(
           `The connected account does not have access to channel ${channelId}. ` +
           `Please verify: 1) The account is a manager or owner of this channel, ` +
@@ -169,49 +170,49 @@ const createLiveStream = async (userId, streamData) => {
 
       // Check channel features/status
       if (targetChannel.status) {
-        console.log(`\n   Channel Status:`);
-        console.log(`   - Privacy Status: ${targetChannel.status.privacyStatus || 'N/A'}`);
-        console.log(`   - Made for Kids: ${targetChannel.status.madeForKids ? 'Yes' : 'No'}`);
-        console.log(`   - Self Declared Made for Kids: ${targetChannel.status.selfDeclaredMadeForKids ? 'Yes' : 'No'}`);
+        logger.debug(`\n   Channel Status:`);
+        logger.debug(`   - Privacy Status: ${targetChannel.status.privacyStatus || 'N/A'}`);
+        logger.debug(`   - Made for Kids: ${targetChannel.status.madeForKids ? 'Yes' : 'No'}`);
+        logger.debug(`   - Self Declared Made for Kids: ${targetChannel.status.selfDeclaredMadeForKids ? 'Yes' : 'No'}`);
       }
 
       // IMPORTANT: For manager accounts, YouTube API uses the DEFAULT channel
       // The admin/owner should connect using their own account, and the system will use their default channel
       if (defaultChannel && defaultChannel.id !== channelId) {
-        console.warn(`\n⚠️  INFO: Default channel (${defaultChannel.id}) is different from YOUTUBE_CHANNEL_ID (${channelId})`);
-        console.warn(`   YouTube API will use the DEFAULT channel (${defaultChannel.snippet?.title || defaultChannel.id}) for broadcasts.`);
-        console.warn(`   Current default: ${defaultChannel.snippet?.title || defaultChannel.id} (${defaultChannel.id})`);
-        console.warn(`   YOUTUBE_CHANNEL_ID in .env: ${targetChannel.snippet?.title || channelId} (${channelId})`);
-        console.warn(`   Note: The system will use the connected account's default channel.`);
+        logger.warn(`\n⚠️  INFO: Default channel (${defaultChannel.id}) is different from YOUTUBE_CHANNEL_ID (${channelId})`);
+        logger.warn(`   YouTube API will use the DEFAULT channel (${defaultChannel.snippet?.title || defaultChannel.id}) for broadcasts.`);
+        logger.warn(`   Current default: ${defaultChannel.snippet?.title || defaultChannel.id} (${defaultChannel.id})`);
+        logger.warn(`   YOUTUBE_CHANNEL_ID in .env: ${targetChannel.snippet?.title || channelId} (${channelId})`);
+        logger.warn(`   Note: The system will use the connected account's default channel.`);
       } else if (defaultChannel && defaultChannel.id === channelId) {
-        console.log(`\n✅ Default channel matches YOUTUBE_CHANNEL_ID - broadcasts will use correct channel!`);
+        logger.debug(`\n✅ Default channel matches YOUTUBE_CHANNEL_ID - broadcasts will use correct channel!`);
       } else if (!defaultChannel) {
-        console.log(`\n✅ Target channel verified - will be used for broadcasts!`);
+        logger.debug(`\n✅ Target channel verified - will be used for broadcasts!`);
       }
     } else {
-      console.warn(`\n⚠️  WARNING: YOUTUBE_CHANNEL_ID not set in .env`);
-      console.warn(`   Will use default channel: ${defaultChannel?.id} (${defaultChannel?.snippet?.title || 'Unknown'})`);
+      logger.warn(`\n⚠️  WARNING: YOUTUBE_CHANNEL_ID not set in .env`);
+      logger.warn(`   Will use default channel: ${defaultChannel?.id} (${defaultChannel?.snippet?.title || 'Unknown'})`);
     }
 
-    console.log('==================================================\n');
+    logger.debug('==================================================\n');
   } catch (error) {
-    console.error('\n========== YOUTUBE CHANNEL VERIFICATION ERROR ==========');
-    console.error('[YouTubeLive] Error verifying channels:', error.message);
-    console.error('==========================================================\n');
+    logger.error('\n========== YOUTUBE CHANNEL VERIFICATION ERROR ==========');
+    logger.error('[YouTubeLive] Error verifying channels:', error.message);
+    logger.error('==========================================================\n');
     
     // Re-throw channel access errors
     if (error.message.includes('does not have access')) {
       throw error;
     }
     // For other errors, log but continue (channel might still work)
-    console.warn('[YouTubeLive] Continuing despite channel verification error...');
+    logger.warn('[YouTubeLive] Continuing despite channel verification error...');
   }
 
   try {
     // Log which channel will be used
     const channelToUse = targetChannel || defaultChannel;
     if (channelToUse) {
-      console.log(`[YouTubeLive] Creating stream for channel: ${channelToUse.id} (${channelToUse.snippet?.title || 'Unknown'})`);
+      logger.debug(`[YouTubeLive] Creating stream for channel: ${channelToUse.id} (${channelToUse.snippet?.title || 'Unknown'})`);
     }
 
     // Step 1: Create the live stream
@@ -297,21 +298,21 @@ const createLiveStream = async (userId, streamData) => {
       if (broadcastDetails.data.items && broadcastDetails.data.items.length > 0) {
         const broadcast = broadcastDetails.data.items[0];
         actualBroadcastChannel = broadcast.snippet?.channelId;
-        console.log(`\n[YouTubeLive] Broadcast verification:`);
-        console.log(`   Broadcast created on channel: ${actualBroadcastChannel}`);
+        logger.debug(`\n[YouTubeLive] Broadcast verification:`);
+        logger.debug(`   Broadcast created on channel: ${actualBroadcastChannel}`);
         
         if (channelId && actualBroadcastChannel !== channelId) {
-          console.error(`\n❌ ERROR: Broadcast was created on wrong channel!`);
-          console.error(`   Expected channel: ${channelId} (${targetChannel?.snippet?.title || 'Unknown'})`);
-          console.error(`   Actual channel: ${actualBroadcastChannel}`);
-          console.error(`   This means the default channel is not the target channel.`);
-          console.error(`   Solution: Make the target channel the default, or use an account that only manages that channel.`);
+          logger.error(`\n❌ ERROR: Broadcast was created on wrong channel!`);
+          logger.error(`   Expected channel: ${channelId} (${targetChannel?.snippet?.title || 'Unknown'})`);
+          logger.error(`   Actual channel: ${actualBroadcastChannel}`);
+          logger.error(`   This means the default channel is not the target channel.`);
+          logger.error(`   Solution: Make the target channel the default, or use an account that only manages that channel.`);
         } else if (channelId && actualBroadcastChannel === channelId) {
-          console.log(`   ✅ Broadcast created on correct target channel!`);
+          logger.debug(`   ✅ Broadcast created on correct target channel!`);
         }
       }
     } catch (verifyError) {
-      console.warn(`[YouTubeLive] Could not verify broadcast channel: ${verifyError.message}`);
+      logger.warn(`[YouTubeLive] Could not verify broadcast channel: ${verifyError.message}`);
     }
 
     // Construct URLs
@@ -319,19 +320,19 @@ const createLiveStream = async (userId, streamData) => {
     const embedUrl = `https://www.youtube.com/embed/${broadcastId}`;
 
     // Log successful stream creation with channel info
-    console.log('\n========== STREAM CREATED SUCCESSFULLY ==========');
-    console.log(`[YouTubeLive] Stream created:`);
-    console.log(`   Target Channel: ${channelId || 'Not specified'} (${targetChannel?.snippet?.title || 'N/A'})`);
-    console.log(`   Actual Broadcast Channel: ${actualBroadcastChannel || 'Could not verify'}`);
-    console.log(`   Stream ID: ${streamId}`);
-    console.log(`   Broadcast ID: ${broadcastId}`);
-    console.log(`   Watch URL: ${watchUrl}`);
-    console.log(`   Embed URL: ${embedUrl}`);
-    console.log(`   RTMP URL: ${rtmpUrl}`);
+    logger.debug('\n========== STREAM CREATED SUCCESSFULLY ==========');
+    logger.debug(`[YouTubeLive] Stream created:`);
+    logger.debug(`   Target Channel: ${channelId || 'Not specified'} (${targetChannel?.snippet?.title || 'N/A'})`);
+    logger.debug(`   Actual Broadcast Channel: ${actualBroadcastChannel || 'Could not verify'}`);
+    logger.debug(`   Stream ID: ${streamId}`);
+    logger.debug(`   Broadcast ID: ${broadcastId}`);
+    logger.debug(`   Watch URL: ${watchUrl}`);
+    logger.debug(`   Embed URL: ${embedUrl}`);
+    logger.debug(`   RTMP URL: ${rtmpUrl}`);
     if (actualBroadcastChannel && channelId && actualBroadcastChannel !== channelId) {
-      console.log(`\n   ⚠️  WARNING: Broadcast created on different channel than expected!`);
+      logger.debug(`\n   ⚠️  WARNING: Broadcast created on different channel than expected!`);
     }
-    console.log('==================================================\n');
+    logger.debug('==================================================\n');
 
     return {
       streamId: streamId,
@@ -348,7 +349,7 @@ const createLiveStream = async (userId, streamData) => {
       isMock: false,
     };
   } catch (error) {
-    console.error('[YouTubeLive] Error creating live stream:', error);
+    logger.error('[YouTubeLive] Error creating live stream:', error);
     
     // Handle specific YouTube API errors
     if (error.response && error.response.data) {
@@ -405,7 +406,7 @@ const endBroadcast = async (broadcastId) => {
   }
 
   if (!isOAuthEnabled()) {
-    console.log('[YouTubeLive] OAuth disabled - skipping end broadcast');
+    logger.debug('[YouTubeLive] OAuth disabled - skipping end broadcast');
     return { id: broadcastId, status: { lifeCycleStatus: 'complete' } };
   }
 
@@ -426,12 +427,12 @@ const endBroadcast = async (broadcastId) => {
 
     const broadcast = response.data?.items?.[0];
     if (broadcast) {
-      console.log(`[YouTubeLive] Broadcast ${broadcastId} transitioned to complete`);
+      logger.debug(`[YouTubeLive] Broadcast ${broadcastId} transitioned to complete`);
     }
     return broadcast || { id: broadcastId, status: { lifeCycleStatus: 'complete' } };
   } catch (error) {
     const msg = error.response?.data?.error?.message || error.message;
-    console.error('[YouTubeLive] Error ending broadcast:', msg);
+    logger.error('[YouTubeLive] Error ending broadcast:', msg);
     if (msg.includes('not enabled for live streaming') || msg.includes('not found')) {
       throw new Error(`Could not end broadcast: ${msg}`);
     }

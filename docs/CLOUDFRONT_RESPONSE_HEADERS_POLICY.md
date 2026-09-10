@@ -41,10 +41,12 @@ Same as the meta tag in `frontend/index.html`, plus `frame-ancestors 'self'` (bl
 ## riseup.kids (sales site) — CSP value
 
 ```
-default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https://api.riseup.kids https://*.cloudfront.net https://www.paypal.com; frame-src 'self' https://www.paypal.com https://www.youtube.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://riseupkids.myflodesk.com
+default-src 'self'; script-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: blob:; connect-src 'self' https://api.riseup.kids https://*.cloudfront.net https://www.paypal.com https://connect.facebook.net https://www.facebook.com; frame-src 'self' https://www.paypal.com https://www.youtube.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://riseupkids.myflodesk.com
 ```
 
 Same as the meta tag in `riseupkids-sale/web/index.html`, plus `frame-ancestors 'self'`.
+
+`connect.facebook.net` (script + connect) and `www.facebook.com` (connect) are for the Meta (Facebook) Pixel — see `docs/META_PIXEL_INTEGRATION.md`. The Pixel is consent-gated in JS and never present in the served HTML, but the CSP still has to allow it for visitors who accept the cookie banner. The `<img>` fallback pixel at `www.facebook.com/tr` is already covered by `img-src https:`.
 
 ## Why `'unsafe-inline'` is in script-src for the sales site but not the admin app
 

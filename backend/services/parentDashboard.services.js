@@ -13,6 +13,7 @@ const Lesson = require('../models/Lesson');
 const AudioAssignment = require('../models/AudioAssignment');
 const Chant = require('../models/Chant');
 const { computeCourseContentProgress } = require('../utils/courseProgressCompute.util');
+const logger = require('../config/logger');
 
 /**
  * Get child progress summary for parent dashboard
@@ -21,7 +22,7 @@ const { computeCourseContentProgress } = require('../utils/courseProgressCompute
  * @returns {Object} Child progress data including total stars, learning time, and top courses
  */
 const getChildProgress = async (childId) => {
-  console.log(`[ParentDashboard] Fetching progress for childId: ${childId}`);
+  logger.info(`[ParentDashboard] Fetching progress for childId: ${childId}`);
   
   // Verify child exists
   const child = await ChildProfile.findById(childId);
@@ -101,7 +102,7 @@ const getChildProgress = async (childId) => {
         .lean();
     }
     
-    console.log(`[ParentDashboard] Found ${starEarnings.length} star earnings for child ${childId}`);
+    logger.info(`[ParentDashboard] Found ${starEarnings.length} star earnings for child ${childId}`);
     
     // Extract title from metadata, description, or populated content
     const extractTitle = async (earning) => {
@@ -152,7 +153,7 @@ const getChildProgress = async (childId) => {
               break;
           }
         } catch (err) {
-          console.error(`[ParentDashboard] Error fetching content title for ${contentType}:${contentId}`, err);
+          logger.error(`[ParentDashboard] Error fetching content title for ${contentType}:${contentId}`, err);
         }
       }
       
@@ -228,9 +229,9 @@ const getChildProgress = async (childId) => {
       })
     );
     
-    console.log(`[ParentDashboard] Processed ${starSources.length} star earning items`);
+    logger.info(`[ParentDashboard] Processed ${starSources.length} star earning items`);
   } catch (error) {
-    console.error('[ParentDashboard] Error fetching star sources:', error);
+    logger.error('[ParentDashboard] Error fetching star sources:', error);
     // Return empty array on error
     starSources = [];
   }

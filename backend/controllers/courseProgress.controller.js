@@ -2,6 +2,7 @@ const courseProgressService = require('../services/courseProgress.services');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
 const { ChildProfile, Book, BookReading, ChildStats, StarEarning, CourseProgress, Course } = require('../models');
+const logger = require('../config/logger');
 
 /**
  * @desc    Check if child can access a course
@@ -273,10 +274,10 @@ const submitBookCompletion = async (req, res) => {
     const { score, maxScore, status, timeSpent, progress: progressPercentage } = req.body;
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
 
-    console.log(`\n========== [Book Completion] Request ${requestId} - STARTED ==========`);
-    console.log(`[Book Completion] Request ${requestId} - Timestamp:`, new Date().toISOString());
-    console.log(`[Book Completion] Request ${requestId} - Params:`, { courseId, childId, bookId });
-    console.log(`[Book Completion] Request ${requestId} - Body:`, { score, maxScore, status, timeSpent, progress: progressPercentage });
+    logger.info(`\n========== [Book Completion] Request ${requestId} - STARTED ==========`);
+    logger.debug(`[Book Completion] Request ${requestId} - Timestamp:`, new Date().toISOString());
+    logger.debug(`[Book Completion] Request ${requestId} - Params:`, { courseId, childId, bookId });
+    logger.debug(`[Book Completion] Request ${requestId} - Body:`, { score, maxScore, status, timeSpent, progress: progressPercentage });
 
     // Verify child belongs to parent (if user is parent)
     if (req.user.role === 'parent') {
@@ -317,7 +318,7 @@ const submitBookCompletion = async (req, res) => {
     const parsedProgress = typeof progressPercentage === 'number' ? progressPercentage : parseFloat(progressPercentage) || 0;
     const statusLower = (status || '').toLowerCase();
 
-    console.log(`[Book Completion] Request ${requestId} - Parsed values:`, {
+    logger.debug(`[Book Completion] Request ${requestId} - Parsed values:`, {
       score: parsedScore,
       maxScore: parsedMaxScore,
       timeSpent: parsedTimeSpent,
@@ -357,7 +358,7 @@ const submitBookCompletion = async (req, res) => {
     const html5PassedValid = statusLower === 'passed' || passedByScore;
     const canComplete = (isRelaxedPackage ? html5PassedValid : (scoreValid || statusValid)) && timeValid && progressValid;
 
-    console.log(`[Book Completion] Request ${requestId} - Validation:`, {
+    logger.debug(`[Book Completion] Request ${requestId} - Validation:`, {
       isRelaxedPackage,
       scoreValid,
       statusValid,
@@ -402,8 +403,8 @@ const submitBookCompletion = async (req, res) => {
       });
     }
 
-    console.log(`[Book Completion] Request ${requestId} - Book found:`, book.title);
-    console.log(`[Book Completion] Request ${requestId} - Course found:`, course.title);
+    logger.debug(`[Book Completion] Request ${requestId} - Book found:`, book.title);
+    logger.debug(`[Book Completion] Request ${requestId} - Course found:`, course.title);
 
     // Debug-only: dry-run mode to verify score tracking without mutating anything.
     // Call: POST /api/course-progress/:courseId/child/:childId/book/:bookId/complete?dryRun=1
@@ -455,7 +456,7 @@ const submitBookCompletion = async (req, res) => {
         progressPercentage: 0,
         startedAt: new Date(),
       });
-      console.log(`[Book Completion] Request ${requestId} - Created new CourseProgress`);
+      logger.debug(`[Book Completion] Request ${requestId} - Created new CourseProgress`);
     }
 
     // Find or create content progress item
@@ -467,7 +468,7 @@ const submitBookCompletion = async (req, res) => {
 
     if (!contentProgressItem) {
       // Create new content progress entry if it doesn't exist
-      console.log(`[Book Completion] Request ${requestId} - Creating new contentProgress entry for book`);
+      logger.debug(`[Book Completion] Request ${requestId} - Creating new contentProgress entry for book`);
       progress.contentProgress.push({
         contentId: bookId,
         contentType: 'book',
@@ -479,7 +480,7 @@ const submitBookCompletion = async (req, res) => {
       });
       contentProgressItem = progress.contentProgress[progress.contentProgress.length - 1];
       await progress.save();
-      console.log(`[Book Completion] Request ${requestId} - Created contentProgress entry`);
+      logger.debug(`[Book Completion] Request ${requestId} - Created contentProgress entry`);
     }
 
     // Check current reading count to see if requirement is already met
@@ -491,7 +492,7 @@ const submitBookCompletion = async (req, res) => {
     // If requirement is already met and stars are awarded, still ensure course
     // content is marked completed (older submissions only set starsAwarded).
     if (currentReadingCount >= requiredReadingCount && completion.starsAwarded) {
-      console.log(`[Book Completion] Request ${requestId} - ✅ Requirement already met (${currentReadingCount}/${requiredReadingCount}) and stars awarded`);
+      logger.debug(`[Book Completion] Request ${requestId} - ✅ Requirement already met (${currentReadingCount}/${requiredReadingCount}) and stars awarded`);
 
       if (contentProgressItem.status !== 'completed') {
         try {
@@ -502,7 +503,7 @@ const submitBookCompletion = async (req, res) => {
             'book'
           );
         } catch (syncErr) {
-          console.error(
+          logger.error(
             `[Book Completion] Request ${requestId} - Failed to sync book course completion:`,
             syncErr?.message || syncErr
           );
@@ -531,14 +532,14 @@ const submitBookCompletion = async (req, res) => {
     const childStats = await ChildStats.getOrCreate(childId);
     const totalStarsAwarded = book.totalStarsAwarded || 50;
 
-    console.log(`[Book Completion] Request ${requestId} - Book requirements:`, {
+    logger.debug(`[Book Completion] Request ${requestId} - Book requirements:`, {
       requiredReadingCount,
       totalStarsAwarded,
       currentTotalStars: childStats.totalStars,
     });
 
     // Create BookReading record with duplicate prevention (time-based, not flag-based)
-    console.log(`[Book Completion] Request ${requestId} - 📖 Creating BookReading record...`);
+    logger.debug(`[Book Completion] Request ${requestId} - 📖 Creating BookReading record...`);
     let readingCount = 0;
     let newReadingRecord = null;
     let isDuplicateSubmission = false;
@@ -553,11 +554,11 @@ const submitBookCompletion = async (req, res) => {
       });
 
       if (recentReading) {
-        console.log(`[Book Completion] Request ${requestId} - ⚠️ DUPLICATE DETECTED - Recent reading found (within 5 seconds)`);
+        logger.debug(`[Book Completion] Request ${requestId} - ⚠️ DUPLICATE DETECTED - Recent reading found (within 5 seconds)`);
         isDuplicateSubmission = true;
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
       } else {
-        console.log(`[Book Completion] Request ${requestId} - ✅ No recent duplicate found - creating new BookReading`);
+        logger.debug(`[Book Completion] Request ${requestId} - ✅ No recent duplicate found - creating new BookReading`);
 
         newReadingRecord = await BookReading.create({
           child: childId,
@@ -570,10 +571,10 @@ const submitBookCompletion = async (req, res) => {
         });
 
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
-        console.log(`[Book Completion] Request ${requestId} - ✅ New reading count:`, readingCount);
+        logger.debug(`[Book Completion] Request ${requestId} - ✅ New reading count:`, readingCount);
       }
     } catch (bookReadingError) {
-      console.error(`[Book Completion] Request ${requestId} - ❌ Error creating BookReading:`, bookReadingError);
+      logger.error(`[Book Completion] Request ${requestId} - ❌ Error creating BookReading:`, bookReadingError);
       try {
         readingCount = await BookReading.getCompletedReadingCount(childId, bookId);
       } catch (err) {
@@ -633,7 +634,7 @@ const submitBookCompletion = async (req, res) => {
               // addStars() persists totalStars; avoid extra save/findById round-trips on the hot path
               await childStats.addStars(starsForThisReading);
 
-              console.log(`[Book Completion] Request ${requestId} - ✅ Per-reading stars awarded:`, {
+              logger.debug(`[Book Completion] Request ${requestId} - ✅ Per-reading stars awarded:`, {
                 readingNumber: readingCount,
                 starsForThisReading,
                 before: starsBefore,
@@ -645,7 +646,7 @@ const submitBookCompletion = async (req, res) => {
 
               starsAwardedThisRequest = true;
             } catch (starError) {
-              console.error(`[Book Completion] Request ${requestId} - ❌ Error awarding per-reading stars:`, starError);
+              logger.error(`[Book Completion] Request ${requestId} - ❌ Error awarding per-reading stars:`, starError);
             }
           }
         }
@@ -674,7 +675,7 @@ const submitBookCompletion = async (req, res) => {
         finalContentProgressItem.scormProgress.completion.starsAwarded = true;
         finalContentProgressItem.scormProgress.completion.starsAwardedAt = new Date();
         await finalProgress.save();
-        console.log(`[Book Completion] Request ${requestId} - ✅ Requirement met - completion flag saved`);
+        logger.debug(`[Book Completion] Request ${requestId} - ✅ Requirement met - completion flag saved`);
       }
 
       // Mark book as completed on the course (module % / checkmark)
@@ -685,15 +686,15 @@ const submitBookCompletion = async (req, res) => {
           bookId,
           'book'
         );
-        console.log(`[Book Completion] Request ${requestId} - ✅ Book marked completed on course`);
+        logger.debug(`[Book Completion] Request ${requestId} - ✅ Book marked completed on course`);
       } catch (syncErr) {
-        console.error(
+        logger.error(
           `[Book Completion] Request ${requestId} - Failed to mark book completed on course:`,
           syncErr?.message || syncErr
         );
       }
     } else {
-      console.log(`[Book Completion] Request ${requestId} - Requirement not yet met (${readingCount}/${requiredReadingCount})`);
+      logger.debug(`[Book Completion] Request ${requestId} - Requirement not yet met (${readingCount}/${requiredReadingCount})`);
     }
 
     const nextReadingNumber = Math.min(readingCount + 1, requiredReadingCount);
@@ -701,11 +702,11 @@ const submitBookCompletion = async (req, res) => {
       ? getStarsForSession(nextReadingNumber, totalStarsAwarded, requiredReadingCount)
       : 0;
 
-    console.log(`\n========== [Book Completion] Request ${requestId} - ✅ COMPLETION RECORDED SUCCESSFULLY ==========`);
-    console.log(`[Book Completion] Request ${requestId} - Final reading count:`, readingCount);
-    console.log(`[Book Completion] Request ${requestId} - Stars awarded this reading:`, starsForThisReading);
-    console.log(`[Book Completion] Request ${requestId} - Total stars:`, childStats.totalStars);
-    console.log(`[Book Completion] Request ${requestId} - ============================================\n`);
+    logger.info(`\n========== [Book Completion] Request ${requestId} - ✅ COMPLETION RECORDED SUCCESSFULLY ==========`);
+    logger.debug(`[Book Completion] Request ${requestId} - Final reading count:`, readingCount);
+    logger.debug(`[Book Completion] Request ${requestId} - Stars awarded this reading:`, starsForThisReading);
+    logger.debug(`[Book Completion] Request ${requestId} - Total stars:`, childStats.totalStars);
+    logger.debug(`[Book Completion] Request ${requestId} - ============================================\n`);
 
     return res.json({
       success: true,
@@ -723,8 +724,8 @@ const submitBookCompletion = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`[Book Completion] Request ${requestId} - ❌ Error:`, error);
-    console.error(`[Book Completion] Request ${requestId} - Error stack:`, error.stack);
+    logger.error(`[Book Completion] Request ${requestId} - ❌ Error:`, error);
+    logger.error(`[Book Completion] Request ${requestId} - Error stack:`, error.stack);
     
     const statusCode = error.message.includes('not found') ? 404 : 500;
     res.status(statusCode).json({

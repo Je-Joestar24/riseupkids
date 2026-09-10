@@ -1,4 +1,5 @@
 const accountDeletionService = require('../services/accountDeletion.service');
+const logger = require('../config/logger');
 const {
   acquireDeletionSchedulerLock,
   releaseDeletionSchedulerLock,
@@ -39,13 +40,13 @@ async function runDueDeletions() {
     if (results.length > 0) {
       const succeeded = results.filter((row) => row.success).length;
       const failed = results.length - succeeded;
-      console.log(
+      logger.info(
         `[DeletionScheduler] Processed ${results.length} due request(s): ${succeeded} succeeded, ${failed} failed`
       );
     }
     return { skipped: false, results };
   } catch (error) {
-    console.error('[DeletionScheduler] Failed:', error.message);
+    logger.error('[DeletionScheduler] Failed:', error.message);
     return { skipped: false, error: error.message };
   } finally {
     if (lockAcquired) {
@@ -57,7 +58,7 @@ async function runDueDeletions() {
 
 function startDeletionScheduler() {
   if (!isSchedulerEnabled()) {
-    console.log('[DeletionScheduler] Disabled (set DELETION_SCHEDULER_ENABLED=true to enable in development)');
+    logger.info('[DeletionScheduler] Disabled (set DELETION_SCHEDULER_ENABLED=true to enable in development)');
     return;
   }
 
@@ -71,7 +72,7 @@ function startDeletionScheduler() {
   }, STARTUP_DELAY_MS);
 
   intervalHandle = setInterval(runDueDeletions, intervalMs);
-  console.log(
+  logger.info(
     `[DeletionScheduler] Started — checking due deletions every ${Math.round(intervalMs / 60000)} minute(s)`
   );
 }

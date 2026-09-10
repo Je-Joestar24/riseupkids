@@ -9,6 +9,7 @@ const { buildKeywordBucketFields } = require('../utils/starCamKeywordBucket.util
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
 const s3Service = require('./s3.service');
 const { buildStarCamMissionAssetS3Key } = require('../utils/starCamMissionMediaManifest.util');
+const logger = require('../config/logger');
 const {
   STARCAM_MAX_OBJECTS,
   STARCAM_MIN_OBJECTS,
@@ -803,7 +804,7 @@ async function listCategories({ includeInactive = false } = {}) {
   if (all.length === 0 && mongoose.connection.db && StarCamCategory.collection) {
     const raw = await mongoose.connection.db.collection(collName).find({}).sort(sortSpec).toArray();
     if (raw.length) {
-      console.warn('[StarCam][listCategories] Mongoose find was empty but native driver returned rows; using native.', {
+      logger.warn('[StarCam][listCategories] Mongoose find was empty but native driver returned rows; using native.', {
         collection: collName,
         count: raw.length,
       });
@@ -823,7 +824,7 @@ async function listCategories({ includeInactive = false } = {}) {
           .filter((n) => /categor|starcam|star_cam/i.test(n))
           .sort();
       }
-      console.warn('[StarCam][listCategories] No category documents in model collection.', {
+      logger.warn('[StarCam][listCategories] No category documents in model collection.', {
         db: dbName,
         modelCollection: collName,
         hint:
@@ -831,7 +832,7 @@ async function listCategories({ includeInactive = false } = {}) {
         relatedCollections,
       });
     } else {
-      console.warn('[StarCam][listCategories] All rows treated as inactive after filter.', {
+      logger.warn('[StarCam][listCategories] All rows treated as inactive after filter.', {
         db: dbName,
         collection: collName,
         totalDocs: all.length,

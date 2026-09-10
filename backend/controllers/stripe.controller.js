@@ -7,6 +7,7 @@ const {
 } = require('../services/stripe.services');
 const { generateToken } = require('../services/auth.services');
 const { hasProcessedEvent, recordProcessedEvent } = require('../services/stripeWebhookIdempotency.service');
+const logger = require('../config/logger');
 
 /**
  * Phase 1 Stripe controller
@@ -129,7 +130,7 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
             : session.subscription.id;
           
           if (!subscriptionId) {
-            console.error('[Stripe] No subscription ID found in session');
+            logger.error('[Stripe] No subscription ID found in session');
           } else {
             // Get full subscription details from Stripe
             const subscription = await getSubscription(subscriptionId);
@@ -142,13 +143,13 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
             // Set subscription start date (when subscription was created) - only set once
             if (!user.subscriptionStartDate && subscription.created) {
               user.subscriptionStartDate = new Date(subscription.created * 1000);
-              console.log(`[Stripe] Setting subscription start date to: ${user.subscriptionStartDate}`);
+              logger.info(`[Stripe] Setting subscription start date to: ${user.subscriptionStartDate}`);
             }
             
             // Set period end date (convert Unix timestamp to Date)
             if (subscription.current_period_end) {
               user.subscriptionCurrentPeriodEnd = new Date(subscription.current_period_end * 1000);
-              console.log(`[Stripe] Setting period end to: ${user.subscriptionCurrentPeriodEnd}`);
+              logger.info(`[Stripe] Setting period end to: ${user.subscriptionCurrentPeriodEnd}`);
             }
 
             // Store terms consent (legal record) - client IP from this request (parent's browser)
@@ -158,12 +159,12 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
             user.termsVersion = session.metadata?.terms_version || 'unknown';
             
             await user.save();
-            console.log(`[Stripe] Updated subscription for user ${userId} via checkout session verification`);
-            console.log(`[Stripe] Saved subscriptionStartDate: ${user.subscriptionStartDate}, subscriptionCurrentPeriodEnd: ${user.subscriptionCurrentPeriodEnd}`);
+            logger.info(`[Stripe] Updated subscription for user ${userId} via checkout session verification`);
+            logger.info(`[Stripe] Saved subscriptionStartDate: ${user.subscriptionStartDate}, subscriptionCurrentPeriodEnd: ${user.subscriptionCurrentPeriodEnd}`);
           }
         } catch (error) {
-          console.error('[Stripe] Error updating subscription from checkout session:', error.message || error);
-          console.error('[Stripe] Error stack:', error.stack);
+          logger.error('[Stripe] Error updating subscription from checkout session:', error.message || error);
+          logger.error('[Stripe] Error stack:', error.stack);
           // Don't fail the request, just log the error - webhook will handle it
         }
       }
@@ -304,11 +305,11 @@ exports.handleWebhook = async (req, res, next) => {
     }
 
     if (await hasProcessedEvent(event.id)) {
-      console.log(`[Stripe Webhook] Already processed event ${event.id}, acknowledging`);
+      logger.info(`[Stripe Webhook] Already processed event ${event.id}, acknowledging`);
       return res.json({ received: true });
     }
 
-    console.log(`[Stripe Webhook] Received event: ${event.type} (ID: ${event.id})`);
+    logger.info(`[Stripe Webhook] Received event: ${event.type} (ID: ${event.id})`);
 
     const acknowledge = async () => {
       await recordProcessedEvent(event.id, event.type);
@@ -320,20 +321,22 @@ exports.handleWebhook = async (req, res, next) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         
-        // Debug: Log FULL checkout session object
-        console.log(`[Stripe Webhook] Full checkout.session.completed object:`, JSON.stringify(session, null, 2));
+        logger.debug(
+          { sessionId: session.id, mode: session.mode, userId: session.metadata?.userId },
+          '[Stripe Webhook] checkout.session.completed'
+        );
 
         const userId = session.metadata?.userId;
 
         // Family Plan: one-time payment (mode === 'payment') – set same fields as proper signup
         if (session.mode === 'payment' && session.metadata?.familyPlan === '1') {
           if (!userId) {
-            console.error('[Stripe Webhook] Family Plan: missing userId in metadata');
+            logger.error('[Stripe Webhook] Family Plan: missing userId in metadata');
             return res.status(400).json({ success: false, message: 'Missing userId in session metadata' });
           }
           const user = await User.findById(userId).select('+stripeCustomerId +stripeSubscriptionId');
           if (!user) {
-            console.error(`[Stripe Webhook] Family Plan: user not found: ${userId}`);
+            logger.error(`[Stripe Webhook] Family Plan: user not found: ${userId}`);
             return res.status(404).json({ success: false, message: 'User not found' });
           }
           const childCount = parseInt(session.metadata.childCount, 10) || 1;
@@ -354,17 +357,17 @@ exports.handleWebhook = async (req, res, next) => {
           user.termsVersion = session.metadata?.terms_version || 'unknown';
           // termsAcceptedIp set when parent hits success page (GET checkout/session/:sessionId)
           await user.save();
-          console.log(`[Stripe Webhook] Family Plan activated for user ${userId}: planKidsLimit=${user.planKidsLimit}, planRegion=${user.planRegion}`);
+          logger.info(`[Stripe Webhook] Family Plan activated for user ${userId}: planKidsLimit=${user.planKidsLimit}, planRegion=${user.planRegion}`);
           return await acknowledge();
         }
 
         // Only process subscription checkouts (legacy parent signup flow)
         if (session.mode !== 'subscription') {
-          console.log('[Stripe Webhook] Ignoring non-subscription checkout session');
+          logger.info('[Stripe Webhook] Ignoring non-subscription checkout session');
           return res.json({ received: true });
         }
         if (!userId) {
-          console.error('[Stripe Webhook] No userId in checkout session metadata');
+          logger.error('[Stripe Webhook] No userId in checkout session metadata');
           return res.status(400).json({
             success: false,
             message: 'Missing userId in session metadata',
@@ -375,7 +378,7 @@ exports.handleWebhook = async (req, res, next) => {
         const user = await User.findById(userId).select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate +stripeCustomerId');
         
         if (!user) {
-          console.error(`[Stripe Webhook] User not found: ${userId}`);
+          logger.error(`[Stripe Webhook] User not found: ${userId}`);
           return res.status(404).json({
             success: false,
             message: 'User not found',
@@ -389,7 +392,7 @@ exports.handleWebhook = async (req, res, next) => {
           : session.subscription?.id;
 
         if (!subscriptionId) {
-          console.error('[Stripe Webhook] No subscription ID in checkout session');
+          logger.error('[Stripe Webhook] No subscription ID in checkout session');
           return res.status(400).json({
             success: false,
             message: 'Missing subscription ID in session',
@@ -399,8 +402,10 @@ exports.handleWebhook = async (req, res, next) => {
         try {
           const subscription = await getSubscription(subscriptionId);
 
-          // Debug: Log FULL subscription object to see all available fields
-          console.log(`[Stripe Webhook] Full subscription object:`, JSON.stringify(subscription, null, 2));
+          logger.debug(
+            { subscriptionId: subscription.id, status: subscription.status },
+            '[Stripe Webhook] subscription fetched'
+          );
 
           // Update user subscription fields
           user.stripeCustomerId = session.customer;
@@ -411,13 +416,13 @@ exports.handleWebhook = async (req, res, next) => {
           // Set subscription start date (when subscription was created) - only set once
           if (!user.subscriptionStartDate && subscription.created) {
             user.subscriptionStartDate = new Date(subscription.created * 1000);
-            console.log(`[Stripe Webhook] Setting subscription start date to: ${user.subscriptionStartDate}`);
+            logger.info(`[Stripe Webhook] Setting subscription start date to: ${user.subscriptionStartDate}`);
           }
           
           // Set period end date (convert Unix timestamp to Date)
           if (subscription.current_period_end) {
             user.subscriptionCurrentPeriodEnd = new Date(subscription.current_period_end * 1000);
-            console.log(`[Stripe Webhook] Setting period end to: ${user.subscriptionCurrentPeriodEnd}`);
+            logger.info(`[Stripe Webhook] Setting period end to: ${user.subscriptionCurrentPeriodEnd}`);
           } else if (subscription.current_period_start) {
             // Fallback: Calculate period end from period start + billing interval
             // For monthly subscriptions, add 1 month
@@ -425,9 +430,9 @@ exports.handleWebhook = async (req, res, next) => {
             const periodEnd = new Date(periodStart);
             periodEnd.setMonth(periodEnd.getMonth() + 1); // Add 1 month for monthly billing
             user.subscriptionCurrentPeriodEnd = periodEnd;
-            console.log(`[Stripe Webhook] Calculated period end from period start: ${user.subscriptionCurrentPeriodEnd}`);
+            logger.info(`[Stripe Webhook] Calculated period end from period start: ${user.subscriptionCurrentPeriodEnd}`);
           } else {
-            console.warn(`[Stripe Webhook] No current_period_end or current_period_start in subscription. Will be set by customer.subscription.updated event.`);
+            logger.warn(`[Stripe Webhook] No current_period_end or current_period_start in subscription. Will be set by customer.subscription.updated event.`);
           }
 
           // Store terms consent (legal record) - webhook has no client IP; success-page verification will set IP when parent loads success URL
@@ -436,12 +441,12 @@ exports.handleWebhook = async (req, res, next) => {
           // termsAcceptedIp left unset here; set when parent hits GET checkout-session (success page)
 
           await user.save();
-          console.log(`[Stripe Webhook] Activated subscription for user ${userId} (subscription: ${subscriptionId})`);
-          console.log(`[Stripe Webhook] Saved subscriptionStartDate: ${user.subscriptionStartDate}, subscriptionCurrentPeriodEnd: ${user.subscriptionCurrentPeriodEnd}`);
+          logger.info(`[Stripe Webhook] Activated subscription for user ${userId} (subscription: ${subscriptionId})`);
+          logger.info(`[Stripe Webhook] Saved subscriptionStartDate: ${user.subscriptionStartDate}, subscriptionCurrentPeriodEnd: ${user.subscriptionCurrentPeriodEnd}`);
 
           return res.json({ received: true });
         } catch (error) {
-          console.error('[Stripe Webhook] Error fetching subscription:', error.message);
+          logger.error('[Stripe Webhook] Error fetching subscription:', error.message);
           return res.status(500).json({
             success: false,
             message: `Failed to fetch subscription: ${error.message}`,
@@ -452,15 +457,17 @@ exports.handleWebhook = async (req, res, next) => {
       case 'customer.subscription.updated': {
         const subscription = event.data.object;
         
-        // Debug: Log FULL subscription object to see all available fields
-        console.log(`[Stripe Webhook] Full subscription.updated object:`, JSON.stringify(subscription, null, 2));
+        logger.debug(
+          { subscriptionId: subscription.id, status: subscription.status },
+          '[Stripe Webhook] subscription.updated'
+        );
         
         // Find user by subscription ID
         const user = await User.findOne({ stripeSubscriptionId: subscription.id })
           .select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate');
 
         if (!user) {
-          console.warn(`[Stripe Webhook] User not found for subscription: ${subscription.id}`);
+          logger.warn(`[Stripe Webhook] User not found for subscription: ${subscription.id}`);
           return res.json({ received: true });
         }
 
@@ -476,26 +483,26 @@ exports.handleWebhook = async (req, res, next) => {
         // Update subscription start date if not set (shouldn't happen, but safety check)
         if (!user.subscriptionStartDate && subscription.created) {
           user.subscriptionStartDate = new Date(subscription.created * 1000);
-          console.log(`[Stripe Webhook] Set subscription start date: ${user.subscriptionStartDate}`);
+          logger.info(`[Stripe Webhook] Set subscription start date: ${user.subscriptionStartDate}`);
         }
 
         // Update period end date (this should always be available in subscription.updated event)
         if (subscription.current_period_end) {
           user.subscriptionCurrentPeriodEnd = new Date(subscription.current_period_end * 1000);
-          console.log(`[Stripe Webhook] Updated period end to: ${user.subscriptionCurrentPeriodEnd}`);
+          logger.info(`[Stripe Webhook] Updated period end to: ${user.subscriptionCurrentPeriodEnd}`);
         } else if (subscription.current_period_start) {
           // Fallback: Calculate period end from period start + billing interval
           const periodStart = new Date(subscription.current_period_start * 1000);
           const periodEnd = new Date(periodStart);
           periodEnd.setMonth(periodEnd.getMonth() + 1); // Add 1 month for monthly billing
           user.subscriptionCurrentPeriodEnd = periodEnd;
-          console.log(`[Stripe Webhook] Calculated period end from period start: ${user.subscriptionCurrentPeriodEnd}`);
+          logger.info(`[Stripe Webhook] Calculated period end from period start: ${user.subscriptionCurrentPeriodEnd}`);
         } else {
-          console.warn(`[Stripe Webhook] No period dates in subscription.updated event for ${subscription.id}`);
+          logger.warn(`[Stripe Webhook] No period dates in subscription.updated event for ${subscription.id}`);
         }
 
         await user.save();
-        console.log(`[Stripe Webhook] Updated subscription for user ${user._id} (status: ${user.subscriptionStatus})`);
+        logger.info(`[Stripe Webhook] Updated subscription for user ${user._id} (status: ${user.subscriptionStatus})`);
 
         return res.json({ received: true });
       }
@@ -508,14 +515,14 @@ exports.handleWebhook = async (req, res, next) => {
           .select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate');
 
         if (!user) {
-          console.warn(`[Stripe Webhook] User not found for deleted subscription: ${subscription.id}`);
+          logger.warn(`[Stripe Webhook] User not found for deleted subscription: ${subscription.id}`);
           return res.json({ received: true });
         }
 
         // Mark subscription as canceled
         user.subscriptionStatus = 'canceled';
         await user.save();
-        console.log(`[Stripe Webhook] Marked subscription as canceled for user ${user._id}`);
+        logger.info(`[Stripe Webhook] Marked subscription as canceled for user ${user._id}`);
 
         return res.json({ received: true });
       }
@@ -524,8 +531,7 @@ exports.handleWebhook = async (req, res, next) => {
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object;
         
-        // Debug: Log FULL invoice object to see all available fields
-        console.log(`[Stripe Webhook] Full invoice object (${event.type}):`, JSON.stringify(invoice, null, 2));
+        logger.debug({ invoiceId: invoice.id, type: event.type }, '[Stripe Webhook] invoice event');
         
         // Get subscription ID from invoice
         // It can be in invoice.subscription or invoice.parent.subscription_details.subscription
@@ -542,7 +548,7 @@ exports.handleWebhook = async (req, res, next) => {
         
         // Only process invoices for subscriptions
         if (!subscriptionId) {
-          console.log('[Stripe Webhook] Invoice is not for a subscription, skipping');
+          logger.info('[Stripe Webhook] Invoice is not for a subscription, skipping');
           return res.json({ received: true });
         }
 
@@ -551,7 +557,7 @@ exports.handleWebhook = async (req, res, next) => {
           .select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate');
 
         if (!user) {
-          console.warn(`[Stripe Webhook] User not found for invoice subscription: ${subscriptionId}`);
+          logger.warn(`[Stripe Webhook] User not found for invoice subscription: ${subscriptionId}`);
           return res.json({ received: true });
         }
 
@@ -561,26 +567,26 @@ exports.handleWebhook = async (req, res, next) => {
         const lineItem = invoice.lines?.data?.[0];
         if (lineItem?.period?.end) {
           user.subscriptionCurrentPeriodEnd = new Date(lineItem.period.end * 1000);
-          console.log(`[Stripe Webhook] Updated period end from invoice line item: ${user.subscriptionCurrentPeriodEnd}`);
+          logger.info(`[Stripe Webhook] Updated period end from invoice line item: ${user.subscriptionCurrentPeriodEnd}`);
           await user.save();
         } else if (invoice.period_end) {
           // Fallback to invoice period_end if line item period is not available
           user.subscriptionCurrentPeriodEnd = new Date(invoice.period_end * 1000);
-          console.log(`[Stripe Webhook] Updated period end from invoice period_end (fallback): ${user.subscriptionCurrentPeriodEnd}`);
+          logger.info(`[Stripe Webhook] Updated period end from invoice period_end (fallback): ${user.subscriptionCurrentPeriodEnd}`);
           await user.save();
         } else {
-          console.warn(`[Stripe Webhook] Invoice ${invoice.id} has no period end information`);
+          logger.warn(`[Stripe Webhook] Invoice ${invoice.id} has no period end information`);
         }
 
         return res.json({ received: true });
       }
 
       default:
-        console.log(`[Stripe Webhook] Unhandled event type: ${event.type}`);
+        logger.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
         return res.json({ received: true });
     }
   } catch (error) {
-    console.error('[Stripe Webhook] Error processing webhook:', error);
+    logger.error('[Stripe Webhook] Error processing webhook:', error);
     next(error);
   }
 };

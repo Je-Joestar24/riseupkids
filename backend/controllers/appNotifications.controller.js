@@ -1,6 +1,7 @@
 const devicePushTokenService = require('../services/devicePushToken.services');
 const notificationInboxService = require('../services/notificationInbox.services');
 const { reportUserTimezone } = require('../services/userTimezone.services');
+const logger = require('../config/logger');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
@@ -34,7 +35,7 @@ const registerDeviceToken = async (req, res) => {
       data: tokenRow,
     });
   } catch (error) {
-    console.error('[app-notifications] registerDeviceToken:', error);
+    logger.error('[app-notifications] registerDeviceToken:', error);
     return handleError(res, error, 'Failed to register device push token');
   }
 };
@@ -50,7 +51,7 @@ const unregisterDeviceToken = async (req, res) => {
       message: 'Device push token removed',
     });
   } catch (error) {
-    console.error('[app-notifications] unregisterDeviceToken:', error);
+    logger.error('[app-notifications] unregisterDeviceToken:', error);
     return handleError(res, error, 'Failed to remove device push token');
   }
 };
@@ -67,7 +68,7 @@ const reportTimezone = async (req, res) => {
       data: { timezone },
     });
   } catch (error) {
-    console.error('[app-notifications] reportTimezone:', error);
+    logger.error('[app-notifications] reportTimezone:', error);
     return handleError(res, error, 'Failed to update timezone');
   }
 };
@@ -82,7 +83,7 @@ const listInbox = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    console.error('[app-notifications] listInbox:', error);
+    logger.error('[app-notifications] listInbox:', error);
     return handleError(res, error, 'Failed to load notification inbox');
   }
 };
@@ -96,7 +97,7 @@ const getUnreadCount = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('[app-notifications] getUnreadCount:', error);
+    logger.error('[app-notifications] getUnreadCount:', error);
     return handleError(res, error, 'Failed to load unread notification count');
   }
 };
@@ -110,7 +111,7 @@ const markInboxItemRead = async (req, res) => {
       data: item,
     });
   } catch (error) {
-    console.error('[app-notifications] markInboxItemRead:', error);
+    logger.error('[app-notifications] markInboxItemRead:', error);
     return handleError(res, error, 'Failed to mark notification as read');
   }
 };
@@ -124,7 +125,7 @@ const markAllInboxRead = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('[app-notifications] markAllInboxRead:', error);
+    logger.error('[app-notifications] markAllInboxRead:', error);
     return handleError(res, error, 'Failed to mark notifications as read');
   }
 };

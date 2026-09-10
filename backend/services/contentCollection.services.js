@@ -7,6 +7,7 @@ const Chant = require('../models/Chant');
 const fs = require('fs');
 const path = require('path');
 const s3Service = require('./s3.service');
+const logger = require('../config/logger');
 
 /**
  * Content Collection Service
@@ -406,7 +407,7 @@ const getCourseById = async (courseId, includeArchived = false) => {
         });
       }
     } catch (error) {
-      console.error(`Error populating content ${contentItem.contentId} (${contentItem.contentType}):`, error);
+      logger.error(`Error populating content ${contentItem.contentId} (${contentItem.contentType}):`, error);
       // Continue with other contents even if one fails
     }
   }
@@ -554,7 +555,7 @@ const updateCourse = async (courseId, userId, updateData, files = {}) => {
       const { recalculateProgressForCourse } = require('./courseProgress.services');
       await recalculateProgressForCourse(course);
     } catch (err) {
-      console.error(
+      logger.error(
         '[contentCollection] Failed to recalculate course progress after contents update:',
         err?.message || err
       );
@@ -652,7 +653,7 @@ const deleteCourse = async (courseId) => {
     try {
       fs.unlinkSync(path.join(__dirname, '../', course.coverImage.replace('/uploads', 'uploads')));
     } catch (error) {
-      console.error('Error deleting cover image:', error);
+      logger.error('Error deleting cover image:', error);
     }
   }
 
@@ -661,7 +662,7 @@ const deleteCourse = async (courseId) => {
       const coverKey = s3Service.getS3KeyFromUrl(course.coverImage);
       if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
-      console.error('Error deleting course cover image from S3:', error);
+      logger.error('Error deleting course cover image from S3:', error);
     }
   }
 

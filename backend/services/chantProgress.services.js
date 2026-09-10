@@ -13,6 +13,7 @@ const { awardBadgeForChant } = require('./badgeAward.service');
 const s3Service = require('./s3.service');
 const { INSTRUCTION_VIDEO_POPULATE_SELECT } = require('../utils/instructionVideoMedia.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const logger = require('../config/logger');
 
 const getOrCreateProgress = async ({ childId, chantId }) => {
   const progress = await ChantProgress.findOne({ child: childId, chant: chantId });
@@ -191,7 +192,7 @@ const completeChant = async ({
     await awardBadgeForChant(childId, chant);
   } catch (e) {
     // Non-blocking
-    console.warn('[ChantProgress] Badge award skipped:', e.message);
+    logger.warn('[ChantProgress] Badge award skipped:', e.message);
   }
 
   return populateCompletedProgress(progress._id);

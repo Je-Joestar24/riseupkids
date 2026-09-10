@@ -1,4 +1,5 @@
 const vision = require('@google-cloud/vision');
+const logger = require('../config/logger');
 
 function isStarCamDetectDebugEnabled() {
   return String(process.env.STARCAM_DETECT_DEBUG || '').toLowerCase() === 'true';
@@ -10,7 +11,7 @@ function isVisionErrorVerboseEnabled() {
 
 function logVisionDebug(stage, payload = {}) {
   if (!isStarCamDetectDebugEnabled()) return;
-  console.log('[StarCamDetectDebug]', JSON.stringify({ stage, ...payload }));
+  logger.info('[StarCamDetectDebug]', JSON.stringify({ stage, ...payload }));
 }
 
 function buildVisionProviderErrorMessage(error) {

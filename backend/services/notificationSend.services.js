@@ -6,6 +6,7 @@ const {
   snapshotLocalization,
 } = require('../utils/notificationLocalization.util');
 const { resolveDeliveryDecision } = require('../utils/notificationTiming.util');
+const logger = require('../config/logger');
 
 const LOCALIZATION_POPULATE = {
   path: 'localizations.imageMediaId',
@@ -95,7 +96,7 @@ async function sendPush({ campaign, recipient, snapshot, isTest }) {
       isTest,
     });
   } catch (error) {
-    console.error(`[notifications] push failed campaign=${campaign._id} user=${recipient.userId}:`, error.message);
+    logger.error(`[notifications] push failed campaign=${campaign._id} user=${recipient.userId}:`, error.message);
     return { status: 'failed', reason: error.message || 'provider_error' };
   }
 }
@@ -143,7 +144,7 @@ async function deliverDueQueuedReceipt(receipt, campaign, now) {
 async function processRecipient({ campaign, recipient, existing, isTest, trigger, now }) {
   const picked = pickLocalizationForRecipient(campaign, recipient.preferredLanguage);
   if (!picked.localization) {
-    console.error(
+    logger.error(
       `[notifications] missing_localization campaign=${campaign._id} user=${recipient.userId} lang=${recipient.preferredLanguage}`
     );
     return {
@@ -357,7 +358,7 @@ async function processCampaignDelivery(id, adminId, { now = new Date(), trigger 
     claimed.status = 'failed';
     claimed.lastError = error.message || 'job_failed';
     await claimed.save();
-    console.error(`[notifications] send failed campaign=${id}:`, error.message);
+    logger.error(`[notifications] send failed campaign=${id}:`, error.message);
     throw error;
   }
 }

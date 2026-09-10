@@ -2,6 +2,7 @@ const youtubeOAuth = require('../services/youtubeOAuth.service');
 const youtubeLive = require('../services/youtubeLive.service');
 const YouTubeLive = require('../models/YouTubeLive');
 const { uploadCoverFromFiles, deleteCoverByUrl } = require('../utils/coverImage.util');
+const logger = require('../config/logger');
 
 /**
  * YouTube Live Controller
@@ -37,7 +38,7 @@ const getAuthUrl = async (req, res) => {
       state,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error getting auth URL:', error);
+    logger.error('[YouTubeLive] Error getting auth URL:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to generate OAuth URL',
@@ -74,7 +75,7 @@ const handleOAuthCallback = async (req, res) => {
     const redirectUrl = `${frontendUrl}${redirectPath}?success=true&email=${encodeURIComponent(integration.connectedEmail || '')}`;
     res.redirect(redirectUrl);
   } catch (error) {
-    console.error('[YouTubeLive] OAuth callback error:', error);
+    logger.error('[YouTubeLive] OAuth callback error:', error);
     const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
     res.redirect(
       `${frontendUrl}/integrations/youtube/error?error=${encodeURIComponent(error.message || 'oauth_failed')}`
@@ -98,7 +99,7 @@ const getConnectionStatus = async (req, res) => {
       connectedAt: integration.expiresAt ? new Date(integration.expiresAt) : null,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error getting connection status:', error);
+    logger.error('[YouTubeLive] Error getting connection status:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get connection status',
@@ -128,7 +129,7 @@ const disconnectYouTube = async (req, res) => {
       message: 'YouTube account disconnected successfully',
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error disconnecting YouTube:', error);
+    logger.error('[YouTubeLive] Error disconnecting YouTube:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to disconnect YouTube account',
@@ -203,7 +204,7 @@ const createLiveStream = async (req, res) => {
           status: stream.status || 'created',
         });
       } catch (saveErr) {
-        console.error('[YouTubeLive] Failed to save live to LMS:', saveErr);
+        logger.error('[YouTubeLive] Failed to save live to LMS:', saveErr);
         // Still return success; stream was created on YouTube
       }
     }
@@ -220,7 +221,7 @@ const createLiveStream = async (req, res) => {
       data: responseData,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error creating live stream:', error);
+    logger.error('[YouTubeLive] Error creating live stream:', error);
 
     // Special error code: YouTube not connected (admin needs to connect)
     if (error.message === 'YOUTUBE_NOT_CONNECTED') {
@@ -277,7 +278,7 @@ const getActiveLive = async (req, res) => {
       data: live,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error getting active live:', error);
+    logger.error('[YouTubeLive] Error getting active live:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get active live',
@@ -328,7 +329,7 @@ const getAllLives = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error listing lives:', error);
+    logger.error('[YouTubeLive] Error listing lives:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to retrieve lives',
@@ -363,7 +364,7 @@ const getLiveById = async (req, res) => {
       data: live,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error getting live:', error);
+    logger.error('[YouTubeLive] Error getting live:', error);
     if (error.name === 'CastError') {
       return res.status(404).json({
         success: false,
@@ -406,7 +407,7 @@ const archiveLive = async (req, res) => {
       data: live,
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error archiving live:', error);
+    logger.error('[YouTubeLive] Error archiving live:', error);
     if (error.name === 'CastError') {
       return res.status(404).json({
         success: false,
@@ -459,7 +460,7 @@ const endLive = async (req, res) => {
       message: 'Live stream ended successfully. The broadcast is now complete on YouTube.',
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error ending live:', error);
+    logger.error('[YouTubeLive] Error ending live:', error);
     if (error.name === 'CastError') {
       return res.status(404).json({
         success: false,
@@ -507,7 +508,7 @@ const deleteLive = async (req, res) => {
       message: 'Live stream deleted successfully',
     });
   } catch (error) {
-    console.error('[YouTubeLive] Error deleting live:', error);
+    logger.error('[YouTubeLive] Error deleting live:', error);
     if (error.name === 'CastError') {
       return res.status(404).json({
         success: false,

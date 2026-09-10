@@ -1,5 +1,6 @@
 const { listActiveTokensForUser, markTokenInvalid } = require('./devicePushToken.services');
 const { sendExpoPushMessages } = require('./notificationPush.client');
+const logger = require('../config/logger');
 
 const INVALID_TOKEN_ERRORS = new Set(['DeviceNotRegistered', 'InvalidCredentials']);
 
@@ -132,7 +133,7 @@ async function deliverPush(
   const loadTokens = listTokens || listActiveTokensForUser;
   const tokens = await loadTokens(userId);
   if (!tokens.length) {
-    console.warn(`[notifications] no_device_token user=${userId}`);
+    logger.warn(`[notifications] no_device_token user=${userId}`);
     return { status: 'skipped', reason: 'no_device_token' };
   }
 
@@ -158,7 +159,7 @@ async function deliverPush(
     if (isInvalidTokenTicket(ticket)) {
       await markInvalid(tokenRow.token, 'invalid_token');
     }
-    console.error(
+    logger.error(
       `[notifications] token failed user=${userId} token=${String(tokenRow.token).slice(0, 12)}… reason=${reason}`
     );
   }

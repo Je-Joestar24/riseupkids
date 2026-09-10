@@ -1,5 +1,6 @@
 const ChildStats = require('../models/ChildStats');
 const Badge = require('../models/Badge');
+const logger = require('../config/logger');
 
 /**
  * Badge Awarding Service
@@ -22,7 +23,7 @@ const awardBadge = async (childId, badgeId) => {
   // Verify badge exists
   const badge = await Badge.findById(badgeId);
   if (!badge) {
-    console.warn(`Badge ${badgeId} not found, skipping badge award`);
+    logger.warn(`Badge ${badgeId} not found, skipping badge award`);
     return null;
   }
 

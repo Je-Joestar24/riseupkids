@@ -1,6 +1,7 @@
 const notificationCampaignService = require('../services/notificationCampaign.services');
 const notificationAnalyticsService = require('../services/notificationAnalytics.services');
 const { sendCampaignNow, sendCampaignTest } = require('../services/notificationSend.services');
+const logger = require('../config/logger');
 
 const handleError = (res, error, fallback = 'Notification request failed') => {
   const message = error.message || fallback;
@@ -27,7 +28,7 @@ const getMeta = async (_req, res) => {
       data: notificationCampaignService.getAdminMeta(),
     });
   } catch (error) {
-    console.error('[admin-notifications] getMeta:', error);
+    logger.error('[admin-notifications] getMeta:', error);
     return handleError(res, error, 'Failed to load notification meta');
   }
 };
@@ -42,7 +43,7 @@ const listCampaigns = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    console.error('[admin-notifications] listCampaigns:', error);
+    logger.error('[admin-notifications] listCampaigns:', error);
     return handleError(res, error, 'Failed to list notification campaigns');
   }
 };
@@ -56,7 +57,7 @@ const createCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] createCampaign:', error);
+    logger.error('[admin-notifications] createCampaign:', error);
     return handleError(res, error, 'Failed to create notification campaign');
   }
 };
@@ -70,7 +71,7 @@ const getCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] getCampaign:', error);
+    logger.error('[admin-notifications] getCampaign:', error);
     return handleError(res, error, 'Failed to load notification campaign');
   }
 };
@@ -88,7 +89,7 @@ const updateCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] updateCampaign:', error);
+    logger.error('[admin-notifications] updateCampaign:', error);
     return handleError(res, error, 'Failed to update notification campaign');
   }
 };
@@ -102,7 +103,7 @@ const duplicateCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] duplicateCampaign:', error);
+    logger.error('[admin-notifications] duplicateCampaign:', error);
     return handleError(res, error, 'Failed to duplicate notification campaign');
   }
 };
@@ -119,7 +120,7 @@ const previewCampaign = async (req, res) => {
       data: preview,
     });
   } catch (error) {
-    console.error('[admin-notifications] previewCampaign:', error);
+    logger.error('[admin-notifications] previewCampaign:', error);
     return handleError(res, error, 'Failed to preview notification campaign');
   }
 };
@@ -134,7 +135,7 @@ const uploadImage = async (req, res) => {
       data: media,
     });
   } catch (error) {
-    console.error('[admin-notifications] uploadImage:', error);
+    logger.error('[admin-notifications] uploadImage:', error);
     return handleError(res, error, 'Failed to upload notification image');
   }
 };
@@ -148,7 +149,7 @@ const deleteImage = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error('[admin-notifications] deleteImage:', error);
+    logger.error('[admin-notifications] deleteImage:', error);
     return handleError(res, error, 'Failed to delete notification image');
   }
 };
@@ -162,7 +163,7 @@ const getAnalytics = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error('[admin-notifications] getAnalytics:', error);
+    logger.error('[admin-notifications] getAnalytics:', error);
     return handleError(res, error, 'Failed to load notification analytics');
   }
 };
@@ -176,7 +177,7 @@ const getDashboard = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error('[admin-notifications] getDashboard:', error);
+    logger.error('[admin-notifications] getDashboard:', error);
     return handleError(res, error, 'Failed to load notification dashboard');
   }
 };
@@ -194,7 +195,7 @@ const scheduleCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] scheduleCampaign:', error);
+    logger.error('[admin-notifications] scheduleCampaign:', error);
     return handleError(res, error, 'Failed to schedule notification campaign');
   }
 };
@@ -208,7 +209,7 @@ const cancelCampaign = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] cancelCampaign:', error);
+    logger.error('[admin-notifications] cancelCampaign:', error);
     return handleError(res, error, 'Failed to cancel notification campaign');
   }
 };
@@ -222,7 +223,7 @@ const sendNow = async (req, res) => {
       data: campaign,
     });
   } catch (error) {
-    console.error('[admin-notifications] sendNow:', error);
+    logger.error('[admin-notifications] sendNow:', error);
     return handleError(res, error, 'Failed to send notification campaign');
   }
 };
@@ -246,7 +247,7 @@ const sendTest = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('[admin-notifications] sendTest:', error);
+    logger.error('[admin-notifications] sendTest:', error);
     return handleError(res, error, 'Failed to send test notification');
   }
 };

@@ -3,6 +3,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const { parseString } = require('xml2js');
 const s3Service = require('./s3.service');
+const logger = require('../config/logger');
 
 /**
  * SCORM Service
@@ -104,7 +105,7 @@ async function getScormEntryPoint(manifestPath, basePath) {
     return entryPoint;
   } catch (error) {
     // If manifest parsing fails, default to index.html
-    console.warn(`Could not parse manifest, using default entry point: ${error.message}`);
+    logger.warn(`Could not parse manifest, using default entry point: ${error.message}`);
     return 'index.html';
   }
 }
@@ -228,7 +229,7 @@ async function getScormMetadata(extractedPath) {
       manifestPath: path.relative(extractedPath, manifestPath),
     };
   } catch (error) {
-    console.warn(`Could not extract full metadata: ${error.message}`);
+    logger.warn(`Could not extract full metadata: ${error.message}`);
     return {
       title: 'SCORM Package',
       entryPoint: 'index.html',
@@ -246,7 +247,7 @@ async function cleanupScormPackage(extractedPath) {
   try {
     await fs.remove(extractedPath);
   } catch (error) {
-    console.error(`Failed to cleanup SCORM package: ${error.message}`);
+    logger.error(`Failed to cleanup SCORM package: ${error.message}`);
     // Don't throw - cleanup failures shouldn't break the flow
   }
 }

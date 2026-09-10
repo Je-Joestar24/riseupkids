@@ -4,6 +4,7 @@ const { User, PasswordResetToken, LoginOtpToken } = require('../models');
 const { ChildProfile, ChildStats } = require('../models');
 const mailService = require('./mail');
 const legalContent = require('./legalContent.service');
+const logger = require('../config/logger');
 const {
   isAccountLocked,
   registerFailedLogin,
@@ -68,13 +69,11 @@ const issueAdminLoginOtp = async (user) => {
   try {
     await mailService.sendLoginOtpCode({ to: user.email, code });
   } catch (error) {
-    console.error(
-      `[Auth:loginOtp] Failed to send login OTP email to ${user.email}: ${error.message}`
-    );
+    logger.error({ userId: user._id, err: error }, '[Auth:loginOtp] failed to send login OTP email');
     throw error;
   }
 
-  console.log(`[Auth:loginOtp] Admin login OTP email sent to ${user.email}`);
+  logger.info({ userId: user._id }, '[Auth:loginOtp] login OTP email sent');
   return code;
 };
 
@@ -216,7 +215,7 @@ const login = async (email, password) => {
   // RUK-SEC-007: reject a locked account BEFORE checking the password, with the same generic
   // error as a wrong password so it can't be probed. Real reason is logged, not returned.
   if (isAccountLocked(user)) {
-    console.warn(
+    logger.warn(
       `[Auth:lockout] Login attempt on locked account ${user.email} (locked until ${new Date(user.lockUntil).toISOString()})`
     );
     throw new Error('Invalid credentials');
@@ -226,7 +225,7 @@ const login = async (email, password) => {
   if (!isMatch) {
     const { attempts, justLocked, lockUntil } = await registerFailedLogin(user);
     if (justLocked) {
-      console.warn(
+      logger.warn(
         `[Auth:lockout] Account ${user.email} locked after ${attempts} failed login attempts` +
           (lockUntil ? ` (until ${new Date(lockUntil).toISOString()})` : '')
       );
@@ -455,13 +454,13 @@ const forgotPassword = async (email) => {
   try {
     await mailService.sendResetCode({ to: user.email, code });
   } catch (error) {
-    console.error(
+    logger.error(
       `[Auth:forgotPassword] Failed to send reset code email to ${user.email}: ${error.message}`
     );
     throw error;
   }
 
-  console.log(`[Auth:forgotPassword] Reset code email sent to ${user.email}`);
+  logger.info(`[Auth:forgotPassword] Reset code email sent to ${user.email}`);
   return { sent: true };
 };
 

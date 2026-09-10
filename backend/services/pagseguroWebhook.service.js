@@ -13,6 +13,7 @@ const {
   extractCheckoutIdFromCharge,
 } = require('./pagseguro.service');
 const { activateUserFromPagseguroCheckout } = require('./pagseguroActivation.service');
+const logger = require('../config/logger');
 const {
   buildLocalRecordSnapshot,
   summarizeCharges,
@@ -273,7 +274,7 @@ async function findCheckoutRecord(payload) {
         return PagSeguroCheckout.findOne({ referenceId: charge.reference_id });
       }
     } catch (err) {
-      console.error('[PagSeguro Webhook] Failed to resolve charge to checkout:', err.message);
+      logger.error('[PagSeguro Webhook] Failed to resolve charge to checkout:', err.message);
     }
   }
 

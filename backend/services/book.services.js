@@ -7,6 +7,7 @@ const s3Service = require('./s3.service');
 const scormService = require('./scorm.service');
 const cloudfrontService = require('./cloudfront.service');
 const { applyCreatorSharedReadFilter, assertCreatorOwnsDocument, assertCreatorCanReadDocument } = require('../utils/contentOwnership');
+const logger = require('../config/logger');
 
 /**
  * Create Book Service
@@ -507,7 +508,7 @@ const updateBook = async (bookId, userId, updateData, files = {}, user = null) =
         try {
           await s3Service.deleteByPrefix(`html5/${book.html5PackageId}`);
         } catch (error) {
-          console.error('Error deleting previous HTML5 package:', error);
+          logger.error('Error deleting previous HTML5 package:', error);
         }
       }
       const { id, entryPoint, baseUrl } = await html5handlerService.extractAndUploadToS3Only(zipInput);
@@ -529,13 +530,13 @@ const updateBook = async (bookId, userId, updateData, files = {}, user = null) =
           }
           await Media.findByIdAndDelete(book.scormFile);
         } catch (error) {
-          console.error('Error deleting previous SCORM file:', error);
+          logger.error('Error deleting previous SCORM file:', error);
         }
       }
       try {
         await s3Service.deleteByPrefix(`scorm/book/${book._id}`);
       } catch (error) {
-        console.error('Error deleting previous extracted SCORM package:', error);
+        logger.error('Error deleting previous extracted SCORM package:', error);
       }
 
       const { url: scormFileUrl, s3Key: scormS3Key } = await s3Service.uploadFileFromMulter(zipFile, 'activities/scorm');
@@ -616,7 +617,7 @@ const deleteBook = async (bookId, user = null) => {
       }
       await Media.findByIdAndDelete(book.scormFile);
     } catch (error) {
-      console.error('Error deleting SCORM file:', error);
+      logger.error('Error deleting SCORM file:', error);
     }
   }
 
@@ -624,7 +625,7 @@ const deleteBook = async (bookId, user = null) => {
   try {
     await s3Service.deleteByPrefix(`scorm/book/${book._id}`);
   } catch (error) {
-    console.error('Error deleting extracted SCORM package from S3:', error);
+    logger.error('Error deleting extracted SCORM package from S3:', error);
   }
 
   // Delete HTML5 package directory from S3 when this is an HTML5 book.
@@ -632,7 +633,7 @@ const deleteBook = async (bookId, user = null) => {
     try {
       await s3Service.deleteByPrefix(`html5/${book.html5PackageId}`);
     } catch (error) {
-      console.error('Error deleting HTML5 package from S3:', error);
+      logger.error('Error deleting HTML5 package from S3:', error);
     }
   }
 
@@ -645,7 +646,7 @@ const deleteBook = async (bookId, user = null) => {
     try {
       fs.unlinkSync(path.join(__dirname, '../', book.coverImage.replace('/uploads', 'uploads')));
     } catch (error) {
-      console.error('Error deleting cover image:', error);
+      logger.error('Error deleting cover image:', error);
     }
   }
 
@@ -654,7 +655,7 @@ const deleteBook = async (bookId, user = null) => {
       const coverKey = s3Service.getS3KeyFromUrl(book.coverImage);
       if (coverKey) await s3Service.deleteByKey(coverKey);
     } catch (error) {
-      console.error('Error deleting cover image from S3:', error);
+      logger.error('Error deleting cover image from S3:', error);
     }
   }
 
@@ -668,7 +669,7 @@ const deleteBook = async (bookId, user = null) => {
         await cloudfrontService.invalidate(invalidationPaths);
       }
     } catch (error) {
-      console.error('Error creating CloudFront invalidation for deleted book assets:', error);
+      logger.error('Error creating CloudFront invalidation for deleted book assets:', error);
     }
   }
 

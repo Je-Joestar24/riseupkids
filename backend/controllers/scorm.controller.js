@@ -10,6 +10,7 @@ const Media = require('../models/Media');
 const { ChildProfile } = require('../models');
 const path = require('path');
 const fs = require('fs-extra');
+const logger = require('../config/logger');
 
 // ============================================================
 // Path-safety helpers (RUK-SEC-001)
@@ -254,7 +255,7 @@ const getLaunchUrl = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error getting SCORM launch URL:', error);
+    logger.error('Error getting SCORM launch URL:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get SCORM launch URL',
@@ -361,7 +362,7 @@ const saveProgress = async (req, res) => {
         } catch (progressError) {
           // SCORM progress saving should NEVER break SCORM playback
           // If course/content mapping is missing, log and continue without 500
-          console.warn(
+          logger.warn(
             '[SCORM] Skipping course progress update (course/content not found or mapping issue):',
             progressError.message
           );
@@ -369,7 +370,7 @@ const saveProgress = async (req, res) => {
       }
     } catch (childError) {
       // If child lookup fails, log but don't break SCORM
-      console.warn('[SCORM] Could not find child for progress update:', childError.message);
+      logger.warn('[SCORM] Could not find child for progress update:', childError.message);
     }
     
     res.json({
@@ -382,7 +383,7 @@ const saveProgress = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error saving SCORM progress:', error);
+    logger.error('Error saving SCORM progress:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to save SCORM progress',
@@ -455,7 +456,7 @@ const getProgress = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error getting SCORM progress:', error);
+    logger.error('Error getting SCORM progress:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get SCORM progress',
@@ -609,7 +610,7 @@ const getWrapper = async (req, res) => {
                 return window.open(url, name, features);
             } catch (e) {
                 // If it fails, log and return null (don't throw)
-                console.warn('window.open failed (cross-origin):', e.message);
+                logger.warn('window.open failed (cross-origin):', e.message);
                 return null;
             }
         };
@@ -652,7 +653,7 @@ const getWrapper = async (req, res) => {
         if (typeof window.WriteToDebug === 'undefined') {
             window.WriteToDebug = function(message) {
                 // Suppress debug messages to reduce console spam
-                // Uncomment for debugging: console.log('[SCORM Debug]', message);
+                // Uncomment for debugging: logger.debug('[SCORM Debug]', message);
             };
         }
         
@@ -680,7 +681,7 @@ const getWrapper = async (req, res) => {
             // If it's the "unable to acquire LMS API" error and we have API, auto-click OK
             if (message && message.includes('unable to acquire LMS API')) {
                 if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                    console.warn('[SCORM] ✅ Auto-clicking OK on "unable to acquire LMS API" - API is available');
+                    logger.warn('[SCORM] ✅ Auto-clicking OK on "unable to acquire LMS API" - API is available');
                     return true; // Auto-click OK - SCORM continues
                 }
             }
@@ -691,25 +692,25 @@ const getWrapper = async (req, res) => {
                 }
             } catch (e) {
                 // If original fails, auto-click OK to continue
-                console.warn('[SCORM] Confirm failed, auto-clicking OK:', e.message);
+                logger.warn('[SCORM] Confirm failed, auto-clicking OK:', e.message);
                 return true;
             }
             // Default: auto-click OK to ensure SCORM continues
             return true;
         };
-        console.log('[SCORM] ✅ confirm() overridden - will auto-click OK');
+        logger.debug('[SCORM] ✅ confirm() overridden - will auto-click OK');
         
         // 4. Safe DisplayError that allows SCORM to continue WITHOUT popup
         // SCORM's DisplayError shows confirm() popup - we override to just log and continue
         const safeDisplayError = function(message) {
             // Log the error
-            console.error('[SCORM Error]', message);
+            logger.error('[SCORM Error]', message);
             
             // Check if this is the "unable to acquire LMS API" error
             if (message && message.includes('unable to acquire LMS API')) {
                 // If we have an API available, log and continue (no popup)
                 if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                    console.warn('[SCORM] ✅ "unable to acquire LMS API" error - but API is available, continuing...');
+                    logger.warn('[SCORM] ✅ "unable to acquire LMS API" error - but API is available, continuing...');
                     // Just return - SCORM will continue its flow
                     // We don't show popup, but SCORM execution continues
                     return;
@@ -724,17 +725,17 @@ const getWrapper = async (req, res) => {
         // 5. Safe InitializeExecuted - allows SCORM to continue
         const safeInitializeExecuted = function(success, message) {
             if (success) {
-                console.log('[SCORM] ✅ Initialize: Success');
+                logger.debug('[SCORM] ✅ Initialize: Success');
             } else {
                 // Suppress "unable to acquire LMS API" error if we have API
                 if (message && message.includes('unable to acquire LMS API')) {
                     if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                        console.warn('[SCORM] ✅ Suppressed "unable to acquire LMS API" - API available');
+                        logger.warn('[SCORM] ✅ Suppressed "unable to acquire LMS API" - API available');
                         return; // No popup
                     }
                 }
                 // For other errors, just log - NO POPUPS
-                console.error('[SCORM] Initialize Failed:', message || 'Unknown error');
+                logger.error('[SCORM] Initialize Failed:', message || 'Unknown error');
                 // DO NOT call alert() - prevents popups
             }
         };
@@ -743,7 +744,7 @@ const getWrapper = async (req, res) => {
         // DisplayError is what shows the "unable to acquire LMS API" popup
         // We MUST override it before SCORM loads, and keep it overridden
         window.DisplayError = safeDisplayError;
-        console.log('[SCORM] ✅ DisplayError overridden - popups suppressed');
+        logger.debug('[SCORM] ✅ DisplayError overridden - popups suppressed');
         
         // CRITICAL: Smart InitializeExecuted wrapper
         // We can't pre-define it because SCORM declares it as a function,
@@ -754,7 +755,7 @@ const getWrapper = async (req, res) => {
             if (!success && message && message.includes('unable to acquire LMS API')) {
                 // Check if our API is available
                 if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                    console.log('[SCORM Shim] API available but InitializeExecuted called with error - retrying...');
+                    logger.debug('[SCORM Shim] API available but InitializeExecuted called with error - retrying...');
                     // Retry initialization after a short delay
                     setTimeout(function() {
                         try {
@@ -765,11 +766,11 @@ const getWrapper = async (req, res) => {
                                 window.SCORM_Initialize();
                             }
                         } catch (e) {
-                            console.error('[SCORM Shim] Retry failed:', e);
+                            logger.error('[SCORM Shim] Retry failed:', e);
                         }
                     }, 100);
                     // Suppress the error popup
-                    console.warn('[SCORM Shim] Suppressed "unable to acquire LMS API" error - API is available');
+                    logger.warn('[SCORM Shim] Suppressed "unable to acquire LMS API" error - API is available');
                     return;
                 }
             }
@@ -788,7 +789,7 @@ const getWrapper = async (req, res) => {
                     // Suppress "unable to acquire LMS API" popup if we have API
                     if (message && message.includes('unable to acquire LMS API')) {
                         if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                            console.warn('[SCORM] Suppressed "unable to acquire LMS API" popup - API available');
+                            logger.warn('[SCORM] Suppressed "unable to acquire LMS API" popup - API available');
                             return; // No popup
                         }
                     }
@@ -800,15 +801,15 @@ const getWrapper = async (req, res) => {
                     } catch (e) {
                         if (e.name === 'SecurityError' || e.message.includes('cross-origin') || e.message.includes('open')) {
                             // Just log, don't show popup
-                            console.error('[SCORM Error]', message);
+                            logger.error('[SCORM Error]', message);
                             return;
                         }
                         throw e;
                     }
                     // Fallback: just log
-                    console.error('[SCORM Error]', message);
+                    logger.error('[SCORM Error]', message);
                 };
-                console.log('[SCORM] ✅ DisplayError re-overridden to suppress popups');
+                logger.debug('[SCORM] ✅ DisplayError re-overridden to suppress popups');
             }
             
             // Wrap InitializeExecuted AFTER SCORM declares it (to avoid "already declared" error)
@@ -820,31 +821,31 @@ const getWrapper = async (req, res) => {
                     // retry initialization and then continue SCORM flow
                     if (!success && message && message.includes('unable to acquire LMS API')) {
                         if (isAPIValid(window.API_1484_11) || isAPIValid(window.API)) {
-                            console.warn('[SCORM Shim] "unable to acquire LMS API" but API available - retrying initialization...');
+                            logger.warn('[SCORM Shim] "unable to acquire LMS API" but API available - retrying initialization...');
                             
                             // Retry initialization immediately
                             try {
                                 if (typeof window.SCORM2004_Initialize === 'function') {
                                     const retryResult = window.SCORM2004_Initialize();
                                     if (retryResult !== false) {
-                                        console.log('[SCORM Shim] ✅ Retry successful - SCORM continuing');
+                                        logger.debug('[SCORM Shim] ✅ Retry successful - SCORM continuing');
                                         // Call original with success=true to continue SCORM flow
                                         return originalInitializeExecuted.call(window, true, '');
                                     }
                                 } else if (typeof window.SCORM_Initialize === 'function') {
                                     const retryResult = window.SCORM_Initialize();
                                     if (retryResult !== false) {
-                                        console.log('[SCORM Shim] ✅ Retry successful - SCORM continuing');
+                                        logger.debug('[SCORM Shim] ✅ Retry successful - SCORM continuing');
                                         return originalInitializeExecuted.call(window, true, '');
                                     }
                                 }
                             } catch (e) {
-                                console.error('[SCORM Shim] Retry failed:', e);
+                                logger.error('[SCORM Shim] Retry failed:', e);
                             }
                             
                             // If retry didn't work, still continue SCORM flow with success=true
                             // This ensures SCORM opens even if there was an error
-                            console.warn('[SCORM Shim] Continuing SCORM flow despite error - API is available');
+                            logger.warn('[SCORM Shim] Continuing SCORM flow despite error - API is available');
                             return originalInitializeExecuted.call(window, true, '');
                         }
                     }
@@ -855,7 +856,7 @@ const getWrapper = async (req, res) => {
                     } catch (e) {
                         if (e.name === 'SecurityError' || e.message.includes('cross-origin') || e.message.includes('open')) {
                             // On cross-origin error, continue with success to keep SCORM working
-                            console.warn('[SCORM Shim] Cross-origin error, continuing SCORM flow');
+                            logger.warn('[SCORM Shim] Cross-origin error, continuing SCORM flow');
                             return originalInitializeExecuted.call(window, true, '');
                         }
                         throw e;
@@ -885,7 +886,7 @@ const getWrapper = async (req, res) => {
                         return originalGrab.call(window);
                     } catch (e) {
                         if (e.name === 'SecurityError' || e.message.includes('cross-origin')) {
-                            console.warn('[SCORM Shim] Parent access blocked, using current window API');
+                            logger.warn('[SCORM Shim] Parent access blocked, using current window API');
                             return ourAPI2004 || ourAPI;
                         }
                         throw e;
@@ -921,7 +922,7 @@ const getWrapper = async (req, res) => {
                         return originalGrab.call(window);
                     } catch (e) {
                         if (e.name === 'SecurityError' || e.message.includes('cross-origin')) {
-                            console.warn('[SCORM Shim] Parent access blocked, using current window API');
+                            logger.warn('[SCORM Shim] Parent access blocked, using current window API');
                             return ourAPI || ourAPI2004;
                         }
                         throw e;
@@ -974,7 +975,7 @@ const getWrapper = async (req, res) => {
                         return originalInit.call(window);
                     } catch (e) {
                         if (e.name === 'SecurityError' || (e.message && e.message.includes('cross-origin'))) {
-                            console.warn('[SCORM Shim] SCORM2004_Initialize caught SecurityError, using our API');
+                            logger.warn('[SCORM Shim] SCORM2004_Initialize caught SecurityError, using our API');
                             // Force set the API and retry
                             if (typeof window.SCORM2004_objAPI === 'undefined' || window.SCORM2004_objAPI === null) {
                                 window.SCORM2004_objAPI = api;
@@ -991,7 +992,7 @@ const getWrapper = async (req, res) => {
                                     }
                                 }
                             } catch (e2) {
-                                console.error('[SCORM Shim] Direct API Initialize failed:', e2);
+                                logger.error('[SCORM Shim] Direct API Initialize failed:', e2);
                             }
                         }
                         throw e;
@@ -1007,7 +1008,7 @@ const getWrapper = async (req, res) => {
                         return originalInit.call(window);
                     } catch (e) {
                         if (e.name === 'SecurityError' || (e.message && e.message.includes('cross-origin'))) {
-                            console.warn('[SCORM Shim] SCORM_Initialize caught SecurityError, using our API');
+                            logger.warn('[SCORM Shim] SCORM_Initialize caught SecurityError, using our API');
                             // Force set the API and retry
                             if (typeof window.SCORM_objAPI === 'undefined' || window.SCORM_objAPI === null) {
                                 window.SCORM_objAPI = api;
@@ -1024,7 +1025,7 @@ const getWrapper = async (req, res) => {
                                     }
                                 }
                             } catch (e2) {
-                                console.error('[SCORM Shim] Direct API LMSInitialize failed:', e2);
+                                logger.error('[SCORM Shim] Direct API LMSInitialize failed:', e2);
                             }
                         }
                         throw e;
@@ -1048,7 +1049,7 @@ const getWrapper = async (req, res) => {
             // Catch SecurityErrors related to window.parent.open
             if (error && error.name === 'SecurityError' && 
                 (msg.includes('open') || msg.includes('parent') || msg.includes('cross-origin'))) {
-                console.warn('Caught SecurityError (likely window.parent.open access):', msg);
+                logger.warn('Caught SecurityError (likely window.parent.open access):', msg);
                 // Don't let this error propagate - it's expected
                 return true; // Prevent default error handling
             }
@@ -1089,7 +1090,7 @@ const getWrapper = async (req, res) => {
                     sessionStartTime: Date.now(),  // Track session start for manual time calculation
                 };
                 
-                console.log('[SCORM API] Created API instance for', contentType, contentId);
+                logger.debug('[SCORM API] Created API instance for', contentType, contentId);
             }
             
             LMSInitialize(parameter = '') {
@@ -1137,7 +1138,7 @@ const getWrapper = async (req, res) => {
                     }
                 })
                 .catch(err => {
-                    console.error('Failed to load progress:', err);
+                    logger.error('Failed to load progress:', err);
                     // Continue anyway - will use defaults
                 });
                 
@@ -1184,7 +1185,7 @@ const getWrapper = async (req, res) => {
                     const score = parseFloat(value);
                     // Check if score is valid number
                     if (isNaN(score)) {
-                        console.log('[SCORM Validation] Invalid score value:', value, '- ignoring');
+                        logger.debug('[SCORM Validation] Invalid score value:', value, '- ignoring');
                         this.errorCode = 0;
                         return 'true';
                     }
@@ -1195,7 +1196,7 @@ const getWrapper = async (req, res) => {
                     
                     // Log score changes with max score
                     this.progressData.lastScore = score;
-                    console.log('[SCORM Progress] Score set:', score, 
+                    logger.debug('[SCORM Progress] Score set:', score, 
                                'Max:', maxScore !== null ? maxScore : 'N/A', 
                                'Min:', minScore !== null ? minScore : 'N/A',
                                'Progress:', this.progressData.currentProgress + '%', 
@@ -1210,7 +1211,7 @@ const getWrapper = async (req, res) => {
                             (maxScore !== null && score === maxScore);
                         
                         if (!canAcceptScore) {
-                            console.log('[SCORM Validation] Blocked automatic 100-point award - insufficient progress. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's', 'Max score:', maxScore !== null ? maxScore : 'N/A');
+                            logger.debug('[SCORM Validation] Blocked automatic 100-point award - insufficient progress. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's', 'Max score:', maxScore !== null ? maxScore : 'N/A');
                             // Return success but don't store the score
                             this.errorCode = 0;
                             return 'true';
@@ -1224,7 +1225,7 @@ const getWrapper = async (req, res) => {
                     if (status === 'completed' || status === 'passed') {
                         // Log but don't auto-complete - user must click "Done" button (reduced logging)
                         if (this.progressData.currentProgress >= 80 || status === 'completed' || status === 'passed') {
-                            console.log('[SCORM Validation] Status set to', status, '- but completion requires "Done" button click. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's');
+                            logger.debug('[SCORM Validation] Status set to', status, '- but completion requires "Done" button click. Progress:', this.progressData.currentProgress + '%', 'Time:', this.progressData.timeSpent + 's');
                         }
                         // Store the status for logging, but don't trigger completion
                         this.data[element] = value;
@@ -1236,7 +1237,7 @@ const getWrapper = async (req, res) => {
                 // Track first interaction (any non-default value set)
                 if (!this.progressData.firstInteraction && value && value !== '' && value !== 'not attempted') {
                     this.progressData.firstInteraction = true;
-                    console.log('[SCORM Progress] First interaction detected');
+                    logger.debug('[SCORM Progress] First interaction detected');
                 }
                 
                 // Store the value normally if validation passes
@@ -1281,7 +1282,7 @@ const getWrapper = async (req, res) => {
                             ? JSON.stringify(suspendDataValue) 
                             : String(suspendDataValue);
                     } catch (e) {
-                        console.warn('[SCORM] Error stringifying suspendData:', e);
+                        logger.warn('[SCORM] Error stringifying suspendData:', e);
                         suspendDataValue = '';
                     }
                 }
@@ -1300,7 +1301,7 @@ const getWrapper = async (req, res) => {
                 
                 // Log the commit attempt (but don't spam)
                 if (!this.lastCommitLog || (Date.now() - this.lastCommitLog) > 5000) {
-                    console.log('[SCORM] LMSCommit - Saving progress', {
+                    logger.debug('[SCORM] LMSCommit - Saving progress', {
                         contentId: contentId,
                         lessonStatus: progressDataSafe.lessonStatus,
                         score: progressDataSafe.score,
@@ -1329,13 +1330,13 @@ const getWrapper = async (req, res) => {
                     if (data.success) {
                         this.hasUncommittedChanges = false;
                     } else {
-                        console.warn('[SCORM] LMSCommit - Save returned success=false:', data.message);
+                        logger.warn('[SCORM] LMSCommit - Save returned success=false:', data.message);
                     }
                 })
                 .catch(err => {
                     // Only log errors occasionally to avoid spam
                     if (!this.lastCommitError || (Date.now() - this.lastCommitError) > 10000) {
-                        console.error('[SCORM] LMSCommit - Failed to save progress:', err.message);
+                        logger.error('[SCORM] LMSCommit - Failed to save progress:', err.message);
                         this.lastCommitError = Date.now();
                     }
                 });
@@ -1488,21 +1489,21 @@ const getWrapper = async (req, res) => {
         
         // Inject into window IMMEDIATELY - SCORM 1.2
         window.API = api;
-        console.log('[SCORM API] ✅ window.API created - SCORM will find this!');
+        logger.debug('[SCORM API] ✅ window.API created - SCORM will find this!');
         
         // Inject into window IMMEDIATELY - SCORM 2004  
         window.API_1484_11 = api;
-        console.log('[SCORM API] ✅ window.API_1484_11 created - SCORM will find this!');
+        logger.debug('[SCORM API] ✅ window.API_1484_11 created - SCORM will find this!');
         
         // Ensure API stays available (monitor and restore if cleared)
         const ensureAPIAvailable = function() {
             if (!window.API || window.API === null || window.API === undefined) {
                 window.API = api;
-                console.log('[SCORM API] Restored window.API');
+                logger.debug('[SCORM API] Restored window.API');
             }
             if (!window.API_1484_11 || window.API_1484_11 === null || window.API_1484_11 === undefined) {
                 window.API_1484_11 = api;
-                console.log('[SCORM API] Restored window.API_1484_11');
+                logger.debug('[SCORM API] Restored window.API_1484_11');
             }
         };
         
@@ -1514,7 +1515,7 @@ const getWrapper = async (req, res) => {
         const ensureDisplayErrorSuppressed = function() {
             if (window.DisplayError !== safeDisplayError) {
                 window.DisplayError = safeDisplayError;
-                console.log('[SCORM] ✅ DisplayError re-overridden to suppress popups');
+                logger.debug('[SCORM] ✅ DisplayError re-overridden to suppress popups');
             }
         };
         
@@ -1547,15 +1548,15 @@ const getWrapper = async (req, res) => {
             window.SCORM2004_GrabAPI = function() {
                 // Check current window first (our injected API)
                 if (isAPIValid(window.API_1484_11)) {
-                    console.log('[SCORM Shim] Found API_1484_11 in current window');
+                    logger.debug('[SCORM Shim] Found API_1484_11 in current window');
                     return window.API_1484_11;
                 }
                 if (isAPIValid(window.API)) {
-                    console.log('[SCORM Shim] Found API (1.2) in current window, using for 2004');
+                    logger.debug('[SCORM Shim] Found API (1.2) in current window, using for 2004');
                     return window.API;
                 }
                 // Don't check parents - return null and let SCORM driver handle it
-                console.warn('[SCORM Shim] No API found in current window');
+                logger.warn('[SCORM Shim] No API found in current window');
                 return null;
             };
         }
@@ -1591,14 +1592,14 @@ const getWrapper = async (req, res) => {
             window.SCORM_GrabAPI = function() {
                 // Check current window first (our injected API)
                 if (isAPIValid(window.API)) {
-                    console.log('[SCORM Shim] Found API (1.2) in current window');
+                    logger.debug('[SCORM Shim] Found API (1.2) in current window');
                     return window.API;
                 }
                 if (isAPIValid(window.API_1484_11)) {
-                    console.log('[SCORM Shim] Found API_1484_11 in current window, using for 1.2');
+                    logger.debug('[SCORM Shim] Found API_1484_11 in current window, using for 1.2');
                     return window.API_1484_11;
                 }
-                console.warn('[SCORM Shim] No API found in current window');
+                logger.warn('[SCORM Shim] No API found in current window');
                 return null;
             };
         }
@@ -1629,7 +1630,7 @@ const getWrapper = async (req, res) => {
             };
         }
         
-        console.log('[SCORM Shim] API discovery functions shimmed - API will be found in current window');
+        logger.debug('[SCORM Shim] API discovery functions shimmed - API will be found in current window');
         
         // ============================================================
         // PHASE 1: Force SCORM internal API variables to always see our API
@@ -1652,7 +1653,7 @@ const getWrapper = async (req, res) => {
                 // SCORM will call SCORM2004_objAPI = SCORM2004_GrabAPI();
                 // We intentionally ignore the assigned value to keep our API bound.
                 // Optionally, we could log the attempted value for debugging:
-                // console.log('[SCORM Shim] SCORM tried to set SCORM2004_objAPI to:', value);
+                // logger.debug('[SCORM Shim] SCORM tried to set SCORM2004_objAPI to:', value);
             };
             
             // Redefine SCORM2004_objAPI with getter/setter
@@ -1663,9 +1664,9 @@ const getWrapper = async (req, res) => {
                     get: apiGetter,
                     set: apiSetter,
                 });
-                console.log('[SCORM Shim] ✅ SCORM2004_objAPI accessor defined');
+                logger.debug('[SCORM Shim] ✅ SCORM2004_objAPI accessor defined');
             } catch (e) {
-                console.warn('[SCORM Shim] Could not redefine SCORM2004_objAPI accessor:', e.message);
+                logger.warn('[SCORM Shim] Could not redefine SCORM2004_objAPI accessor:', e.message);
                 // Fallback: direct assignment (less robust, but better than nothing)
                 window.SCORM2004_objAPI = api;
             }
@@ -1678,14 +1679,14 @@ const getWrapper = async (req, res) => {
                     get: apiGetter,
                     set: apiSetter,
                 });
-                console.log('[SCORM Shim] ✅ SCORM_objAPI accessor defined');
+                logger.debug('[SCORM Shim] ✅ SCORM_objAPI accessor defined');
             } catch (e) {
-                console.warn('[SCORM Shim] Could not redefine SCORM_objAPI accessor:', e.message);
+                logger.warn('[SCORM Shim] Could not redefine SCORM_objAPI accessor:', e.message);
                 // Fallback: direct assignment
                 window.SCORM_objAPI = api;
             }
         } catch (e) {
-            console.error('[SCORM Shim] Error setting SCORM *_objAPI accessors:', e);
+            logger.error('[SCORM Shim] Error setting SCORM *_objAPI accessors:', e);
             // Absolute fallback: direct assignment (original behavior)
             window.SCORM2004_objAPI = api;
             window.SCORM_objAPI = api;
@@ -1730,7 +1731,7 @@ const getWrapper = async (req, res) => {
                 try {
                     return window.open(url, name, features);
                 } catch (e) {
-                    console.warn('window.open failed:', e);
+                    logger.warn('window.open failed:', e);
                     return null;
                 }
             };
@@ -1740,10 +1741,10 @@ const getWrapper = async (req, res) => {
                 try {
                     return originalOpen.call(window, url, name, features);
                 } catch (e) {
-                    console.warn('window.open call failed:', e);
+                    logger.warn('window.open call failed:', e);
                     // Fallback: try alert instead
                     if (url && typeof url === 'string') {
-                        console.log('Would open:', url);
+                        logger.debug('Would open:', url);
                     }
                     return null;
                 }
@@ -1774,7 +1775,7 @@ const getWrapper = async (req, res) => {
                 } catch (e) {
                     // Cross-origin - can't access or set parent.open
                     // This is expected and okay
-                    console.warn('Cannot access window.parent.open (cross-origin):', e.message);
+                    logger.warn('Cannot access window.parent.open (cross-origin):', e.message);
                 }
             }
             
@@ -1796,7 +1797,7 @@ const getWrapper = async (req, res) => {
                     }
                 } catch (e) {
                     // Cross-origin - can't access or set top.open
-                    console.warn('Cannot access window.top.open (cross-origin):', e.message);
+                    logger.warn('Cannot access window.top.open (cross-origin):', e.message);
                 }
             }
             
@@ -1810,13 +1811,13 @@ const getWrapper = async (req, res) => {
                         return originalDisplayError.call(window, message);
                     } catch (e) {
                         // If it fails due to cross-origin, use console and alert instead
-                        console.error('SCORM Error:', message);
+                        logger.error('SCORM Error:', message);
                         try {
                             // Suppressed alert - just log to console
-                            console.error('[SCORM]', message);
+                            logger.error('[SCORM]', message);
                         } catch (alertErr) {
                             // Even alert might fail, just log it
-                            console.error('Could not display error dialog:', message);
+                            logger.error('Could not display error dialog:', message);
                         }
                     }
                 };
@@ -1830,15 +1831,15 @@ const getWrapper = async (req, res) => {
                         return originalInitializeExecuted.call(window, success, message);
                     } catch (e) {
                         // If it fails, log and continue
-                        console.log('SCORM Initialize:', success ? 'Success' : 'Failed', message || '');
+                        logger.debug('SCORM Initialize:', success ? 'Success' : 'Failed', message || '');
                         if (!success && message) {
-                            console.error('SCORM Init Error:', message);
+                            logger.error('SCORM Init Error:', message);
                         }
                     }
                 };
             }
         } catch (e) {
-            console.warn('Could not set up window.open proxy:', e);
+            logger.warn('Could not set up window.open proxy:', e);
         }
         
         // Start progress monitoring
@@ -1858,7 +1859,7 @@ const getWrapper = async (req, res) => {
                     
                     // Log time tracking for debugging (reduced frequency)
                     if (timeSpentSeconds > 0 && timeSpentSeconds % 60 === 0) {
-                        console.log('[SCORM Progress] Time tracking - SCORM time:', time || '(not set)', 'Session time:', timeSpentSeconds + 's');
+                        logger.debug('[SCORM Progress] Time tracking - SCORM time:', time || '(not set)', 'Session time:', timeSpentSeconds + 's');
                     }
                     
                     let isCompleted = status === 'completed' || status === 'passed';
@@ -1911,7 +1912,7 @@ const getWrapper = async (req, res) => {
                     
                     // Log progress periodically (every 10 seconds to avoid spam)
                     if (Math.floor(timeSpentSeconds) % 10 === 0 && timeSpentSeconds > 0) {
-                        console.log('[SCORM Progress] Current progress:', calculatedProgress.toFixed(1) + '%', 
+                        logger.debug('[SCORM Progress] Current progress:', calculatedProgress.toFixed(1) + '%', 
                                    'Time:', timeSpentSeconds + 's', 
                                    'Score:', parsedScore !== null ? parsedScore : 'N/A',
                                    'Max score:', parsedMaxScore !== null ? parsedMaxScore : 'N/A');
@@ -1939,7 +1940,7 @@ const getWrapper = async (req, res) => {
                     }
                 }
             } catch (err) {
-                console.error('Error monitoring SCORM progress:', err);
+                logger.error('Error monitoring SCORM progress:', err);
             }
         }, 2000);
         
@@ -2085,7 +2086,7 @@ const getWrapper = async (req, res) => {
     res.setHeader('Content-Type', 'text/html');
     res.send(scormHtml);
   } catch (error) {
-    console.error('Error getting SCORM wrapper:', error);
+    logger.error('Error getting SCORM wrapper:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get SCORM wrapper',
@@ -2196,7 +2197,7 @@ const recordLastVideoWatch = async (req, res) => {
       await childStats.addStars(starsToAward);
       await childStats.save();
       
-      console.log(`[SCORM] Stars awarded: ${starsToAward} stars added to child ${child._id} for book ${contentId}`);
+      logger.debug(`[SCORM] Stars awarded: ${starsToAward} stars added to child ${child._id} for book ${contentId}`);
     }
     
     res.json({
@@ -2209,7 +2210,7 @@ const recordLastVideoWatch = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Error recording last video watch:', error);
+    logger.error('Error recording last video watch:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to record last video watch',

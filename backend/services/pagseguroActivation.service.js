@@ -3,6 +3,7 @@
  */
 
 const User = require('../models/User');
+const logger = require('../config/logger');
 
 /**
  * @param {import('../models/PagSeguroCheckout')} checkoutDoc
@@ -67,7 +68,7 @@ async function activateUserFromPagseguroCheckout(checkoutDoc, options = {}) {
     await checkoutDoc.save();
   }
 
-  console.log(
+  logger.info(
     '[PagSeguro] User activated – userId=%s, checkoutId=%s, planKidsLimit=%s',
     user._id.toString(),
     checkoutDoc.pagbankCheckoutId,

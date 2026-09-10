@@ -4,6 +4,7 @@ const { ChildProfile } = require('../models');
 const path = require('path');
 const fs = require('fs-extra');
 const s3Service = require('./s3.service');
+const logger = require('../config/logger');
 
 /**
  * KidsWall Service
@@ -295,7 +296,7 @@ const updatePostWithImage = async (postId, childId, postData, imageFile, uploade
           }
           await Media.findByIdAndDelete(oldImage);
         } catch (err) {
-          console.error('Error deleting old image:', err);
+          logger.error('Error deleting old image:', err);
         }
       }
     }

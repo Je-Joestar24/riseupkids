@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('../config/logger');
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -45,7 +46,7 @@ async function sendExpoPushMessages(messages, { request } = {}) {
   const post = request || defaultExpoRequest;
   const body = await post(EXPO_PUSH_URL, messages, headers);
   if (Array.isArray(body?.errors) && body.errors.length) {
-    console.error('[notifications] expo push errors:', JSON.stringify(body.errors));
+    logger.error('[notifications] expo push errors:', JSON.stringify(body.errors));
     const mixed = body.errors.some((row) =>
       /PUSH_TOO_MANY_EXPERIENCE/i.test(`${row.code || ''} ${row.message || ''}`)
     );

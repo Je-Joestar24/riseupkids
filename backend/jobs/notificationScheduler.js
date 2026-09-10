@@ -4,6 +4,7 @@ const {
   releaseNotificationSchedulerLock,
 } = require('../services/notificationSchedulerLock.service');
 const { sendScheduledCampaign, processDueQueuedReceipts } = require('../services/notificationSend.services');
+const logger = require('../config/logger');
 
 const DEFAULT_INTERVAL_MS = 60 * 1000;
 const STARTUP_DELAY_MS = 15 * 1000;
@@ -38,7 +39,7 @@ async function processDueCampaigns(now = new Date()) {
       });
       results.push({ campaignId: String(campaign._id), success: true, status: sent.status });
     } catch (error) {
-      console.error(`[NotificationScheduler] campaign ${campaign._id} failed:`, error.message);
+      logger.error(`[NotificationScheduler] campaign ${campaign._id} failed:`, error.message);
       results.push({
         campaignId: String(campaign._id),
         success: false,
@@ -66,13 +67,13 @@ async function runDueNotifications(now = new Date()) {
     const results = await processDueCampaigns(now);
     if (results.length > 0) {
       const succeeded = results.filter((row) => row.success).length;
-      console.log(
+      logger.info(
         `[NotificationScheduler] Processed ${results.length} due campaign(s): ${succeeded} succeeded`
       );
     }
     return { skipped: false, results };
   } catch (error) {
-    console.error('[NotificationScheduler] Failed:', error.message);
+    logger.error('[NotificationScheduler] Failed:', error.message);
     return { skipped: false, error: error.message };
   } finally {
     if (lockAcquired) {
@@ -84,7 +85,7 @@ async function runDueNotifications(now = new Date()) {
 
 function startNotificationScheduler() {
   if (!isNotificationSchedulerEnabled()) {
-    console.log(
+    logger.info(
       '[NotificationScheduler] Disabled (set NOTIFICATION_SCHEDULER_ENABLED=true to enable in development)'
     );
     return;
@@ -100,7 +101,7 @@ function startNotificationScheduler() {
   }, STARTUP_DELAY_MS);
 
   intervalHandle = setInterval(() => runDueNotifications(), intervalMs);
-  console.log(
+  logger.info(
     `[NotificationScheduler] Started — checking due campaigns every ${Math.round(intervalMs / 1000)} second(s)`
   );
 }

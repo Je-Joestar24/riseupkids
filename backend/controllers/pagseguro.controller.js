@@ -23,11 +23,12 @@ const { processWebhookNotification } = require('../services/pagseguroWebhook.ser
 const { activateUserFromPagseguroCheckout } = require('../services/pagseguroActivation.service');
 const { buildVerificationDiagnostics } = require('../services/pagseguroDiagnostics.service');
 const { safeErrorMessage } = require('../utils/safeErrorMessage');
+const logger = require('../config/logger');
 
 /** Internal only — set PAGSEGURO_DEBUG=true on EC2 to log verify/webhook diagnostics. */
 function logPagseguroDiagnostics(label, data) {
   if (process.env.PAGSEGURO_DEBUG === 'true' && data) {
-    console.info('[PagSeguro]', label, JSON.stringify(data));
+    logger.info('[PagSeguro]', label, JSON.stringify(data));
   }
 }
 
@@ -143,7 +144,7 @@ exports.createCheckout = async (req, res, next) => {
       await PagSeguroCheckout.deleteOne({ _id: pending._id }).catch(() => {});
       const status = err.statusCode === 400 ? 400 : 502;
       if (err.internalDetail) {
-        console.error('[PagSeguro] create-checkout failed:', err.internalDetail);
+        logger.error('[PagSeguro] create-checkout failed:', err.internalDetail);
       }
       return res.status(status).json({
         success: false,
@@ -229,7 +230,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
       const status = err.statusCode === 404 ? 404 : 502;
       // getPagbankCheckout() bundles the raw PagBank API error (status, body) into err.message —
       // safe to log, not safe to return to the browser (RUK-SEC-011 follow-up).
-      console.error('[PagSeguro] checkout verification failed:', err);
+      logger.error('[PagSeguro] checkout verification failed:', err);
       return res.status(status).json({
         success: false,
         message: safeErrorMessage(
@@ -323,7 +324,7 @@ exports.handleCheckoutWebhook = async (req, res) => {
     const status = error.statusCode || 500;
     logPagseguroDiagnostics('webhook-checkout-error', error.diagnostics);
     if (status >= 500) {
-      console.error('[PagSeguro Webhook] checkout error:', error.message);
+      logger.error('[PagSeguro Webhook] checkout error:', error.message);
     }
     return res.status(status).json({
       success: false,
@@ -350,7 +351,7 @@ exports.handlePaymentWebhook = async (req, res) => {
     const status = error.statusCode || 500;
     logPagseguroDiagnostics('webhook-payment-error', error.diagnostics);
     if (status >= 500) {
-      console.error('[PagSeguro Webhook] payment error:', error.message);
+      logger.error('[PagSeguro Webhook] payment error:', error.message);
     }
     return res.status(status).json({
       success: false,

@@ -6,6 +6,8 @@
  * generic message plus the request id; the full error is written to the server log under that id.
  * Client-facing 4xx validation messages are kept — they're meant to be shown to users.
  */
+const logger = require('../config/logger');
+
 const isProdLike = () => ['production', 'staging'].includes((process.env.NODE_ENV || '').toLowerCase());
 
 const errorHandler = (err, req, res, next) => {
@@ -29,11 +31,12 @@ const errorHandler = (err, req, res, next) => {
   const requestId = req && req.id;
   const where = req ? `${req.method} ${req.originalUrl}` : '-';
 
-  // 5xx: full detail (stack, cause) to the log, keyed by the request id. 4xx: one line, no stack.
+  // 5xx: full detail to the log, keyed by the request id. 4xx: one line, no stack.
+  const log = (req && req.log) || logger;
   if (statusCode >= 500) {
-    console.error(`[error] ${requestId || '-'} ${where} -> ${statusCode}`, err);
+    log.error({ requestId, where, statusCode, err }, 'request failed');
   } else {
-    console.warn(`[warn] ${requestId || '-'} ${where} -> ${statusCode} ${message}`);
+    log.warn({ requestId, where, statusCode }, message);
   }
 
   const body = { success: false };

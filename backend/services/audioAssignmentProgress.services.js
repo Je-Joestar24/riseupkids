@@ -12,6 +12,7 @@ const {
 const s3Service = require('./s3.service');
 const { INSTRUCTION_VIDEO_POPULATE_SELECT } = require('../utils/instructionVideoMedia.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const logger = require('../config/logger');
 
 const getOrCreateProgress = async ({ childId, audioAssignmentId }) => {
   const progress = await AudioAssignmentProgress.findOne({
@@ -271,7 +272,7 @@ const reviewAudioAssignmentSubmission = async ({
         'audioAssignment'
       );
     } catch (err) {
-      console.error(
+      logger.error(
         '[audioAssignment] Failed to sync course progress after approval:',
         err?.message || err
       );

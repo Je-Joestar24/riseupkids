@@ -1,4 +1,5 @@
 const bookService = require('../services/book.services');
+const logger = require('../config/logger');
 
 const CONTENT_MANAGER_ROLES = ['admin', 'teacher', 'content_creator'];
 
@@ -19,7 +20,7 @@ function resolveErrorStatus(error, { notFound = 404, badRequest = 400, fallback 
  */
 const createBook = async (req, res) => {
   const packageType = (req.body && req.body.packageType) || 'scorm';
-  console.log('[createBook] request received, packageType=', packageType);
+  logger.info('[createBook] request received, packageType=', packageType);
 
   try {
     const userId = req.user._id;
@@ -39,7 +40,7 @@ const createBook = async (req, res) => {
       data: book,
     });
   } catch (error) {
-    console.error('[createBook] error:', error.message || error);
+    logger.error('[createBook] error:', error.message || error);
     res.status(resolveErrorStatus(error, { badRequest: 400 })).json({
       success: false,
       message: error.message || 'Failed to create book',

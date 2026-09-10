@@ -1,6 +1,7 @@
 const authService = require('../services/auth.services');
 const accountDeletionService = require('../services/accountDeletion.service');
 const { subscribeToFlodesk } = require('../services/flodeskService');
+const logger = require('../config/logger');
 
 /**
  * @desc    Register a new PARENT account and subscribe to Flodesk
@@ -31,7 +32,7 @@ const registerUser = async (req, res) => {
     try {
       await subscribeToFlodesk(result.user.email);
     } catch (flodeskError) {
-      console.error('[Auth] Flodesk subscription failed after registration:', flodeskError.message);
+      logger.error('[Auth] Flodesk subscription failed after registration:', flodeskError.message);
     }
 
     res.status(201).json({
@@ -92,7 +93,7 @@ const subscribeFlodesk = async (req, res) => {
       data: result,
     });
   } catch (error) {
-    console.error('[Auth] subscribe-flodesk error:', error.message);
+    logger.error('[Auth] subscribe-flodesk error:', error.message);
     res.status(400).json({
       success: false,
       message: error.message || 'Flodesk subscription failed',

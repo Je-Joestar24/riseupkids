@@ -86,3 +86,22 @@ jobs:
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+  no-raw-console:
+    name: no raw console.* in backend runtime code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # RUK-SEC-010 — backend request-path code must log via config/logger (which redacts),
+      # never console.* directly. Scripts/ are operator CLIs and are exempt.
+      - name: grep for console.*
+        run: |
+          hits=$(grep -rnE '\bconsole\.(log|warn|error|info|debug)\s*\(' \
+            backend/services backend/controllers backend/jobs backend/middleware \
+            --include='*.js' | grep -v '\.test\.js' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::raw console.* found in backend runtime code — use require('../config/logger')"
+            echo "$hits"
+            exit 1
+          fi
+          echo "ok — no raw console.* in backend runtime code"

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const logger = require('../config/logger');
 const {
   PAGSEGURO_API_BASE,
   PAGSEGURO_ACCESS_TOKEN,
@@ -572,7 +573,7 @@ async function tryResolvePaidFromChargeIds(chargeIds, trace) {
       }
     } catch (err) {
       pushTrace(trace, { step: 'get_charge', chargeId, ok: false, error: err.message });
-      console.warn('[PagSeguro] getCharge fallback failed for %s: %s', chargeId, err.message);
+      logger.warn('[PagSeguro] getCharge fallback failed for %s: %s', chargeId, err.message);
     }
   }
   return null;
@@ -698,7 +699,7 @@ async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
         referenceId,
         error: err.message,
       });
-      console.warn(
+      logger.warn(
         '[PagSeguro] orders by reference_id failed for %s: %s',
         referenceId,
         err.message

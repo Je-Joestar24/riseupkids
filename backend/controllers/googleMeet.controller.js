@@ -1,6 +1,7 @@
 const googleOAuth = require('../services/googleOAuth.service');
 const googleMeet = require('../services/googleMeet.service');
 const { uploadCoverFromFiles } = require('../utils/coverImage.util');
+const logger = require('../config/logger');
 
 /**
  * Google Meet Controller
@@ -31,7 +32,7 @@ const getAuthUrl = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error generating auth URL:', error);
+    logger.error('[GoogleMeet] Error generating auth URL:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to generate OAuth URL',
@@ -68,7 +69,7 @@ const handleOAuthCallback = async (req, res) => {
     const redirectUrl = `${frontendUrl}${redirectPath}?success=true&email=${encodeURIComponent(integration.connectedEmail || '')}`;
     res.redirect(redirectUrl);
   } catch (error) {
-    console.error('[GoogleMeet] OAuth callback error:', error);
+    logger.error('[GoogleMeet] OAuth callback error:', error);
     const frontendUrl = process.env.FRONTEND_BASE_URL || 'http://localhost:3000';
     res.redirect(
       `${frontendUrl}/integrations/google/error?error=${encodeURIComponent(error.message || 'oauth_failed')}`
@@ -96,7 +97,7 @@ const getConnectionStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error getting connection status:', error);
+    logger.error('[GoogleMeet] Error getting connection status:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to get connection status',
@@ -119,7 +120,7 @@ const disconnectGoogle = async (req, res) => {
       message: 'Google account disconnected successfully',
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error disconnecting Google:', error);
+    logger.error('[GoogleMeet] Error disconnecting Google:', error);
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to disconnect Google account',
@@ -178,7 +179,7 @@ const createMeeting = async (req, res) => {
       data: meeting,
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error creating meeting:', error);
+    logger.error('[GoogleMeet] Error creating meeting:', error);
 
     // Special error code: OAuth required but not connected
     if (error.message === 'GOOGLE_OAUTH_REQUIRED') {
@@ -234,7 +235,7 @@ const updateMeeting = async (req, res) => {
       data: meeting,
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error updating meeting:', error);
+    logger.error('[GoogleMeet] Error updating meeting:', error);
 
     if (error.message.includes('not found')) {
       return res.status(404).json({
@@ -274,7 +275,7 @@ const cancelMeeting = async (req, res) => {
       message: 'Meeting cancelled successfully',
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error cancelling meeting:', error);
+    logger.error('[GoogleMeet] Error cancelling meeting:', error);
 
     if (error.message.includes('not found')) {
       return res.status(404).json({
@@ -318,7 +319,7 @@ const getMeeting = async (req, res) => {
       data: meeting,
     });
   } catch (error) {
-    console.error('[GoogleMeet] Error fetching meeting:', error);
+    logger.error('[GoogleMeet] Error fetching meeting:', error);
 
     if (error.message.includes('not found')) {
       return res.status(404).json({

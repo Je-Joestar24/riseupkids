@@ -4,6 +4,7 @@
  */
 
 const { isPagseguroConfigured } = require('../config/pagseguro');
+const logger = require('../config/logger');
 
 function readHeader(req, name) {
   const target = name.toLowerCase();
@@ -17,7 +18,7 @@ function readHeader(req, name) {
 
 const pagseguroWebhook = (req, res, next) => {
   if (!isPagseguroConfigured()) {
-    console.error('[PagSeguro Webhook] PagBank is not configured');
+    logger.error('[PagSeguro Webhook] PagBank is not configured');
     return res.status(503).json({
       success: false,
       message: 'PagBank webhooks are not configured.',
@@ -25,7 +26,7 @@ const pagseguroWebhook = (req, res, next) => {
   }
 
   if (typeof req.pagseguroRawBody !== 'string' || !req.pagseguroRawBody.length) {
-    console.error('[PagSeguro Webhook] Missing raw body string');
+    logger.error('[PagSeguro Webhook] Missing raw body string');
     return res.status(400).json({
       success: false,
       message: 'Invalid webhook body.',

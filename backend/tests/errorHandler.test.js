@@ -8,6 +8,7 @@ const request = require('supertest');
 const requestId = require('../middleware/requestId');
 const notFound = require('../middleware/notFound');
 const errorHandler = require('../middleware/errorHandler');
+const logger = require('../config/logger');
 
 function buildApp() {
   const app = express();
@@ -34,8 +35,8 @@ const NODE_ENV = process.env.NODE_ENV;
 let errSpy;
 let warnSpy;
 beforeEach(() => {
-  errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  errSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
+  warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
 });
 afterEach(() => {
   errSpy.mockRestore();

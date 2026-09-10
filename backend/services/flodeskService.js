@@ -13,6 +13,7 @@
  */
 
 const axios = require('axios');
+const logger = require('../config/logger');
 
 const getBaseUrl = () => process.env.FLODESK_BASE_URL || 'https://api.flodesk.com/v1';
 const getSegmentId = () =>
@@ -161,7 +162,7 @@ async function subscribeToFlodesk(email) {
       const status = err.response?.status;
       const data = err.response?.data;
       const message = data?.message || data?.error || err.message;
-      console.error('[Flodesk] API error:', {
+      logger.error('[Flodesk] API error:', {
         status,
         message,
         email: trimmedEmail,
@@ -171,7 +172,7 @@ async function subscribeToFlodesk(email) {
         `Flodesk subscription failed: ${message || `HTTP ${status}`}`
       );
     }
-    console.error('[Flodesk] Unexpected error:', err.message);
+    logger.error('[Flodesk] Unexpected error:', err.message);
     throw err;
   }
 }
@@ -241,7 +242,7 @@ async function submitInvitationToFlodesk(data) {
       const status = err.response?.status;
       const resData = err.response?.data;
       const message = resData?.message || resData?.error || err.message;
-      console.error('[Flodesk] Invitation API error:', {
+      logger.error('[Flodesk] Invitation API error:', {
         status,
         message,
         email: email.trim(),
@@ -253,7 +254,7 @@ async function submitInvitationToFlodesk(data) {
         `Flodesk invitation failed: ${message || `HTTP ${status}`}`
       );
     }
-    console.error('[Flodesk] Invitation unexpected error:', err.message);
+    logger.error('[Flodesk] Invitation unexpected error:', err.message);
     throw err;
   }
 }
@@ -358,7 +359,7 @@ async function submitSchoolApplicationToFlodesk(data) {
       const status = err.response?.status;
       const resData = err.response?.data;
       const message = resData?.message || resData?.error || err.message;
-      console.error('[Flodesk] School application API error:', {
+      logger.error('[Flodesk] School application API error:', {
         status,
         message,
         email: email.trim(),
@@ -370,7 +371,7 @@ async function submitSchoolApplicationToFlodesk(data) {
         `Flodesk school application failed: ${message || `HTTP ${status}`}`
       );
     }
-    console.error('[Flodesk] School application unexpected error:', err.message);
+    logger.error('[Flodesk] School application unexpected error:', err.message);
     throw err;
   }
 }

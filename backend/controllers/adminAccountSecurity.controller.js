@@ -5,6 +5,7 @@
  * and manually unlock one.
  */
 const { unlockAccount, listLockedAccounts } = require('../services/loginLockout.service');
+const logger = require('../config/logger');
 
 /**
  * @desc    List accounts currently locked by failed-login lockout
@@ -39,7 +40,7 @@ const unlockUserAccount = async (req, res, next) => {
 
     const result = await unlockAccount(userId);
 
-    console.log(
+    logger.info(
       `[Auth:lockout] Admin ${req.user && req.user.email} manually unlocked account ${result.userId} (was locked: ${result.wasLocked})`
     );
 

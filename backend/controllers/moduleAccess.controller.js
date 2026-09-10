@@ -1,4 +1,5 @@
 const moduleAccessService = require('../services/moduleAccess.services');
+const logger = require('../config/logger');
 
 const handleError = (res, error, fallback = 'Module access request failed') => {
   const message = error.message || fallback;
@@ -30,7 +31,7 @@ const listChildren = async (req, res) => {
       pagination: result.pagination,
     });
   } catch (error) {
-    console.error('[module-access] listChildren:', error);
+    logger.error('[module-access] listChildren:', error);
     return handleError(res, error, 'Failed to list children');
   }
 };
@@ -47,7 +48,7 @@ const getChildDetail = async (req, res) => {
       data: detail,
     });
   } catch (error) {
-    console.error('[module-access] getChildDetail:', error);
+    logger.error('[module-access] getChildDetail:', error);
     return handleError(res, error, 'Failed to load child modules');
   }
 };
@@ -69,7 +70,7 @@ const unlockModule = async (req, res) => {
       data: detail,
     });
   } catch (error) {
-    console.error('[module-access] unlockModule:', error);
+    logger.error('[module-access] unlockModule:', error);
     return handleError(res, error, 'Failed to unlock module');
   }
 };
@@ -91,7 +92,7 @@ const lockModule = async (req, res) => {
       data: detail,
     });
   } catch (error) {
-    console.error('[module-access] lockModule:', error);
+    logger.error('[module-access] lockModule:', error);
     return handleError(res, error, 'Failed to lock module');
   }
 };
@@ -113,7 +114,7 @@ const clearOverride = async (req, res) => {
       data: detail,
     });
   } catch (error) {
-    console.error('[module-access] clearOverride:', error);
+    logger.error('[module-access] clearOverride:', error);
     return handleError(res, error, 'Failed to clear override');
   }
 };

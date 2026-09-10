@@ -1,5 +1,6 @@
 const { VideoWatch, ExploreContent, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const logger = require('../config/logger');
 
 /**
  * Mark explore video as watched (completed)
@@ -82,7 +83,7 @@ const markExploreVideoWatched = async (childId, exploreContentId, completionPerc
     });
   } else {
     // Duplicate watch detected - log but don't increment
-    console.log(`[ExploreVideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`);
+    logger.info(`[ExploreVideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`);
     // Return early with existing watch count (don't increment)
     await videoWatch.populate('video', 'title starsAwarded requiredWatchCount');
     return {
@@ -138,7 +139,7 @@ const markExploreVideoWatched = async (childId, exploreContentId, completionPerc
       // addStars() persists totalStars; skip redundant save/findById on the hot path
       await childStats.addStars(starsToAward);
 
-      console.log(`[ExploreVideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId} for explore video ${exploreContentId}. Total stars: ${previousTotalStars} -> ${childStats.totalStars}`);
+      logger.info(`[ExploreVideoWatch] Stars awarded: ${starsToAward} stars added to child ${childId} for explore video ${exploreContentId}. Total stars: ${previousTotalStars} -> ${childStats.totalStars}`);
 
       // Badges must not delay the star-reward response
       scheduleBadgeUpdate(childId);
@@ -148,7 +149,7 @@ const markExploreVideoWatched = async (childId, exploreContentId, completionPerc
       videoWatch.starsAwardedAt = new Date();
       starsJustAwarded = true;
     } catch (error) {
-      console.error(`[ExploreVideoWatch] Error awarding stars for explore video ${exploreContentId}, child ${childId}:`, error);
+      logger.error(`[ExploreVideoWatch] Error awarding stars for explore video ${exploreContentId}, child ${childId}:`, error);
       // Don't throw - allow the watch to be recorded even if star awarding fails
       // This prevents blocking video watch tracking if there's a stats issue
     }

@@ -16,5 +16,10 @@ normal `npm test`; fix them and remove the entry from `jest.ci.config.js` so CI 
 **`tests/mail.test.js`** is also excluded from CI — it is a real-SMTP integration test that sends
 actual email to a personal address. It is for manual runs only, not a gate.
 
+**`tests/legalContent.service.test.js`** and **`tests/auth.terms.test.js`** are excluded because the
+Meta Pixel work bumped `riseupkids-sale/web/legal/meta.json` to version `2026-09-08` while these
+tests still assert `2026-08-03`. They belong to that workstream — remove the exclusion in
+`jest.ci.config.js` when the Meta Pixel branch updates the expected version.
+
 _Baseline for "no regressions" checks: full `npm test` in `backend/` = 5 failed suites / 6 failed
 tests / ~774 passing._

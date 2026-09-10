@@ -20,6 +20,7 @@ const {
   tierKeyToPlanKidsLimit,
 } = require('../services/paypalService');
 const { safeErrorMessage } = require('../utils/safeErrorMessage');
+const logger = require('../config/logger');
 
 /**
  * POST /api/paypal/create-order
@@ -80,16 +81,16 @@ exports.createOrder = async (req, res, next) => {
       });
     }
 
-    console.log('[PayPal] Create order attempt – userId=%s, tier=%s', userId, canonical);
+    logger.info('[PayPal] Create order attempt – userId=%s, tier=%s', userId, canonical);
     const { orderID } = await createPaypalOrder(canonical, userId);
-    console.log('[PayPal] Order created – orderID=%s', orderID);
+    logger.info('[PayPal] Order created – orderID=%s', orderID);
 
     return res.status(201).json({
       success: true,
       orderID,
     });
   } catch (error) {
-    console.error('[PayPal] Create order error:', error);
+    logger.error('[PayPal] Create order error:', error);
     return res.status(500).json({
       success: false,
       message: safeErrorMessage(error, 'Failed to create PayPal order.'),
@@ -120,7 +121,7 @@ exports.captureOrder = async (req, res, next) => {
       });
     }
 
-    console.log('[PayPal] Capture order attempt – userId=%s, orderID=%s', userId, orderID);
+    logger.info('[PayPal] Capture order attempt – userId=%s, orderID=%s', userId, orderID);
     const result = await capturePaypalOrder(orderID.trim(), userId);
 
     const user = await User.findById(userId).select(
@@ -152,7 +153,7 @@ exports.captureOrder = async (req, res, next) => {
     user.subscriptionPlan = 'yearly';
 
     await user.save();
-    console.log(
+    logger.info(
       '[PayPal] User update success – userId=%s, planKidsLimit=%s, planRegion=%s',
       userId,
       planKidsLimit,
@@ -164,7 +165,7 @@ exports.captureOrder = async (req, res, next) => {
       message: result.alreadyCaptured ? 'Order was already captured; subscription updated.' : 'Order captured and subscription activated.',
     });
   } catch (error) {
-    console.error('[PayPal] Capture order error:', error);
+    logger.error('[PayPal] Capture order error:', error);
     return res.status(500).json({
       success: false,
       message: safeErrorMessage(error, 'Failed to capture PayPal order.'),

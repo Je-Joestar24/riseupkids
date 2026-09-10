@@ -2,6 +2,7 @@ const ChildStats = require('../models/ChildStats');
 const Badge = require('../models/Badge');
 const StarEarning = require('../models/StarEarning');
 const badgeAward = require('./badgeAward.service');
+const logger = require('../config/logger');
 
 /**
  * Badge Checking Service
@@ -45,13 +46,13 @@ const checkLevelBadges = async (childId, totalStars) => {
       // Check if criteria is met
       if (totalStars >= badge.criteria.value) {
         await badgeAward.awardBadge(childId, badge._id);
-        console.log(`[BadgeCheck] ✅ Awarded level badge "${badge.name}" to child ${childId} (${totalStars} stars)`);
+        logger.info(`[BadgeCheck] ✅ Awarded level badge "${badge.name}" to child ${childId} (${totalStars} stars)`);
         
         // TODO: Trigger notification/event for frontend
       }
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking level badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking level badges for child ${childId}:`, error);
   }
 };
 
@@ -80,11 +81,11 @@ const checkMilestoneBadges = async (childId, totalStars) => {
 
       if (totalStars >= badge.criteria.value) {
         await badgeAward.awardBadge(childId, badge._id);
-        console.log(`[BadgeCheck] ✅ Awarded milestone badge "${badge.name}" to child ${childId} (${totalStars} stars)`);
+        logger.info(`[BadgeCheck] ✅ Awarded milestone badge "${badge.name}" to child ${childId} (${totalStars} stars)`);
       }
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking milestone badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking milestone badges for child ${childId}:`, error);
   }
 };
 
@@ -127,7 +128,7 @@ const getStarsFromContentType = async (childId, contentType) => {
       return videoEarnings.reduce((sum, earning) => sum + (earning.stars || 0), 0);
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error calculating stars from ${contentType} for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error calculating stars from ${contentType} for child ${childId}:`, error);
     return 0;
   }
 };
@@ -158,11 +159,11 @@ const checkContentTypeBadges = async (childId, contentType, starsFromType) => {
 
       if (starsFromType >= badge.criteria.value) {
         await badgeAward.awardBadge(childId, badge._id);
-        console.log(`[BadgeCheck] ✅ Awarded ${contentType} badge "${badge.name}" to child ${childId} (${starsFromType} stars from ${contentType})`);
+        logger.info(`[BadgeCheck] ✅ Awarded ${contentType} badge "${badge.name}" to child ${childId} (${starsFromType} stars from ${contentType})`);
       }
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking ${contentType} badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking ${contentType} badges for child ${childId}:`, error);
   }
 };
 
@@ -195,11 +196,11 @@ const checkStreakBadges = async (childId, currentStreak, longestStreak) => {
 
       if (streakToCheck >= badge.criteria.value) {
         await badgeAward.awardBadge(childId, badge._id);
-        console.log(`[BadgeCheck] ✅ Awarded streak badge "${badge.name}" to child ${childId} (${streakToCheck} day streak)`);
+        logger.info(`[BadgeCheck] ✅ Awarded streak badge "${badge.name}" to child ${childId} (${streakToCheck} day streak)`);
       }
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking streak badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking streak badges for child ${childId}:`, error);
   }
 };
 
@@ -251,11 +252,11 @@ const checkCompletionBadges = async (childId, stats) => {
 
       if (criteriaMet) {
         await badgeAward.awardBadge(childId, badge._id);
-        console.log(`[BadgeCheck] ✅ Awarded completion badge "${badge.name}" to child ${childId}`);
+        logger.info(`[BadgeCheck] ✅ Awarded completion badge "${badge.name}" to child ${childId}`);
       }
     }
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking completion badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking completion badges for child ${childId}:`, error);
   }
 };
 
@@ -297,7 +298,7 @@ const checkAllBadges = async (childId) => {
     // Check completion badges
     await checkCompletionBadges(childId, stats);
   } catch (error) {
-    console.error(`[BadgeCheck] Error checking all badges for child ${childId}:`, error);
+    logger.error(`[BadgeCheck] Error checking all badges for child ${childId}:`, error);
   }
 };
 
@@ -331,7 +332,7 @@ const checkAllBadges = async (childId) => {
  * // With options
  * const result = await badgeCheck.updateBadges(childId, { silent: true });
  * if (result.success && result.newBadges.length > 0) {
- *   console.log(`Awarded ${result.newBadges.length} new badges!`);
+ *   logger.info(`Awarded ${result.newBadges.length} new badges!`);
  * }
  */
 const updateBadges = async (childId, options = {}) => {
@@ -340,7 +341,7 @@ const updateBadges = async (childId, options = {}) => {
   if (!childId) {
     const error = new Error('Child ID is required to update badges');
     if (throwOnError) throw error;
-    console.error('[BadgeCheck]', error.message);
+    logger.error('[BadgeCheck]', error.message);
     return { success: false, error: error.message, newBadges: [] };
   }
 
@@ -361,9 +362,9 @@ const updateBadges = async (childId, options = {}) => {
     const newBadges = statsAfter.badges.filter(badge => newBadgeIds.includes(badge._id.toString()));
 
     if (!silent && newBadges.length > 0) {
-      console.log(`[BadgeCheck] ✅ Awarded ${newBadges.length} new badge(s) to child ${childId}:`);
+      logger.info(`[BadgeCheck] ✅ Awarded ${newBadges.length} new badge(s) to child ${childId}:`);
       newBadges.forEach(badge => {
-        console.log(`  - ${badge.name} (${badge.category}, ${badge.rarity})`);
+        logger.info(`  - ${badge.name} (${badge.category}, ${badge.rarity})`);
       });
     }
 
@@ -384,7 +385,7 @@ const updateBadges = async (childId, options = {}) => {
       throw new Error(errorMessage);
     }
     
-    console.error(`[BadgeCheck] ${errorMessage}`, error);
+    logger.error(`[BadgeCheck] ${errorMessage}`, error);
     return {
       success: false,
       error: errorMessage,

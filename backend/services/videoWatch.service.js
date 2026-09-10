@@ -1,6 +1,7 @@
 const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const logger = require('../config/logger');
 
 /**
  * Award stars for a single watch session when not already recorded.
@@ -156,7 +157,7 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
       }
     }
   } else {
-    console.log(
+    logger.info(
       `[VideoWatch] Duplicate watch detected for child ${childId}, video ${videoId}. Time since last watch: ${timeSinceLastWatch}ms. Skipping increment.`
     );
     isDuplicateWatch = true;

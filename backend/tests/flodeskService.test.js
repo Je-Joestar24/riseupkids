@@ -7,6 +7,7 @@
 
 jest.mock('axios');
 const axios = require('axios');
+const logger = require('../config/logger');
 const {
   subscribeToFlodesk,
   submitInvitationToFlodesk,
@@ -116,7 +117,7 @@ describe('flodeskService', () => {
       axiosError.response = { status: 400, data: { message: 'Invalid email' } };
       axios.post.mockRejectedValueOnce(axiosError);
       jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = jest.spyOn(logger, 'error').mockImplementation(() => {});
 
       await expect(subscribeToFlodesk('bad')).rejects.toThrow('Flodesk subscription failed');
       expect(axios.post).toHaveBeenCalled();

@@ -4,6 +4,7 @@
  */
 
 const express = require('express');
+const logger = require('../config/logger');
 
 const pagseguroRawBodyParser = express.raw({
   type: () => true,
@@ -17,7 +18,7 @@ function attachPagseguroRawBodyString(req, res, next) {
   const buf = req.pagseguroRawBodyBuffer || (Buffer.isBuffer(req.body) ? req.body : null);
 
   if (!buf || buf.length === 0) {
-    console.error('[PagSeguro Webhook] Empty request body');
+    logger.error('[PagSeguro Webhook] Empty request body');
     return res.status(400).json({
       success: false,
       message: 'Empty webhook body.',

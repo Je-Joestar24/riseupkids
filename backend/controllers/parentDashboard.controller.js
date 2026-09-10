@@ -1,6 +1,7 @@
 const parentDashboardService = require('../services/parentDashboard.services');
 const ChildProfile = require('../models/ChildProfile');
 const fs = require('fs');
+const logger = require('../config/logger');
 const logPath = 'd:\\UPWORK\\RiseUpKids\\.cursor\\debug.log';
 
 /**
@@ -34,7 +35,7 @@ const getChildProgress = async (req, res) => {
       progressData.starSources = [];
     }
     
-    console.log(`[ParentDashboard Controller] Returning progress data with ${progressData.starSources?.length || 0} star sources`);
+    logger.info(`[ParentDashboard Controller] Returning progress data with ${progressData.starSources?.length || 0} star sources`);
 
     res.status(200).json({
       success: true,

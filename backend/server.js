@@ -3,7 +3,7 @@ const http = require('http');
 const dns = require('dns');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const morgan = require('morgan');
+const pinoHttp = require('pino-http');
 const dotenv = require('dotenv');
 const path = require('path');
 
@@ -14,6 +14,7 @@ dotenv.config();
 dns.setDefaultResultOrder('ipv4first');
 // Fail fast on a missing/weak JWT_SECRET (RUK-SEC-003) — every auth token in the app depends on it.
 require('./config/jwtSecret').assertStrongJwtSecret();
+const logger = require('./config/logger');
 const mailConfig = require('./config/mail');
 const { startDeletionScheduler, stopDeletionScheduler } = require('./jobs/deletionScheduler');
 const { startNotificationScheduler, stopNotificationScheduler } = require('./jobs/notificationScheduler');
@@ -92,7 +93,10 @@ const trustProxy =
       ? parseInt(trustProxyRaw, 10)
       : 1;
 app.set('trust proxy', trustProxy);
-console.log(`[Server] trust proxy = ${JSON.stringify(trustProxy)} (from TRUST_PROXY="${process.env.TRUST_PROXY ?? '(unset, default 1)'}")`);
+logger.info(
+  { trustProxy, TRUST_PROXY: process.env.TRUST_PROXY ?? '(unset, default 1)' },
+  'trust proxy configured'
+);
 
 // Request id (RUK-SEC-011) — every response carries X-Request-Id; production 5xx bodies reference it.
 app.use(require('./middleware/requestId'));
@@ -104,10 +108,38 @@ app.use(require('./config/securityHeaders').buildHelmet());
 const { buildCorsOptions, assertCorsConfig } = require('./config/cors');
 assertCorsConfig();
 if (!process.env.CORS_ORIGIN) {
-  console.warn('[Server] CORS_ORIGIN not set — allowing only localhost origins (development only).');
+  logger.warn('CORS_ORIGIN not set — allowing only localhost origins (development only)');
 }
 app.use(cors(buildCorsOptions()));
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// HTTP request logging (RUK-SEC-010) — structured, correlated by request id, and scrubbed by
+// config/logger. The URL is logged WITHOUT its query string (reset/verify links carry tokens),
+// and Authorization/Cookie headers are dropped.
+app.use(
+  pinoHttp({
+    logger,
+    genReqId: (req) => req.id, // set by middleware/requestId, which runs just above
+    autoLogging: {
+      ignore: (req) => req.url === '/api/health' || req.url === '/favicon.ico',
+    },
+    customLogLevel: (req, res, err) => {
+      if (err || res.statusCode >= 500) return 'error';
+      if (res.statusCode >= 400) return 'warn';
+      return 'info';
+    },
+    customSuccessMessage: (req, res) => `${req.method} ${req.url.split('?')[0]} ${res.statusCode}`,
+    customErrorMessage: (req, res) => `${req.method} ${req.url.split('?')[0]} ${res.statusCode}`,
+    serializers: {
+      req: (req) => ({
+        id: req.id,
+        method: req.method,
+        url: (req.url || '').split('?')[0], // drop query string
+        remoteAddress: req.remoteAddress,
+      }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  })
+);
 
 // Stripe webhook route needs raw body BEFORE express.json()
 // This must be before other routes that use express.json()
@@ -246,9 +278,9 @@ app.use(errorHandler);
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/riseupkids');
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    logger.info({ host: conn.connection.host }, 'MongoDB connected');
   } catch (error) {
-    console.error('Database connection error:', error.message);
+    logger.error({ err: error }, 'Database connection failed');
     process.exit(1);
   }
 };
@@ -273,22 +305,25 @@ const startServer = async () => {
     server.headersTimeout = server.requestTimeout + 120000;
   }
   server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n  Backend is running.`);
-    console.log(`  Local:   http://localhost:${PORT}/api`);
-    console.log(`  Network: http://0.0.0.0:${PORT}/api`);
-    console.log(`  Env:     ${process.env.NODE_ENV || 'development'}\n`);
-    console.log('[Mail] Driver:', mailConfig.driver);
-    console.log('[Mail] From:', mailConfig.from.address);
-    if (mailConfig.driver === 'smtp') {
-      console.log('[Mail] SMTP Host:', mailConfig.smtp.host);
-      console.log('[Mail] SMTP Port:', mailConfig.smtp.port);
-      console.log('[Mail] SMTP User configured:', Boolean(mailConfig.smtp.user));
-      console.log('[Mail] SMTP Password configured:', Boolean(mailConfig.smtp.password));
-    }
+    logger.info(
+      {
+        port: PORT,
+        env: process.env.NODE_ENV || 'development',
+        mail: {
+          driver: mailConfig.driver,
+          from: mailConfig.from.address,
+          smtpConfigured:
+            mailConfig.driver === 'smtp'
+              ? Boolean(mailConfig.smtp.host && mailConfig.smtp.user && mailConfig.smtp.password)
+              : undefined,
+        },
+      },
+      'Backend is running'
+    );
   });
 
   const shutdown = (signal) => {
-    console.log(`[Server] ${signal} received — shutting down`);
+    logger.info({ signal }, 'Shutting down');
     stopDeletionScheduler();
     stopNotificationScheduler();
     server.close(() => process.exit(0));
