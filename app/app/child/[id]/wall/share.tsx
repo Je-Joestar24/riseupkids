@@ -45,9 +45,10 @@ export default function WallShareScreen() {
     router.back();
   }, [router]);
 
+  // iOS / preview: Kids Wall is hidden — this screen is unreachable; send to Home.
   useEffect(() => {
     if (!comingSoon || !childId) return;
-    router.replace(`/child/${childId}/wall` as never);
+    router.replace(`/child/${childId}/home` as never);
   }, [comingSoon, childId, router]);
 
   useEffect(() => {

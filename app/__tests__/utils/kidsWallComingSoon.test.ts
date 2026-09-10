@@ -1,13 +1,13 @@
 import { Platform } from 'react-native';
 
 import {
-  getKidsWallNavLabel,
   isKidsWallComingSoon,
   isKidsWallComingSoonEnabledForIos,
   isKidsWallComingSoonPreviewForced,
+  isKidsWallHidden,
 } from '@/utils/kidsWallComingSoon';
 
-describe('kidsWallComingSoon', () => {
+describe('kidsWallComingSoon (Kids Wall platform gate)', () => {
   const originalPreview = process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW;
   const originalIosFlag = process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON;
 
@@ -24,48 +24,44 @@ describe('kidsWallComingSoon', () => {
     }
   });
 
-  it('is on for iOS by default', () => {
+  it('hides Kids Wall on iOS by default', () => {
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW;
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON;
     expect(isKidsWallComingSoon('ios')).toBe(true);
-    expect(getKidsWallNavLabel('ios')).toBe('Soon');
+    expect(isKidsWallHidden('ios')).toBe(true);
   });
 
-  it('is off for android and web by default', () => {
+  it('keeps Kids Wall visible on android and web by default', () => {
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW;
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON;
     expect(isKidsWallComingSoon('android')).toBe(false);
     expect(isKidsWallComingSoon('web')).toBe(false);
-    expect(getKidsWallNavLabel('android')).toBe("Kid's Wall");
   });
 
-  it('forces Coming Soon on all platforms when preview env is true', () => {
+  it('forces the hidden state on every platform when the preview env is true', () => {
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW = 'true';
     expect(isKidsWallComingSoonPreviewForced()).toBe(true);
     expect(isKidsWallComingSoon('android')).toBe(true);
     expect(isKidsWallComingSoon('web')).toBe(true);
     expect(isKidsWallComingSoon('ios')).toBe(true);
-    expect(getKidsWallNavLabel('web')).toBe('Soon');
   });
 
-  it('can disable iOS Coming Soon with EXPO_PUBLIC_KIDS_WALL_COMING_SOON=false', () => {
+  it('can re-enable Kids Wall on an iOS build with EXPO_PUBLIC_KIDS_WALL_COMING_SOON=false', () => {
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW;
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON = 'false';
     expect(isKidsWallComingSoonEnabledForIos()).toBe(false);
     expect(isKidsWallComingSoon('ios')).toBe(false);
-    expect(getKidsWallNavLabel('ios')).toBe("Kid's Wall");
   });
 
-  it('preview flag overrides iOS disable', () => {
+  it('the preview flag overrides the iOS re-enable flag', () => {
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON = 'false';
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW = 'true';
     expect(isKidsWallComingSoon('ios')).toBe(true);
   });
 
-  it('uses Platform.OS when platform arg is omitted', () => {
+  it('uses Platform.OS when the platform arg is omitted', () => {
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW;
     delete process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON;
-    const expected = Platform.OS === 'ios';
-    expect(isKidsWallComingSoon()).toBe(expected);
+    expect(isKidsWallComingSoon()).toBe(Platform.OS === 'ios');
   });
 });

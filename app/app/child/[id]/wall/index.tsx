@@ -2,7 +2,7 @@
  * Child Kid's Wall (feed)
  * Show & Tell feed: header, share CTA, post cards (single column), footer.
  * Uses useKidsWall(childId) for feed, like/star, and share flow.
- * iOS (or preview env): Coming Soon artwork instead of the live wall.
+ * iOS (or preview env): Kids Wall is hidden — this route redirects to Home.
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,7 +10,6 @@ import React, { useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { WallCards } from '@/components/child/wall/wall-cards';
-import { WallComingSoon } from '@/components/child/wall/wall-coming-soon';
 import { WallCardsSkeleton } from '@/components/child/wall/wall-skeletal-loading';
 import { WallFooter } from '@/components/child/wall/wall-footer';
 import { WallHeader } from '@/components/child/wall/wall-header';
@@ -45,6 +44,12 @@ export default function ChildWallScreen() {
   const toggleStar = childId && 'toggleStar' in wall ? wall.toggleStar : undefined;
   const loadingMutation = childId && 'loadingMutation' in wall ? wall.loadingMutation : false;
 
+  // iOS / preview: Kids Wall is hidden — send anyone who reaches this route (stale deep link,
+  // back-stack entry) to Home. No photo-sharing UI is rendered on iOS.
+  useEffect(() => {
+    if (comingSoon && childId) router.replace(`/child/${childId}/home` as never);
+  }, [comingSoon, childId, router]);
+
   useEffect(() => {
     if (comingSoon) return;
     fetchFeed();
@@ -70,7 +75,7 @@ export default function ChildWallScreen() {
   );
 
   if (comingSoon) {
-    return <WallComingSoon />;
+    return <View style={styles.center} />;
   }
 
   if (profileLoading) {

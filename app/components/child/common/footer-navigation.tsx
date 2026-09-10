@@ -6,7 +6,7 @@
 
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
-import { Animated, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,7 +16,7 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { withMinAndroidInset } from '@/utils/androidNavigationBar';
-import { getKidsWallNavLabel } from '@/utils/kidsWallComingSoon';
+import { isKidsWallHidden } from '@/utils/kidsWallComingSoon';
 
 const ICON_SIZE = 32;
 const CONTAINER_PADDING = 8;
@@ -39,13 +39,22 @@ interface FooterNavigationProps {
 
 type NavValue = 'home' | 'journey' | 'explore' | 'wall';
 
-function getNavItems(): { value: NavValue; label: string; isImage: boolean }[] {
-    return [
+/**
+ * Bottom-nav items. The "wall" (Kid's Wall) entry is omitted entirely where Kids Wall is
+ * hidden — iOS, so the App Store build shows no photo-sharing tab or placeholder.
+ */
+export function getNavItems(
+    platform: typeof Platform.OS = Platform.OS
+): { value: NavValue; label: string; isImage: boolean }[] {
+    const items: { value: NavValue; label: string; isImage: boolean }[] = [
         { value: 'home', label: 'Home', isImage: false },
         { value: 'journey', label: 'My Journey', isImage: true },
         { value: 'explore', label: 'Explore', isImage: false },
-        { value: 'wall', label: getKidsWallNavLabel(), isImage: false },
     ];
+    if (!isKidsWallHidden(platform)) {
+        items.push({ value: 'wall', label: "Kid's Wall", isImage: false });
+    }
+    return items;
 }
 
 function getActiveFromPath(pathname: string): NavValue {
