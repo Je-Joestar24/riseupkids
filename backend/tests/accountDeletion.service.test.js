@@ -25,6 +25,8 @@ jest.mock('../models', () => ({
   LoginOtpToken: { deleteMany: jest.fn() },
   Media: { find: jest.fn(), deleteMany: jest.fn() },
   GoogleIntegration: { deleteMany: jest.fn() },
+  DevicePushToken: { deleteMany: jest.fn() },
+  NotificationReceipt: { deleteMany: jest.fn() },
 }));
 
 jest.mock('../models/AccountDeletionRequest', () => ({
@@ -68,6 +70,8 @@ const {
   PasswordResetToken,
   LoginOtpToken,
   GoogleIntegration,
+  DevicePushToken,
+  NotificationReceipt,
 } = require('../models');
 const AccountDeletionRequest = require('../models/AccountDeletionRequest');
 const s3Service = require('../services/s3.service');
@@ -395,12 +399,51 @@ describe('accountDeletion.service', () => {
       expect(s3Service.deleteByKey).toHaveBeenCalledWith('avatars/alex.png');
       expect(ChildProfile.deleteOne).toHaveBeenCalledWith({ _id: CHILD_ID });
       expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['media1', 'media2'] } });
+      expect(NotificationReceipt.deleteMany).toHaveBeenCalledWith({ childId: CHILD_ID });
       expect(summary).toMatchObject({
         childId: CHILD_ID,
         displayName: 'Alex',
         mediaFilesRemoved: 2,
         avatarRemoved: true,
       });
+    });
+  });
+
+  describe('purgeParentAccount (RUK-SEC-026 — deletion gaps)', () => {
+    beforeEach(() => {
+      emptyMediaFind();
+    });
+
+    it('purges device push tokens and notification receipts for the parent', async () => {
+      User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(mockPasswordUser()) });
+
+      await accountDeletionService.purgeParentAccount(PARENT_ID, REQUEST_ID);
+
+      expect(DevicePushToken.deleteMany).toHaveBeenCalledWith({ userId: PARENT_ID });
+      expect(NotificationReceipt.deleteMany).toHaveBeenCalledWith({ userId: PARENT_ID });
+    });
+
+    it('sweeps and hard-deletes Media orphaned under this parent (not caught by the per-child pass)', async () => {
+      User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(mockPasswordUser()) });
+      Media.find.mockReturnValue(
+        chainLean([{ _id: 'orphan1', filePath: 'avatars/leftover.png' }])
+      );
+
+      const result = await accountDeletionService.purgeParentAccount(PARENT_ID, REQUEST_ID);
+
+      expect(Media.find).toHaveBeenCalledWith({ uploadedBy: PARENT_ID });
+      expect(s3Service.deleteByKey).toHaveBeenCalledWith('avatars/leftover.png');
+      expect(Media.deleteMany).toHaveBeenCalledWith({ _id: { $in: ['orphan1'] } });
+      expect(result.orphanedMediaRemoved).toBe(1);
+    });
+
+    it('does not touch Media.deleteMany when nothing is orphaned', async () => {
+      User.findById.mockReturnValue({ select: jest.fn().mockResolvedValue(mockPasswordUser()) });
+
+      const result = await accountDeletionService.purgeParentAccount(PARENT_ID, REQUEST_ID);
+
+      expect(Media.deleteMany).not.toHaveBeenCalled();
+      expect(result.orphanedMediaRemoved).toBe(0);
     });
   });
 

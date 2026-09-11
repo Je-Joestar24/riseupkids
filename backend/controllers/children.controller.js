@@ -231,10 +231,14 @@ const updateKidsWallConsent = async (req, res) => {
       });
     }
 
-    const child = await kidsWallConsentService.updateKidsWallConsent(id, parentId, {
-      enabled,
-      consentAcknowledged,
-    });
+    const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null;
+
+    const child = await kidsWallConsentService.updateKidsWallConsent(
+      id,
+      parentId,
+      { enabled, consentAcknowledged },
+      { ip: clientIp }
+    );
 
     res.status(200).json({
       success: true,

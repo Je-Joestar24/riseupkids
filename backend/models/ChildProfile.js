@@ -48,12 +48,21 @@ const childProfileSchema = new mongoose.Schema(
         default: true,
       },
     },
+    // RUK-SEC-006: Kids Wall is opt-in. `kidsWallEnabled` only grants sharing when it is
+    // explicitly `true` AND `kidsWallConsentAt` is set — both are written together by
+    // services/kidsWallConsent.service.js in response to an explicit parent action. Never set
+    // either field directly elsewhere (e.g. in createChild).
     kidsWallEnabled: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     kidsWallConsentAt: {
       type: Date,
+      default: null,
+    },
+    /** IP address recorded at the moment a parent last granted Kids Wall consent. */
+    kidsWallConsentIp: {
+      type: String,
       default: null,
     },
     isActive: {

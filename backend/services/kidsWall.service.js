@@ -13,31 +13,55 @@ const logger = require('../config/logger');
  */
 
 /**
- * Get all posts for a child
- * @param {String} childId - Child profile ID (optional, if not provided returns all posts)
- * @param {Object} filters - Optional filters (isApproved, isActive)
+ * Child ids currently eligible to appear in the cross-family Kids Wall feed: Kids Wall must be
+ * both turned on AND carry a real consent timestamp (RUK-SEC-006) — a parent revoking consent
+ * removes that child's existing posts from the feed immediately, not just future posts.
+ * @returns {Promise<import('mongoose').Types.ObjectId[]>}
+ */
+const getConsentedChildIds = async () => {
+  const children = await ChildProfile.find({
+    kidsWallEnabled: true,
+    kidsWallConsentAt: { $ne: null },
+    isActive: true,
+  }).select('_id');
+  return children.map((c) => c._id);
+};
+
+/**
+ * Get posts for a child, or the cross-family feed when no childId is given.
+ * @param {String} [childId] - Child profile ID. Omit for the cross-family feed.
+ * @param {Object} filters - Optional filters (isApproved, isActive). Ignored entirely for the
+ *   cross-family feed (childId omitted) — that view is always approved+active only, regardless
+ *   of what a caller passes, so a client can never use it to see pending/rejected posts across
+ *   families (RUK-SEC-006).
  * @returns {Promise<Array>} Array of posts
  */
 const getChildPosts = async (childId, filters = {}) => {
   try {
-    // Build query
-    const query = {
-      isActive: filters.isActive !== undefined ? filters.isActive : true,
-    };
+    let query;
 
-    // If childId is provided, filter by child
     if (childId) {
       // Verify child exists
       const child = await ChildProfile.findById(childId);
       if (!child) {
         throw new Error('Child not found');
       }
-      query.child = childId;
-    }
-
-    // Add optional filters
-    if (filters.isApproved !== undefined) {
-      query.isApproved = filters.isApproved;
+      query = {
+        child: childId,
+        isActive: filters.isActive !== undefined ? filters.isActive : true,
+      };
+      if (filters.isApproved !== undefined) {
+        query.isApproved = filters.isApproved;
+      }
+    } else {
+      // Cross-family feed: only children with current, real consent; always approved + active,
+      // no caller-supplied override.
+      const consentedChildIds = await getConsentedChildIds();
+      query = {
+        child: { $in: consentedChildIds },
+        isApproved: true,
+        isActive: true,
+      };
     }
 
     // Get posts with populated data
@@ -644,6 +668,7 @@ const rejectPost = async (postId) => {
 
 module.exports = {
   getChildPosts,
+  getConsentedChildIds,
   getPostById,
   createPostWithImage,
   updatePostWithImage,

@@ -55,7 +55,8 @@ export function useChildProfile(childId) {
     loading,
     error,
     refresh,
-    kidsWallEnabled: profile?.kidsWallEnabled !== false,
+    // RUK-SEC-006: Kids Wall is opt-in — both the flag and a real consent timestamp are required.
+    kidsWallEnabled: profile?.kidsWallEnabled === true && Boolean(profile?.kidsWallConsentAt),
   };
 }
 

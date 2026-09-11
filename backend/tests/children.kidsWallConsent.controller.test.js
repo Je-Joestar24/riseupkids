@@ -29,6 +29,8 @@ describe('children.controller updateKidsWallConsent', () => {
       params: { id: 'child1' },
       user: { _id: 'parent1', role: 'parent' },
       body: { enabled: true, consentAcknowledged: true },
+      ip: '203.0.113.9',
+      headers: {},
     };
     const res = mockRes();
 
@@ -37,7 +39,8 @@ describe('children.controller updateKidsWallConsent', () => {
     expect(kidsWallConsentService.updateKidsWallConsent).toHaveBeenCalledWith(
       'child1',
       'parent1',
-      { enabled: true, consentAcknowledged: true }
+      { enabled: true, consentAcknowledged: true },
+      { ip: '203.0.113.9' }
     );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(

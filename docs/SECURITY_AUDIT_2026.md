@@ -268,13 +268,26 @@ Severity uses CVSS-style reasoning (impact × exploitability × exposure). "Owni
 - **Fix:** Serve private media (Kids Wall, avatars, Star Cam, printables) only via short-TTL CloudFront signed URLs (or signed cookies) bound to an authenticated request; make the bucket private with Origin Access Control (Chunk 13). Use `crypto.randomUUID()` for keys.
 - **Owning chunk:** **12** (delivery) + **13** (bucket/OAC).
 
-### RUK-SEC-006 — Kids Wall: no verifiable parental consent; opt-out and cross-family exposure · **HIGH (COPPA/LGPD)**
+### RUK-SEC-006 — Kids Wall: no verifiable parental consent; opt-out and cross-family exposure · **HIGH (COPPA/LGPD)** · **Status: FIXED (2026-09-11)**
 
 - **Where:** [`backend/services/kidsWallConsent.service.js:16`](../backend/services/kidsWallConsent.service.js) `isKidsWallEnabled` returns `child?.kidsWallEnabled !== false` and `assertKidsWallEnabled` **never checks `kidsWallConsentAt`**. [`backend/services/children.services.js:162`](../backend/services/children.services.js) `createChild` sets `kidsWallEnabled: true` and `kidsWallConsentAt: new Date()` automatically. [`backend/models/ChildProfile.js:51`](../backend/models/ChildProfile.js) default `kidsWallEnabled: true`. Feed: [`backend/controllers/kidsWall.controller.js:10`](../backend/controllers/kidsWall.controller.js) `getAllPosts` → [`kidsWall.service.js:20`](../backend/services/kidsWall.service.js) `getChildPosts(null, …)` populates `child.displayName`, `child.avatar`, `child.age`, image URLs, and liker/starrer display names for **every child in the platform**.
 - **Description:** (1) Consent is auto-recorded at profile creation and then ignored — the check is a simple on/off toggle that defaults on. That is opt-out, not the verifiable-parental-consent-before-disclosure that COPPA (and LGPD Art. 14) require. (2) `GET /api/kids-wall/all` is a global feed: any authenticated parent sees other families' children's names, ages, avatars and photos. (3) The controller forwards `req.query.isApproved`, so `GET /api/kids-wall/all?isApproved=false` returns **unmoderated** posts from all children.
 - **Impact:** Systematic disclosure of children's personal data and images across unrelated families, without consent, including content not yet reviewed by a moderator.
 - **Fix:** Require an explicit, logged, opt-in consent event (timestamp + parent user + IP) before any child post is created or shown; block posting when `kidsWallConsentAt` is null. Remove the global cross-family feed or scope it hard (e.g. same school/class only, and only approved posts, and only with per-child consent). Never honour a client `isApproved=false` on a family-facing endpoint. Legal review of the Kids Wall model against COPPA/LGPD.
 - **Owning chunk:** **7**.
+
+**What shipped (2026-09-11):**
+- **`ChildProfile.kidsWallEnabled` now defaults to `false`**, and a new `hasKidsWallConsent()` requires **both** the flag `=== true` **and** a real `kidsWallConsentAt` timestamp — a bare boolean is no longer sufficient. `createChild` no longer sets either field; both are only ever written together by an explicit parent action (`PUT /api/children/:id/kids-wall-consent`), which now also records the request IP in a new `kidsWallConsentIp` field.
+- **The consent-confirmation dialog was wired in** — the parent dashboard's Kids Wall toggle now opens a disclosure + required-checkbox dialog before turning the feature on (the dialog component already existed in the codebase but was never rendered anywhere). Turning it off needs no extra step. The mobile app's equivalent gate (`kidsWallEnabled` derivation in `useChildProfile`) was updated to match.
+- **The cross-family feed is hard-scoped**: `kidsWallService.getChildPosts(null, …)` now ignores every caller-supplied filter and is hard-coded to approved + active posts from children who **currently** have real consent (a parent revoking consent removes that child's existing posts from the feed immediately). The controller no longer forwards `req.query` into the query at all.
+- **A migration** (`npm run migrate:kids-wall-consent-default`) finds children whose consent timestamp is within 60 seconds of profile creation — the fingerprint of the old auto-grant bug, not a later parent action — and resets them to the safe default; a consent timestamp meaningfully later than creation is left untouched. **Needs to be run against production** once this ships.
+- Confirmed post moderation was already real (posts are created `isApproved: false`, pending admin/teacher approval) — only a stale code comment claiming otherwise needed correcting.
+- 10 new tests, two of them real end-to-end tests against an in-memory MongoDB
+  (`tests/kidsWallConsent.enforcement.test.js`, `tests/kidsWallFeed.scoping.test.js`) that directly
+  reproduce and close the original bug scenario, plus front-end coverage for the new dialog.
+- Full data map, the fix write-up, and a COPPA/LGPD gap checklist: `docs/CHILD_DATA_PRIVACY.md`, `docs/COPPA_LGPD_GAP_CHECKLIST.md`.
+
+**Still open (tracked in the gap checklist, needs a client/legal decision, not a code fix):** whether the current consent action meets the "verifiable" bar COPPA describes for stronger cases, and whether the cross-family feed design itself (vs. same-family-only visibility) is the intended product model.
 
 ### RUK-SEC-007 — No rate limiting or account lockout anywhere · **HIGH** · **Status: FIXED (2026-09-02 → 09-03) — per-IP rate limiting, per-account lockout, and per-code guess caps all shipped. pm2 is `fork` mode, so no shared limiter store is needed.**
 
@@ -491,12 +504,14 @@ Two distinct sub-issues, different owners:
 
 **What shipped (2026-09-04):** CORS moved to `backend/config/cors.js`. The `*.expo.dev` / `*.expo.run` wildcard is **gone** — with `CORS_ORIGIN` unset the only fallback is `http(s)://localhost` / `127.0.0.1` (development convenience). `production`/`staging` still refuse to start without `CORS_ORIGIN`. The null-origin allowance for native app builds is kept and documented. Tests: `backend/tests/cors.config.test.js` + the e2e (real server rejects `x.expo.dev` and `evil.example.com`, allows the two listed origins). **Client note:** the production `CORS_ORIGIN` currently contains two `exp://192.168.x.x:8081` developer-LAN entries — harmless but they don't belong in production; trim next time the env file is edited.
 
-### RUK-SEC-026 — Account-deletion purge gaps · **MEDIUM (COPPA/LGPD)**
+### RUK-SEC-026 — Account-deletion purge gaps · **MEDIUM (COPPA/LGPD)** · **Status: FIXED (2026-09-11)** — the `requesterIp`/`x-forwarded-for` note below remains open
 
 - **Where:** [`backend/services/accountDeletion.service.js`](../backend/services/accountDeletion.service.js) — `collectChildMediaRecords` only gathers Media from `AudioAssignmentProgress`, `ChantProgress`, `KidsWallPost`. `purgeParentAccount` deletes `ContactSupport`, `PasswordResetToken`, `LoginOtpToken`, `StarCamEvent`, `GoogleIntegration` — but **not** `DevicePushToken` or `NotificationReceipt` for the parent. Orphaned `Media` (uploaded by the parent, not linked to a live post) is not collected. `requesterIp` comes from the spoofable `x-forwarded-for`.
 - **Impact:** Push tokens and notification receipts (with parent id + delivery history) survive deletion; orphaned uploaded images may survive in S3.
 - **Fix:** Add `DevicePushToken`/`NotificationReceipt` to `purgeParentAccount`; sweep `Media` by `uploadedBy` for the deleted parent/children; add an integration test asserting no residual child/parent rows or S3 objects (Chunk 7).
 - **Owning chunk:** **7**.
+
+**What shipped (2026-09-11):** `purgeParentAccount` now also deletes `DevicePushToken` and `NotificationReceipt` by `userId`; `purgeChildData` now also deletes `NotificationReceipt` by `childId`. A new `sweepOrphanedParentMedia` runs after all of a parent's children have been purged and hard-deletes (Mongo + S3) any `Media` still tagged `uploadedBy` that parent. 3 new tests in `tests/accountDeletion.service.test.js` cover all three additions directly. **Still open:** the `requesterIp` capture for the deletion-request audit trail still trusts a client-suppliable header — not touched in this chunk, low severity (audit-trail metadata, not an access-control decision).
 
 ### RUK-SEC-027 — `adm-zip` extraction: Zip-Slip / DoS exposure (HTML5 upload path) · **MEDIUM**
 

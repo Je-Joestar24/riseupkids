@@ -3,7 +3,7 @@ const { ChildProfile } = require('../models');
 const CONSENT_REQUIRED_ERROR =
   'Parent consent acknowledgment is required to enable Kids Wall';
 const NOT_ENABLED_ERROR =
-  'Kids Wall sharing is blocked for this child. A parent can allow it in account settings.';
+  'Kids Wall sharing is off for this child. A parent can turn it on in account settings.';
 
 async function getChildForParent(childId, parentId) {
   const child = await ChildProfile.findOne({ _id: childId, parent: parentId });
@@ -13,20 +13,26 @@ async function getChildForParent(childId, parentId) {
   return child;
 }
 
-function isKidsWallEnabled(child) {
-  return child?.kidsWallEnabled !== false;
+/**
+ * RUK-SEC-006 — Kids Wall is opt-in. A child may only share/appear on Kids Wall when a parent
+ * has explicitly turned it on for that child (`kidsWallEnabled === true`) AND that action left a
+ * real consent timestamp (`kidsWallConsentAt`). `kidsWallEnabled` alone is not sufficient — a
+ * bare boolean can be defaulted or bulk-set without an actual parent action.
+ */
+function hasKidsWallConsent(child) {
+  return child?.kidsWallEnabled === true && Boolean(child?.kidsWallConsentAt);
 }
 
 async function assertKidsWallEnabled(childId) {
   const child = await ChildProfile.findById(childId).select(
-    'kidsWallEnabled isActive displayName'
+    'kidsWallEnabled kidsWallConsentAt isActive displayName'
   );
 
   if (!child || !child.isActive) {
     throw new Error('Child profile not found');
   }
 
-  if (!isKidsWallEnabled(child)) {
+  if (!hasKidsWallConsent(child)) {
     throw new Error(NOT_ENABLED_ERROR);
   }
 
@@ -34,10 +40,12 @@ async function assertKidsWallEnabled(childId) {
 }
 
 /**
- * Allow or block Kids Wall posting for a child (parent only).
- * Kids Wall is allowed by default; parents can block sharing per child.
+ * Allow or block Kids Wall posting for a child (parent only). Kids Wall is off by default;
+ * a parent must explicitly turn it on per child. Turning it on records the timestamp and the
+ * request IP alongside the parent (`child.parent`) as the consent record; turning it off clears
+ * the grant but keeps the historical consent timestamp/IP for reference.
  */
-async function updateKidsWallConsent(childId, parentId, { enabled }) {
+async function updateKidsWallConsent(childId, parentId, { enabled }, meta = {}) {
   if (typeof enabled !== 'boolean') {
     throw new Error('enabled must be true or false');
   }
@@ -47,6 +55,7 @@ async function updateKidsWallConsent(childId, parentId, { enabled }) {
   if (enabled) {
     child.kidsWallEnabled = true;
     child.kidsWallConsentAt = new Date();
+    if (meta.ip) child.kidsWallConsentIp = meta.ip;
   } else {
     child.kidsWallEnabled = false;
   }
@@ -64,7 +73,7 @@ async function updateKidsWallConsent(childId, parentId, { enabled }) {
 module.exports = {
   CONSENT_REQUIRED_ERROR,
   NOT_ENABLED_ERROR,
-  isKidsWallEnabled,
+  hasKidsWallConsent,
   assertKidsWallEnabled,
   updateKidsWallConsent,
 };

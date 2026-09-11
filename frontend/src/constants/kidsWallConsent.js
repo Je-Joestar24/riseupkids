@@ -12,8 +12,8 @@ export const KIDS_WALL_CONSENT_COPY = {
   enableButton: 'Allow Kids Wall',
   disableButton: 'Block Kids Wall',
   toggleLabel: 'Kids Wall',
-  toggleHintOff: 'Blocked. Your child cannot post photos to Kids Wall.',
-  toggleHintOn: 'Allowed by default. Turn off to block photo sharing for this child.',
+  toggleHintOff: 'Off by default. Your child cannot post photos to Kids Wall until you turn this on.',
+  toggleHintOn: 'Allowed. Turn off to block photo sharing for this child.',
 };
 
 /** Shown when a child can browse Kids Wall but parent has blocked posting. */

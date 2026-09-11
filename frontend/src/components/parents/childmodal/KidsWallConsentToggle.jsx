@@ -1,16 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Box, Switch, Typography, CircularProgress } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import { KIDS_WALL_CONSENT_COPY } from '../../../constants/kidsWallConsent';
+import KidsWallConsentModal from './KidsWallConsentModal';
 
 /**
- * Per-child Kids Wall toggle. Allowed by default; parents can block sharing.
+ * Per-child Kids Wall toggle. Off by default (RUK-SEC-006) — a parent must explicitly turn it
+ * on, which requires reading the disclosure and checking the acknowledgment box in
+ * KidsWallConsentModal. Turning it off needs no extra confirmation.
  */
 const KidsWallConsentToggle = ({ child, consentLoading, onUpdateConsent }) => {
-  const enabled = child?.kidsWallEnabled !== false;
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const enabled = child?.kidsWallEnabled === true && Boolean(child?.kidsWallConsentAt);
 
-  const handleToggle = async (event) => {
-    await onUpdateConsent(event.target.checked);
+  const handleToggle = (event) => {
+    if (event.target.checked) {
+      setShowConsentModal(true);
+      return;
+    }
+    onUpdateConsent(false);
+  };
+
+  const handleConfirmConsent = async () => {
+    await onUpdateConsent(true);
+    setShowConsentModal(false);
   };
 
   return (
@@ -75,6 +88,14 @@ const KidsWallConsentToggle = ({ child, consentLoading, onUpdateConsent }) => {
           />
         )}
       </Box>
+
+      <KidsWallConsentModal
+        open={showConsentModal}
+        childName={child?.displayName}
+        loading={consentLoading}
+        onConfirm={handleConfirmConsent}
+        onCancel={() => setShowConsentModal(false)}
+      />
     </Box>
   );
 };

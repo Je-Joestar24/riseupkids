@@ -159,8 +159,9 @@ const createChild = async (parentId, childData) => {
       theme: preferences?.theme || 'light',
       soundEnabled: preferences?.soundEnabled !== undefined ? preferences.soundEnabled : true,
     },
-    kidsWallEnabled: true,
-    kidsWallConsentAt: new Date(),
+    // RUK-SEC-006: do NOT auto-grant Kids Wall consent here. It defaults off (see
+    // ChildProfile schema) and is only ever turned on by an explicit parent action via
+    // PUT /api/children/:id/kids-wall-consent (services/kidsWallConsent.service.js).
     isActive: true,
   });
 

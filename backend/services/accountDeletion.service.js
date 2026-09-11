@@ -17,6 +17,8 @@ const {
   LoginOtpToken,
   Media,
   GoogleIntegration,
+  DevicePushToken,
+  NotificationReceipt,
 } = require('../models');
 const AccountDeletionRequest = require('../models/AccountDeletionRequest');
 const s3Service = require('./s3.service');
@@ -188,6 +190,26 @@ async function collectChildMediaRecords(childId) {
 }
 
 /**
+ * RUK-SEC-026 — catch any Media uploaded by this parent that survived the per-child sweep above
+ * (e.g. an avatar or upload whose owning record was already gone, or any future upload path that
+ * isn't wired into collectChildMediaRecords). Runs after every child under this parent has already
+ * been purged, so any Media still tagged with this parent's id is genuinely orphaned.
+ */
+async function sweepOrphanedParentMedia(userId) {
+  const orphaned = await Media.find({ uploadedBy: userId }).select('_id filePath url').lean();
+
+  for (const media of orphaned) {
+    await deleteS3KeyBestEffort(media.filePath || media.url);
+  }
+
+  if (orphaned.length) {
+    await Media.deleteMany({ _id: { $in: orphaned.map((m) => m._id) } });
+  }
+
+  return orphaned.length;
+}
+
+/**
  * Hard-delete all child-linked Mongo records and S3 media.
  */
 async function purgeChildData(childId) {
@@ -219,6 +241,7 @@ async function purgeChildData(childId) {
     ChildStats.deleteMany({ child: childId }),
     KidsWallPost.deleteMany({ child: childId }),
     StarCamEvent.deleteMany({ child: childId }),
+    NotificationReceipt.deleteMany({ childId }),
     mediaIds.length ? Media.deleteMany({ _id: { $in: mediaIds } }) : Promise.resolve(),
     ChildProfile.deleteOne({ _id: childId }),
   ]);
@@ -272,7 +295,13 @@ async function purgeParentAccount(userId, requestId) {
     LoginOtpToken.deleteMany({ userId }),
     StarCamEvent.deleteMany({ parent: userId }),
     GoogleIntegration.deleteMany({ user: userId }),
+    DevicePushToken.deleteMany({ userId }),
+    NotificationReceipt.deleteMany({ userId }),
   ]);
+
+  // Runs after the child loop above (see processAccountDeletionRequest), so any Media still
+  // tagged with this parent is genuinely orphaned, not just not-yet-processed.
+  const orphanedMediaRemoved = await sweepOrphanedParentMedia(userId);
 
   await user.save();
 
@@ -281,6 +310,7 @@ async function purgeParentAccount(userId, requestId) {
     anonymizedEmail,
     retainedForLegal,
     googleIntegrationRemoved: true,
+    orphanedMediaRemoved,
   };
 }
 

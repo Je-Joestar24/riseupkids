@@ -4,21 +4,17 @@ const { ChildProfile } = require('../models');
 const logger = require('../config/logger');
 
 /**
- * @desc    Get all posts (feed) - shows all posts from all children, newest first
- * @route   GET /api/kids-wall
+ * @desc    Get all posts (cross-family feed) - approved posts from consented children only
+ * @route   GET /api/kids-wall/all
  * @access  Private (Parent/Admin)
+ *
+ * RUK-SEC-006: this is a cross-family view, so it must never take approval/active state (or any
+ * other scoping) from the client — kidsWallService.getChildPosts(null, ...) hard-codes
+ * approved+active and restricts to currently-consented children regardless of what's passed here.
  */
 const getAllPosts = async (req, res) => {
   try {
-    const filters = {
-      ...req.query,
-      // Default to showing only approved posts in feed
-      isApproved: req.query.isApproved !== undefined ? req.query.isApproved === 'true' : true,
-      isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : true,
-    };
-
-    // Get all posts (feed view) - no childId filter, shows posts from all children
-    const posts = await kidsWallService.getChildPosts(null, filters);
+    const posts = await kidsWallService.getChildPosts(null);
 
     res.status(200).json({
       success: true,
@@ -117,16 +113,14 @@ const getPostById = async (req, res) => {
 };
 
 /**
- * @desc    Create new post with image (instantly approved, no pending status)
+ * @desc    Create new post with image (starts as isApproved: false — pending admin/teacher review)
  * @route   POST /api/kids-wall/child/:childId
  * @access  Private (Parent/Admin)
- * 
+ *
  * Request body (multipart/form-data):
  * - title: String (required, max 200 chars)
  * - content: String (required, max 1000 chars) - used as description
  * - image: File (required, image file)
- * 
- * Note: Posts are instantly approved upon creation (isApproved: true)
  */
 const createPost = async (req, res) => {
   try {
