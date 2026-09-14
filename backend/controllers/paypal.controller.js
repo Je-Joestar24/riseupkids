@@ -134,6 +134,21 @@ exports.captureOrder = async (req, res, next) => {
       });
     }
 
+    // Idempotency: this exact capture was already applied to this user's account on a previous
+    // call — do not extend the subscription again. A capture id is unique per PayPal capture, so
+    // re-applying it (a resent request, a retried client call, etc.) must be a no-op.
+    if (result.alreadyCaptured && result.captureId && user.paypalCaptureId === result.captureId) {
+      logger.info(
+        '[PayPal] Capture already applied to this user – userId=%s, captureId=%s (no-op)',
+        userId,
+        result.captureId
+      );
+      return res.status(200).json({
+        success: true,
+        message: 'Order was already captured; subscription unchanged.',
+      });
+    }
+
     const parsed = parseTier(result.tier);
     const planKidsLimit = parsed ? tierKeyToPlanKidsLimit(parsed.tierKey) : 1;
     const planRegion = parsed ? currencyToPlanRegion(parsed.currency) : 'us';

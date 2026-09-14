@@ -13,8 +13,10 @@ Ready-to-upload listing graphics generated from the creatives in this folder.
 | `play-store/phone-screenshots/` | Phone screenshots (1920×1080) |
 | `play-store/tablet-screenshots/` | Optional 7" tablet (1920×1200) |
 | `app-store/app-icon-1024x1024.png` | App Store icon (same 1024 asset) |
-| `app-store/iphone-6.7-inch-landscape/` | All iPhone 6.7" landscape (2796×1290) |
+| `app-store/iphone-6.7-inch-landscape/` | All iPhone 6.7" landscape (2796×1290 — iPhone 15/16 Pro Max exact size) |
 | `app-store/iphone-6.7-inch-landscape-apple-safe/` | **Preferred for Apple** (no Kid’s Wall tab) |
+| `app-store/iphone-6.7-inch-landscape-2778x1284/` | Same set at 2778×1284 — the exact size App Store Connect’s "6.7-inch Display" upload slot requires; 2796×1290 gets rejected there as a dimension mismatch |
+| `app-store/iphone-6.7-inch-landscape-2778x1284-apple-safe/` | **Preferred for Apple** version of the above (no Kid’s Wall tab) |
 | `app-store/ipad-12.9-inch-landscape/` | iPad Pro 12.9" landscape (2732×2048) |
 | `app-store/ipad-12.9-inch-landscape-apple-safe/` | Preferred iPad set for Apple |
 | `listing-copy.md` | Titles, descriptions, keywords, URLs |
@@ -33,11 +35,10 @@ Kids Wall can appear in Play screenshots (feature is available on Android).
 ## App Store Connect — upload
 
 1. **App icon** is taken from the binary (`icon1024`); `app-store/app-icon-1024x1024.png` matches it
-2. **iPhone screenshots** → use **`iphone-6.7-inch-landscape-apple-safe/`** first  
-   - `00` feature promo  
-   - `01` home / immersion overview  
-   - `04` StarCam  
-   Upload at least these 3 for 6.7" display
+2. **iPhone screenshots** — App Store Connect has more than one iPhone size bucket; match the exact pixel size the upload box asks for:
+   - If it wants **2796×1290** (or "6.9-inch" style newest) → `iphone-6.7-inch-landscape-apple-safe/`
+   - If it wants **1284×2778 / 2778×1284** (older "6.7-inch Display" bucket) → `iphone-6.7-inch-landscape-2778x1284-apple-safe/`
+   - Either set: `00` feature promo, `01` home / immersion overview, `04` StarCam — upload at least these 3
 3. If iPad is listed → `app-store/ipad-12.9-inch-landscape/` (`00`/`01`/`04` equivalents: use `01` + `04` + optionally recreate feature for iPad, or upload `01`/`04` plus another learning shot)
 4. Paste text from `listing-copy.md` (keep Kids Wall as Android/Web only)
 5. Privacy policy → `https://riseup.kids/privacy`

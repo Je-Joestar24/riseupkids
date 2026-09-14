@@ -20,6 +20,12 @@ const dirs = {
   playTablet: path.join(root, 'play-store', 'tablet-screenshots'),
   applePhone: path.join(root, 'app-store', 'iphone-6.7-inch-landscape'),
   applePhoneSafe: path.join(root, 'app-store', 'iphone-6.7-inch-landscape-apple-safe'),
+  // App Store Connect's "6.7-inch Display" upload slot wants the exact iPhone 12-14 Pro Max
+  // resolution (2778x1284), which is NOT the same pixel size as the 6.7-inch-landscape set
+  // above (2796x1290, the newer 15/16 Pro Max resolution) — Apple's uploader rejects a
+  // near-but-not-exact match, so this is a separate exact-size set.
+  applePhoneLegacy: path.join(root, 'app-store', 'iphone-6.7-inch-landscape-2778x1284'),
+  applePhoneLegacySafe: path.join(root, 'app-store', 'iphone-6.7-inch-landscape-2778x1284-apple-safe'),
   appleIpad: path.join(root, 'app-store', 'ipad-12.9-inch-landscape'),
   appleIpadSafe: path.join(root, 'app-store', 'ipad-12.9-inch-landscape-apple-safe'),
   source: path.join(root, 'source'),
@@ -94,10 +100,13 @@ async function main() {
   // Promo slide from feature graphic (helps Apple meet 3-screenshot minimum without Kid's Wall UI)
   const featurePhone = path.join(dirs.applePhone, '00-feature-iphone-6.7-2796x1290.png');
   const featureIpad = path.join(dirs.appleIpad, '00-feature-ipad-12.9-2732x2048.png');
+  const featurePhoneLegacy = path.join(dirs.applePhoneLegacy, '00-feature-iphone-6.7-2778x1284.png');
   await fitExact(sources.feature, 2796, 1290, featurePhone);
   await fitExact(sources.feature, 2732, 2048, featureIpad);
+  await fitExact(sources.feature, 2778, 1284, featurePhoneLegacy);
   fs.copyFileSync(featurePhone, path.join(dirs.applePhoneSafe, '00-feature-iphone-6.7-2796x1290.png'));
   fs.copyFileSync(featureIpad, path.join(dirs.appleIpadSafe, '00-feature-ipad-12.9-2732x2048.png'));
+  fs.copyFileSync(featurePhoneLegacy, path.join(dirs.applePhoneLegacySafe, '00-feature-iphone-6.7-2778x1284.png'));
 
   for (const shot of sources.shots) {
     const base = String(shot.n).padStart(2, '0');
@@ -125,6 +134,13 @@ async function main() {
     );
     await fitExact(shot.file, 2796, 1290, applePhoneOut);
 
+    // App Store Connect "6.7-inch Display" upload slot exact size: 2778 x 1284
+    const applePhoneLegacyOut = path.join(
+      dirs.applePhoneLegacy,
+      `${base}-iphone-6.7-2778x1284.png`
+    );
+    await fitExact(shot.file, 2778, 1284, applePhoneLegacyOut);
+
     // App Store iPad Pro 12.9" landscape: 2732 x 2048
     const appleIpadOut = path.join(
       dirs.appleIpad,
@@ -136,6 +152,10 @@ async function main() {
       fs.copyFileSync(
         applePhoneOut,
         path.join(dirs.applePhoneSafe, `${base}-iphone-6.7-2796x1290.png`)
+      );
+      fs.copyFileSync(
+        applePhoneLegacyOut,
+        path.join(dirs.applePhoneLegacySafe, `${base}-iphone-6.7-2778x1284.png`)
       );
       fs.copyFileSync(
         appleIpadOut,

@@ -68,6 +68,12 @@ describe('paypalService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // clearAllMocks does not drop an unconsumed mockResolvedValueOnce queue (only mockReset does)
+    // — reset just the two axios methods (not the fs mock, whose fixed implementation must survive
+    // every test) so a test whose code throws before its expected network calls can't leak queued
+    // responses into the next test's first calls.
+    axios.get.mockReset();
+    axios.post.mockReset();
     process.env = { ...originalEnv };
     // Restore PayPal env after process.env reset (service reads at load time; other tests need it)
     process.env.PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || 'https://api.paypal.com';
@@ -358,7 +364,7 @@ describe('paypalService', () => {
             purchase_units: [
               {
                 payments: {
-                  captures: [{ id: 'CAPTURE-789' }],
+                  captures: [{ id: 'CAPTURE-789', amount: { value: '151.00', currency_code: 'USD' } }],
                 },
               },
             ],
@@ -393,7 +399,9 @@ describe('paypalService', () => {
           purchase_units: [
             {
               custom_id: `${userId}|2_children_BRL`,
-              payments: { captures: [{ id: 'CAPTURE-DONE' }] },
+              payments: {
+                captures: [{ id: 'CAPTURE-DONE', amount: { value: '1299.00', currency_code: 'BRL' } }],
+              },
             },
           ],
         },
@@ -417,7 +425,9 @@ describe('paypalService', () => {
           purchase_units: [
             {
               custom_id: `${userId}|2_children_yearly_EUR`,
-              payments: { captures: [{ id: 'CAP-EUR' }] },
+              payments: {
+                captures: [{ id: 'CAP-EUR', amount: { value: '205.00', currency_code: 'EUR' } }],
+              },
             },
           ],
         },
@@ -455,6 +465,78 @@ describe('paypalService', () => {
       expect(err).toBeInstanceOf(Error);
       expect(err.message).toMatch(/Order cannot be captured/);
       expect(err.message).toMatch(/CREATED/);
+    });
+
+    it('rejects a captured amount that does not match the price on file for the order tier (COMPLETED path)', async () => {
+      axios.get.mockResolvedValueOnce({
+        data: {
+          status: 'COMPLETED',
+          payer: { payer_id: 'PAYER-X' },
+          purchase_units: [
+            {
+              custom_id: `${userId}|1_child_USD`, // real price is 151.00 USD
+              payments: {
+                captures: [{ id: 'CAP-X', amount: { value: '1.00', currency_code: 'USD' } }],
+              },
+            },
+          ],
+        },
+      });
+
+      await expect(capturePaypalOrder(orderId, userId)).rejects.toThrow(/Captured amount mismatch/);
+    });
+
+    it('rejects a captured amount in the wrong currency, even if the numeric value matches', async () => {
+      axios.get.mockResolvedValueOnce({
+        data: {
+          status: 'APPROVED',
+          purchase_units: [{ custom_id: `${userId}|1_child_USD` }], // expects 151.00 USD
+        },
+      });
+      axios.post.mockImplementation((url) => {
+        if (String(url).includes('/oauth2/token')) return Promise.resolve({ data: { access_token: 'tok' } });
+        return Promise.resolve({
+          data: {
+            payer: { payer_id: 'PAYER-X' },
+            purchase_units: [
+              {
+                payments: {
+                  captures: [{ id: 'CAP-X', amount: { value: '151.00', currency_code: 'BRL' } }],
+                },
+              },
+            ],
+          },
+        });
+      });
+
+      await expect(capturePaypalOrder(orderId, userId)).rejects.toThrow(/Captured amount mismatch/);
+    });
+
+    it('accepts a matching captured amount for a fresh APPROVED capture', async () => {
+      axios.get.mockResolvedValueOnce({
+        data: {
+          status: 'APPROVED',
+          purchase_units: [{ custom_id: `${userId}|2_children_USD` }], // 239.00 USD
+        },
+      });
+      axios.post.mockImplementation((url) => {
+        if (String(url).includes('/oauth2/token')) return Promise.resolve({ data: { access_token: 'tok' } });
+        return Promise.resolve({
+          data: {
+            payer: { payer_id: 'PAYER-OK' },
+            purchase_units: [
+              {
+                payments: {
+                  captures: [{ id: 'CAP-OK', amount: { value: '239.00', currency_code: 'USD' } }],
+                },
+              },
+            ],
+          },
+        });
+      });
+
+      const result = await capturePaypalOrder(orderId, userId);
+      expect(result).toMatchObject({ captureId: 'CAP-OK', tier: '2_children_USD', alreadyCaptured: false });
     });
   });
 });

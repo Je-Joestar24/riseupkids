@@ -116,9 +116,23 @@ function extractPrimaryChargeId(payload) {
   return analysis.paidChargeId || analysis.chargeIds[0] || null;
 }
 
+/** Ops kill switch (Chunk 8): set PAGSEGURO_API_OWNERSHIP_FALLBACK_ENABLED=false to disable the
+ * fallback entirely (e.g. if it's suspected of being abused) — every webhook then requires a
+ * valid SHA256 signature, no exceptions. Defaults to enabled since it's the documented workaround
+ * for a CloudFront/proxy that doesn't forward the raw POST body byte-for-byte. */
+function isApiOwnershipFallbackEnabled() {
+  return process.env.PAGSEGURO_API_OWNERSHIP_FALLBACK_ENABLED !== 'false';
+}
+
 /**
  * When SHA256 header verification fails, confirm the notification belongs to our checkout
  * by re-fetching the PagBank resource with our server token (never trust body alone).
+ *
+ * Fails closed: requires BOTH a `reference_id` match AND a successful provider API re-fetch
+ * whose own reference_id/relationship confirms the same record. There is no path here that
+ * verifies solely from data in the payload itself — a payload's `reference_id` alone is not
+ * proof of possession, and an order lookup that fails at PagBank is not a substitute for one
+ * that actually succeeded (Chunk 8 — this used to be an auth-bypass surface on either count).
  */
 async function verifyWebhookPayloadOwnership(payload, record) {
   const result = {
@@ -129,8 +143,18 @@ async function verifyWebhookPayloadOwnership(payload, record) {
     apiSnapshot: null,
   };
 
+  if (!isApiOwnershipFallbackEnabled()) {
+    result.reason = 'api_ownership_fallback_disabled';
+    return result;
+  }
+
   if (!payload?.id || !record) {
     result.reason = 'missing_payload_or_record';
+    return result;
+  }
+
+  if (!payload.reference_id) {
+    result.reason = 'missing_reference_id';
     return result;
   }
 
@@ -210,27 +234,17 @@ async function verifyWebhookPayloadOwnership(payload, record) {
       result.verified = true;
       return result;
     } catch (err) {
-      if (payload.reference_id === record.referenceId && Array.isArray(payload.charges)) {
-        result.apiSnapshot = {
-          fromPayload: true,
-          charges: payload.charges.map((c) => ({ id: c.id, status: c.status })),
-        };
-        result.verified = true;
-        result.reason = 'order_api_failed_reference_match';
-        return result;
-      }
+      // Do NOT fall back to trusting the payload's own reference_id/charges here — an order
+      // lookup failing at PagBank means ownership was never actually confirmed by the API.
       result.reason = 'api_get_order_failed';
       result.error = err.message;
       return result;
     }
   }
 
-  if (payload.reference_id === record.referenceId) {
-    result.verified = true;
-    result.reason = 'reference_id_only_match';
-    return result;
-  }
-
+  // No id-type branch matched (payload.id has an unrecognized prefix). A bare reference_id match
+  // with no API call to back it up is not proof of possession, so this fails closed rather than
+  // verifying — reference_id is not treated as a secret elsewhere in the system.
   result.reason = 'unsupported_payload_id';
   return result;
 }
@@ -409,6 +423,19 @@ async function processWebhookNotification({ rawBody, authenticityToken, webhookK
       ok: true,
       reason: 'signature_failed_but_pagbank_api_confirmed_ownership',
     });
+    // ALWAYS alert on this (Chunk 8): SHA256 signature verification failing is expected when
+    // CloudFront mangles the raw body, but it's also exactly what a forged webhook looks like
+    // before the ownership check kicks in — a spike here means investigate immediately.
+    logger.warn(
+      {
+        alert: 'pagseguro_api_ownership_fallback_used',
+        webhookKind,
+        payloadId: payload.id,
+        referenceId: payload.reference_id,
+        checkoutId: record.pagbankCheckoutId,
+      },
+      '[PagSeguro Webhook] ALERT: signature verification failed; accepted via API-ownership fallback'
+    );
   }
 
   const fingerprint = webhookFingerprint(rawBody);
@@ -485,6 +512,7 @@ module.exports = {
   webhookFingerprint,
   analyzeWebhookPayloadPayment,
   verifyWebhookPayloadOwnership,
+  isApiOwnershipFallbackEnabled,
   processWebhookNotification,
   syncCheckoutAndActivate,
   findCheckoutRecord,

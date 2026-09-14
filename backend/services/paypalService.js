@@ -257,8 +257,9 @@ async function capturePaypalOrder(orderID, userId) {
   if (status === 'COMPLETED') {
     // Idempotent: already captured. Return existing details so caller can still update User if needed.
     const payerId = order.payer?.payer_id || '';
-    const captureId = order.purchase_units?.[0]?.payments?.captures?.[0]?.id || '';
-    return { payerId, captureId, tier: tierFromOrder, alreadyCaptured: true };
+    const capture = order.purchase_units?.[0]?.payments?.captures?.[0];
+    assertCapturedAmountMatchesTier(capture, tierFromOrder);
+    return { payerId, captureId: capture?.id || '', tier: tierFromOrder, alreadyCaptured: true };
   }
   if (status !== 'APPROVED') {
     throw new Error('Order cannot be captured. Status: ' + status);
@@ -278,10 +279,33 @@ async function capturePaypalOrder(orderID, userId) {
     );
     const captured = captureRes.data;
     const payerId = captured.payer?.payer_id || '';
-    const captureId = captured.purchase_units?.[0]?.payments?.captures?.[0]?.id || '';
-    return { payerId, captureId, tier: tierFromOrder, alreadyCaptured: false };
+    const capture = captured.purchase_units?.[0]?.payments?.captures?.[0];
+    assertCapturedAmountMatchesTier(capture, tierFromOrder);
+    return { payerId, captureId: capture?.id || '', tier: tierFromOrder, alreadyCaptured: false };
   } catch (err) {
     throw new Error('PayPal capture failed: ' + describeAxiosError(err));
+  }
+}
+
+/**
+ * Defense in depth: confirm what PayPal actually captured matches the price on file for the tier
+ * recorded in the order's own custom_id (set server-side at createPaypalOrder time). The tier
+ * itself can't be attacker-controlled at capture time — it comes from the order, not the request —
+ * but this catches any tampering with the order between creation and capture.
+ * @throws {Error} if the amount/currency don't match
+ */
+function assertCapturedAmountMatchesTier(capture, tier) {
+  if (!capture) throw new Error('PayPal capture response missing capture details');
+  const parsed = parseTier(tier);
+  if (!parsed) return; // malformed/legacy custom_id — nothing to check against
+  const { tierKey, currency } = parsed;
+  const expectedValue = formatAmount(getPrices()[currency][tierKey]);
+  const capturedValue = capture.amount?.value;
+  const capturedCurrency = capture.amount?.currency_code;
+  if (capturedValue !== expectedValue || capturedCurrency !== currency) {
+    throw new Error(
+      `Captured amount mismatch: expected ${expectedValue} ${currency}, got ${capturedValue} ${capturedCurrency}`
+    );
   }
 }
 

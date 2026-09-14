@@ -311,6 +311,11 @@ exports.handleWebhook = async (req, res, next) => {
 
     logger.info(`[Stripe Webhook] Received event: ${event.type} (ID: ${event.id})`);
 
+    // Chunk 8 — every success path below must go through acknowledge() so the event is recorded
+    // as processed. Previously only the Family Plan branch called it; every other event type
+    // (subscription updates/cancellations, invoice events, etc.) returned res.json() directly
+    // and was never recorded — a redelivery of any of those would have been reprocessed from
+    // scratch every time instead of short-circuiting on the hasProcessedEvent() check above.
     const acknowledge = async () => {
       await recordProcessedEvent(event.id, event.type);
       return res.json({ received: true });
@@ -364,7 +369,7 @@ exports.handleWebhook = async (req, res, next) => {
         // Only process subscription checkouts (legacy parent signup flow)
         if (session.mode !== 'subscription') {
           logger.info('[Stripe Webhook] Ignoring non-subscription checkout session');
-          return res.json({ received: true });
+          return await acknowledge();
         }
         if (!userId) {
           logger.error('[Stripe Webhook] No userId in checkout session metadata');
@@ -444,7 +449,7 @@ exports.handleWebhook = async (req, res, next) => {
           logger.info(`[Stripe Webhook] Activated subscription for user ${userId} (subscription: ${subscriptionId})`);
           logger.info(`[Stripe Webhook] Saved subscriptionStartDate: ${user.subscriptionStartDate}, subscriptionCurrentPeriodEnd: ${user.subscriptionCurrentPeriodEnd}`);
 
-          return res.json({ received: true });
+          return await acknowledge();
         } catch (error) {
           logger.error('[Stripe Webhook] Error fetching subscription:', error.message);
           return res.status(500).json({
@@ -468,7 +473,7 @@ exports.handleWebhook = async (req, res, next) => {
 
         if (!user) {
           logger.warn(`[Stripe Webhook] User not found for subscription: ${subscription.id}`);
-          return res.json({ received: true });
+          return await acknowledge();
         }
 
         // Update subscription status
@@ -504,7 +509,7 @@ exports.handleWebhook = async (req, res, next) => {
         await user.save();
         logger.info(`[Stripe Webhook] Updated subscription for user ${user._id} (status: ${user.subscriptionStatus})`);
 
-        return res.json({ received: true });
+        return await acknowledge();
       }
 
       case 'customer.subscription.deleted': {
@@ -516,7 +521,7 @@ exports.handleWebhook = async (req, res, next) => {
 
         if (!user) {
           logger.warn(`[Stripe Webhook] User not found for deleted subscription: ${subscription.id}`);
-          return res.json({ received: true });
+          return await acknowledge();
         }
 
         // Mark subscription as canceled
@@ -524,7 +529,7 @@ exports.handleWebhook = async (req, res, next) => {
         await user.save();
         logger.info(`[Stripe Webhook] Marked subscription as canceled for user ${user._id}`);
 
-        return res.json({ received: true });
+        return await acknowledge();
       }
 
       case 'invoice.paid':
@@ -549,7 +554,7 @@ exports.handleWebhook = async (req, res, next) => {
         // Only process invoices for subscriptions
         if (!subscriptionId) {
           logger.info('[Stripe Webhook] Invoice is not for a subscription, skipping');
-          return res.json({ received: true });
+          return await acknowledge();
         }
 
         // Find user by subscription ID
@@ -558,7 +563,7 @@ exports.handleWebhook = async (req, res, next) => {
 
         if (!user) {
           logger.warn(`[Stripe Webhook] User not found for invoice subscription: ${subscriptionId}`);
-          return res.json({ received: true });
+          return await acknowledge();
         }
 
         // Update period end date from invoice line item period.end (this is the actual subscription period end)
@@ -578,12 +583,12 @@ exports.handleWebhook = async (req, res, next) => {
           logger.warn(`[Stripe Webhook] Invoice ${invoice.id} has no period end information`);
         }
 
-        return res.json({ received: true });
+        return await acknowledge();
       }
 
       default:
         logger.info(`[Stripe Webhook] Unhandled event type: ${event.type}`);
-        return res.json({ received: true });
+        return await acknowledge();
     }
   } catch (error) {
     logger.error('[Stripe Webhook] Error processing webhook:', error);
