@@ -3,6 +3,7 @@ const http = require('http');
 const dns = require('dns');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const pinoHttp = require('pino-http');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -179,6 +180,9 @@ app.post('/api/pagseguro/webhooks/payment', ...pagseguroWebhookChain, handlePaym
 // Regular JSON parsing for all other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Chunk 9: parses the httpOnly refresh-token cookie into req.cookies. Reads headers only, so
+// mounting it after the raw-body webhook routes above is fine — it never touches the body.
+app.use(cookieParser());
 
 // Ignore favicon requests (browsers automatically request this)
 app.get('/favicon.ico', (req, res) => {

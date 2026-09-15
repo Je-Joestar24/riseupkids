@@ -27,12 +27,25 @@ const protect = async (req, res, next) => {
     });
   }
 
+  // Step 1: verify the JWT itself. A failure HERE (bad signature, expired, malformed) is a
+  // genuine "not authenticated" case — safe to answer with 401.
+  let decoded;
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Not authorized to access this route. Invalid token.',
+    });
+  }
 
-    // Get user from token (exclude password)
-    const user = await User.findById(decoded.id).select('-password');
+  // Step 2: everything past this point is a DB lookup, not a token check. A failure here (a
+  // transient Mongo error, an unrelated bug) must NOT be reported as "invalid token" — clients
+  // treat a 401 as "log the user out," and conflating a real server error with an invalid
+  // session caused a production incident where users were logged out during a backend error that
+  // had nothing to do with their session. Real errors go to the central error handler (500).
+  try {
+    const user = await User.findById(decoded.id).select('-password +tokenVersion');
 
     if (!user) {
       return res.status(401).json({
@@ -49,14 +62,26 @@ const protect = async (req, res, next) => {
       });
     }
 
+    // Chunk 9: a token minted before a password change/reset/role change/deactivation carries a
+    // stale tokenVersion claim and is rejected immediately, instead of staying valid until it
+    // naturally expires. Tokens minted before this field existed have no claim (undefined) — only
+    // reject when the user has actually been bumped past 0.
+    if (
+      typeof decoded.tokenVersion === 'number'
+        ? decoded.tokenVersion !== (user.tokenVersion || 0)
+        : (user.tokenVersion || 0) !== 0
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Session has been invalidated. Please log in again.',
+      });
+    }
+
     // Attach user to request object
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not authorized to access this route. Invalid token.',
-    });
+    return next(error);
   }
 };
 

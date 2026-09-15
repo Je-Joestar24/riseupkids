@@ -108,6 +108,17 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    /**
+     * Bumped on password change/reset, role change, or deactivation (Chunk 9). Embedded in every
+     * access token at mint time; `protect` rejects a token whose `tokenVersion` claim doesn't
+     * match the current value, so a still-unexpired token issued before one of those events stops
+     * working immediately instead of staying valid until it naturally expires.
+     */
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
     /** Which payment provider the user's current subscription/purchase is with. */
     paymentProvider: {
       type: String,

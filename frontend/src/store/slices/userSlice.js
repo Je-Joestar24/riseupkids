@@ -52,6 +52,17 @@ export const registerUser = createAsyncThunk(
 );
 
 /**
+ * Chunk 9: silently re-establish a session from the httpOnly refresh cookie. Dispatched exactly
+ * once, at app boot (see router/AppRouter.jsx) — nothing about a session survives a hard reload /
+ * new tab / reopened tab in memory, so this is what makes the session actually survive those.
+ * Never rejects: no valid cookie just means "not logged in", which is a normal outcome, not an
+ * error to show the user.
+ */
+export const bootstrapSession = createAsyncThunk('user/bootstrapSession', async () => {
+  return await authService.bootstrapSession();
+});
+
+/**
  * Async thunk for getting current user
  */
 export const getCurrentUser = createAsyncThunk(
@@ -114,15 +125,19 @@ export const changePassword = createAsyncThunk(
   }
 );
 
-// Initial state - try to load from sessionStorage
+// Chunk 9 (RUK-SEC-012(b)): nothing here is read from sessionStorage/localStorage anymore — the
+// access token lives in memory only (services/tokenStore.js) and user/childProfiles/etc. live
+// only in this Redux state. `loading: true` starts the app in a "checking session" state so the
+// route guards (AuthedAccess/UnAuthed) wait for bootstrapSession() to resolve instead of briefly
+// treating a real session as logged-out on a hard reload.
 const initialState = {
-  user: authService.getUserFromStorage(),
-  token: authService.getTokenFromStorage(),
+  user: null,
+  token: null,
   childProfiles: null,
   childProfile: null,
   parent: null,
-  isAuthenticated: authService.isAuthenticated(),
-  loading: false,
+  isAuthenticated: false,
+  loading: true,
   error: null,
 };
 
@@ -181,6 +196,32 @@ const userSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
+    // Chunk 9: silent session bootstrap at app boot (see router/AppRouter.jsx)
+    builder
+      .addCase(bootstrapSession.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(bootstrapSession.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload?.authenticated) {
+          state.user = action.payload.user;
+          state.childProfiles = action.payload.childProfiles || null;
+          state.isAuthenticated = true;
+        } else {
+          state.user = null;
+          state.childProfiles = null;
+          state.childProfile = null;
+          state.parent = null;
+          state.isAuthenticated = false;
+        }
+      })
+      .addCase(bootstrapSession.rejected, (state) => {
+        // authService.bootstrapSession() never throws, but guard against a truly unexpected
+        // failure anyway — must not leave the app stuck on the loading spinner forever.
+        state.loading = false;
+        state.isAuthenticated = false;
+      });
+
     // Login
     builder
       .addCase(loginUser.pending, (state) => {

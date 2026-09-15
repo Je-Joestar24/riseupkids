@@ -11,11 +11,13 @@ vi.mock('../api/axios', () => ({
 
 import api from '../api/axios';
 import authService from '../services/authService';
+import { getAccessToken, clearAccessToken } from '../services/tokenStore';
 
 describe('authService – admin login OTP', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    clearAccessToken();
   });
 
   describe('login', () => {
@@ -38,11 +40,10 @@ describe('authService – admin login OTP', () => {
         password: 'secret123',
       });
       expect(result.data.requiresOtp).toBe(true);
-      expect(sessionStorage.getItem('token')).toBeNull();
-      expect(sessionStorage.getItem('user')).toBeNull();
+      expect(getAccessToken()).toBeNull();
     });
 
-    it('persists session for non-OTP login responses', async () => {
+    it('persists the access token in memory (never in sessionStorage) for non-OTP login responses', async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
@@ -57,16 +58,14 @@ describe('authService – admin login OTP', () => {
       const result = await authService.login('parent@example.com', 'secret123');
 
       expect(result.data.token).toBe('jwt-token');
-      expect(sessionStorage.getItem('token')).toBe('jwt-token');
-      expect(JSON.parse(sessionStorage.getItem('user'))).toEqual({
-        email: 'parent@example.com',
-        role: 'parent',
-      });
+      expect(getAccessToken()).toBe('jwt-token');
+      expect(sessionStorage.getItem('token')).toBeNull();
+      expect(sessionStorage.getItem('user')).toBeNull();
     });
   });
 
   describe('verifyLoginOtp', () => {
-    it('posts normalized code and persists session on success', async () => {
+    it('posts normalized code and persists the access token in memory on success', async () => {
       api.post.mockResolvedValue({
         data: {
           success: true,
@@ -85,8 +84,8 @@ describe('authService – admin login OTP', () => {
         code: '654321',
       });
       expect(result.data.token).toBe('admin-jwt');
-      expect(sessionStorage.getItem('token')).toBe('admin-jwt');
-      expect(JSON.parse(sessionStorage.getItem('user')).role).toBe('admin');
+      expect(getAccessToken()).toBe('admin-jwt');
+      expect(sessionStorage.getItem('token')).toBeNull();
     });
 
     it('throws API error message on failure', async () => {
@@ -97,7 +96,7 @@ describe('authService – admin login OTP', () => {
       await expect(
         authService.verifyLoginOtp('admin@example.com', '000000')
       ).rejects.toEqual({ message: 'Invalid or expired verification code' });
-      expect(sessionStorage.getItem('token')).toBeNull();
+      expect(getAccessToken()).toBeNull();
     });
   });
 

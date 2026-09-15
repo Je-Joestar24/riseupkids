@@ -8,6 +8,15 @@ jest.mock('../models');
 jest.mock('../services/mail', () => ({
   sendResetCode: jest.fn().mockResolvedValue(undefined),
 }));
+// Chunk 9: resetPassword() now also revokes all refresh-token sessions (a real Mongoose write).
+// This file's User fixtures use non-ObjectId _id strings, so it's mocked out here — exercised
+// for real in session.services.test.js.
+jest.mock('../services/session.services', () => ({
+  issueRefreshToken: jest.fn().mockResolvedValue({ plainToken: 'mock-refresh-token', doc: {} }),
+  revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
+  revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+  REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
 
 const { User, PasswordResetToken } = require('../models');
 const mailService = require('../services/mail');

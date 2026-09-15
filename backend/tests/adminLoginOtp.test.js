@@ -9,6 +9,15 @@ jest.mock('../services/mail', () => ({
   sendResetCode: jest.fn().mockResolvedValue(undefined),
   sendLoginOtpCode: jest.fn().mockResolvedValue(undefined),
 }));
+// Chunk 9: buildAuthenticatedSession now also issues a refresh token. This file mocks User with
+// plain fixture objects (non-ObjectId _id strings), so session.services (which does a real
+// Mongoose write) must be mocked out here — it's exercised for real in session.services.test.js.
+jest.mock('../services/session.services', () => ({
+  issueRefreshToken: jest.fn().mockResolvedValue({ plainToken: 'mock-refresh-token', doc: {} }),
+  revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
+  revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+  REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 

@@ -5,7 +5,9 @@ const {
   cancelSubscription,
   getSubscription,
 } = require('../services/stripe.services');
-const { generateToken } = require('../services/auth.services');
+const { generateToken, accessTokenExpiryForRole } = require('../services/auth.services');
+const sessionService = require('../services/session.services');
+const { setRefreshCookie } = require('../config/refreshCookie');
 const { hasProcessedEvent, recordProcessedEvent } = require('../services/stripeWebhookIdempotency.service');
 const logger = require('../config/logger');
 
@@ -105,7 +107,7 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
 
     if (userId) {
       // Get user with subscription and terms fields
-      user = await User.findById(userId).select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate +stripeCustomerId');
+      user = await User.findById(userId).select('+stripeSubscriptionId +subscriptionStatus +subscriptionCurrentPeriodEnd +subscriptionStartDate +stripeCustomerId +tokenVersion');
       // Remove password from response
       if (user && user.password) {
         user.password = undefined;
@@ -179,7 +181,12 @@ exports.getCheckoutSessionDetails = async (req, res, next) => {
       }
 
       // Generate JWT so the frontend can log the parent in immediately.
-      token = generateToken(user._id);
+      token = generateToken(user._id, user.tokenVersion || 0, accessTokenExpiryForRole(user.role));
+      const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, {
+        userAgent: req.headers['user-agent'] || null,
+        ip: req.ip || null,
+      });
+      setRefreshCookie(res, refreshToken, sessionService.REFRESH_TOKEN_TTL_MS);
     }
 
     // Refresh user data after potential update

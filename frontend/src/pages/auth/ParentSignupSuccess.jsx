@@ -5,6 +5,7 @@ import { Box, Container, Card, CardContent, Typography, CircularProgress, Button
 import AuthLogo from '../../components/auth/AuthLogo';
 import stripeService from '../../services/stripeService';
 import { setUser } from '../../store/slices/userSlice';
+import { setAccessToken } from '../../services/tokenStore';
 
 const ParentSignupSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -30,9 +31,9 @@ const ParentSignupSuccess = () => {
         const data = await stripeService.verifyCheckoutSession(sessionId);
 
         if (data?.token && data?.user) {
-          // Persist auth like normal login
-          sessionStorage.setItem('token', data.token);
-          sessionStorage.setItem('user', JSON.stringify(data.user));
+          // Persist auth like normal login (Chunk 9: in-memory token + a refresh cookie the
+          // backend already set on this same response — nothing goes into sessionStorage)
+          setAccessToken(data.token);
 
           // Update Redux auth state (isAuthenticated, user)
           dispatch(setUser(data.user));

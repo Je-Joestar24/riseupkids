@@ -1,10 +1,17 @@
 import api from '../api/axios';
+import { setAccessToken, clearAccessToken } from './tokenStore';
 
 /**
  * Authentication Service
- * 
- * Handles all authentication-related API calls
- * Uses sessionStorage for token and user data
+ *
+ * Handles all authentication-related API calls.
+ *
+ * Chunk 9 (RUK-SEC-012(b)): the access token is held in memory only (services/tokenStore.js),
+ * never in sessionStorage/localStorage — same for user/childProfiles/childProfile/parent, which
+ * now live in Redux only. The refresh token is an httpOnly cookie the browser manages entirely on
+ * its own; this file never touches it directly. A hard reload / new tab / reopened tab has none
+ * of this in memory, which is expected — see bootstrapSession() below, called once at app boot,
+ * which silently re-establishes the session from the cookie before anything protected renders.
  */
 
 const authService = {
@@ -14,22 +21,12 @@ const authService = {
    * @param {String} userData.name - User's name
    * @param {String} userData.email - User's email
    * @param {String} userData.password - User's password
-   * @param {String} userData.role - User's role (admin, parent, child)
-   * @param {String} [userData.linkedParent] - Parent ID (required if role is child)
    * @returns {Promise} API response with user data and token
    */
   register: async (userData) => {
     try {
       const response = await api.post('/auth/register', userData);
-      
-      // Save token and user to sessionStorage
-      if (response.data.data?.token) {
-        sessionStorage.setItem('token', response.data.data.token);
-      }
-      if (response.data.data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      
+      authService.persistSession(response.data.data);
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -37,25 +34,15 @@ const authService = {
   },
 
   /**
-   * Persist authenticated session fields from a login / verify-otp payload.
+   * Store the access token from a login / verify-otp / register payload. Everything else
+   * (user, childProfiles, childProfile, parent) is handled by the Redux thunk that called this —
+   * it goes straight into store state, never into any browser storage.
    * @param {Object} data - { token, user, childProfiles?, childProfile?, parent? }
    */
   persistSession: (data) => {
     if (!data) return;
     if (data.token) {
-      sessionStorage.setItem('token', data.token);
-    }
-    if (data.user) {
-      sessionStorage.setItem('user', JSON.stringify(data.user));
-    }
-    if (data.childProfiles) {
-      sessionStorage.setItem('childProfiles', JSON.stringify(data.childProfiles));
-    }
-    if (data.childProfile) {
-      sessionStorage.setItem('childProfile', JSON.stringify(data.childProfile));
-    }
-    if (data.parent) {
-      sessionStorage.setItem('parent', JSON.stringify(data.parent));
+      setAccessToken(data.token);
     }
   },
 
@@ -120,32 +107,42 @@ const authService = {
   },
 
   /**
-   * Get current authenticated user
+   * Get current authenticated user. Caller (the Redux thunk) puts the result in store state —
+   * nothing here touches browser storage.
    * @returns {Promise} API response with current user data
    */
   getCurrentUser: async () => {
     try {
       const response = await api.get('/auth/me');
-      
-      // Update user in sessionStorage
-      if (response.data.data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      
-      // Update additional data if available
-      if (response.data.data?.childProfiles) {
-        sessionStorage.setItem('childProfiles', JSON.stringify(response.data.data.childProfiles));
-      }
-      if (response.data.data?.childProfile) {
-        sessionStorage.setItem('childProfile', JSON.stringify(response.data.data.childProfile));
-      }
-      if (response.data.data?.parent) {
-        sessionStorage.setItem('parent', JSON.stringify(response.data.data.parent));
-      }
-      
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Silently re-establish a session from the httpOnly refresh cookie — called once at app boot
+   * (hard reload / new tab / reopened tab), since nothing about the session survives in memory
+   * across those. Never throws: a visitor with no valid refresh cookie is a normal, expected
+   * outcome (not logged in yet), not an error.
+   * @returns {Promise<{ authenticated: boolean, user?: object, childProfiles?: object[] }>}
+   */
+  bootstrapSession: async () => {
+    try {
+      const refreshRes = await api.post('/auth/refresh');
+      const newToken = refreshRes.data?.data?.token;
+      if (!newToken) return { authenticated: false };
+      setAccessToken(newToken);
+
+      const meRes = await api.get('/auth/me');
+      return {
+        authenticated: true,
+        user: meRes.data?.data?.user ?? null,
+        childProfiles: meRes.data?.data?.childProfiles ?? null,
+      };
+    } catch (error) {
+      clearAccessToken();
+      return { authenticated: false };
     }
   },
 
@@ -156,23 +153,12 @@ const authService = {
   logout: async () => {
     try {
       const response = await api.post('/auth/logout');
-      
-      // Clear sessionStorage
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      sessionStorage.removeItem('childProfiles');
-      sessionStorage.removeItem('childProfile');
-      sessionStorage.removeItem('parent');
-      
+      clearAccessToken();
       return response.data;
     } catch (error) {
-      // Even if API call fails, clear local storage
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      sessionStorage.removeItem('childProfiles');
-      sessionStorage.removeItem('childProfile');
-      sessionStorage.removeItem('parent');
-      
+      // Even if the API call fails, clear the in-memory token — the UI treats the user as
+      // logged out either way.
+      clearAccessToken();
       throw error.response?.data || error.message;
     }
   },
@@ -185,12 +171,6 @@ const authService = {
   updateProfile: async (profileData) => {
     try {
       const response = await api.put('/auth/update-profile', profileData);
-      
-      // Update user in sessionStorage
-      if (response.data.data?.user) {
-        sessionStorage.setItem('user', JSON.stringify(response.data.data.user));
-      }
-      
       return response.data;
     } catch (error) {
       throw error.response?.data || error.message;
@@ -233,35 +213,6 @@ const authService = {
   },
 
   /**
-   * Get user from sessionStorage
-   * @returns {Object|null} User object or null
-   */
-  getUserFromStorage: () => {
-    try {
-      const user = sessionStorage.getItem('user');
-      return user ? JSON.parse(user) : null;
-    } catch (error) {
-      return null;
-    }
-  },
-
-  /**
-   * Get token from sessionStorage
-   * @returns {String|null} Token or null
-   */
-  getTokenFromStorage: () => {
-    return sessionStorage.getItem('token');
-  },
-
-  /**
-   * Check if user is authenticated
-   * @returns {Boolean} True if token exists
-   */
-  isAuthenticated: () => {
-    return !!sessionStorage.getItem('token');
-  },
-
-  /**
    * Get Terms & Conditions content (public).
    * Used by TermsConditionServicesModal to display terms text.
    * @returns {Promise<{ content: string }>} API response data with content
@@ -272,14 +223,13 @@ const authService = {
   },
 
   /**
-   * Soft logout - clears child context but keeps token
-   * Used when switching from child view to parent dashboard
+   * Soft logout - clears only the child-selection context (session/user stay intact — they're
+   * held in memory/Redux, not sessionStorage, so there's nothing else to clear here).
+   * Used when switching from child view to parent dashboard.
    */
   softLogout: () => {
-    // Clear child context
     sessionStorage.removeItem('selectedChildId');
     sessionStorage.removeItem('selectedChild');
-    // Keep token and user data for parent dashboard access
   },
 };
 

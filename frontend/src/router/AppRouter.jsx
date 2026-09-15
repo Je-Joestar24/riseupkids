@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { BrowserRouter, Routes, Route, useParams, Navigate } from 'react-router-dom';
+import { bootstrapSession } from '../store/slices/userSlice';
 import AuthLogin from '../pages/auth/AuthLogin';
 import AdminLoginOtp from '../pages/auth/AdminLoginOtp';
 import ForgetPassword from '../pages/auth/ForgetPassword';
@@ -66,6 +68,17 @@ const ChildRouteWrapper = ({ children }) => {
 };
 
 const AppRouter = () => {
+  const dispatch = useDispatch();
+
+  // Chunk 9 (RUK-SEC-012(b)): fires exactly once per real page load (hard reload / new tab /
+  // reopened tab / a deep link opened fresh) — NOT on in-app client-side navigation, since this
+  // component never unmounts for that. This is what silently re-establishes a session from the
+  // httpOnly refresh cookie before any protected route renders (state.user.loading starts true
+  // specifically so AuthedAccess/UnAuthed wait for this instead of racing it).
+  useEffect(() => {
+    dispatch(bootstrapSession());
+  }, [dispatch]);
+
   return (
     <BrowserRouter>
       <Routes>

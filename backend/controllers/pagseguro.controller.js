@@ -9,7 +9,9 @@
 
 const User = require('../models/User');
 const PagSeguroCheckout = require('../models/PagSeguroCheckout');
-const { generateToken } = require('../services/auth.services');
+const { generateToken, accessTokenExpiryForRole } = require('../services/auth.services');
+const sessionService = require('../services/session.services');
+const { setRefreshCookie } = require('../config/refreshCookie');
 const {
   getPagseguroConfig,
   createPagbankCheckout,
@@ -202,7 +204,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
         setTermsIp: clientIp,
       });
 
-      const user = await User.findById(record.userId).select('-password');
+      const user = await User.findById(record.userId).select('-password +tokenVersion');
       if (!user) {
         return res.status(404).json({ success: false, message: 'User not found.' });
       }
@@ -212,7 +214,12 @@ exports.getCheckoutDetails = async (req, res, next) => {
         await user.save();
       }
 
-      const token = generateToken(user._id);
+      const token = generateToken(user._id, user.tokenVersion || 0, accessTokenExpiryForRole(user.role));
+      const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, {
+        userAgent: req.headers['user-agent'] || null,
+        ip: clientIp,
+      });
+      setRefreshCookie(res, refreshToken, sessionService.REFRESH_TOKEN_TTL_MS);
       const userResponse = await User.findById(record.userId).select('-password').lean();
 
       return res.json({
@@ -282,7 +289,7 @@ exports.getCheckoutDetails = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(record.userId).select('-password');
+    const user = await User.findById(record.userId).select('-password +tokenVersion');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
@@ -292,7 +299,12 @@ exports.getCheckoutDetails = async (req, res, next) => {
       await user.save();
     }
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tokenVersion || 0, accessTokenExpiryForRole(user.role));
+    const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, {
+      userAgent: req.headers['user-agent'] || null,
+      ip: clientIp,
+    });
+    setRefreshCookie(res, refreshToken, sessionService.REFRESH_TOKEN_TTL_MS);
     const userResponse = await User.findById(record.userId).select('-password').lean();
 
     return res.json({

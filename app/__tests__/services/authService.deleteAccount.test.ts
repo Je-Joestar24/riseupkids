@@ -47,21 +47,39 @@ describe('authService.deleteAccount', () => {
 });
 
 describe('authService.logout', () => {
+  const AsyncStorageFull = jest.requireMock('@react-native-async-storage/async-storage') as {
+    getItem: jest.Mock;
+    multiRemove: jest.Mock;
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('posts logout and clears storage', async () => {
+  it('posts logout with no body when there is no stored refresh token, and clears storage', async () => {
+    AsyncStorageFull.getItem.mockResolvedValue(null);
     api.post.mockResolvedValue({ success: true });
     AsyncStorage.multiRemove.mockResolvedValue(undefined);
 
     await authService.logout();
 
-    expect(api.post).toHaveBeenCalledWith('/auth/logout');
+    expect(api.post).toHaveBeenCalledWith('/auth/logout', undefined);
+    expect(AsyncStorage.multiRemove).toHaveBeenCalled();
+  });
+
+  it('posts the stored refresh token in the body (Chunk 9 — mobile has no cookie jar)', async () => {
+    AsyncStorageFull.getItem.mockResolvedValue('stored-refresh-token');
+    api.post.mockResolvedValue({ success: true });
+    AsyncStorage.multiRemove.mockResolvedValue(undefined);
+
+    await authService.logout();
+
+    expect(api.post).toHaveBeenCalledWith('/auth/logout', { refreshToken: 'stored-refresh-token' });
     expect(AsyncStorage.multiRemove).toHaveBeenCalled();
   });
 
   it('still clears storage when logout API fails', async () => {
+    AsyncStorageFull.getItem.mockResolvedValue(null);
     api.post.mockRejectedValue(new Error('Network error'));
     AsyncStorage.multiRemove.mockResolvedValue(undefined);
 

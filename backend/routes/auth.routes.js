@@ -9,6 +9,10 @@ const {
   resendLoginOtp,
   getMe,
   logout,
+  logoutAll,
+  refresh,
+  getSessions,
+  revokeSession,
   updateProfile,
   changePassword,
   deleteAccount,
@@ -21,6 +25,7 @@ const {
   loginLimiter,
   registerLimiter,
   passwordResetLimiter,
+  refreshLimiter,
 } = require('../middleware/rateLimit');
 
 /**
@@ -55,9 +60,19 @@ router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
 router.get('/terms', getTerms);
 
+// Authenticated by the httpOnly refresh cookie, not a Bearer token — no `protect` (Chunk 9).
+router.post('/refresh', refreshLimiter, refresh);
+
+// Logout only needs the refresh cookie (not `protect`) — it must still work to clean up a
+// session even when the access token has already expired, which is often exactly when a user
+// reaches for "log out".
+router.post('/logout', logout);
+
 // Protected routes (require authentication)
 router.get('/me', protect, getMe);
-router.post('/logout', protect, logout);
+router.post('/logout-all', protect, logoutAll);
+router.get('/sessions', protect, getSessions);
+router.delete('/sessions/:id', protect, revokeSession);
 router.put('/update-profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.post('/delete-account', protect, deleteAccount);

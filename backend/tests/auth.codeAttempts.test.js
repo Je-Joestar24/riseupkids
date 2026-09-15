@@ -23,6 +23,15 @@ jest.mock('../services/loginLockout.service', () => ({
   registerFailedLogin: jest.fn(),
   clearFailedLogins: jest.fn(),
 }));
+// Chunk 9: verifyLoginOtp/resetPassword now also touch session.services (a real Mongoose write).
+// This file's User fixtures use non-ObjectId _id strings, so it's mocked out here — exercised
+// for real in session.services.test.js.
+jest.mock('../services/session.services', () => ({
+  issueRefreshToken: jest.fn().mockResolvedValue({ plainToken: 'mock-refresh-token', doc: {} }),
+  revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
+  revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+  REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
 
 const { User, LoginOtpToken, PasswordResetToken } = require('../models');
 const authService = require('../services/auth.services');

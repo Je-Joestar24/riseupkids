@@ -27,8 +27,9 @@ import { useNotificationPushRegistration } from '@/hooks/useNotificationPushRegi
 import { useNotificationTapRouting } from '@/hooks/useNotificationTapRouting';
 import { useStartupPermissions } from '@/hooks/useStartupPermissions';
 import { PushDebugPanel } from '@/components/notifications/push-debug-panel';
-import { setTokenGetter } from '@/services/tokenBridge';
+import { setTokenGetter, setRefreshFn } from '@/services/tokenBridge';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useSessionForegroundRefresh } from '@/hooks/useSessionForegroundRefresh';
 import { restoreAndroidImmersiveDefault } from '@/utils/androidNavigationBar';
 import { hideSplashScreen, initSplashScreen } from '@/utils/splashScreen';
 
@@ -45,7 +46,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     setTokenGetter(() => useAuthStore.getState().token);
+    // Chunk 9 Phase C: bridges api.ts's reactive 401-retry to the store's refreshSession, so a
+    // successful silent refresh also updates isAuthenticated/token here, not just AsyncStorage.
+    setRefreshFn(() => useAuthStore.getState().refreshSession());
   }, []);
+
+  // Chunk 9 Phase C: silent refresh whenever the app returns to the foreground (the access token
+  // may well have expired while backgrounded) — mirrors the launch-time refresh in hydrate().
+  useSessionForegroundRefresh();
 
   const [fontsLoaded] = useFonts({
     Quicksand_400Regular,

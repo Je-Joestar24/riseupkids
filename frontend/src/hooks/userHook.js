@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -16,7 +15,7 @@ import authService from '../services/authService';
 
 /**
  * Custom hook for user authentication
- * 
+ *
  * Provides easy access to user state and authentication methods
  */
 export const useAuth = () => {
@@ -25,22 +24,9 @@ export const useAuth = () => {
   const { user, token, isAuthenticated, loading, error, childProfiles, childProfile, parent } = useSelector(
     (state) => state.user
   );
-  const didBootstrapUserRef = useRef(false);
-
-  // Bootstrap user data whenever we have a token but no user in state yet.
-  // This fixes cases where login stores token but UI mounts before user is available,
-  // and also supports refreshing with a token present.
-  useEffect(() => {
-    if (!token || !isAuthenticated) {
-      didBootstrapUserRef.current = false;
-      return;
-    }
-    if (user || loading) return;
-    if (didBootstrapUserRef.current) return;
-
-    didBootstrapUserRef.current = true;
-    dispatch(getCurrentUser());
-  }, [dispatch, token, isAuthenticated, user, loading]);
+  // Chunk 9: session bootstrap on cold load now happens exactly once, at the router root (see
+  // router/AppRouter.jsx's bootstrapSession() dispatch) — no reactive "fetch user if we have a
+  // token" effect needed here anymore, since token/user always arrive together now.
 
   /**
    * Login user
@@ -214,13 +200,18 @@ export const useAuth = () => {
   const changeUserPassword = async (currentPassword, newPassword) => {
     try {
       const result = await dispatch(changePassword({ currentPassword, newPassword })).unwrap();
-      
-      // Show success notification
+
+      // Chunk 9: the backend now revokes every session (including this one) on a password
+      // change, for security — the current access token stops working on its very next use.
+      // Clear the local session and send the user back to login here too, so that's a clean,
+      // expected redirect rather than a surprise 401 the next time they click something.
       dispatch(showNotification({
-        message: 'Password changed successfully!',
+        message: result?.message || 'Password changed successfully. Please log in again.',
         type: 'success',
       }));
-      
+      await dispatch(logoutUser());
+      navigate('/login');
+
       return result;
     } catch (error) {
       // Show error notification

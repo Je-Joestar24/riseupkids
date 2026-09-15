@@ -13,6 +13,15 @@ jest.mock('../models', () => ({
   PasswordResetToken: { deleteMany: jest.fn(), create: jest.fn(), findOne: jest.fn() },
   LoginOtpToken: { deleteMany: jest.fn(), create: jest.fn(), findOne: jest.fn() },
 }));
+// Chunk 9: register() now also issues a refresh token. This file uses a fixture _id
+// ("new-user-id") that isn't a real ObjectId, so session.services (a real Mongoose write) is
+// mocked out here — it's exercised for real in session.services.test.js.
+jest.mock('../services/session.services', () => ({
+  issueRefreshToken: jest.fn().mockResolvedValue({ plainToken: 'mock-refresh-token', doc: {} }),
+  revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
+  revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+  REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
 
 const { User } = require('../models');
 const authService = require('../services/auth.services');

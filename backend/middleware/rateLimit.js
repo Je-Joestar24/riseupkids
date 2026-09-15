@@ -76,6 +76,16 @@ const passwordResetLimiter = makeAuthLimiter({
 });
 
 /**
+ * Refresh-token exchange (Chunk 9). Authenticated by the httpOnly cookie rather than a
+ * password, but still worth capping per-IP — a leaked/stolen refresh token being hammered, or a
+ * client stuck in a refresh loop, shouldn't be free to retry unbounded.
+ */
+const refreshLimiter = makeAuthLimiter({
+  windowMs: envInt('AUTH_REFRESH_WINDOW_MS', 15 * MINUTE),
+  limit: envInt('AUTH_REFRESH_MAX', 60),
+});
+
+/**
  * Unauthenticated public lead/contact forms (RUK-SEC-022): the sales-site "invitation" and
  * "school application" forms. They write to the DB and push to a third-party email service, so
  * they're a spam / cost-amplification target. A person submits once; a school NAT a handful.
@@ -91,5 +101,6 @@ module.exports = {
   loginLimiter,
   registerLimiter,
   passwordResetLimiter,
+  refreshLimiter,
   publicFormLimiter,
 };

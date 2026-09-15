@@ -10,6 +10,7 @@ const {
   registerFailedLogin,
   clearFailedLogins,
 } = require('./loginLockout.service');
+const sessionService = require('./session.services');
 
 /** Expiry for admin login OTP codes (10 minutes) */
 const LOGIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
@@ -80,9 +81,11 @@ const issueAdminLoginOtp = async (user) => {
 /**
  * Build the standard post-auth payload (user + JWT + role extras).
  * @param {import('mongoose').Document} user - User document (password may be selected)
- * @returns {Promise<{ user: object, token: string, childProfiles?: object[] }>}
+ * @param {{ deviceLabel?: string, userAgent?: string, ip?: string }} [meta] - for the refresh
+ *   token's session record (Chunk 9)
+ * @returns {Promise<{ user: object, token: string, refreshToken: string, childProfiles?: object[] }>}
  */
-const buildAuthenticatedSession = async (user) => {
+const buildAuthenticatedSession = async (user, meta = {}) => {
   const userData = await User.findById(user._id).select('-password');
   let additionalData = {};
 
@@ -110,27 +113,52 @@ const buildAuthenticatedSession = async (user) => {
     additionalData.childProfiles = childProfilesWithStats;
   }
 
-  const token = generateToken(user._id);
+  // tokenVersion is select:false — a fresh, minimal lookup rather than trusting the caller's
+  // `user` doc to have it selected (most callers don't select it, and it must never leak into
+  // `userData`/the JSON response, which is why it's not just added to the select above).
+  const versionDoc = await User.findById(user._id).select('tokenVersion');
+  const token = generateToken(user._id, versionDoc?.tokenVersion || 0, accessTokenExpiryForRole(user.role));
+  const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, meta);
 
   return {
     user: userData,
     token,
+    refreshToken,
     ...additionalData,
   };
 };
 
 /**
  * Generate JWT Token
- * 
- * Creates a signed JWT token with user ID
- * 
+ *
+ * Creates a signed JWT token with user ID and the token-version claim used for early
+ * invalidation (Chunk 9 — see middleware/auth.js). `tokenVersion` defaults to 0 so existing call
+ * sites that don't pass it (post-payment auto-login in checkout/stripe/pagseguro controllers)
+ * keep working unchanged — 0 is also every user's default value.
+ *
  * @param {String} userId - User's MongoDB ID
+ * @param {Number} [tokenVersion=0]
+ * @param {String} [expiresIn] - defaults to JWT_EXPIRE (or role-specific, see accessTokenExpiryForRole)
  * @returns {String} JWT token
  */
-const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE || '7d',
+const generateToken = (userId, tokenVersion = 0, expiresIn) => {
+  return jwt.sign({ id: userId, tokenVersion }, process.env.JWT_SECRET, {
+    expiresIn: expiresIn || process.env.JWT_EXPIRE || '7d',
   });
+};
+
+/**
+ * Chunk 9 interim step: shorten privileged-role token lifespan now, ahead of the full
+ * refresh-token rollout landing on the web frontend. Parent/content_creator keep the existing
+ * long-lived token for now — a short TTL with no working silent-refresh on the client would just
+ * log them out with no way to recover until Phase B ships.
+ * @param {String} role
+ * @returns {String}
+ */
+const accessTokenExpiryForRole = (role) => {
+  if (role === 'admin') return process.env.JWT_EXPIRE_ADMIN || '15m';
+  if (role === 'teacher') return process.env.JWT_EXPIRE_TEACHER || '1h';
+  return process.env.JWT_EXPIRE || '7d';
 };
 
 /**
@@ -149,7 +177,7 @@ const generateToken = (userId) => {
  * @returns {Object} User object with token
  * @throws {Error} If validation fails or user already exists
  */
-const register = async (userData) => {
+const register = async (userData, meta = {}) => {
   const { name, email, password } = userData;
 
   // Validate required fields
@@ -172,8 +200,9 @@ const register = async (userData) => {
     role: 'parent',
   });
 
-  // Generate token
-  const token = generateToken(user._id);
+  // Generate token — freshly-created user, tokenVersion is always 0.
+  const token = generateToken(user._id, 0, accessTokenExpiryForRole(user.role));
+  const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, meta);
 
   // Get user data (exclude password)
   const userDataResponse = await User.findById(user._id).select('-password');
@@ -181,6 +210,7 @@ const register = async (userData) => {
   return {
     user: userDataResponse,
     token,
+    refreshToken,
   };
 };
 
@@ -195,7 +225,7 @@ const register = async (userData) => {
  * @returns {Object} Session payload, or { requiresOtp: true, email } for admins
  * @throws {Error} If credentials are invalid
  */
-const login = async (email, password) => {
+const login = async (email, password, meta = {}) => {
   if (!email || !password) {
     throw new Error('Please provide email and password');
   }
@@ -253,16 +283,17 @@ const login = async (email, password) => {
   user.lastLogin = new Date();
   await user.save();
 
-  return buildAuthenticatedSession(user);
+  return buildAuthenticatedSession(user, meta);
 };
 
 /**
  * Verify admin login OTP and issue JWT session.
  * @param {string} email
  * @param {string} code - 6-digit code
- * @returns {Promise<{ user: object, token: string }>}
+ * @param {{ deviceLabel?: string, userAgent?: string, ip?: string }} [meta]
+ * @returns {Promise<{ user: object, token: string, refreshToken: string }>}
  */
-const verifyLoginOtp = async (email, code) => {
+const verifyLoginOtp = async (email, code, meta = {}) => {
   const normalized = (email || '').toString().trim().toLowerCase();
   const codeStr = normalizeOtpCode(code);
 
@@ -303,7 +334,7 @@ const verifyLoginOtp = async (email, code) => {
   user.lastLogin = new Date();
   await user.save();
 
-  return buildAuthenticatedSession(user);
+  return buildAuthenticatedSession(user, meta);
 };
 
 /**
@@ -400,20 +431,32 @@ const getCurrentUser = async (userId) => {
 };
 
 /**
- * Logout Service
- * 
- * Currently, logout is handled client-side by removing token
- * This service can be extended for token blacklisting if needed
- * 
- * @param {String} userId - User's MongoDB ID
- * @returns {Object} Success message
+ * Logout Service (Chunk 9)
+ *
+ * Revokes the refresh token behind the current session so it can no longer be used to mint new
+ * access tokens. The (still short-lived) access token already issued naturally expires on its
+ * own — there is no access-token blacklist, only refresh-token revocation, matching the plan's
+ * short-access/long-refresh design. Safe to call with a missing/already-revoked refresh token —
+ * a logout must never fail because the cookie was stale.
+ *
+ * @param {string} [refreshTokenPlain] - the plaintext refresh token from the httpOnly cookie
+ * @returns {Promise<{ message: string }>}
  */
-const logout = async (userId) => {
-  // For now, logout is handled client-side
-  // Future: Can implement token blacklisting here
+const logout = async (refreshTokenPlain) => {
+  await sessionService.revokeRefreshToken(refreshTokenPlain);
   return {
     message: 'Logged out successfully',
   };
+};
+
+/**
+ * "Sign Out Everywhere" (Chunk 9) — revoke every active refresh token for the user.
+ * @param {string} userId
+ * @returns {Promise<{ message: string }>}
+ */
+const logoutAll = async (userId) => {
+  await sessionService.revokeAllForUser(userId);
+  return { message: 'Signed out of all devices.' };
 };
 
 /**
@@ -484,7 +527,7 @@ const resetPassword = async (email, code, newPassword) => {
   }
 
   const user = await User.findOne({ email: normalized }).select(
-    '+password +failedLoginAttempts +lockUntil +lastFailedLoginAt'
+    '+password +failedLoginAttempts +lockUntil +lastFailedLoginAt +tokenVersion'
   );
   if (!user) {
     throw new Error('Invalid or expired reset code');
@@ -511,7 +554,12 @@ const resetPassword = async (email, code, newPassword) => {
   }
 
   user.password = newPassword;
+  // Chunk 9: a password reset must invalidate every existing session, not just future logins —
+  // otherwise a still-unexpired token from before the reset (and any account takeover it may have
+  // been part of) keeps working for up to its full remaining lifetime.
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
   await user.save();
+  await sessionService.revokeAllForUser(user._id);
 
   // A successful reset also clears any lockout — otherwise the user resets their password and is
   // still locked out (RUK-SEC-007).
@@ -527,7 +575,9 @@ module.exports = {
   resendLoginOtp,
   getCurrentUser,
   logout,
+  logoutAll,
   generateToken,
+  accessTokenExpiryForRole,
   getTermsContent,
   forgotPassword,
   resetPassword,

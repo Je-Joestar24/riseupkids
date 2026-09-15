@@ -1,7 +1,39 @@
 const authService = require('../services/auth.services');
+const sessionService = require('../services/session.services');
 const accountDeletionService = require('../services/accountDeletion.service');
 const { subscribeToFlodesk } = require('../services/flodeskService');
+const {
+  setRefreshCookie,
+  clearRefreshCookie,
+  getRefreshToken,
+  isMobileClient,
+} = require('../config/refreshCookie');
 const logger = require('../config/logger');
+
+/** Chunk 9: request metadata attached to every new refresh-token session record. */
+const sessionMeta = (req) => ({
+  userAgent: req?.headers?.['user-agent'] || null,
+  ip: req?.ip || null,
+});
+
+/**
+ * Always sets the httpOnly refresh cookie (harmless if the caller is mobile and ignores it).
+ * For a browser, the plaintext refresh token is then stripped out of the JSON body — it must only
+ * ever leave the server as that cookie. Mobile has no cookie jar to rely on, so for a request
+ * tagged `X-Client-Platform: mobile` the token is instead kept in the body, where the app is
+ * responsible for storing it itself (see config/refreshCookie.js for the full rationale).
+ */
+const attachRefreshCookie = (req, res, result) => {
+  if (result && result.refreshToken) {
+    setRefreshCookie(res, result.refreshToken, sessionService.REFRESH_TOKEN_TTL_MS);
+    if (isMobileClient(req)) {
+      return result;
+    }
+    const { refreshToken, ...rest } = result;
+    return rest;
+  }
+  return result;
+};
 
 /**
  * @desc    Register a new PARENT account and subscribe to Flodesk
@@ -27,7 +59,7 @@ const registerUser = async (req, res) => {
       });
     }
 
-    const result = await authService.register({ name, email, password });
+    const result = await authService.register({ name, email, password }, sessionMeta(req));
 
     try {
       await subscribeToFlodesk(result.user.email);
@@ -38,7 +70,7 @@ const registerUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
-      data: result,
+      data: attachRefreshCookie(req, res, result),
     });
   } catch (error) {
     res.status(400).json({
@@ -122,7 +154,7 @@ const login = async (req, res) => {
       });
     }
 
-    const result = await authService.login(email, password);
+    const result = await authService.login(email, password, sessionMeta(req));
 
     if (result.requiresOtp) {
       return res.status(200).json({
@@ -138,7 +170,7 @@ const login = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: result,
+      data: attachRefreshCookie(req, res, result),
     });
   } catch (error) {
     res.status(401).json({
@@ -164,12 +196,12 @@ const verifyLoginOtp = async (req, res) => {
       });
     }
 
-    const result = await authService.verifyLoginOtp(email, code);
+    const result = await authService.verifyLoginOtp(email, code, sessionMeta(req));
 
     res.status(200).json({
       success: true,
       message: 'Login successful',
-      data: result,
+      data: attachRefreshCookie(req, res, result),
     });
   } catch (error) {
     res.status(401).json({
@@ -252,10 +284,8 @@ const getMe = async (req, res) => {
  */
 const logout = async (req, res) => {
   try {
-    const userId = req.user._id;
-
-    // Call service
-    const result = await authService.logout(userId);
+    const result = await authService.logout(getRefreshToken(req));
+    clearRefreshCookie(res);
 
     res.status(200).json({
       success: true,
@@ -266,6 +296,113 @@ const logout = async (req, res) => {
       success: false,
       message: error.message || 'Logout failed',
     });
+  }
+};
+
+/**
+ * @desc    "Sign Out Everywhere" — revoke every active session for the current user
+ * @route   POST /api/auth/logout-all
+ * @access  Private
+ */
+const logoutAll = async (req, res) => {
+  try {
+    const result = await authService.logoutAll(req.user._id);
+    clearRefreshCookie(res);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to sign out of all devices',
+    });
+  }
+};
+
+/**
+ * @desc    Exchange the refresh token for a new short-lived access token (rotates the refresh
+ *          token too). Called by the web axios interceptor on a 401, and by the mobile app on
+ *          launch/foreground and its own 401s. Authenticated by the refresh token itself — a
+ *          browser sends it via the httpOnly cookie, the mobile app sends it explicitly in the
+ *          body (tagged `X-Client-Platform: mobile`, see config/refreshCookie.js) — never a
+ *          Bearer access token, since there may not be a valid one at this point.
+ * @route   POST /api/auth/refresh
+ * @access  Public (authenticated by the refresh token: cookie for web, body for mobile)
+ */
+const refresh = async (req, res) => {
+  try {
+    const plainToken = getRefreshToken(req);
+    if (!plainToken) {
+      return res.status(401).json({ success: false, message: 'No session to refresh.' });
+    }
+
+    const result = await sessionService.rotateRefreshToken(plainToken, sessionMeta(req));
+    if (!result.ok) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+    }
+
+    const { User } = require('../models');
+    const user = await User.findById(result.userId).select('role isActive tokenVersion');
+    if (!user || !user.isActive) {
+      clearRefreshCookie(res);
+      return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
+    }
+
+    setRefreshCookie(res, result.plainToken, sessionService.REFRESH_TOKEN_TTL_MS);
+    const token = authService.generateToken(
+      user._id,
+      user.tokenVersion || 0,
+      authService.accessTokenExpiryForRole(user.role)
+    );
+
+    const data = { token };
+    if (isMobileClient(req)) {
+      // Mobile has no cookie jar — it must receive the newly rotated refresh token explicitly
+      // and store it itself, or the next refresh attempt has nothing to present.
+      data.refreshToken = result.plainToken;
+    }
+
+    res.status(200).json({ success: true, data });
+  } catch (error) {
+    // A DB/unexpected error here must be a 500, not a 401 — see middleware/auth.js for why
+    // conflating the two is dangerous (a client-side logout on a transient server error).
+    logger.error('[Auth] /refresh error:', error);
+    res.status(500).json({ success: false, message: 'Failed to refresh session.' });
+  }
+};
+
+/**
+ * @desc    List active sessions (devices) for the current user
+ * @route   GET /api/auth/sessions
+ * @access  Private
+ */
+const getSessions = async (req, res) => {
+  try {
+    const sessions = await sessionService.listActiveSessions(req.user._id);
+    res.status(200).json({ success: true, data: { sessions } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to load sessions.' });
+  }
+};
+
+/**
+ * @desc    Revoke one session by id — only ever the caller's own (ownership enforced in the
+ *          service query, not just by controller-level filtering)
+ * @route   DELETE /api/auth/sessions/:id
+ * @access  Private
+ */
+const revokeSession = async (req, res) => {
+  try {
+    const revoked = await sessionService.revokeSessionById(req.user._id, req.params.id);
+    if (!revoked) {
+      return res.status(404).json({ success: false, message: 'Session not found.' });
+    }
+    res.status(200).json({ success: true, message: 'Session revoked.' });
+  } catch (error) {
+    res.status(400).json({ success: false, message: 'Failed to revoke session.' });
   }
 };
 
@@ -357,7 +494,7 @@ const changePassword = async (req, res) => {
 
     // Get user with password
     const { User } = require('../models');
-    const user = await User.findById(userId).select('+password');
+    const user = await User.findById(userId).select('+password +tokenVersion');
 
     if (!user) {
       return res.status(404).json({
@@ -375,13 +512,18 @@ const changePassword = async (req, res) => {
       });
     }
 
-    // Update password
+    // Update password. Chunk 9: also invalidate every existing session — otherwise a token
+    // issued before this change (and any account takeover it may have been part of) keeps
+    // working until it naturally expires.
     user.password = newPassword;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
+    await sessionService.revokeAllForUser(user._id);
+    clearRefreshCookie(res);
 
     res.status(200).json({
       success: true,
-      message: 'Password changed successfully',
+      message: 'Password changed successfully. For security, you have been signed out everywhere.',
     });
   } catch (error) {
     res.status(400).json({
@@ -517,6 +659,10 @@ module.exports = {
   resendLoginOtp,
   getMe,
   logout,
+  logoutAll,
+  refresh,
+  getSessions,
+  revokeSession,
   updateProfile,
   changePassword,
   deleteAccount,

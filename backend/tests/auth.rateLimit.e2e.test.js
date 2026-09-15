@@ -16,6 +16,8 @@ const RL_ENV = {
   AUTH_REGISTER_WINDOW_MS: '60000',
   AUTH_PASSWORD_RESET_MAX: '2',
   AUTH_PASSWORD_RESET_WINDOW_MS: '60000',
+  AUTH_REFRESH_MAX: '2',
+  AUTH_REFRESH_WINDOW_MS: '60000',
 };
 const RL_ENV_SNAPSHOT = {};
 for (const [k, v] of Object.entries(RL_ENV)) {
@@ -34,6 +36,10 @@ jest.mock('../controllers/auth.controller', () => {
     resendLoginOtp: make('resendLoginOtp'),
     getMe: make('getMe'),
     logout: make('logout'),
+    logoutAll: make('logoutAll'),
+    refresh: make('refresh'),
+    getSessions: make('getSessions'),
+    revokeSession: make('revokeSession'),
     updateProfile: make('updateProfile'),
     changePassword: make('changePassword'),
     deleteAccount: make('deleteAccount'),
@@ -128,6 +134,17 @@ describe('auth.routes.js rate limiting (e2e)', () => {
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
     expect(c.status).toBe(429); // 3rd call across the shared bucket
+  });
+
+  it('POST /api/auth/refresh uses its own budget (AUTH_REFRESH_MAX = 2), independent of login', async () => {
+    const app = buildApp();
+    const ip = nextIp();
+
+    expect(await hit(app, 'post', '/api/auth/refresh', ip, 3)).toEqual([200, 200, 429]);
+
+    // login budget for the same IP is untouched — different limiter
+    const login = await request(app).post('/api/auth/login').set('X-Forwarded-For', ip).send({});
+    expect(login.status).toBe(200);
   });
 
   it('GET /api/auth/terms is not rate limited', async () => {

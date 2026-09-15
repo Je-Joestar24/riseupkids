@@ -6,7 +6,9 @@
 const User = require('../models/User');
 const { getCheckoutConfig, createFamilyPlanCheckoutSession } = require('../services/checkout.services');
 const { getCheckoutSession } = require('../services/stripe.services');
-const { generateToken } = require('../services/auth.services');
+const { generateToken, accessTokenExpiryForRole } = require('../services/auth.services');
+const sessionService = require('../services/session.services');
+const { setRefreshCookie } = require('../config/refreshCookie');
 
 /**
  * GET /api/checkout/config
@@ -102,7 +104,7 @@ exports.getSessionDetails = async (req, res, next) => {
       });
     }
 
-    const user = await User.findById(userId).select('+stripeCustomerId');
+    const user = await User.findById(userId).select('+stripeCustomerId +tokenVersion');
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -123,7 +125,12 @@ exports.getSessionDetails = async (req, res, next) => {
     }
     if (updated) await user.save();
 
-    const token = generateToken(user._id);
+    const token = generateToken(user._id, user.tokenVersion || 0, accessTokenExpiryForRole(user.role));
+    const { plainToken: refreshToken } = await sessionService.issueRefreshToken(user._id, {
+      userAgent: req.headers['user-agent'] || null,
+      ip: clientIp,
+    });
+    setRefreshCookie(res, refreshToken, sessionService.REFRESH_TOKEN_TTL_MS);
     const userResponse = await User.findById(userId)
       .select('-password')
       .lean();
