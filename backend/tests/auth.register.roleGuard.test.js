@@ -22,6 +22,14 @@ jest.mock('../services/session.services', () => ({
   revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
 }));
+// Chunk 10: register() now also enforces the password policy (length + a real HIBP network
+// call). This file is about the role guard, not password policy (which has its own dedicated
+// test file), so it's mocked out here to stay deterministic and network-free.
+jest.mock('../services/passwordPolicy.service', () => ({
+  assertPasswordPolicy: jest.fn().mockResolvedValue(undefined),
+  validatePasswordLength: jest.fn(),
+  MIN_LENGTH: 12,
+}));
 
 const { User } = require('../models');
 const authService = require('../services/auth.services');
@@ -32,7 +40,7 @@ describe('auth.services register — role guard', () => {
     process.env.JWT_SECRET = 'test-only-secret-used-to-sign-tokens-in-tests';
   });
 
-  const baseInput = { name: 'Someone', email: 'someone@example.com', password: 'password123' };
+  const baseInput = { name: 'Someone', email: 'someone@example.com', password: 'a-long-enough-test-password-1' };
 
   it.each(['admin', 'teacher', 'content_creator', 'ADMIN', 'Admin', '', undefined, null])(
     'creates role "parent" even when the caller supplies role=%p',

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   loginUser,
   verifyLoginOtpUser,
+  verifyLoginTwoFactorUser,
   registerUser,
   getCurrentUser,
   logoutUser,
@@ -21,9 +22,17 @@ import authService from '../services/authService';
 export const useAuth = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, token, isAuthenticated, loading, error, childProfiles, childProfile, parent } = useSelector(
-    (state) => state.user
-  );
+  const {
+    user,
+    token,
+    isAuthenticated,
+    loading,
+    error,
+    childProfiles,
+    childProfile,
+    parent,
+    twoFactorEnrollmentRequired,
+  } = useSelector((state) => state.user);
   // Chunk 9: session bootstrap on cold load now happens exactly once, at the router root (see
   // router/AppRouter.jsx's bootstrapSession() dispatch) — no reactive "fetch user if we have a
   // token" effect needed here anymore, since token/user always arrive together now.
@@ -66,6 +75,25 @@ export const useAuth = () => {
     } catch (error) {
       dispatch(showNotification({
         message: error || 'Invalid or expired verification code',
+        type: 'error',
+      }));
+      throw error;
+    }
+  };
+
+  /**
+   * Complete login with a TOTP code (or a recovery code) — any role, whenever 2FA is enabled
+   * @param {String} email
+   * @param {String} code
+   * @returns {Promise} Session result
+   */
+  const verifyLoginTwoFactor = async (email, code) => {
+    try {
+      const result = await dispatch(verifyLoginTwoFactorUser({ email, code })).unwrap();
+      return result;
+    } catch (error) {
+      dispatch(showNotification({
+        message: error || 'Invalid verification code',
         type: 'error',
       }));
       throw error;
@@ -241,9 +269,11 @@ export const useAuth = () => {
     childProfiles,
     childProfile,
     parent,
+    twoFactorEnrollmentRequired,
     // Methods
     login,
     verifyLoginOtp,
+    verifyLoginTwoFactor,
     resendLoginOtp,
     register,
     logout,

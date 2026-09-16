@@ -7,6 +7,7 @@ import {
   Link,
   Divider,
   InputBase,
+  TextField,
   CircularProgress,
 } from '@mui/material';
 import AuthLogo from '../../components/auth/AuthLogo';
@@ -20,17 +21,18 @@ const DIGIT_COUNT = 6;
 const boxSize = 48;
 
 /**
- * Admin login OTP page: 6 single-digit inputs (same UX as password-reset SendCode).
- * Email comes from location.state after a successful password login that returned requiresOtp.
- * Verifies via API, then hard-reloads into the admin dashboard.
+ * TOTP / recovery-code login completion (Chunk 10). Reached from AuthLoginForm when the
+ * password check returns `requiresTwoFactor` — any role, whenever that account has 2FA enabled.
+ * Same 6-box UX as the admin email-OTP page, plus a toggle to enter a recovery code instead.
  */
-const AdminLoginOtp = () => {
+const LoginTwoFactor = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { verifyLoginOtp, resendLoginOtp, loading } = useAuth();
+  const { verifyLoginTwoFactor, loading } = useAuth();
   const email = location.state?.email || '';
   const [digits, setDigits] = useState(Array(DIGIT_COUNT).fill(''));
-  const [resending, setResending] = useState(false);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [localError, setLocalError] = useState('');
   const inputRefs = useRef([]);
 
@@ -70,45 +72,35 @@ const AdminLoginOtp = () => {
     inputRefs.current[focusIdx]?.focus();
   };
 
-  const code = digits.join('');
-  const canSubmit = code.length === DIGIT_COUNT && !loading;
+  const totpCode = digits.join('');
+  const code = useRecoveryCode ? recoveryCode.trim() : totpCode;
+  const canSubmit = useRecoveryCode ? recoveryCode.trim().length >= 9 : totpCode.length === DIGIT_COUNT;
 
   const handleVerify = async () => {
-    if (!canSubmit || !email) return;
+    if (!canSubmit || loading || !email) return;
     setLocalError('');
     try {
-      const result = await verifyLoginOtp(email, code);
+      const result = await verifyLoginTwoFactor(email, code);
       window.location.assign(getPostLoginRedirectPath(result?.user, result?.twoFactorEnrollmentRequired));
     } catch (error) {
-      setLocalError(
-        error?.message || (typeof error === 'string' ? error : 'Invalid or expired verification code')
-      );
+      setLocalError(error?.message || (typeof error === 'string' ? error : 'Invalid verification code'));
       setDigits(Array(DIGIT_COUNT).fill(''));
+      setRecoveryCode('');
       inputRefs.current[0]?.focus();
     }
   };
 
-  const handleResend = async () => {
-    if (!email || resending) return;
-    setResending(true);
+  const toggleRecoveryCode = () => {
+    setUseRecoveryCode((prev) => !prev);
     setLocalError('');
-    try {
-      await resendLoginOtp(email);
-      setDigits(Array(DIGIT_COUNT).fill(''));
-      inputRefs.current[0]?.focus();
-    } catch (error) {
-      setLocalError(
-        error?.message || (typeof error === 'string' ? error : 'Unable to resend verification code')
-      );
-    } finally {
-      setResending(false);
-    }
+    setDigits(Array(DIGIT_COUNT).fill(''));
+    setRecoveryCode('');
   };
 
   if (!email) return null;
 
   return (
-    <Box className="auth-login-page" role="main" aria-label="Enter admin login verification code">
+    <Box className="auth-login-page" role="main" aria-label="Enter two-factor verification code">
       <Container maxWidth="sm" className="auth-login-container">
         <AuthLogo />
         <Card className="auth-login-card">
@@ -125,60 +117,68 @@ const AdminLoginOtp = () => {
               <Typography
                 variant="body2"
                 className="auth-form-subtitle"
-                sx={{
-                  fontWeight: '600',
-                  fontSize: '18px',
-                  margin: 'auto',
-                  marginBottom: '20px',
-                }}
+                sx={{ fontWeight: '600', fontSize: '18px', margin: 'auto', marginBottom: '20px' }}
               >
-                We sent a 6-digit admin login code to <strong>{email}</strong>. Enter it below.
+                {useRecoveryCode
+                  ? 'Enter one of your recovery codes.'
+                  : 'Enter the 6-digit code from your authenticator app.'}
               </Typography>
 
-              <Box
-                sx={{
-                  display: 'flex',
-                  gap: 1,
-                  justifyContent: 'center',
-                  marginBottom: 2,
-                }}
-                onPaste={handlePaste}
-                role="group"
-                aria-label="Six digit verification code"
-              >
-                {digits.map((d, i) => (
-                  <InputBase
-                    key={i}
-                    inputRef={(el) => {
-                      inputRefs.current[i] = el;
-                    }}
-                    inputProps={{
-                      maxLength: 1,
-                      'aria-label': `Digit ${i + 1} of 6`,
-                      inputMode: 'numeric',
-                      pattern: '[0-9]*',
-                      autoComplete: i === 0 ? 'one-time-code' : 'off',
-                    }}
-                    value={d}
-                    onChange={(e) => setDigit(i, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(i, e)}
-                    disabled={loading}
-                    sx={{
-                      width: boxSize,
-                      height: boxSize,
-                      border: '2px solid',
-                      borderColor: d ? 'primary.main' : 'divider',
-                      borderRadius: 1,
-                      fontSize: '1.5rem',
-                      fontWeight: 700,
-                      '& input': {
-                        textAlign: 'center',
-                        padding: 0,
-                      },
-                    }}
-                  />
-                ))}
-              </Box>
+              {useRecoveryCode ? (
+                <TextField
+                  fullWidth
+                  placeholder="ABCDE-12345"
+                  value={recoveryCode}
+                  onChange={(e) => {
+                    setRecoveryCode(e.target.value);
+                    setLocalError('');
+                  }}
+                  disabled={loading}
+                  inputProps={{
+                    'aria-label': 'Recovery code',
+                    autoComplete: 'one-time-code',
+                    style: { textAlign: 'center', fontSize: '1.25rem', fontWeight: 700, letterSpacing: 2 },
+                  }}
+                  sx={{ marginBottom: 2 }}
+                />
+              ) : (
+                <Box
+                  sx={{ display: 'flex', gap: 1, justifyContent: 'center', marginBottom: 2 }}
+                  onPaste={handlePaste}
+                  role="group"
+                  aria-label="Six digit verification code"
+                >
+                  {digits.map((d, i) => (
+                    <InputBase
+                      key={i}
+                      inputRef={(el) => {
+                        inputRefs.current[i] = el;
+                      }}
+                      inputProps={{
+                        maxLength: 1,
+                        'aria-label': `Digit ${i + 1} of 6`,
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*',
+                        autoComplete: i === 0 ? 'one-time-code' : 'off',
+                      }}
+                      value={d}
+                      onChange={(e) => setDigit(i, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(i, e)}
+                      disabled={loading}
+                      sx={{
+                        width: boxSize,
+                        height: boxSize,
+                        border: '2px solid',
+                        borderColor: d ? 'primary.main' : 'divider',
+                        borderRadius: 1,
+                        fontSize: '1.5rem',
+                        fontWeight: 700,
+                        '& input': { textAlign: 'center', padding: 0 },
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
 
               {localError ? (
                 <Typography
@@ -198,9 +198,9 @@ const AdminLoginOtp = () => {
                 fullWidth
                 className="auth-signin-button"
                 sx={{ borderRadius: '0px', fontSize: '20px' }}
-                disabled={!canSubmit}
+                disabled={!canSubmit || loading}
                 onClick={handleVerify}
-                aria-label="Verify admin login code and continue"
+                aria-label="Verify code and continue"
               >
                 {loading ? (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -223,13 +223,12 @@ const AdminLoginOtp = () => {
                     fontWeight: '600',
                     marginY: '10px',
                     textDecoration: 'none',
-                    cursor: resending ? 'default' : 'pointer',
+                    cursor: 'pointer',
                   }}
-                  onClick={handleResend}
-                  disabled={resending}
-                  aria-label="Resend admin login verification code"
+                  onClick={toggleRecoveryCode}
+                  aria-label={useRecoveryCode ? 'Use my authenticator app instead' : 'Use a recovery code instead'}
                 >
-                  {resending ? 'Sending new code...' : 'Resend code'}
+                  {useRecoveryCode ? 'Use my authenticator app instead' : 'Use a recovery code instead'}
                 </Link>
               </Box>
 
@@ -261,4 +260,4 @@ const AdminLoginOtp = () => {
   );
 };
 
-export default AdminLoginOtp;
+export default LoginTwoFactor;

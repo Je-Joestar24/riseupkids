@@ -44,7 +44,12 @@ function withFormDataSafeConfig(config?: AxiosRequestConfig, data?: unknown): Ax
 
 // Endpoints where a 401 means "wrong credentials" / "no session to refresh", not "this access
 // token expired" — retrying them through /auth/refresh would be meaningless or would recurse.
-const NO_REFRESH_RETRY_PATHS = ['/auth/login', '/auth/register', '/auth/refresh'];
+const NO_REFRESH_RETRY_PATHS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/2fa/login-verify',
+];
 
 /** At most one /auth/refresh in flight at a time — several requests 401ing together (e.g. right
  * after a background/foreground cycle) all await the SAME refresh instead of each racing their

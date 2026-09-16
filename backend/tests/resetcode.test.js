@@ -7,6 +7,7 @@
 jest.mock('../models');
 jest.mock('../services/mail', () => ({
   sendResetCode: jest.fn().mockResolvedValue(undefined),
+  sendPasswordChangedNotification: jest.fn().mockResolvedValue(undefined),
 }));
 // Chunk 9: resetPassword() now also revokes all refresh-token sessions (a real Mongoose write).
 // This file's User fixtures use non-ObjectId _id strings, so it's mocked out here — exercised
@@ -16,6 +17,14 @@ jest.mock('../services/session.services', () => ({
   revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
   revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
+// Chunk 10: resetPassword() now also enforces the password policy (length + a real HIBP network
+// call). This file is about the reset-code flow, not password policy (which has its own
+// dedicated test file), so it's mocked out here to stay deterministic and network-free.
+jest.mock('../services/passwordPolicy.service', () => ({
+  assertPasswordPolicy: jest.fn().mockResolvedValue(undefined),
+  validatePasswordLength: jest.fn(),
+  MIN_LENGTH: 12,
 }));
 
 const { User, PasswordResetToken } = require('../models');
@@ -120,10 +129,16 @@ describe('auth.services – reset code (forgot password)', () => {
       await expect(resetPassword('u@e.com', 'abc123', 'newPass123')).rejects.toThrow('Invalid or expired reset code');
     });
 
-    it('throws when newPassword is missing or too short', async () => {
-      await expect(resetPassword('u@e.com', '123456', '')).rejects.toThrow('Password must be at least 6 characters');
-      await expect(resetPassword('u@e.com', '123456', 'short')).rejects.toThrow('Password must be at least 6 characters');
-      await expect(resetPassword('u@e.com', '123456', 123456)).rejects.toThrow('Password must be at least 6 characters');
+    it('delegates password strength/breach validation to the shared password-policy service (Chunk 10 — tested on its own in passwordPolicy.test.js)', async () => {
+      const { assertPasswordPolicy } = require('../services/passwordPolicy.service');
+      assertPasswordPolicy.mockRejectedValueOnce(new Error('Password must be at least 12 characters.'));
+      global.__resetCodeMockUser = validUser;
+      PasswordResetToken.findOne.mockResolvedValueOnce(validToken);
+
+      await expect(resetPassword('user@example.com', '123456', 'short')).rejects.toThrow(
+        'Password must be at least 12 characters.'
+      );
+      expect(assertPasswordPolicy).toHaveBeenCalledWith('short');
     });
 
     it('accepts code with non-digits stripped (e.g. "123 456" -> "123456")', async () => {

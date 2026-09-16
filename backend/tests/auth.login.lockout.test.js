@@ -17,6 +17,17 @@ jest.mock('../models', () => ({
   ChildStats: { findOne: jest.fn() },
 }));
 jest.mock('../services/mail', () => ({ sendLoginOtpCode: jest.fn().mockResolvedValue(true) }));
+// Chunk 10: login()/buildAuthenticatedSession now also check twoFactorService.isEnabled, a real
+// Mongoose read against this file's non-ObjectId fixtures — mocked out here.
+jest.mock('../services/twoFactor.services', () => ({
+  isEnabled: jest.fn().mockResolvedValue(false),
+}));
+jest.mock('../services/session.services', () => ({
+  issueRefreshToken: jest.fn().mockResolvedValue({ plainToken: 'mock-refresh-token', doc: {} }),
+  revokeRefreshToken: jest.fn().mockResolvedValue(undefined),
+  revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+  REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
+}));
 
 const { User } = require('../models');
 const lockout = require('../services/loginLockout.service');

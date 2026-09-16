@@ -11,6 +11,8 @@ const {
   clearFailedLogins,
 } = require('./loginLockout.service');
 const sessionService = require('./session.services');
+const twoFactorService = require('./twoFactor.services');
+const { assertPasswordPolicy } = require('./passwordPolicy.service');
 
 /** Expiry for admin login OTP codes (10 minutes) */
 const LOGIN_OTP_EXPIRY_MS = 10 * 60 * 1000;
@@ -113,6 +115,15 @@ const buildAuthenticatedSession = async (user, meta = {}) => {
     additionalData.childProfiles = childProfilesWithStats;
   }
 
+  // Chunk 10: TOTP is required for admin accounts. There is no backend route-level block for
+  // this (that would need every admin-only route/test retrofitted) — instead the authoritative
+  // signal is this flag, and the frontend router refuses to render anything but the mandatory
+  // enrollment screen for an admin session carrying it. Every path that mints an admin session
+  // (direct login, admin email-OTP fallback, TOTP-code completion) goes through this function.
+  if (user.role === 'admin') {
+    additionalData.twoFactorEnrollmentRequired = !(await twoFactorService.isEnabled(user._id));
+  }
+
   // tokenVersion is select:false — a fresh, minimal lookup rather than trusting the caller's
   // `user` doc to have it selected (most callers don't select it, and it must never leak into
   // `userData`/the JSON response, which is why it's not just added to the select above).
@@ -190,6 +201,9 @@ const register = async (userData, meta = {}) => {
   if (existingUser) {
     throw new Error('User already exists with this email');
   }
+
+  // Chunk 10: minimum length + breached-password check, applied everywhere a password is set.
+  await assertPasswordPolicy(password);
 
   // Public self-registration is ALWAYS a parent account. Never accept `role` from the caller —
   // that was RUK-SEC-002 (anyone could register as admin).
@@ -270,7 +284,19 @@ const login = async (email, password, meta = {}) => {
     throw new Error('Children do not have login accounts. Please login as a parent and select a child profile.');
   }
 
-  // Admins: password OK → send OTP, do not issue JWT yet
+  // Chunk 10: password OK → if this account has TOTP enrolled (required for admin, optional for
+  // parent/teacher), it takes priority over the email-OTP fallback below — do not issue a JWT yet.
+  if (await twoFactorService.isEnabled(user._id)) {
+    return {
+      requiresTwoFactor: true,
+      email: user.email,
+      message: 'Enter the code from your authenticator app to finish signing in.',
+    };
+  }
+
+  // Admins without TOTP enrolled yet: password OK → send the (fallback) email OTP, do not issue
+  // a JWT yet. Once logged in they're blocked from admin actions until they enroll TOTP — see
+  // the tokenVersion-adjacent check in authorize() in middleware/auth.js.
   if (user.role === 'admin') {
     await issueAdminLoginOtp(user);
     return {
@@ -278,6 +304,46 @@ const login = async (email, password, meta = {}) => {
       email: user.email,
       message: 'A verification code has been sent to your email.',
     };
+  }
+
+  user.lastLogin = new Date();
+  await user.save();
+
+  return buildAuthenticatedSession(user, meta);
+};
+
+/**
+ * Verify a TOTP code (or a recovery code) to complete login when the account has 2FA enabled.
+ * Accepts either: a 6-digit code is tried as TOTP first; anything else is tried as a recovery
+ * code, so the frontend doesn't need a separate "which kind of code" selector.
+ * @param {string} email
+ * @param {string} code
+ * @param {{ deviceLabel?: string, userAgent?: string, ip?: string }} [meta]
+ * @returns {Promise<{ user: object, token: string, refreshToken: string }>}
+ */
+const verifyLoginTwoFactor = async (email, code, meta = {}) => {
+  const normalized = (email || '').toString().trim().toLowerCase();
+  if (!normalized || !/^\S+@\S+\.\S+$/.test(normalized)) {
+    throw new Error('Please provide a valid email address');
+  }
+
+  const user = await User.findOne({ email: normalized });
+  if (!user || !user.isActive) {
+    throw new Error('Invalid verification code');
+  }
+
+  // Chunk 10 bug fix: routing must be based on the RAW code's shape (classifyCode), not on how
+  // many digit characters happen to remain after stripping — a hex recovery code frequently
+  // strips down to exactly 6 digits by coincidence and would otherwise get misrouted to TOTP
+  // verification, where it always fails (caught by auth.twoFactorLogin.e2e.test.js).
+  const kind = twoFactorService.classifyCode(code);
+  const isValid =
+    kind === 'totp'
+      ? await twoFactorService.verifyTotp(user._id, code)
+      : await twoFactorService.verifyRecoveryCode(user._id, code);
+
+  if (!isValid) {
+    throw new Error('Invalid verification code');
   }
 
   user.lastLogin = new Date();
@@ -424,6 +490,12 @@ const getCurrentUser = async (userId) => {
     additionalData.childProfiles = childProfilesWithStats;
   }
 
+  // Chunk 10: re-confirmed on every /me call (not just at login) — covers the case where an
+  // admin's session started before 2FA was required of them, or they disabled it mid-session.
+  if (user.role === 'admin') {
+    additionalData.twoFactorEnrollmentRequired = !(await twoFactorService.isEnabled(user._id));
+  }
+
   return {
     user,
     ...additionalData,
@@ -522,9 +594,6 @@ const resetPassword = async (email, code, newPassword) => {
   if (codeStr.length !== 6) {
     throw new Error('Invalid or expired reset code');
   }
-  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
-    throw new Error('Password must be at least 6 characters');
-  }
 
   const user = await User.findOne({ email: normalized }).select(
     '+password +failedLoginAttempts +lockUntil +lastFailedLoginAt +tokenVersion'
@@ -553,6 +622,10 @@ const resetPassword = async (email, code, newPassword) => {
     throw new Error('Invalid or expired reset code');
   }
 
+  // Chunk 10: validated only once the reset code itself is confirmed genuine — avoids doing a
+  // network round-trip to HIBP for every wrong-code guess an attacker might throw at this endpoint.
+  await assertPasswordPolicy(newPassword);
+
   user.password = newPassword;
   // Chunk 9: a password reset must invalidate every existing session, not just future logins —
   // otherwise a still-unexpired token from before the reset (and any account takeover it may have
@@ -566,12 +639,22 @@ const resetPassword = async (email, code, newPassword) => {
   await clearFailedLogins(user);
 
   await PasswordResetToken.deleteOne({ _id: token._id });
+
+  // Chunk 10: notify + audit-log every successful reset — the user's own signal that something
+  // is wrong if they didn't request it, and a record for support/incident response either way.
+  logger.warn({ userId: String(user._id), email: user.email }, '[Auth:audit] Password reset completed');
+  try {
+    await mailService.sendPasswordChangedNotification({ to: user.email });
+  } catch (error) {
+    logger.error({ err: error, userId: String(user._id) }, '[Auth] Failed to send password-changed notification');
+  }
 };
 
 module.exports = {
   register,
   login,
   verifyLoginOtp,
+  verifyLoginTwoFactor,
   resendLoginOtp,
   getCurrentUser,
   logout,

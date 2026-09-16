@@ -3,10 +3,10 @@ const { User } = require('../models');
 
 /**
  * Authentication Middleware
- * 
+ *
  * Protects routes by verifying JWT token
  * Attaches user object to request if authenticated
- * 
+ *
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
@@ -87,10 +87,10 @@ const protect = async (req, res, next) => {
 
 /**
  * Role-based Authorization Middleware
- * 
+ *
  * Restricts access based on user roles
  * Must be used after protect middleware
- * 
+ *
  * @param {...String} roles - Allowed roles
  * @returns {Function} Middleware function
  */
@@ -115,4 +115,3 @@ const authorize = (...roles) => {
 };
 
 module.exports = { protect, authorize };
-

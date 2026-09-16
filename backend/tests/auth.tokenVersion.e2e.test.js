@@ -16,9 +16,16 @@ for (const [k, v] of Object.entries(ENV)) {
   process.env[k] = v;
 }
 
+// Chunk 10: changePassword/resetPassword now run the real HIBP breach check (services/hibp.service.js)
+// via axios — mocked here so this file never depends on a live network call or on whichever test
+// password strings happen to be in HIBP's real corpus today (several plausible-looking test
+// passwords, e.g. "NewPassword99", turned out to be genuinely breached).
+jest.mock('axios');
+
 const express = require('express');
 const request = require('supertest');
 const mongoose = require('mongoose');
+const axios = require('axios');
 
 const { User, PasswordResetToken } = require('../models');
 const RefreshToken = require('../models/RefreshToken');
@@ -61,6 +68,9 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await Promise.all([User.deleteMany({}), PasswordResetToken.deleteMany({}), RefreshToken.deleteMany({})]);
+  // Empty HIBP range response = no match = never "breached", regardless of which password
+  // string a given test uses.
+  axios.get.mockReset().mockResolvedValue({ data: '' });
 });
 
 describe('PUT /api/auth/change-password invalidates the old access token immediately', () => {

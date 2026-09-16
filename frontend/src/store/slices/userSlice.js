@@ -36,6 +36,22 @@ export const verifyLoginOtpUser = createAsyncThunk(
 );
 
 /**
+ * Async thunk for completing login with a TOTP/recovery code (Chunk 10)
+ */
+export const verifyLoginTwoFactorUser = createAsyncThunk(
+  'user/verifyLoginTwoFactor',
+  async ({ email, code }, { rejectWithValue }) => {
+    try {
+      const response = await authService.verifyLoginTwoFactor(email, code);
+      return response.data ?? response;
+    } catch (error) {
+      const message = error?.message || error?.response?.data?.message || 'Invalid verification code';
+      return rejectWithValue(typeof message === 'string' ? message : 'Invalid verification code');
+    }
+  }
+);
+
+/**
  * Async thunk for user registration
  */
 export const registerUser = createAsyncThunk(
@@ -139,6 +155,9 @@ const initialState = {
   isAuthenticated: false,
   loading: true,
   error: null,
+  // Chunk 10: null = not applicable (non-admin) / not yet known; true/false once an admin
+  // session is established. The router uses this to force an unenrolled admin into 2FA setup.
+  twoFactorEnrollmentRequired: null,
 };
 
 // User slice
@@ -207,12 +226,14 @@ const userSlice = createSlice({
           state.user = action.payload.user;
           state.childProfiles = action.payload.childProfiles || null;
           state.isAuthenticated = true;
+          state.twoFactorEnrollmentRequired = action.payload.twoFactorEnrollmentRequired ?? null;
         } else {
           state.user = null;
           state.childProfiles = null;
           state.childProfile = null;
           state.parent = null;
           state.isAuthenticated = false;
+          state.twoFactorEnrollmentRequired = null;
         }
       })
       .addCase(bootstrapSession.rejected, (state) => {
@@ -243,12 +264,24 @@ const userSlice = createSlice({
           return;
         }
 
+        // Chunk 10: 2FA challenge (any role, TOTP) – credentials OK but no session yet
+        if (action.payload?.requiresTwoFactor) {
+          state.user = null;
+          state.token = null;
+          state.childProfiles = null;
+          state.childProfile = null;
+          state.parent = null;
+          state.isAuthenticated = false;
+          return;
+        }
+
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.childProfiles = action.payload.childProfiles || null;
         state.childProfile = action.payload.childProfile || null;
         state.parent = action.payload.parent || null;
         state.isAuthenticated = !!action.payload.token;
+        state.twoFactorEnrollmentRequired = action.payload.twoFactorEnrollmentRequired ?? null;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.loading = false;
@@ -256,7 +289,7 @@ const userSlice = createSlice({
         state.isAuthenticated = false;
       });
 
-    // Admin login OTP verify
+    // Admin login OTP verify (email-OTP fallback, only reached when TOTP isn't enrolled yet)
     builder
       .addCase(verifyLoginOtpUser.pending, (state) => {
         state.loading = true;
@@ -270,9 +303,33 @@ const userSlice = createSlice({
         state.childProfile = action.payload.childProfile || null;
         state.parent = action.payload.parent || null;
         state.isAuthenticated = !!action.payload.token;
+        state.twoFactorEnrollmentRequired = action.payload.twoFactorEnrollmentRequired ?? null;
         state.error = null;
       })
       .addCase(verifyLoginOtpUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+        state.isAuthenticated = false;
+      });
+
+    // Chunk 10: TOTP/recovery-code login verification
+    builder
+      .addCase(verifyLoginTwoFactorUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(verifyLoginTwoFactorUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.childProfiles = action.payload.childProfiles || null;
+        state.childProfile = action.payload.childProfile || null;
+        state.parent = action.payload.parent || null;
+        state.isAuthenticated = !!action.payload.token;
+        state.twoFactorEnrollmentRequired = action.payload.twoFactorEnrollmentRequired ?? null;
+        state.error = null;
+      })
+      .addCase(verifyLoginTwoFactorUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         state.isAuthenticated = false;
@@ -310,6 +367,7 @@ const userSlice = createSlice({
         state.childProfiles = payload?.childProfiles || null;
         state.childProfile = payload?.childProfile || null;
         state.parent = payload?.parent || null;
+        state.twoFactorEnrollmentRequired = payload?.twoFactorEnrollmentRequired ?? null;
         state.error = null;
       })
       .addCase(getCurrentUser.rejected, (state, action) => {

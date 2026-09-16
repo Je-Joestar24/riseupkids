@@ -30,12 +30,16 @@ export interface LoginResponse {
   success: boolean;
   message: string;
   data: {
-    token: string;
+    token?: string;
     refreshToken?: string;
-    user: Record<string, unknown>;
+    user?: Record<string, unknown>;
     childProfiles?: unknown[];
     childProfile?: unknown;
     parent?: unknown;
+    // Chunk 10 Phase C: present instead of a token when the account has TOTP enabled — the
+    // caller must complete authService.verifyLoginTwoFactor() before a session exists.
+    requiresTwoFactor?: boolean;
+    email?: string;
   };
 }
 
@@ -54,30 +58,58 @@ const persistTokens = async (token: string, refreshToken?: string): Promise<void
   }
 };
 
+const persistSession = async (payload: LoginResponse['data']): Promise<void> => {
+  await persistTokens(payload.token as string, payload.refreshToken);
+  if (payload.user) {
+    await AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(payload.user));
+  }
+  if (payload.childProfiles) {
+    await AsyncStorage.setItem(STORAGE_KEYS.childProfiles, JSON.stringify(payload.childProfiles));
+  }
+  if (payload.childProfile) {
+    await AsyncStorage.setItem(STORAGE_KEYS.childProfile, JSON.stringify(payload.childProfile));
+  }
+  if (payload.parent) {
+    await AsyncStorage.setItem(STORAGE_KEYS.parent, JSON.stringify(payload.parent));
+  }
+};
+
 export const authService = {
   login: async (email: string, password: string): Promise<LoginResponse['data']> => {
     const response = await api.post<LoginResponse>('/auth/login', { email, password });
     // API returns { success, message, data: { user, token, refreshToken, childProfiles } }
     const payload = response.data;
 
+    // Chunk 10 Phase C: an account with TOTP enabled returns this challenge instead of a
+    // session — no token to persist yet, the caller must call verifyLoginTwoFactor() next.
+    if (payload?.requiresTwoFactor) {
+      return payload;
+    }
+
     if (!payload?.token) {
       throw new Error('Invalid response from server');
     }
 
-    await persistTokens(payload.token, payload.refreshToken);
-    if (payload.user) {
-      await AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(payload.user));
-    }
-    if (payload.childProfiles) {
-      await AsyncStorage.setItem(STORAGE_KEYS.childProfiles, JSON.stringify(payload.childProfiles));
-    }
-    if (payload.childProfile) {
-      await AsyncStorage.setItem(STORAGE_KEYS.childProfile, JSON.stringify(payload.childProfile));
-    }
-    if (payload.parent) {
-      await AsyncStorage.setItem(STORAGE_KEYS.parent, JSON.stringify(payload.parent));
+    await persistSession(payload);
+    return payload;
+  },
+
+  /**
+   * Chunk 10 Phase C: completes a login that returned `requiresTwoFactor`. `code` is either a
+   * 6-digit TOTP code or a recovery code, sent verbatim — only the email is trimmed.
+   */
+  verifyLoginTwoFactor: async (email: string, code: string): Promise<LoginResponse['data']> => {
+    const response = await api.post<LoginResponse>('/auth/2fa/login-verify', {
+      email: email.trim(),
+      code,
+    });
+    const payload = response.data;
+
+    if (!payload?.token) {
+      throw new Error('Invalid response from server');
     }
 
+    await persistSession(payload);
     return payload;
   },
 

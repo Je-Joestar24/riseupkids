@@ -32,6 +32,17 @@ jest.mock('../services/session.services', () => ({
   revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
 }));
+// Chunk 10: buildAuthenticatedSession (reached via verifyLoginOtp) now also checks
+// twoFactorService.isEnabled, and resetPassword enforces the password policy — both would hit
+// real Mongoose/network calls against this file's non-ObjectId fixtures, so mocked out here.
+jest.mock('../services/twoFactor.services', () => ({
+  isEnabled: jest.fn().mockResolvedValue(false),
+}));
+jest.mock('../services/passwordPolicy.service', () => ({
+  assertPasswordPolicy: jest.fn().mockResolvedValue(undefined),
+  validatePasswordLength: jest.fn(),
+  MIN_LENGTH: 12,
+}));
 
 const { User, LoginOtpToken, PasswordResetToken } = require('../models');
 const authService = require('../services/auth.services');

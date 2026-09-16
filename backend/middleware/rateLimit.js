@@ -86,6 +86,16 @@ const refreshLimiter = makeAuthLimiter({
 });
 
 /**
+ * TOTP/recovery-code verification (Chunk 10) — login completion and the protected
+ * setup/verify-setup/disable/regenerate endpoints. A code-guessing target, same reasoning as the
+ * password-reset/OTP limiter above.
+ */
+const twoFactorLimiter = makeAuthLimiter({
+  windowMs: envInt('AUTH_2FA_WINDOW_MS', 15 * MINUTE),
+  limit: envInt('AUTH_2FA_MAX', 10),
+});
+
+/**
  * Unauthenticated public lead/contact forms (RUK-SEC-022): the sales-site "invitation" and
  * "school application" forms. They write to the DB and push to a third-party email service, so
  * they're a spam / cost-amplification target. A person submits once; a school NAT a handful.
@@ -102,5 +112,6 @@ module.exports = {
   registerLimiter,
   passwordResetLimiter,
   refreshLimiter,
+  twoFactorLimiter,
   publicFormLimiter,
 };

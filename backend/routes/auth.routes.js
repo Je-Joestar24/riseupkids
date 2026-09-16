@@ -6,6 +6,7 @@ const {
   subscribeFlodesk,
   login,
   verifyLoginOtp,
+  verifyLoginTwoFactor,
   resendLoginOtp,
   getMe,
   logout,
@@ -19,6 +20,12 @@ const {
   getTerms,
   forgotPassword,
   resetPassword,
+  setupTwoFactor,
+  verifySetupTwoFactor,
+  disableTwoFactor,
+  regenerateRecoveryCodes,
+  getTwoFactorStatus,
+  stepUpVerify,
 } = require('../controllers/auth.controller');
 const { protect } = require('../middleware/auth');
 const {
@@ -26,6 +33,7 @@ const {
   registerLimiter,
   passwordResetLimiter,
   refreshLimiter,
+  twoFactorLimiter,
 } = require('../middleware/rateLimit');
 
 /**
@@ -55,6 +63,7 @@ router.post('/register', registerLimiter, registerUser);
 router.post('/subscribe-flodesk', registerLimiter, subscribeFlodesk);
 router.post('/login', loginLimiter, login);
 router.post('/verify-login-otp', loginLimiter, verifyLoginOtp);
+router.post('/2fa/login-verify', loginLimiter, verifyLoginTwoFactor);
 router.post('/resend-login-otp', passwordResetLimiter, resendLoginOtp);
 router.post('/forgot-password', passwordResetLimiter, forgotPassword);
 router.post('/reset-password', passwordResetLimiter, resetPassword);
@@ -76,6 +85,14 @@ router.delete('/sessions/:id', protect, revokeSession);
 router.put('/update-profile', protect, updateProfile);
 router.put('/change-password', protect, changePassword);
 router.post('/delete-account', protect, deleteAccount);
+
+// Two-factor authentication management (Chunk 10) — all require an existing session.
+router.post('/2fa/setup', protect, setupTwoFactor);
+router.post('/2fa/verify-setup', protect, twoFactorLimiter, verifySetupTwoFactor);
+router.post('/2fa/disable', protect, twoFactorLimiter, disableTwoFactor);
+router.post('/2fa/recovery-codes', protect, twoFactorLimiter, regenerateRecoveryCodes);
+router.get('/2fa/status', protect, getTwoFactorStatus);
+router.post('/step-up-verify', protect, twoFactorLimiter, stepUpVerify);
 
 module.exports = router;
 

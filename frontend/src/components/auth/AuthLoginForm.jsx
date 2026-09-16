@@ -16,6 +16,7 @@ import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/userHook';
 import { RISEUP_CHECKOUT_URL } from '../../config/constants';
+import { getRoleRedirectPath, getPostLoginRedirectPath } from '../../utils/roleRedirect';
 
 /**
  * AuthLoginForm Component
@@ -26,27 +27,20 @@ import { RISEUP_CHECKOUT_URL } from '../../config/constants';
  */
 const AuthLoginForm = () => {
   const navigate = useNavigate();
-  const { login, loading, isAuthenticated, user } = useAuth();
+  const { login, loading, isAuthenticated, user, twoFactorEnrollmentRequired } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [formErrors, setFormErrors] = useState({});
 
-  const getRoleRedirectPath = (role) => {
-    if (role === 'parent') return '/parents/child';
-    if (role === 'admin') return '/admin/dashboard';
-    if (role === 'teacher') return '/teacher/dashboard';
-    if (role === 'content_creator') return '/content-creator/dashboard';
-    return '/';
-  };
-
-  // If already authenticated, hard-reload into the correct dashboard.
+  // If already authenticated, hard-reload into the correct dashboard (or the mandatory 2FA
+  // setup screen for an admin who hasn't enrolled yet).
   useEffect(() => {
     if (isAuthenticated && user) {
-      window.location.assign(getRoleRedirectPath(user.role));
+      window.location.assign(getPostLoginRedirectPath(user, twoFactorEnrollmentRequired));
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, twoFactorEnrollmentRequired]);
 
   const validateForm = () => {
     const errors = {};
@@ -78,6 +72,15 @@ const AuthLoginForm = () => {
 
     try {
       const result = await login(email, password);
+
+      // Chunk 10: 2FA (TOTP) enabled — takes priority over the admin email-OTP fallback below
+      if (result?.requiresTwoFactor) {
+        navigate('/login/verify-2fa', {
+          replace: true,
+          state: { email: result.email || email.trim() },
+        });
+        return;
+      }
 
       // Admin: password OK → enter 6-digit email OTP before session is created
       if (result?.requiresOtp) {

@@ -25,6 +25,7 @@ import { PlayArrow as ExecuteIcon, Refresh as RefreshIcon } from '@mui/icons-mat
 import { useDispatch } from 'react-redux';
 import deletionRequestsService from '../../../services/deletionRequestsService';
 import { showConfirmationDialog, showNotification } from '../../../store/slices/uiSlice';
+import { useStepUp } from '../../../hooks/useStepUp';
 
 const STATUS_COLORS = {
   pending: 'warning',
@@ -61,6 +62,7 @@ const AdminDeletionRequestsTable = () => {
   const [actionId, setActionId] = useState(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const { requestStepUp, StepUpModal } = useStepUp();
 
   const loadRequests = useCallback(async () => {
     setLoading(true);
@@ -81,7 +83,12 @@ const AdminDeletionRequestsTable = () => {
     loadRequests();
   }, [loadRequests]);
 
-  const handleExecuteOne = (request) => {
+  const handleExecuteOne = async (request) => {
+    // Chunk 10: a deletion override needs a fresh 2FA code before the usual "are you sure"
+    // confirmation even appears — see backend/routes/accountDeletion.routes.js#requireStepUp.
+    const stepUpToken = await requestStepUp();
+    if (!stepUpToken) return;
+
     dispatch(
       showConfirmationDialog({
         title: 'Execute deletion purge',
@@ -89,7 +96,7 @@ const AdminDeletionRequestsTable = () => {
         onConfirm: async () => {
           setActionId(request._id);
           try {
-            const result = await deletionRequestsService.executeOne(request._id);
+            const result = await deletionRequestsService.executeOne(request._id, stepUpToken);
             dispatch(
               showNotification({
                 message: result.message || 'Deletion request executed',
@@ -107,7 +114,10 @@ const AdminDeletionRequestsTable = () => {
     );
   };
 
-  const handleExecuteDue = () => {
+  const handleExecuteDue = async () => {
+    const stepUpToken = await requestStepUp();
+    if (!stepUpToken) return;
+
     dispatch(
       showConfirmationDialog({
         title: 'Process due deletions',
@@ -116,7 +126,7 @@ const AdminDeletionRequestsTable = () => {
         onConfirm: async () => {
           setBatchLoading(true);
           try {
-            const result = await deletionRequestsService.executePending({ force: false });
+            const result = await deletionRequestsService.executePending({ force: false }, stepUpToken);
             dispatch(
               showNotification({
                 message: result.message || 'Due deletion requests processed',
@@ -134,7 +144,10 @@ const AdminDeletionRequestsTable = () => {
     );
   };
 
-  const handleForceAll = () => {
+  const handleForceAll = async () => {
+    const stepUpToken = await requestStepUp();
+    if (!stepUpToken) return;
+
     dispatch(
       showConfirmationDialog({
         title: 'Force purge all pending',
@@ -143,7 +156,7 @@ const AdminDeletionRequestsTable = () => {
         onConfirm: async () => {
           setBatchLoading(true);
           try {
-            const result = await deletionRequestsService.executePending({ force: true });
+            const result = await deletionRequestsService.executePending({ force: true }, stepUpToken);
             dispatch(
               showNotification({
                 message: result.message || 'Pending deletion requests processed',
@@ -325,6 +338,7 @@ const AdminDeletionRequestsTable = () => {
           </Table>
         )}
       </TableContainer>
+      <StepUpModal />
     </Stack>
   );
 };

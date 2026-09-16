@@ -18,6 +18,8 @@ const RL_ENV = {
   AUTH_PASSWORD_RESET_WINDOW_MS: '60000',
   AUTH_REFRESH_MAX: '2',
   AUTH_REFRESH_WINDOW_MS: '60000',
+  AUTH_2FA_MAX: '2',
+  AUTH_2FA_WINDOW_MS: '60000',
 };
 const RL_ENV_SNAPSHOT = {};
 for (const [k, v] of Object.entries(RL_ENV)) {
@@ -33,6 +35,7 @@ jest.mock('../controllers/auth.controller', () => {
     subscribeFlodesk: make('subscribeFlodesk'),
     login: make('login'),
     verifyLoginOtp: make('verifyLoginOtp'),
+    verifyLoginTwoFactor: make('verifyLoginTwoFactor'),
     resendLoginOtp: make('resendLoginOtp'),
     getMe: make('getMe'),
     logout: make('logout'),
@@ -46,6 +49,12 @@ jest.mock('../controllers/auth.controller', () => {
     getTerms: make('getTerms'),
     forgotPassword: make('forgotPassword'),
     resetPassword: make('resetPassword'),
+    setupTwoFactor: make('setupTwoFactor'),
+    verifySetupTwoFactor: make('verifySetupTwoFactor'),
+    disableTwoFactor: make('disableTwoFactor'),
+    regenerateRecoveryCodes: make('regenerateRecoveryCodes'),
+    getTwoFactorStatus: make('getTwoFactorStatus'),
+    stepUpVerify: make('stepUpVerify'),
   };
 });
 
@@ -143,6 +152,28 @@ describe('auth.routes.js rate limiting (e2e)', () => {
     expect(await hit(app, 'post', '/api/auth/refresh', ip, 3)).toEqual([200, 200, 429]);
 
     // login budget for the same IP is untouched — different limiter
+    const login = await request(app).post('/api/auth/login').set('X-Forwarded-For', ip).send({});
+    expect(login.status).toBe(200);
+  });
+
+  it('POST /api/auth/2fa/login-verify shares the login budget (same limiter)', async () => {
+    const app = buildApp();
+    const ip = nextIp();
+
+    await hit(app, 'post', '/api/auth/login', ip, 2);
+    const verify1 = await request(app).post('/api/auth/2fa/login-verify').set('X-Forwarded-For', ip).send({});
+    expect(verify1.status).toBe(200); // 3rd request across the shared login bucket
+
+    const verify2 = await request(app).post('/api/auth/2fa/login-verify').set('X-Forwarded-For', ip).send({});
+    expect(verify2.status).toBe(429);
+  });
+
+  it('POST /api/auth/2fa/verify-setup uses its own budget (AUTH_2FA_MAX = 2), independent of login', async () => {
+    const app = buildApp();
+    const ip = nextIp();
+
+    expect(await hit(app, 'post', '/api/auth/2fa/verify-setup', ip, 3)).toEqual([200, 200, 429]);
+
     const login = await request(app).post('/api/auth/login').set('X-Forwarded-For', ip).send({});
     expect(login.status).toBe(200);
   });

@@ -102,6 +102,12 @@ describe('api.ts refresh-retry interceptor', () => {
     expect(mockRunRefresh).not.toHaveBeenCalled();
   });
 
+  it('does not retry a 401 from /auth/2fa/login-verify (wrong code, not an expired session)', async () => {
+    const error = make401Error('/auth/2fa/login-verify');
+    await expect(refreshInterceptor().rejected(error)).rejects.toBe(error);
+    expect(mockRunRefresh).not.toHaveBeenCalled();
+  });
+
   it('does not retry a 401 from /auth/refresh itself (avoids recursion)', async () => {
     const error = make401Error('/auth/refresh');
     await expect(refreshInterceptor().rejected(error)).rejects.toBe(error);

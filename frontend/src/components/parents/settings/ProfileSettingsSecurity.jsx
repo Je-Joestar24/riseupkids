@@ -6,10 +6,11 @@ import {
   List,
   ListItemButton,
 } from '@mui/material';
-import { Lock, PrivacyTip, Delete, Gavel } from '@mui/icons-material';
+import { Lock, PrivacyTip, Delete, Gavel, VerifiedUser } from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import { LEGAL_URLS } from '../../../config/legalUrls';
 import ProfileSettingsChangesPasswordForm from './ProfileSettingsChangesPasswordForm';
+import TwoFactorSettings from './TwoFactorSettings';
 import DeleteAccountModal from './DeleteAccountModal';
 import useAuth from '../../../hooks/userHook';
 
@@ -21,8 +22,13 @@ import useAuth from '../../../hooks/userHook';
  */
 const ProfileSettingsSecurity = () => {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showTwoFactor, setShowTwoFactor] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const { logout } = useAuth();
+
+  const handleToggleTwoFactor = () => {
+    setShowTwoFactor(!showTwoFactor);
+  };
 
   const handleChangePassword = () => {
     setShowPasswordForm(!showPasswordForm);
@@ -124,6 +130,42 @@ const ProfileSettingsSecurity = () => {
             onSuccess={handlePasswordChangeSuccess}
           />
         )}
+
+        {/* Two-Factor Authentication Button */}
+        <ListItemButton
+          onClick={handleToggleTwoFactor}
+          sx={{
+            padding: { xs: '12px 16px', sm: '14px 16px' },
+            borderRadius: '12px',
+            backgroundColor: showTwoFactor ? themeColors.bgTertiary : themeColors.bgSecondary,
+            transition: 'all 0.2s ease',
+            fontSize: { xs: '16px', sm: '18px' },
+            fontFamily: 'Quicksand, sans-serif',
+            fontWeight: 500,
+            color: themeColors.text,
+            '&:hover': {
+              backgroundColor: themeColors.bgTertiary,
+              transform: 'translateX(4px)',
+            },
+            '&:active': {
+              transform: 'translateX(2px)',
+            },
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <VerifiedUser
+            sx={{
+              fontSize: '20px',
+              color: themeColors.primary,
+              flexShrink: 0,
+            }}
+          />
+          Two-Factor Authentication
+        </ListItemButton>
+
+        {showTwoFactor && <TwoFactorSettings />}
 
         {/* Privacy Policy */}
         <ListItemButton

@@ -91,6 +91,27 @@ const authService = {
   },
 
   /**
+   * Complete login with a TOTP code (or a recovery code) when the account has 2FA enabled.
+   * @param {String} email
+   * @param {String} code - a 6-digit TOTP code or a recovery code (e.g. "ABCDE-12345")
+   * @returns {Promise} API response with user data and token
+   */
+  verifyLoginTwoFactor: async (email, code) => {
+    try {
+      const response = await api.post('/auth/2fa/login-verify', {
+        email: email.trim(),
+        code: String(code).trim(),
+      });
+
+      authService.persistSession(response.data.data);
+
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
    * Resend admin login OTP email.
    * @param {String} email
    * @returns {Promise} API response
@@ -139,6 +160,7 @@ const authService = {
         authenticated: true,
         user: meRes.data?.data?.user ?? null,
         childProfiles: meRes.data?.data?.childProfiles ?? null,
+        twoFactorEnrollmentRequired: meRes.data?.data?.twoFactorEnrollmentRequired ?? null,
       };
     } catch (error) {
       clearAccessToken();
@@ -189,8 +211,91 @@ const authService = {
         currentPassword,
         newPassword,
       });
-      
+
       return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Start (or restart) TOTP enrollment — returns a QR code to scan.
+   * @returns {Promise<{ secret: string, otpauthUrl: string, qrDataUrl: string }>}
+   */
+  setupTwoFactor: async () => {
+    try {
+      const response = await api.post('/auth/2fa/setup');
+      return response.data?.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Confirm TOTP enrollment with a code from the authenticator app.
+   * @param {String} code
+   * @returns {Promise<{ recoveryCodes: string[] }>} shown once — never retrievable again
+   */
+  verifySetupTwoFactor: async (code) => {
+    try {
+      const response = await api.post('/auth/2fa/verify-setup', { code });
+      return response.data?.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Disable TOTP — requires the current password AND a valid code.
+   * @param {String} password
+   * @param {String} code
+   */
+  disableTwoFactor: async (password, code) => {
+    try {
+      const response = await api.post('/auth/2fa/disable', { password, code });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Replace the recovery-code batch — requires a valid TOTP code.
+   * @param {String} code
+   * @returns {Promise<{ recoveryCodes: string[] }>}
+   */
+  regenerateRecoveryCodes: async (code) => {
+    try {
+      const response = await api.post('/auth/2fa/recovery-codes', { code });
+      return response.data?.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Current 2FA status for the logged-in user.
+   * @returns {Promise<{ enabled: boolean, remainingRecoveryCodes: number }>}
+   */
+  getTwoFactorStatus: async () => {
+    try {
+      const response = await api.get('/auth/2fa/status');
+      return response.data?.data;
+    } catch (error) {
+      throw error.response?.data || error.message;
+    }
+  },
+
+  /**
+   * Step-up re-authentication for sensitive actions — verify a fresh code and get back a
+   * short-lived token to attach as `X-Step-Up-Token` on the one sensitive request it's for.
+   * @param {String} code
+   * @returns {Promise<{ stepUpToken: string }>}
+   */
+  stepUpVerify: async (code) => {
+    try {
+      const response = await api.post('/auth/step-up-verify', { code });
+      return response.data?.data;
     } catch (error) {
       throw error.response?.data || error.message;
     }

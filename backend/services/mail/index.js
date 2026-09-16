@@ -8,6 +8,7 @@ const {
   renderDeletionRequested,
   renderDeletionCompleted,
 } = require('../../templates/email/deletionEmail');
+const { renderPasswordChanged } = require('../../templates/email/passwordChanged');
 
 const logDriver = require('./drivers/log');
 const sendmailDriver = require('./drivers/sendmail');
@@ -116,11 +117,32 @@ async function sendDeletionCompleted(options) {
   return send({ to, subject, html, text });
 }
 
+/**
+ * Notify a user that their password was changed (Chunk 10). Sent after every successful
+ * password change or reset — the user's own signal something is wrong if they didn't do it.
+ * @param {{ to: string }} options
+ */
+async function sendPasswordChangedNotification(options) {
+  const { to } = options || {};
+  if (!to) {
+    throw new Error('sendPasswordChangedNotification requires to');
+  }
+  const { html, text, attachments } = renderPasswordChanged({ forEmail: true });
+  return send({
+    to,
+    subject: 'Your Rise Up Kids password was changed',
+    html,
+    text,
+    attachments: attachments || undefined,
+  });
+}
+
 module.exports = {
   send,
   sendResetCode,
   sendLoginOtpCode,
   sendDeletionRequested,
   sendDeletionCompleted,
+  sendPasswordChangedNotification,
   getDriver,
 };

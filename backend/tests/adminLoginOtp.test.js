@@ -18,6 +18,12 @@ jest.mock('../services/session.services', () => ({
   revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   REFRESH_TOKEN_TTL_MS: 30 * 24 * 60 * 60 * 1000,
 }));
+// Chunk 10: login()/buildAuthenticatedSession now also check twoFactorService.isEnabled, a real
+// Mongoose read — mocked out here for the same reason as session.services above (exercised for
+// real in twoFactor.services.test.js).
+jest.mock('../services/twoFactor.services', () => ({
+  isEnabled: jest.fn().mockResolvedValue(false),
+}));
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret';
 

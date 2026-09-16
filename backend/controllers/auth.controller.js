@@ -2,6 +2,10 @@ const authService = require('../services/auth.services');
 const sessionService = require('../services/session.services');
 const accountDeletionService = require('../services/accountDeletion.service');
 const { subscribeToFlodesk } = require('../services/flodeskService');
+const mailService = require('../services/mail');
+const { assertPasswordPolicy } = require('../services/passwordPolicy.service');
+const twoFactorService = require('../services/twoFactor.services');
+const { issueStepUpToken } = require('../services/stepUp.service');
 const {
   setRefreshCookie,
   clearRefreshCookie,
@@ -156,6 +160,17 @@ const login = async (req, res) => {
 
     const result = await authService.login(email, password, sessionMeta(req));
 
+    if (result.requiresTwoFactor) {
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        data: {
+          requiresTwoFactor: true,
+          email: result.email,
+        },
+      });
+    }
+
     if (result.requiresOtp) {
       return res.status(200).json({
         success: true,
@@ -176,6 +191,37 @@ const login = async (req, res) => {
     res.status(401).json({
       success: false,
       message: error.message || 'Login failed',
+    });
+  }
+};
+
+/**
+ * @desc    Complete login with a TOTP code (or a recovery code) when the account has 2FA enabled
+ * @route   POST /api/auth/2fa/login-verify
+ * @access  Public
+ * Body: { "email": "...", "code": "123456" | "ABCDE-FGHIJ" }
+ */
+const verifyLoginTwoFactor = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and verification code',
+      });
+    }
+
+    const result = await authService.verifyLoginTwoFactor(email, code, sessionMeta(req));
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: attachRefreshCookie(req, res, result),
+    });
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      message: error.message || 'Invalid verification code',
     });
   }
 };
@@ -239,6 +285,165 @@ const resendLoginOtp = async (req, res) => {
       success: false,
       message: error.message || 'Unable to resend verification code',
     });
+  }
+};
+
+/**
+ * @desc    Start (or restart) TOTP enrollment — returns a QR code to scan
+ * @route   POST /api/auth/2fa/setup
+ * @access  Private
+ */
+const setupTwoFactor = async (req, res) => {
+  try {
+    const { secret, otpauthUrl, qrDataUrl } = await twoFactorService.startEnrollment(
+      req.user._id,
+      req.user.email
+    );
+    res.status(200).json({ success: true, data: { secret, otpauthUrl, qrDataUrl } });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to start two-factor setup' });
+  }
+};
+
+/**
+ * @desc    Confirm TOTP enrollment with a code from the authenticator app — enables 2FA and
+ *          returns a one-time batch of recovery codes (never retrievable again after this)
+ * @route   POST /api/auth/2fa/verify-setup
+ * @access  Private
+ * Body: { "code": "123456" }
+ */
+const verifySetupTwoFactor = async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Please provide the 6-digit code' });
+    }
+    const { recoveryCodes } = await twoFactorService.confirmEnrollment(req.user._id, code);
+    res.status(200).json({
+      success: true,
+      message: 'Two-factor authentication is now enabled.',
+      data: { recoveryCodes },
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to confirm two-factor setup' });
+  }
+};
+
+/**
+ * @desc    Disable TOTP — requires the current password AND a valid code, so a hijacked session
+ *          alone can't turn off 2FA
+ * @route   POST /api/auth/2fa/disable
+ * @access  Private
+ * Body: { "password": "...", "code": "123456" | "ABCDE-FGHIJ" }
+ */
+const disableTwoFactor = async (req, res) => {
+  try {
+    const { password, code } = req.body || {};
+    if (!password || !code) {
+      return res.status(400).json({ success: false, message: 'Please provide your password and a code' });
+    }
+
+    const { User } = require('../models');
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
+    }
+
+    // Chunk 10 bug fix: route by classifyCode(), not by post-strip digit count — see
+    // auth.services.js#verifyLoginTwoFactor for why the digit-count check misroutes real
+    // recovery codes.
+    const kind = twoFactorService.classifyCode(code);
+    const isValid =
+      kind === 'totp'
+        ? await twoFactorService.verifyTotp(req.user._id, code)
+        : await twoFactorService.verifyRecoveryCode(req.user._id, code);
+    if (!isValid) {
+      return res.status(401).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    await twoFactorService.disable(req.user._id);
+    res.status(200).json({ success: true, message: 'Two-factor authentication has been disabled.' });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to disable two-factor authentication' });
+  }
+};
+
+/**
+ * @desc    Replace the recovery-code batch — requires a valid TOTP code; the old batch is
+ *          invalidated immediately
+ * @route   POST /api/auth/2fa/recovery-codes
+ * @access  Private
+ * Body: { "code": "123456" }
+ */
+const regenerateRecoveryCodes = async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    const isValid = await twoFactorService.verifyTotp(req.user._id, code);
+    if (!isValid) {
+      return res.status(401).json({ success: false, message: 'Invalid verification code' });
+    }
+    const recoveryCodes = await twoFactorService.regenerateRecoveryCodes(req.user._id);
+    res.status(200).json({ success: true, data: { recoveryCodes } });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Failed to regenerate recovery codes' });
+  }
+};
+
+/**
+ * @desc    Step-up re-authentication for sensitive actions — verify a fresh TOTP/recovery code
+ *          and get back a short-lived token to attach to that one sensitive request
+ * @route   POST /api/auth/step-up-verify
+ * @access  Private (requires 2FA already enabled)
+ * Body: { "code": "123456" | "ABCDE-FGHIJ" }
+ */
+const stepUpVerify = async (req, res) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Please provide a code' });
+    }
+
+    const enabled = await twoFactorService.isEnabled(req.user._id);
+    if (!enabled) {
+      return res.status(400).json({
+        success: false,
+        message: 'Two-factor authentication must be enabled to perform this action.',
+      });
+    }
+
+    // Chunk 10 bug fix: route by classifyCode(), not by post-strip digit count — see
+    // auth.services.js#verifyLoginTwoFactor for why the digit-count check misroutes real
+    // recovery codes.
+    const kind = twoFactorService.classifyCode(code);
+    const isValid =
+      kind === 'totp'
+        ? await twoFactorService.verifyTotp(req.user._id, code)
+        : await twoFactorService.verifyRecoveryCode(req.user._id, code);
+    if (!isValid) {
+      return res.status(401).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    const stepUpToken = issueStepUpToken(req.user._id);
+    res.status(200).json({ success: true, data: { stepUpToken } });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message || 'Step-up verification failed' });
+  }
+};
+
+/**
+ * @desc    Current 2FA status for the logged-in user
+ * @route   GET /api/auth/2fa/status
+ * @access  Private
+ */
+const getTwoFactorStatus = async (req, res) => {
+  try {
+    const enabled = await twoFactorService.isEnabled(req.user._id);
+    const remainingRecoveryCodes = enabled
+      ? await twoFactorService.countRemainingRecoveryCodes(req.user._id)
+      : 0;
+    res.status(200).json({ success: true, data: { enabled, remainingRecoveryCodes } });
+  } catch (error) {
+    res.status(400).json({ success: false, message: 'Failed to load two-factor status' });
   }
 };
 
@@ -485,11 +690,11 @@ const changePassword = async (req, res) => {
       });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'New password must be at least 6 characters',
-      });
+    // Chunk 10: minimum length + breached-password check, applied everywhere a password is set.
+    try {
+      await assertPasswordPolicy(newPassword);
+    } catch (policyError) {
+      return res.status(400).json({ success: false, message: policyError.message });
     }
 
     // Get user with password
@@ -520,6 +725,15 @@ const changePassword = async (req, res) => {
     await user.save();
     await sessionService.revokeAllForUser(user._id);
     clearRefreshCookie(res);
+
+    // Chunk 10: notify + audit-log every successful change — the user's own signal something is
+    // wrong if they didn't do it, and a record for support/incident response either way.
+    logger.warn({ userId: String(user._id), email: user.email }, '[Auth:audit] Password changed');
+    try {
+      await mailService.sendPasswordChangedNotification({ to: user.email });
+    } catch (mailError) {
+      logger.error({ err: mailError, userId: String(user._id) }, '[Auth] Failed to send password-changed notification');
+    }
 
     res.status(200).json({
       success: true,
@@ -656,6 +870,7 @@ module.exports = {
   subscribeFlodesk,
   login,
   verifyLoginOtp,
+  verifyLoginTwoFactor,
   resendLoginOtp,
   getMe,
   logout,
@@ -669,5 +884,11 @@ module.exports = {
   getTerms,
   forgotPassword,
   resetPassword,
+  setupTwoFactor,
+  verifySetupTwoFactor,
+  disableTwoFactor,
+  regenerateRecoveryCodes,
+  getTwoFactorStatus,
+  stepUpVerify,
 };
 

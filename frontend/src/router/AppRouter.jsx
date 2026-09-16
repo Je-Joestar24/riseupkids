@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useParams, Navigate } from 'react-router-
 import { bootstrapSession } from '../store/slices/userSlice';
 import AuthLogin from '../pages/auth/AuthLogin';
 import AdminLoginOtp from '../pages/auth/AdminLoginOtp';
+import LoginTwoFactor from '../pages/auth/LoginTwoFactor';
 import ForgetPassword from '../pages/auth/ForgetPassword';
 import SendCode from '../pages/auth/SendCode';
 import ResetPassword from '../pages/auth/ResetPassword';
@@ -16,6 +17,7 @@ import ParentDashboard from '../pages/parents/ParentDashboard';
 import ParentsDashboardPrintableTab from '../pages/parents/ParentsDashboardPrintableTab';
 import ParentsLayout from '../layouts/ParentsLayout';
 import AdminDashboard from '../pages/admin/AdminDashboard';
+import AdminSetupTwoFactor from '../pages/admin/AdminSetupTwoFactor';
 import AdminDeletionRequests from '../pages/admin/AdminDeletionRequests';
 import AdminUsers from '../pages/admin/AdminUsers';
 import AdminModuleAccess from '../pages/admin/AdminModuleAccess';
@@ -96,6 +98,14 @@ const AppRouter = () => {
           element={
             <UnAuthed>
               <AdminLoginOtp />
+            </UnAuthed>
+          }
+        />
+        <Route
+          path="/login/verify-2fa"
+          element={
+            <UnAuthed>
+              <LoginTwoFactor />
             </UnAuthed>
           }
         />
@@ -269,6 +279,14 @@ const AppRouter = () => {
         />
 
         {/* Admin Routes */}
+        <Route
+          path="/admin/setup-2fa"
+          element={
+            <AuthedAccess allowedRoles={['admin']}>
+              <AdminSetupTwoFactor />
+            </AuthedAccess>
+          }
+        />
         <Route
           path="/admin/dashboard"
           element={

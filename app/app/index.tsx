@@ -53,7 +53,10 @@ export default function LoginScreen() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await login(email, password);
+      const result = await login(email, password);
+      if (result?.requiresTwoFactor) {
+        router.push({ pathname: '/login-two-factor', params: { email: result.email ?? email } });
+      }
     } catch {
       // Error shown via global dialog
     } finally {
