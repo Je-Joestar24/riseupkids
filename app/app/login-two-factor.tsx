@@ -1,5 +1,6 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -29,6 +30,8 @@ const DIGIT_COUNT = 6;
  */
 export default function LoginTwoFactorScreen() {
   const router = useRouter();
+  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on the code-entry screen.
+  usePreventScreenCapture('login-two-factor');
   const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const email = emailParam ?? '';
   const { verifyLoginTwoFactor } = useAuth();

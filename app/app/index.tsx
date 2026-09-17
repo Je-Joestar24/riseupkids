@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 import {
   ActivityIndicator,
   Image,
@@ -25,6 +26,8 @@ import { openPrivacyPolicy, openSignupPage, openTermsOfUse } from '@/services/le
 
 export default function LoginScreen() {
   const router = useRouter();
+  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on the login screen.
+  usePreventScreenCapture('login');
   const { login, user, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

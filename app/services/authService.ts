@@ -1,24 +1,43 @@
 /**
  * Rise Up Kids Auth Service
- * Login, token storage via AsyncStorage
+ * Login, token storage via expo-secure-store (Keychain/Keystore) + AsyncStorage
  *
  * Chunk 9 Phase C — session hardening. The app has no browser-style cookie jar, so unlike the web
  * frontend (which moved the access token to memory-only and the refresh token to an httpOnly
- * cookie), the interim design here keeps BOTH tokens in AsyncStorage and sends the refresh token
- * explicitly, tagged `X-Client-Platform: mobile` (see backend/config/refreshCookie.js for the
- * server side of this). AsyncStorage is plaintext — a real secure-storage migration (Keychain/
- * Keystore via expo-secure-store) is tracked separately as Chunk 11; this chunk is only about the
- * refresh/rotation/revocation lifecycle, not where the bytes physically live.
+ * cookie), the design here persists both tokens on-device and sends the refresh token explicitly,
+ * tagged `X-Client-Platform: mobile` (see backend/config/refreshCookie.js for the server side of
+ * this).
+ *
+ * Chunk 11 — the access token, refresh token, and cached user record (the actual session-identity
+ * data) now live in expo-secure-store (iOS Keychain / Android Keystore) instead of plaintext
+ * AsyncStorage. Cached display data that's just a convenience copy of something re-fetchable from
+ * the API — child profiles, the parent record, which child is currently selected — stays in
+ * AsyncStorage; it isn't a credential, and SecureStore has a practical per-item size limit that
+ * makes it a poor fit for larger cached objects.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 import { api } from './api';
 
-const STORAGE_KEYS = {
+// Session-identity data — SecureStore. Key names may only contain alphanumerics, '.', '-', '_'.
+const SECURE_KEYS = {
+  token: 'riseupkids_token',
+  refreshToken: 'riseupkids_refreshToken',
+  user: 'riseupkids_user',
+} as const;
+
+// Where this same data lived before Chunk 11 — kept only so the one-time migration below can
+// find and wipe any leftover plaintext copy on an app that's updating, not a fresh install.
+const LEGACY_STORAGE_KEYS = {
   token: '@riseupkids_token',
   refreshToken: '@riseupkids_refreshToken',
   user: '@riseupkids_user',
+} as const;
+
+// Cached display data — AsyncStorage (see file header for why).
+const STORAGE_KEYS = {
   childProfiles: '@riseupkids_childProfiles',
   childProfile: '@riseupkids_childProfile',
   parent: '@riseupkids_parent',
@@ -52,16 +71,16 @@ interface RefreshResponse {
 }
 
 const persistTokens = async (token: string, refreshToken?: string): Promise<void> => {
-  await AsyncStorage.setItem(STORAGE_KEYS.token, token);
+  await SecureStore.setItemAsync(SECURE_KEYS.token, token);
   if (refreshToken) {
-    await AsyncStorage.setItem(STORAGE_KEYS.refreshToken, refreshToken);
+    await SecureStore.setItemAsync(SECURE_KEYS.refreshToken, refreshToken);
   }
 };
 
 const persistSession = async (payload: LoginResponse['data']): Promise<void> => {
   await persistTokens(payload.token as string, payload.refreshToken);
   if (payload.user) {
-    await AsyncStorage.setItem(STORAGE_KEYS.user, JSON.stringify(payload.user));
+    await SecureStore.setItemAsync(SECURE_KEYS.user, JSON.stringify(payload.user));
   }
   if (payload.childProfiles) {
     await AsyncStorage.setItem(STORAGE_KEYS.childProfiles, JSON.stringify(payload.childProfiles));
@@ -114,20 +133,49 @@ export const authService = {
   },
 
   getTokenFromStorage: async (): Promise<string | null> => {
-    return AsyncStorage.getItem(STORAGE_KEYS.token);
+    return SecureStore.getItemAsync(SECURE_KEYS.token);
   },
 
   getRefreshTokenFromStorage: async (): Promise<string | null> => {
-    return AsyncStorage.getItem(STORAGE_KEYS.refreshToken);
+    return SecureStore.getItemAsync(SECURE_KEYS.refreshToken);
   },
 
   getUserFromStorage: async (): Promise<Record<string, unknown> | null> => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.user);
+    const raw = await SecureStore.getItemAsync(SECURE_KEYS.user);
     return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
   },
 
   clearStorage: async (): Promise<void> => {
-    await AsyncStorage.multiRemove(Object.values(STORAGE_KEYS));
+    await Promise.all([
+      SecureStore.deleteItemAsync(SECURE_KEYS.token),
+      SecureStore.deleteItemAsync(SECURE_KEYS.refreshToken),
+      SecureStore.deleteItemAsync(SECURE_KEYS.user),
+      AsyncStorage.multiRemove(Object.values(STORAGE_KEYS)),
+    ]);
+  },
+
+  /**
+   * One-time migration off the pre-Chunk-11 plaintext AsyncStorage session (token, refresh
+   * token, cached user). A no-op on a fresh install or an app that's already migrated — just
+   * three empty AsyncStorage reads. Must run before anything reads from SecureStore at boot.
+   */
+  migrateLegacyPlaintextSession: async (): Promise<void> => {
+    const [legacyToken, legacyRefreshToken, legacyUser] = await Promise.all([
+      AsyncStorage.getItem(LEGACY_STORAGE_KEYS.token),
+      AsyncStorage.getItem(LEGACY_STORAGE_KEYS.refreshToken),
+      AsyncStorage.getItem(LEGACY_STORAGE_KEYS.user),
+    ]);
+
+    if (!legacyToken && !legacyRefreshToken && !legacyUser) return;
+
+    await Promise.all([
+      legacyToken ? SecureStore.setItemAsync(SECURE_KEYS.token, legacyToken) : Promise.resolve(),
+      legacyRefreshToken
+        ? SecureStore.setItemAsync(SECURE_KEYS.refreshToken, legacyRefreshToken)
+        : Promise.resolve(),
+      legacyUser ? SecureStore.setItemAsync(SECURE_KEYS.user, legacyUser) : Promise.resolve(),
+    ]);
+    await AsyncStorage.multiRemove(Object.values(LEGACY_STORAGE_KEYS));
   },
 
   /**
@@ -138,7 +186,7 @@ export const authService = {
    * not an error.
    */
   refreshSession: async (): Promise<string | null> => {
-    const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.refreshToken);
+    const refreshToken = await SecureStore.getItemAsync(SECURE_KEYS.refreshToken);
     if (!refreshToken) return null;
 
     try {
@@ -150,14 +198,17 @@ export const authService = {
     } catch {
       // Refresh token expired, revoked, or reused — no valid session. Clear local tokens so the
       // app doesn't keep retrying a dead refresh token; the user needs to log in again.
-      await AsyncStorage.multiRemove([STORAGE_KEYS.token, STORAGE_KEYS.refreshToken]);
+      await Promise.all([
+        SecureStore.deleteItemAsync(SECURE_KEYS.token),
+        SecureStore.deleteItemAsync(SECURE_KEYS.refreshToken),
+      ]);
       return null;
     }
   },
 
   logout: async (): Promise<void> => {
     try {
-      const refreshToken = await AsyncStorage.getItem(STORAGE_KEYS.refreshToken);
+      const refreshToken = await SecureStore.getItemAsync(SECURE_KEYS.refreshToken);
       await api.post('/auth/logout', refreshToken ? { refreshToken } : undefined);
     } catch {
       // Still clear local session if the API call fails (offline, expired token, etc.)

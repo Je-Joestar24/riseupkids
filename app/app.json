@@ -27,7 +27,6 @@
       }
     },
     "android": {
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/images/icon1024.png"
@@ -108,7 +107,8 @@
           "visibility": "hidden",
           "legacyVisible": "sticky-immersive"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

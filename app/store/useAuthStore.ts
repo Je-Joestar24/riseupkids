@@ -69,6 +69,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // first (mirroring the web frontend's boot-time bootstrapSession()) and only considers the
   // user authenticated if that succeeds.
   hydrate: async () => {
+    // Chunk 11: move any pre-existing plaintext session into SecureStore before reading it.
+    await authService.migrateLegacyPlaintextSession();
+
     const [user, freshToken] = await Promise.all([
       authService.getUserFromStorage(),
       authService.refreshSession(),

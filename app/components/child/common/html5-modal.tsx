@@ -6,7 +6,7 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -37,6 +37,7 @@ import { moduleService } from '@/services/moduleService';
 import { useExploreStore } from '@/store/exploreStore';
 import { useUiStore } from '@/store/uiStore';
 import { isNetworkError } from '@/utils/networkError';
+import { getOrigin } from '@/utils/webViewOrigin';
 
 /** Pass threshold: score / maxScore >= 75% */
 const PASS_THRESHOLD = 75;
@@ -146,6 +147,19 @@ export function Html5Modal({
     const applyChildStarReward = useExploreStore((s) => s.applyChildStarReward);
     const insets = useSafeAreaInsets();
     const { height: winH } = useWindowDimensions();
+
+    // Chunk 11: launchUrl's origin is whatever the authenticated backend told us to load the
+    // HTML5 package from — the one origin this WebView should ever navigate within. Anything
+    // else (a link/redirect inside the content trying to leave that origin) gets blocked.
+    const allowedOrigin = useMemo(() => (launchUrl ? getOrigin(launchUrl) : null), [launchUrl]);
+    const originWhitelist = useMemo(() => (allowedOrigin ? [allowedOrigin] : []), [allowedOrigin]);
+    const handleShouldStartLoad = useCallback(
+        (request: { url: string }) => {
+            if (!allowedOrigin) return false;
+            return getOrigin(request.url) === allowedOrigin;
+        },
+        [allowedOrigin]
+    );
 
     const handleWebViewMessage = useCallback(
         (event: { nativeEvent: { data: string } }) => {
@@ -442,7 +456,11 @@ export function Html5Modal({
                                         style={styles.fullscreenWebView}
                                         onLoadEnd={() => { }}
                                         onMessage={handleWebViewMessage}
-                                        originWhitelist={['*']}
+                                        originWhitelist={originWhitelist}
+                                        onShouldStartLoadWithRequest={handleShouldStartLoad}
+                                        allowFileAccess={false}
+                                        allowFileAccessFromFileURLs={false}
+                                        allowUniversalAccessFromFileURLs={false}
                                         accessibilityLabel="HTML5 content"
                                         scalesPageToFit={false}
                                         bounces={false}
@@ -515,7 +533,11 @@ export function Html5Modal({
                                         style={styles.webView}
                                         onLoadEnd={() => { }}
                                         onMessage={handleWebViewMessage}
-                                        originWhitelist={['*']}
+                                        originWhitelist={originWhitelist}
+                                        onShouldStartLoadWithRequest={handleShouldStartLoad}
+                                        allowFileAccess={false}
+                                        allowFileAccessFromFileURLs={false}
+                                        allowUniversalAccessFromFileURLs={false}
                                         accessibilityLabel="HTML5 content"
                                         scalesPageToFit={false}
                                         bounces={false}

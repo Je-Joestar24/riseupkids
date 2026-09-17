@@ -12,11 +12,21 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiRemove: jest.fn(),
 }));
 
+jest.mock('expo-secure-store', () => ({
+  setItemAsync: jest.fn(),
+  getItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}));
+
 const { api } = jest.requireMock('@/services/api') as {
   api: { post: jest.Mock };
 };
 const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage') as {
   multiRemove: jest.Mock;
+};
+const SecureStore = jest.requireMock('expo-secure-store') as {
+  getItemAsync: jest.Mock;
+  deleteItemAsync: jest.Mock;
 };
 
 describe('authService.deleteAccount', () => {
@@ -41,34 +51,33 @@ describe('authService.deleteAccount', () => {
       password: 'secret123',
       confirmText: 'DELETE',
     });
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('riseupkids_token');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('riseupkids_refreshToken');
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('riseupkids_user');
     expect(AsyncStorage.multiRemove).toHaveBeenCalled();
     expect(result.success).toBe(true);
   });
 });
 
 describe('authService.logout', () => {
-  const AsyncStorageFull = jest.requireMock('@react-native-async-storage/async-storage') as {
-    getItem: jest.Mock;
-    multiRemove: jest.Mock;
-  };
-
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('posts logout with no body when there is no stored refresh token, and clears storage', async () => {
-    AsyncStorageFull.getItem.mockResolvedValue(null);
+    SecureStore.getItemAsync.mockResolvedValue(null);
     api.post.mockResolvedValue({ success: true });
     AsyncStorage.multiRemove.mockResolvedValue(undefined);
 
     await authService.logout();
 
     expect(api.post).toHaveBeenCalledWith('/auth/logout', undefined);
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('riseupkids_token');
     expect(AsyncStorage.multiRemove).toHaveBeenCalled();
   });
 
   it('posts the stored refresh token in the body (Chunk 9 — mobile has no cookie jar)', async () => {
-    AsyncStorageFull.getItem.mockResolvedValue('stored-refresh-token');
+    SecureStore.getItemAsync.mockResolvedValue('stored-refresh-token');
     api.post.mockResolvedValue({ success: true });
     AsyncStorage.multiRemove.mockResolvedValue(undefined);
 
@@ -79,12 +88,13 @@ describe('authService.logout', () => {
   });
 
   it('still clears storage when logout API fails', async () => {
-    AsyncStorageFull.getItem.mockResolvedValue(null);
+    SecureStore.getItemAsync.mockResolvedValue(null);
     api.post.mockRejectedValue(new Error('Network error'));
     AsyncStorage.multiRemove.mockResolvedValue(undefined);
 
     await authService.logout();
 
+    expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('riseupkids_token');
     expect(AsyncStorage.multiRemove).toHaveBeenCalled();
   });
 });

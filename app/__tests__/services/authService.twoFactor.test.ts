@@ -1,7 +1,7 @@
 /**
  * Chunk 10 Phase C — mobile two-factor login completion (services/authService.ts).
  * Mirrors frontend/src/services/authService.twoFactor.test.js's coverage of the same backend
- * endpoints, adapted to the mobile client's AsyncStorage-based session persistence.
+ * endpoints, adapted to the mobile client's SecureStore-based session persistence (Chunk 11).
  */
 import { authService } from '@/services/authService';
 
@@ -17,11 +17,17 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   multiRemove: jest.fn(),
 }));
 
+jest.mock('expo-secure-store', () => ({
+  setItemAsync: jest.fn(),
+  getItemAsync: jest.fn(),
+  deleteItemAsync: jest.fn(),
+}));
+
 const { api } = jest.requireMock('@/services/api') as { api: { post: jest.Mock } };
-const AsyncStorage = jest.requireMock('@react-native-async-storage/async-storage') as {
-  setItem: jest.Mock;
-  getItem: jest.Mock;
-  multiRemove: jest.Mock;
+const SecureStore = jest.requireMock('expo-secure-store') as {
+  setItemAsync: jest.Mock;
+  getItemAsync: jest.Mock;
+  deleteItemAsync: jest.Mock;
 };
 
 beforeEach(() => {
@@ -40,7 +46,7 @@ describe('authService.login — two-factor challenge', () => {
 
     expect(result.requiresTwoFactor).toBe(true);
     expect(result.email).toBe('p@example.com');
-    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 
   it('still logs in directly when the account has no 2FA enabled', async () => {
@@ -53,7 +59,7 @@ describe('authService.login — two-factor challenge', () => {
     const result = await authService.login('p@example.com', 'secret123');
 
     expect(result.requiresTwoFactor).toBeUndefined();
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('@riseupkids_token', 'access-1');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('riseupkids_token', 'access-1');
   });
 });
 
@@ -76,10 +82,10 @@ describe('authService.verifyLoginTwoFactor', () => {
       code: '123456',
     });
     expect(result.token).toBe('jwt-token');
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('@riseupkids_token', 'jwt-token');
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('@riseupkids_refreshToken', 'refresh-1');
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith(
-      '@riseupkids_user',
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('riseupkids_token', 'jwt-token');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('riseupkids_refreshToken', 'refresh-1');
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith(
+      'riseupkids_user',
       JSON.stringify({ _id: 'u1', email: 'p@example.com', role: 'parent' })
     );
   });
@@ -101,7 +107,7 @@ describe('authService.verifyLoginTwoFactor', () => {
     await expect(authService.verifyLoginTwoFactor('p@example.com', '000000')).rejects.toThrow(
       'Invalid verification code'
     );
-    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    expect(SecureStore.setItemAsync).not.toHaveBeenCalled();
   });
 
   it('throws when the response is missing a token', async () => {

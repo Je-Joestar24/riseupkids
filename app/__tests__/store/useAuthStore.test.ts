@@ -9,6 +9,7 @@ jest.mock('@/services/authService', () => ({
     refreshSession: jest.fn(),
     clearStorage: jest.fn(),
     logout: jest.fn(),
+    migrateLegacyPlaintextSession: jest.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -32,6 +33,15 @@ beforeEach(() => {
 });
 
 describe('hydrate', () => {
+  it('Chunk 11: migrates any legacy plaintext session before reading storage', async () => {
+    mockAuthService.getUserFromStorage.mockResolvedValue({ _id: 'u1', email: 'p@example.com', role: 'parent' });
+    mockAuthService.refreshSession.mockResolvedValue('fresh-access-token');
+
+    await useAuthStore.getState().hydrate();
+
+    expect(mockAuthService.migrateLegacyPlaintextSession).toHaveBeenCalled();
+  });
+
   it('a valid stored user + a successful silent refresh -> authenticated', async () => {
     mockAuthService.getUserFromStorage.mockResolvedValue({ _id: 'u1', email: 'p@example.com', role: 'parent' });
     mockAuthService.refreshSession.mockResolvedValue('fresh-access-token');

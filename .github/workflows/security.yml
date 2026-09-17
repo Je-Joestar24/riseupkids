@@ -105,3 +105,19 @@ jobs:
             exit 1
           fi
           echo "ok — no raw console.* in backend runtime code"
+
+  no-sensitive-public-env-names:
+    name: no secret-looking EXPO_PUBLIC_* names (mobile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Chunk 11 — anything prefixed EXPO_PUBLIC_ is inlined into the built app bundle and is
+      # extractable by anyone who has the app. This is a naming-convention gate, not a secret-
+      # value scanner (gitleaks already covers real committed secret values) — it fails before a
+      # credential-shaped var name ever gets a real value and ships client-side.
+      - name: check EXPO_PUBLIC_* var names in app/.env.example and app/eas.json
+        working-directory: app
+        run: node scripts/checkPublicEnvNames.js

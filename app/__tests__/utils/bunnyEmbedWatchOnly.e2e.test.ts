@@ -80,4 +80,13 @@ describe('Bunny embed watch-only e2e contract', () => {
     expect(buildBunnyWatchOnlyWebViewSource('', REFERER)).toBeNull();
     expect(buildBunnyWatchOnlyWebViewSource('https://cdn.example/video.mp4', REFERER)).toBeNull();
   });
+
+  it('Chunk 11: restricts the WebView to the known Bunny embed hosts, not every origin', () => {
+    const props = buildBunnyEmbedWebViewProps('watchOnly', true);
+    expect(props.originWhitelist).toEqual([
+      'https://iframe.mediadelivery.net',
+      'https://player.mediadelivery.net',
+    ]);
+    expect(props.originWhitelist).not.toContain('*');
+  });
 });

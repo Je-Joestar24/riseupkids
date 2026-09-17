@@ -5,6 +5,7 @@
 
 import { Stack, useLocalSearchParams, usePathname } from 'expo-router';
 import { useEffect } from 'react';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 import { View } from 'react-native';
 
 import { FooterNavigation } from '@/components/child/common/footer-navigation';
@@ -15,6 +16,11 @@ import { useJourneyStore } from '@/store/journeyStore';
 export default function ChildLayout() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pathname = usePathname();
+
+  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on Android (FLAG_SECURE)
+  // and screen recording on iOS across every child route, since this is where a child's own
+  // data (name, progress, photos) is shown.
+  usePreventScreenCapture('child-routes');
 
   useEffect(() => {
     if (!id) return;
