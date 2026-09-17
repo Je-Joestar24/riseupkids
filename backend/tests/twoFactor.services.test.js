@@ -60,6 +60,23 @@ describe('startEnrollment', () => {
     const count = await TwoFactorSecret.countDocuments({ userId: USER_A });
     expect(count).toBe(1);
   });
+
+  it('regression: a stray duplicate call landing AFTER confirmation must not silently re-disable 2FA', async () => {
+    // Reproduces the real bug: two setup requests in flight (e.g. a double-mounted setup
+    // screen in dev), where the FIRST one's server round trip is slow enough to still be
+    // pending when the SECOND one is already confirmed. Before the fix, this second
+    // (delayed) startEnrollment() call would overwrite the just-enabled record back to
+    // enabled: false with a fresh, unconfirmed secret — bouncing an already-enrolled admin
+    // straight back to the setup screen with no way to know why.
+    const { secret } = await twoFactorService.startEnrollment(USER_A, 'a@example.com');
+    await twoFactorService.confirmEnrollment(USER_A, authenticator.generate(secret));
+    expect(await twoFactorService.isEnabled(USER_A)).toBe(true);
+
+    await expect(twoFactorService.startEnrollment(USER_A, 'a@example.com')).rejects.toThrow(
+      /already enabled/i
+    );
+    expect(await twoFactorService.isEnabled(USER_A)).toBe(true);
+  });
 });
 
 describe('confirmEnrollment', () => {

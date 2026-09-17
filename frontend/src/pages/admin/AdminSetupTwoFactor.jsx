@@ -24,7 +24,11 @@ const AdminSetupTwoFactor = () => {
   };
 
   return (
-    <Box role="main" aria-label="Set up two-factor authentication" sx={{ minHeight: '100vh', py: 6 }}>
+    <Box
+      role="main"
+      aria-label="Set up two-factor authentication"
+      sx={{ minHeight: '100vh', py: 6, bgcolor: '#F5F5DC' }}
+    >
       <Container maxWidth="sm">
         <AuthLogo />
         <Card sx={{ mt: 3 }}>

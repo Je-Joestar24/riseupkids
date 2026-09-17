@@ -622,7 +622,7 @@ const revokeSession = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { name, email } = req.body;
+    const { name } = req.body;
 
     // Get user
     const { User } = require('../models');
@@ -637,17 +637,11 @@ const updateProfile = async (req, res) => {
 
     // Update fields
     if (name) user.name = name;
-    if (email) {
-      // Check if email is already taken by another user
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
-      if (existingUser && existingUser._id.toString() !== userId.toString()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already in use',
-        });
-      }
-      user.email = email.toLowerCase();
-    }
+    // RUK-SEC-021: email is intentionally NOT editable through this endpoint (or any other,
+    // currently) — a self-service email change with no re-verification would let a compromised
+    // session silently change the account's email, then use forgot-password against the new
+    // address to seize the account, with no notification anywhere. Any `email` in the request
+    // body is ignored; changing an account's email is an admin/support-assisted action for now.
 
     await user.save();
 

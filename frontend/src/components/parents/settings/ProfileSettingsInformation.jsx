@@ -52,10 +52,9 @@ const ProfileSettingsInformation = () => {
 
   const handleSaveParent = async () => {
     try {
-      // Prepare the update data
+      // Prepare the update data — email is intentionally not editable here (RUK-SEC-021).
       const updateData = {
         name: formData.parentName,
-        email: formData.email,
       };
 
       // Call the hook to update profile
@@ -154,7 +153,9 @@ const ProfileSettingsInformation = () => {
             type="email"
             name="email"
             value={formData.email}
-            onChange={handleParentChange}
+            disabled
+            InputProps={{ readOnly: true }}
+            helperText="Contact support to change the email on this account"
             variant="outlined"
             sx={{
               '& .MuiOutlinedInput-root': {

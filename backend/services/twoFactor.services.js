@@ -66,6 +66,15 @@ async function startEnrollment(userId, email) {
     throw new Error('Two-factor authentication is not available right now. Please try again later.');
   }
 
+  // A stray duplicate call (e.g. a slow request from a double-mounted setup screen) must not be
+  // able to silently re-arm a NEW pending secret — and reset `enabled` back to false — after the
+  // account has already been confirmed on a different secret. Once enabled, setup can only be
+  // restarted through disable() first.
+  const existing = await TwoFactorSecret.findOne({ userId }).select('enabled');
+  if (existing?.enabled) {
+    throw new Error('Two-factor authentication is already enabled on this account.');
+  }
+
   const secret = authenticator.generateSecret();
   await TwoFactorSecret.findOneAndUpdate(
     { userId },

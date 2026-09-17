@@ -74,10 +74,9 @@ const AdminProfileDrawer = ({ open, onClose, onLogout }) => {
   const hasFieldChanges = useMemo(() => {
     if (!user) return false;
     const nameChanged = form.name.trim() !== (user.name || '');
-    const emailChanged = form.email.trim() !== (user.email || '');
     const passwordChanged =
       form.currentPassword || form.newPassword || form.confirmPassword;
-    return nameChanged || emailChanged || !!passwordChanged;
+    return nameChanged || !!passwordChanged;
   }, [form, user]);
 
   // Validate form
@@ -86,11 +85,6 @@ const AdminProfileDrawer = ({ open, onClose, onLogout }) => {
 
     if (!form.name.trim()) {
       nextErrors.name = 'Name is required';
-    }
-    if (!form.email.trim()) {
-      nextErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      nextErrors.email = 'Enter a valid email address';
     }
 
     // Validate password change if any field is filled
@@ -119,10 +113,9 @@ const AdminProfileDrawer = ({ open, onClose, onLogout }) => {
     if (!validate()) return;
 
     try {
-      // Update profile
+      // Update profile — email is intentionally not editable here (RUK-SEC-021), see below.
       await updateUserProfile({
         name: form.name.trim(),
-        email: form.email.trim(),
       });
 
       // Change password if provided
@@ -332,12 +325,12 @@ const AdminProfileDrawer = ({ open, onClose, onLogout }) => {
             <TextField
               label="Email Address"
               value={form.email}
-              onChange={(e) => handleChange('email', e.target.value)}
               size="small"
               fullWidth
-              error={!!errors.email}
-              helperText={errors.email}
+              disabled
+              helperText="Contact support to change the email on this account"
               InputProps={{
+                readOnly: true,
                 startAdornment: (
                   <InputAdornment position="start">
                     <EmailOutlinedIcon
