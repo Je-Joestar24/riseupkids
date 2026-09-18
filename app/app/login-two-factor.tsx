@@ -30,8 +30,10 @@ const DIGIT_COUNT = 6;
  */
 export default function LoginTwoFactorScreen() {
   const router = useRouter();
-  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on the code-entry screen.
-  usePreventScreenCapture('login-two-factor');
+  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording. Shares a key with
+  // index.tsx (see that file's comment) since this screen is pushed on top of it, not in place of
+  // it, so both stay mounted and active together.
+  usePreventScreenCapture('auth');
   const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const email = emailParam ?? '';
   const { verifyLoginTwoFactor } = useAuth();

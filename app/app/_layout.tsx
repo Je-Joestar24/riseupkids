@@ -14,6 +14,7 @@ import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { GlobalDialog } from '@/components/ui/global-dialog';
 import { GlobalNetworkModal } from '@/components/ui/global-network-modal';
 import { LegalAcceptanceGate } from '@/components/legal/LegalAcceptanceGate';
@@ -99,13 +100,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-        </Stack>
-        <LegalAcceptanceGate visible={!hasAccepted} onAccept={accept} />
-        <GlobalDialog />
-        <GlobalNetworkModal />
-        <PushDebugPanel />
+        <ErrorBoundary>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+          </Stack>
+          <LegalAcceptanceGate visible={!hasAccepted} onAccept={accept} />
+          <GlobalDialog />
+          <GlobalNetworkModal />
+          <PushDebugPanel />
+        </ErrorBoundary>
         <StatusBar style="auto" hidden={Platform.OS === 'android'} />
       </ThemeProvider>
     </SafeAreaProvider>

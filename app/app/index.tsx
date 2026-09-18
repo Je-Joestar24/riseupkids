@@ -26,8 +26,11 @@ import { openPrivacyPolicy, openSignupPage, openTermsOfUse } from '@/services/le
 
 export default function LoginScreen() {
   const router = useRouter();
-  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on the login screen.
-  usePreventScreenCapture('login');
+  // Chunk 11 — Mobile App Security: blocks screenshots/screen recording on the login screen. Uses
+  // the same key as login-two-factor.tsx (not a separate one) — Expo Router keeps this screen
+  // mounted underneath when it pushes to the 2FA screen, so both are active at once; a shared key
+  // means that's a single no-op re-arm rather than two independent native calls running at once.
+  usePreventScreenCapture('auth');
   const { login, user, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
