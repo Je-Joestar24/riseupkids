@@ -110,6 +110,21 @@ const authorize = (...roles) => {
       });
     }
 
+    // Chunk 10 follow-up: mandatory admin 2FA enrollment was previously enforced only by a
+    // frontend redirect — an admin session that has a fully valid token but never completed TOTP
+    // enrollment (e.g. one that logged in via the email-OTP fallback) could still call an
+    // admin-gated endpoint directly, bypassing the redirect entirely. `req.user` here is already
+    // the full document `protect` just loaded from the DB, so this is a plain field read, not an
+    // additional query — see the `twoFactorEnabled` field's comment on the User schema for how
+    // it's kept in sync.
+    if (req.user.role === 'admin' && !req.user.twoFactorEnabled) {
+      return res.status(403).json({
+        success: false,
+        message: 'Two-factor authentication setup is required before performing this action.',
+        code: 'TWO_FACTOR_ENROLLMENT_REQUIRED',
+      });
+    }
+
     next();
   };
 };

@@ -7,6 +7,7 @@ const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
 const TwoFactorSecret = require('../models/TwoFactorSecret');
 const RecoveryCode = require('../models/RecoveryCode');
+const User = require('../models/User');
 const { encrypt, decrypt, isConfigured } = require('../config/twoFactorEncryption');
 const logger = require('../config/logger');
 
@@ -111,6 +112,9 @@ async function confirmEnrollment(userId, code) {
   doc.enabled = true;
   doc.enabledAt = new Date();
   await doc.save();
+  // Kept in sync with TwoFactorSecret.enabled so authorize() can check it with no extra query —
+  // see the field's comment on the User schema.
+  await User.updateOne({ _id: userId }, { twoFactorEnabled: true });
 
   const recoveryCodes = await regenerateRecoveryCodes(userId);
   logger.info({ userId: String(userId) }, '[2FA] TOTP enabled');
@@ -169,6 +173,8 @@ async function verifyRecoveryCode(userId, code) {
 async function disable(userId) {
   await TwoFactorSecret.deleteOne({ userId });
   await RecoveryCode.deleteMany({ userId });
+  // Kept in sync with TwoFactorSecret.enabled — see the field's comment on the User schema.
+  await User.updateOne({ _id: userId }, { twoFactorEnabled: false });
   logger.info({ userId: String(userId) }, '[2FA] TOTP disabled');
 }
 

@@ -53,7 +53,9 @@ let mongod;
 let app;
 
 async function makeUser({ email, role = 'parent', password = GOOD_PASSWORD }) {
-  return User.create({ name: 'E2E User', email, password, role });
+  // Admin fixtures are pre-enrolled in 2FA — this file tests lockout behavior, not the separate
+  // mandatory-2FA-enrollment gate (see auth.middleware.adminTwoFactorGate.test.js for that).
+  return User.create({ name: 'E2E User', email, password, role, twoFactorEnabled: role === 'admin' });
 }
 const bearerFor = (user) => `Bearer ${jwt.sign({ id: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: '1h' })}`;
 const lockFields = (email) =>

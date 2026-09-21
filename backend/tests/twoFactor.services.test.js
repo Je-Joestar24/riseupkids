@@ -13,6 +13,7 @@ process.env.TWO_FACTOR_ENCRYPTION_KEY =
 
 const TwoFactorSecret = require('../models/TwoFactorSecret');
 const RecoveryCode = require('../models/RecoveryCode');
+const User = require('../models/User');
 const twoFactorService = require('../services/twoFactor.services');
 
 jest.setTimeout(60000);
@@ -33,7 +34,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await Promise.all([TwoFactorSecret.deleteMany({}), RecoveryCode.deleteMany({})]);
+  await Promise.all([TwoFactorSecret.deleteMany({}), RecoveryCode.deleteMany({}), User.deleteMany({})]);
 });
 
 describe('startEnrollment', () => {
@@ -249,5 +250,39 @@ describe('countRemainingRecoveryCodes', () => {
     expect(await twoFactorService.countRemainingRecoveryCodes(USER_A)).toBe(10);
     await twoFactorService.verifyRecoveryCode(USER_A, recoveryCodes[0]);
     expect(await twoFactorService.countRemainingRecoveryCodes(USER_A)).toBe(9);
+  });
+});
+
+describe('User.twoFactorEnabled denormalization (authorize() reads this — no extra query)', () => {
+  it('confirmEnrollment flips the User document\'s flag to true', async () => {
+    const user = await User.create({
+      name: 'Admin',
+      email: 'admin-sync@example.com',
+      password: 'CorrectHorse42',
+      role: 'admin',
+    });
+    expect(user.twoFactorEnabled).toBe(false);
+
+    const { secret } = await twoFactorService.startEnrollment(user._id, user.email);
+    await twoFactorService.confirmEnrollment(user._id, authenticator.generate(secret));
+
+    const updated = await User.findById(user._id);
+    expect(updated.twoFactorEnabled).toBe(true);
+  });
+
+  it('disable flips the User document\'s flag back to false', async () => {
+    const user = await User.create({
+      name: 'Admin',
+      email: 'admin-sync2@example.com',
+      password: 'CorrectHorse42',
+      role: 'admin',
+    });
+    const { secret } = await twoFactorService.startEnrollment(user._id, user.email);
+    await twoFactorService.confirmEnrollment(user._id, authenticator.generate(secret));
+    expect((await User.findById(user._id)).twoFactorEnabled).toBe(true);
+
+    await twoFactorService.disable(user._id);
+
+    expect((await User.findById(user._id)).twoFactorEnabled).toBe(false);
   });
 });

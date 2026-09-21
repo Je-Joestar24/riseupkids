@@ -2,7 +2,7 @@ const { authorize } = require('../middleware/auth');
 
 function invokeAuthorize(...roles) {
   const middleware = authorize('parent', 'admin');
-  const req = { user: roles[0] ? { role: roles[0] } : undefined };
+  const req = { user: roles[0] ? { role: roles[0], twoFactorEnabled: true } : undefined };
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn(),

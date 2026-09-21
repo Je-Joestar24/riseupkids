@@ -39,6 +39,9 @@ async function resetTwoFactor(email) {
   const [secretResult, codesResult] = await Promise.all([
     TwoFactorSecret.deleteOne({ userId: user._id }),
     RecoveryCode.deleteMany({ userId: user._id }),
+    // Mirrors twoFactor.services.js's disable() — without this, the User document's denormalized
+    // flag would stay stale (true), which now gates every admin-authorized request.
+    User.updateOne({ _id: user._id }, { twoFactorEnabled: false }),
   ]);
 
   return {

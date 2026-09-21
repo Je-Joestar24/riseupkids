@@ -119,6 +119,17 @@ const userSchema = new mongoose.Schema(
       default: 0,
       select: false,
     },
+    /**
+     * Denormalized mirror of TwoFactorSecret.enabled (Chunk 10 follow-up), kept in sync by
+     * twoFactor.services.js's confirmEnrollment()/disable(). Exists so `authorize()` can enforce
+     * the admin mandatory-2FA requirement server-side with NO extra query: `protect` already
+     * loads the full user document on every request, so this field comes along for free instead
+     * of requiring a second lookup against the TwoFactorSecret collection.
+     */
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
     /** Which payment provider the user's current subscription/purchase is with. */
     paymentProvider: {
       type: String,
