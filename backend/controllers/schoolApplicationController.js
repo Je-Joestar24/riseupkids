@@ -5,6 +5,7 @@ const {
   normalizeRole,
   normalizeCurrentEnglish,
 } = require('../services/schoolProspect.services');
+const { verifyCaptcha } = require('../services/captcha.service');
 
 /**
  * @desc    Submit schools page application (MongoDB + Flodesk segment by language)
@@ -87,6 +88,15 @@ async function submitSchoolApplication(req, res) {
       return res.status(400).json({
         success: false,
         message: 'language is required and must be one of pt, en, es',
+      });
+    }
+
+    const captchaResult = await verifyCaptcha(req.body?.captchaToken, 'school_application');
+    if (!captchaResult.verified) {
+      logger.warn({ reason: captchaResult.reason }, '[SchoolApplication] Captcha verification failed');
+      return res.status(400).json({
+        success: false,
+        message: 'Verification failed. Please try again.',
       });
     }
 

@@ -1,4 +1,5 @@
 const { submitInvitationLead } = require('../services/lead.services');
+const { verifyCaptcha } = require('../services/captcha.service');
 const logger = require('../config/logger');
 
 function normalizeLanguage(language) {
@@ -63,6 +64,15 @@ async function submitInvitation(req, res) {
       return res.status(400).json({
         success: false,
         message: 'consent is required',
+      });
+    }
+
+    const captchaResult = await verifyCaptcha(req.body?.captchaToken, 'invitation');
+    if (!captchaResult.verified) {
+      logger.warn({ reason: captchaResult.reason }, '[Invitation] Captcha verification failed');
+      return res.status(400).json({
+        success: false,
+        message: 'Verification failed. Please try again.',
       });
     }
 
