@@ -346,6 +346,12 @@ const verifyLoginTwoFactor = async (email, code, meta = {}) => {
     throw new Error('Invalid verification code');
   }
 
+  // A code only verifies against an *enabled* TwoFactorSecret, so TOTP is provably on for this
+  // account. Re-sync the denormalized User.twoFactorEnabled mirror that authorize() reads — an
+  // account enrolled before that flag existed (or whose flag drifted) would otherwise log in fine
+  // and then get a 403 TWO_FACTOR_ENROLLMENT_REQUIRED on every admin call, with no way out since
+  // startEnrollment() refuses to re-run on an already-enabled secret.
+  user.twoFactorEnabled = true;
   user.lastLogin = new Date();
   await user.save();
 
