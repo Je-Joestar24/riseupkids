@@ -1,7 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { usePreventScreenCapture } from 'expo-screen-capture';
 import {
   ActivityIndicator,
   Image,
@@ -23,6 +22,7 @@ import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useAuth } from '@/hooks/authHook';
 import { openPrivacyPolicy, openSignupPage, openTermsOfUse } from '@/services/legalLinkService';
+import { useScreenCaptureGuard } from '@/hooks/useScreenCaptureGuard';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -30,7 +30,7 @@ export default function LoginScreen() {
   // the same key as login-two-factor.tsx (not a separate one) — Expo Router keeps this screen
   // mounted underneath when it pushes to the 2FA screen, so both are active at once; a shared key
   // means that's a single no-op re-arm rather than two independent native calls running at once.
-  usePreventScreenCapture('auth');
+  useScreenCaptureGuard('auth');
   const { login, user, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

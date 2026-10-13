@@ -1,6 +1,5 @@
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { usePreventScreenCapture } from 'expo-screen-capture';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -19,6 +18,7 @@ import { radii } from '@/config/theme/radii';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { useAuth } from '@/hooks/authHook';
+import { useScreenCaptureGuard } from '@/hooks/useScreenCaptureGuard';
 
 const DIGIT_COUNT = 6;
 
@@ -33,7 +33,7 @@ export default function LoginTwoFactorScreen() {
   // Chunk 11 — Mobile App Security: blocks screenshots/screen recording. Shares a key with
   // index.tsx (see that file's comment) since this screen is pushed on top of it, not in place of
   // it, so both stay mounted and active together.
-  usePreventScreenCapture('auth');
+  useScreenCaptureGuard('auth');
   const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const email = emailParam ?? '';
   const { verifyLoginTwoFactor } = useAuth();

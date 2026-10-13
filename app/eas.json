@@ -34,6 +34,13 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api"
       }
+    },
+    "screenshots": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.riseup.kids/api",
+        "EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE": "true"
+      }
     }
   },
   "submit": {
