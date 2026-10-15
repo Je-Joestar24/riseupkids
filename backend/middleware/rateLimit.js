@@ -105,6 +105,16 @@ const publicFormLimiter = makeAuthLimiter({
   limit: envInt('PUBLIC_FORM_MAX', 8),
 });
 
+/**
+ * Free Smoothie Experience page (/experiencia): the "type your email" check calls Flodesk, and
+ * answering it tells a stranger whether an address is a subscriber — so it's per-IP limited.
+ * More generous than the lead forms because a real person can mistype an email a few times.
+ */
+const experienceAccessLimiter = makeAuthLimiter({
+  windowMs: envInt('EXPERIENCE_ACCESS_WINDOW_MS', 15 * MINUTE),
+  limit: envInt('EXPERIENCE_ACCESS_MAX', 20),
+});
+
 module.exports = {
   makeAuthLimiter,
   rateLimitHandler,
@@ -114,4 +124,5 @@ module.exports = {
   refreshLimiter,
   twoFactorLimiter,
   publicFormLimiter,
+  experienceAccessLimiter,
 };

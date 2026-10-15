@@ -30,6 +30,12 @@ const SCHOOL_SEGMENT_ENV_KEYS = {
   pt: 'FLODESK_SCHOOL_SEGMENT_PT',
 };
 
+// Free "Smoothie Experience" freebie — only pt and es pages exist.
+const FREEBIE_SEGMENT_ENV_KEYS = {
+  es: 'FLODESK_FREEBIE_SEGMENT_ES',
+  pt: 'FLODESK_FREEBIE_SEGMENT_PT',
+};
+
 /**
  * Extract segment ID from a Flodesk app URL.
  * e.g. https://app.flodesk.com/segment/6a3a6701c951745ff9f28cd8?backTo=...
@@ -73,6 +79,16 @@ function getSegmentIdByLanguage(language, envKeyMap) {
  */
 function getParentSegmentId(language) {
   return getSegmentIdByLanguage(language, PARENT_SEGMENT_ENV_KEYS);
+}
+
+/**
+ * Resolve Flodesk segment ID for the free Smoothie Experience by language.
+ *
+ * @param {string} language - pt | es
+ * @returns {string} Segment ID from env
+ */
+function getFreebieSegmentId(language) {
+  return getSegmentIdByLanguage(language, FREEBIE_SEGMENT_ENV_KEYS);
 }
 
 /**
@@ -381,12 +397,71 @@ async function subscribeSignupToFlodesk(email) {
   return subscribeToFlodesk(email);
 }
 
+/**
+ * Look up a subscriber by email (read-only — creates and changes nothing in Flodesk).
+ * Used to check, for the free Smoothie Experience page, that an email is a confirmed subscriber
+ * in the freebie segment. The email is deliberately never written to the logs.
+ *
+ * @param {string} email
+ * @returns {Promise<Object|null>} the subscriber ({ status, segments, ... }), or null if Flodesk
+ *   has no subscriber with that email
+ * @throws {Error} on any other failure (missing key, Flodesk down) — callers must treat that as
+ *   "could not check", never as "not subscribed"
+ */
+/**
+ * The email as a URL path segment. Flodesk answers 404 when the "@" is sent as "%40" (it does not
+ * decode it), so "@" and "+" — both legal in a path segment — are kept literal. Everything that could
+ * change the path ("/", "?", "#", "%", spaces...) stays encoded.
+ */
+function emailPathSegment(email) {
+  return encodeURIComponent(email.trim()).replace(/%40/g, '@').replace(/%2B/gi, '+');
+}
+
+async function getSubscriberByEmail(email) {
+  const apiKey = process.env.FLODESK_API_KEY;
+  if (!apiKey) {
+    throw new Error('FLODESK_API_KEY environment variable is not set');
+  }
+  if (!email || typeof email !== 'string' || !email.trim()) {
+    throw new Error('email is required and must be a non-empty string');
+  }
+
+  const auth = Buffer.from(`${apiKey}:`).toString('base64');
+  const baseUrl = getBaseUrl().replace(/\/$/, '');
+
+  try {
+    const response = await axios.get(
+      `${baseUrl}/subscribers/${emailPathSegment(email)}`,
+      {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'User-Agent': 'Rise Up Kids (https://riseupkids.com)',
+        },
+        timeout: 8000,
+        validateStatus: (status) => status >= 200 && status < 300,
+      }
+    );
+    return response.data;
+  } catch (err) {
+    if (err.response?.status === 404) {
+      return null;
+    }
+    logger.error(
+      { status: err.response?.status, message: err.message },
+      '[Flodesk] subscriber lookup failed'
+    );
+    throw new Error('Flodesk subscriber lookup failed');
+  }
+}
+
 module.exports = {
   subscribeToFlodesk,
   subscribeSignupToFlodesk,
   submitInvitationToFlodesk,
   submitSchoolApplicationToFlodesk,
+  getSubscriberByEmail,
   getParentSegmentId,
+  getFreebieSegmentId,
   getSchoolSegmentId,
   parseFlodeskSegmentIdFromUrl,
   splitParentName,
