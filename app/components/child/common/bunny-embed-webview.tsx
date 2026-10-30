@@ -63,6 +63,8 @@ export interface BunnyEmbedWebViewProps {
   interactionMode?: BunnyEmbedInteractionMode;
   /** URL query preset. Default watchOnly. */
   playbackPreset?: BunnyEmbedPlaybackPreset;
+  /** Overrides the preset's autoplay (e.g. start playing right after a tap on a play button). */
+  autoplay?: boolean;
 }
 
 export function BunnyEmbedWebView({
@@ -75,6 +77,7 @@ export function BunnyEmbedWebView({
   allowNativeFullscreen = false,
   interactionMode = 'watchOnly',
   playbackPreset = 'watchOnly',
+  autoplay,
 }: BunnyEmbedWebViewProps) {
   const webViewRef = useRef<WebView>(null);
   const [webLoading, setWebLoading] = useState(true);
@@ -123,14 +126,14 @@ export function BunnyEmbedWebView({
     () =>
       validEmbed
         ? {
-            uri: buildBunnyEmbedWebViewUrl(validEmbed, { preset: playbackPreset }),
+            uri: buildBunnyEmbedWebViewUrl(validEmbed, { preset: playbackPreset, autoplay }),
             headers: {
               Referer: BUNNY_EMBED_REFERER,
               referer: BUNNY_EMBED_REFERER,
             },
           }
         : null,
-    [validEmbed, playbackPreset, reloadToken]
+    [validEmbed, playbackPreset, autoplay, reloadToken]
   );
 
   useEffect(() => {

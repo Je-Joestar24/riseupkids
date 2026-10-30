@@ -112,3 +112,27 @@ describe('watch-only interaction helpers', () => {
     expect(resolveBunnyNativeFullscreenAllowed('interactive', false)).toBe(false);
   });
 });
+
+describe('autoplay override (play button that starts the video)', () => {
+  const param = (url: string, key: string) => new URL(url).searchParams.get(key);
+
+  it('default preset plus autoplay starts playing but keeps the normal player controls', () => {
+    const url = buildBunnyEmbedWebViewUrl(IFRAME_EMBED, { preset: 'default', autoplay: true });
+
+    expect(param(url, 'autoplay')).toBe('true');
+    expect(param(url, 'playsinline')).toBe('true');
+    expect(param(url, 'disableIosPlayer')).toBeNull();
+    expect(param(url, 'showSpeed')).toBeNull();
+  });
+
+  it('leaves every preset exactly as before when autoplay is not given', () => {
+    expect(param(buildBunnyEmbedWebViewUrl(IFRAME_EMBED, { preset: 'default' }), 'autoplay')).toBeNull();
+    expect(
+      param(buildBunnyEmbedWebViewUrl(IFRAME_EMBED, { preset: 'default', autoplay: undefined }), 'autoplay')
+    ).toBeNull();
+    expect(param(buildBunnyEmbedWebViewUrl(IFRAME_EMBED, { preset: 'watchOnly' }), 'autoplay')).toBe('true');
+    expect(param(buildBunnyEmbedWebViewUrl(IFRAME_EMBED, { preset: 'watchOnly', autoplay: undefined }), 'autoplay')).toBe(
+      'true'
+    );
+  });
+});

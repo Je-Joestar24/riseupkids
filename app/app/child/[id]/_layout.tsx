@@ -1,6 +1,6 @@
 /**
  * Child [id] Layout
- * Header + Stack (home, journey, explore, wall) + Footer
+ * Header + Stack (home, journey, explore, wall, experience) + Footer
  */
 
 import { Stack, useLocalSearchParams, usePathname } from 'expo-router';
@@ -52,6 +52,7 @@ export default function ChildLayout() {
         <Stack.Screen name="star-cam-practice-mode" />
         <Stack.Screen name="star-cam-mission-cam" />
         <Stack.Screen name="wall" />
+        <Stack.Screen name="experience" />
       </Stack>
       {!isStarCamRoute ? <FooterNavigation childId={id} /> : null}
     </View>

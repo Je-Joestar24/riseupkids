@@ -15,7 +15,7 @@ All of this keys off `isKidsWallComingSoon()` / `isKidsWallHidden()` in
 
 | Surface | Behaviour on iOS |
 |---|---|
-| Bottom navigation (`components/child/common/footer-navigation.tsx`) | The "Kid's Wall" tab is **not rendered** — 3 tabs, not 4. No "Coming Soon" placeholder tab. |
+| Bottom navigation (`components/child/common/footer-navigation.tsx`) | The "Kid's Wall" tab is **not rendered**. No "Coming Soon" placeholder tab. The **Experience** tab takes its place, so iOS still has four tabs (see `IOS_EXPERIENCE_TAB.md`). |
 | `/child/[id]/wall` route | Redirects to `/child/[id]/home`. Renders no feed, no share button, no photo UI. |
 | `/child/[id]/wall/share` route | Redirects to `/child/[id]/home`. |
 | "Share My Work" button on Explore videos (`components/child/contents/contents-share.tsx`) | Not rendered. |
