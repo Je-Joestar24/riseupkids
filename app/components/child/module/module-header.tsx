@@ -6,12 +6,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  Image,
   Pressable,
   StyleSheet,
   View,
 } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -65,10 +65,10 @@ export function ModuleHeader({
   if (coverImageUrl) {
     return (
       <View style={styles.coverWrap}>
-        <Image
-          source={{ uri: coverImageUrl }}
+        <RemoteImage
+          uri={coverImageUrl}
+          index={0}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
           accessibilityLabel={courseTitle ? `${courseTitle} cover` : 'Course cover'}
         />
         {content}

@@ -5,8 +5,9 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -23,6 +24,8 @@ export interface ModuleAudioAssignmentsProps {
   getStatus: (audio: PopulatedContentItem) => AudioStatus;
   getStarPoints?: (audio: PopulatedContentItem) => number;
   onAudioPress?: (audio: PopulatedContentItem) => void;
+  /** How many pictures come before this section on the page (sets their loading order). */
+  imageOffset?: number;
 }
 
 function AudioCard({
@@ -30,11 +33,14 @@ function AudioCard({
   status,
   starPoints,
   onPress,
+  imageIndex,
 }: {
   audio: PopulatedContentItem;
   status: AudioStatus;
   starPoints: number;
   onPress: () => void;
+  /** Position of this picture on the page, for the loading order. */
+  imageIndex: number;
 }) {
   const coverUrl = getCoverImageUrl(audio.coverImage ?? undefined);
   const isRejected = status === 'rejected';
@@ -50,10 +56,10 @@ function AudioCard({
       accessibilityLabel={audio.title ? `${audio.title}, Audio` : 'Audio assignment'}>
       <View style={styles.squareWrap}>
         {coverUrl ? (
-          <Image
-            source={{ uri: coverUrl }}
+          <RemoteImage
+            uri={coverUrl}
+            index={imageIndex}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
             accessibilityLabel={audio.title ? `${audio.title} cover` : 'Audio cover'}
           />
         ) : (
@@ -107,6 +113,7 @@ export function ModuleAudioAssignments({
   getStatus,
   getStarPoints = () => 0,
   onAudioPress,
+  imageOffset = 0,
 }: ModuleAudioAssignmentsProps) {
   if (!audioAssignments?.length) {
     return null;
@@ -123,6 +130,7 @@ export function ModuleAudioAssignments({
               status={getStatus(audio)}
               starPoints={getStarPoints(audio)}
               onPress={() => onAudioPress?.(audio)}
+              imageIndex={imageOffset + index}
             />
           </View>
         ))}

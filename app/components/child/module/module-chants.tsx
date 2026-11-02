@@ -4,8 +4,9 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -20,6 +21,8 @@ export interface ModuleChantsProps {
   isCompleted: (chant: PopulatedContentItem) => boolean;
   getStarPoints?: (chant: PopulatedContentItem) => number;
   onChantPress?: (chant: PopulatedContentItem) => void;
+  /** How many pictures come before this section on the page (sets their loading order). */
+  imageOffset?: number;
 }
 
 function ChantCard({
@@ -27,11 +30,14 @@ function ChantCard({
   isCompleted: completed,
   starPoints,
   onPress,
+  imageIndex,
 }: {
   chant: PopulatedContentItem;
   isCompleted: boolean;
   starPoints: number;
   onPress: () => void;
+  /** Position of this picture on the page, for the loading order. */
+  imageIndex: number;
 }) {
   const coverUrl = getCoverImageUrl(chant.coverImage ?? undefined);
   const timeMin = Number(chant.estimatedDuration ?? 0);
@@ -45,10 +51,10 @@ function ChantCard({
       accessibilityLabel={chant.title ? `${chant.title}, Chant` : 'Chant'}>
       <View style={styles.squareWrap}>
         {coverUrl ? (
-          <Image
-            source={{ uri: coverUrl }}
+          <RemoteImage
+            uri={coverUrl}
+            index={imageIndex}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
             accessibilityLabel={chant.title ? `${chant.title} cover` : 'Chant cover'}
           />
         ) : (
@@ -96,6 +102,7 @@ export function ModuleChants({
   isCompleted,
   getStarPoints = () => 0,
   onChantPress,
+  imageOffset = 0,
 }: ModuleChantsProps) {
   if (!chants?.length) {
     return null;
@@ -112,6 +119,7 @@ export function ModuleChants({
               isCompleted={isCompleted(chant)}
               starPoints={getStarPoints(chant)}
               onPress={() => onChantPress?.(chant)}
+              imageIndex={imageOffset + index}
             />
           </View>
         ))}

@@ -439,6 +439,7 @@ export default function ChildModuleScreen() {
       />
       <ModuleVideos
         videos={videos}
+        imageOffset={1}
         getProgressCircles={getVideoProgressCircles}
         isCompleted={isVideoCompleted}
         getStarPoints={getVideoStarPoints}
@@ -446,6 +447,7 @@ export default function ChildModuleScreen() {
       />
       <ModuleBooks
         books={books}
+        imageOffset={1 + videos.length}
         getProgressCircles={getBookProgressCircles}
         isCompleted={isBookCompleted}
         getStarPoints={getBookStarPoints}
@@ -453,12 +455,14 @@ export default function ChildModuleScreen() {
       />
       <ModuleChants
         chants={chants}
+        imageOffset={1 + videos.length + books.length}
         isCompleted={isChantCompleted}
         getStarPoints={getChantStarPoints}
         onChantPress={(c) => setChantModal(c)}
       />
       <ModuleAudioAssignments
         audioAssignments={audioAssignments}
+        imageOffset={1 + videos.length + books.length + chants.length}
         getStatus={(audio) => getAudioStatus(audio) as 'not_started' | 'in_progress' | 'completed' | 'rejected' | null}
         getStarPoints={() => 0}
         onAudioPress={(a) => setAudioModal(a)}

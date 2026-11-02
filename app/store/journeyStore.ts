@@ -6,10 +6,10 @@
  * flash the skeleton when a list already exists.
  */
 
-import { Image } from 'react-native';
 import { create } from 'zustand';
 
 import { API_BASE_URL } from '@/config';
+import { prefetchImages } from '@/utils/remoteImage';
 import {
   type ChildCourseWithProgress,
   journeyService,
@@ -30,13 +30,9 @@ function journeyCoverUrl(course: ChildCourseWithProgress['course'] | undefined):
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+/** Only the covers at the top are fetched ahead of time; the rest load as their cards are shown. */
 function prefetchJourneyCovers(courses: ChildCourseWithProgress[]): void {
-  for (const item of courses) {
-    const url = journeyCoverUrl(item.course);
-    if (url) {
-      void Image.prefetch(url).catch(() => undefined);
-    }
-  }
+  prefetchImages(courses.map((item) => journeyCoverUrl(item.course)));
 }
 
 export interface JourneyState {

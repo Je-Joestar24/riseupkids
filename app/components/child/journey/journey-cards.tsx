@@ -8,12 +8,14 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { Image, Pressable, StyleSheet, View } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import type { ChildCourseWithProgress } from '@/services/journeyService';
 import { useModuleStore } from '@/store/moduleStore';
 import { isJourneyModuleLocked } from '@/utils/journeyModuleAccess';
+import { prefetchImages } from '@/utils/remoteImage';
 
 import { API_BASE_URL } from '@/config';
 
@@ -118,9 +120,7 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
         const handlePress = () => {
           if (isLocked || !childId || !courseId) return;
           if (status === 'completed' || status === 'in_progress' || status === 'not_started') {
-            if (coverUrl) {
-              void Image.prefetch(coverUrl).catch(() => undefined);
-            }
+            prefetchImages([coverUrl]);
             useModuleStore.getState().prefetchModuleDetails(courseId, childId);
             router.push(`/child/${childId}/module?courseId=${courseId}` as never);
           }
@@ -147,10 +147,10 @@ export function JourneyCards({ courses, childId }: JourneyCardsProps) {
             {/* Image / cover area */}
             <View style={[styles.imageContainer, isLocked && styles.imageContainerLocked]}>
               {coverUrl ? (
-                <Image
-                  source={{ uri: coverUrl }}
+                <RemoteImage
+                  uri={coverUrl}
+                  index={index}
                   style={styles.coverImage}
-                  resizeMode="cover"
                   accessibilityLabel={course.title ? `${course.title} cover` : 'Course cover'}
                 />
               ) : (

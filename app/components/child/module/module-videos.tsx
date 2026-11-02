@@ -4,8 +4,9 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -22,6 +23,8 @@ export interface ModuleVideosProps {
   isCompleted: (video: PopulatedContentItem) => boolean;
   getStarPoints?: (video: PopulatedContentItem) => number;
   onVideoPress?: (video: PopulatedContentItem) => void;
+  /** How many pictures come before this section on the page (sets their loading order). */
+  imageOffset?: number;
 }
 
 function VideoCard({
@@ -30,12 +33,15 @@ function VideoCard({
   isCompleted: completed,
   starPoints,
   onPress,
+  imageIndex,
 }: {
   video: PopulatedContentItem;
   progressCircles: number;
   isCompleted: boolean;
   starPoints: number;
   onPress: () => void;
+  /** Position of this picture on the page, for the loading order. */
+  imageIndex: number;
 }) {
   const coverUrl = getCoverImageUrl(video.thumbnail ?? video.coverImage ?? undefined);
   const durationSec = Number(video.duration ?? 0);
@@ -52,10 +58,10 @@ function VideoCard({
       accessibilityLabel={a11yLabel}>
       <View style={styles.squareWrap}>
         {coverUrl ? (
-          <Image
-            source={{ uri: coverUrl }}
+          <RemoteImage
+            uri={coverUrl}
+            index={imageIndex}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
             accessibilityLabel={video.title ? `${video.title} thumbnail` : 'Video thumbnail'}
           />
         ) : (
@@ -90,6 +96,7 @@ export function ModuleVideos({
   isCompleted,
   getStarPoints = () => 0,
   onVideoPress,
+  imageOffset = 0,
 }: ModuleVideosProps) {
   if (!videos?.length) {
     return null;
@@ -107,6 +114,7 @@ export function ModuleVideos({
               isCompleted={isCompleted(video)}
               starPoints={getStarPoints(video)}
               onPress={() => onVideoPress?.(video)}
+              imageIndex={imageOffset + index}
             />
           </View>
         ))}

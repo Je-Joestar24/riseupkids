@@ -8,8 +8,9 @@
 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { RemoteImage } from '@/components/common/remote-image';
 import { ThemedText } from '@/components/themed-text';
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
@@ -26,6 +27,8 @@ export interface ModuleBooksProps {
   isCompleted: (book: PopulatedContentItem) => boolean;
   getStarPoints?: (book: PopulatedContentItem) => number;
   onBookPress?: (book: PopulatedContentItem) => void;
+  /** How many pictures come before this section on the page (sets their loading order). */
+  imageOffset?: number;
 }
 
 function BookCard({
@@ -34,12 +37,15 @@ function BookCard({
   isCompleted: completed,
   starPoints,
   onPress,
+  imageIndex,
 }: {
   book: PopulatedContentItem;
   progressCircles: number;
   isCompleted: boolean;
   starPoints: number;
   onPress: () => void;
+  /** Position of this picture on the page, for the loading order. */
+  imageIndex: number;
 }) {
   const coverUrl = getCoverImageUrl(book.coverImage ?? undefined);
   const timeMin = Number(book.estimatedReadingTime ?? book.estimatedTime ?? book.duration ?? 0);
@@ -55,10 +61,10 @@ function BookCard({
       accessibilityLabel={a11yLabel}>
       <View style={styles.squareWrap}>
         {coverUrl ? (
-          <Image
-            source={{ uri: coverUrl }}
+          <RemoteImage
+            uri={coverUrl}
+            index={imageIndex}
             style={StyleSheet.absoluteFill}
-            resizeMode="cover"
             accessibilityLabel={book.title ? `${book.title} cover` : 'Book cover'}
           />
         ) : (
@@ -93,6 +99,7 @@ export function ModuleBooks({
   isCompleted,
   getStarPoints = () => 0,
   onBookPress,
+  imageOffset = 0,
 }: ModuleBooksProps) {
   if (!books?.length) {
     return null;
@@ -110,6 +117,7 @@ export function ModuleBooks({
               isCompleted={isCompleted(book)}
               starPoints={getStarPoints(book)}
               onPress={() => onBookPress?.(book)}
+              imageIndex={imageOffset + index}
             />
           </View>
         ))}

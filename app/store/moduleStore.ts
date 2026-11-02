@@ -7,10 +7,10 @@
  * prefetch and the module screen share one network call.
  */
 
-import { Image } from 'react-native';
 import { create } from 'zustand';
 
 import { getCoverImageUrl } from '@/components/child/module/module-utils';
+import { prefetchImages } from '@/utils/remoteImage';
 import { moduleService } from '@/services/moduleService';
 import type {
   ModuleDetailsPayload,
@@ -42,10 +42,7 @@ function normalizeId(id: string | undefined): string {
 function prefetchModuleCover(details: ModuleDetailsPayload | null): void {
   const course = details?.course;
   if (!course) return;
-  const url = getCoverImageUrl(course.coverImage ?? course.coverImagePath ?? null);
-  if (url) {
-    void Image.prefetch(url).catch(() => undefined);
-  }
+  prefetchImages([getCoverImageUrl(course.coverImage ?? course.coverImagePath ?? null)]);
 }
 
 function isLockedDetails(details: ModuleDetailsPayload): boolean {

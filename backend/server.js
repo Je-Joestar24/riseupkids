@@ -47,6 +47,7 @@ const contactSupportRoutes = require('./routes/contactSupport.routes');
 const stripeRoutes = require('./routes/stripe.routes');
 const checkoutRoutes = require('./routes/checkout.routes');
 const paypalRoutes = require('./routes/paypal.routes');
+const { uploadsStatic } = require('./middleware/uploadsStatic');
 const pagseguroRoutes = require('./routes/pagseguro.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 const accountDeletionRoutes = require('./routes/accountDeletion.routes');
@@ -191,7 +192,7 @@ app.get('/favicon.ico', (req, res) => {
 });
 
 // Serve uploaded files statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', uploadsStatic(path.join(__dirname, 'uploads')));
 // Email assets (logo for emails – must be at public URL for email clients)
 app.use('/email-assets', express.static(path.join(__dirname, 'assets', 'email')));
 // Default push / inbox fallback icon (Play Store app icon)
