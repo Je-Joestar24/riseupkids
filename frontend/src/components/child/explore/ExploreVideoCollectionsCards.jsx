@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Paper, LinearProgress, CircularProgress } from '@mui/material';
+import { Box, Typography, Button, Paper, LinearProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Star as StarIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
+import { InlineBone } from '../common/ChildSkeleton';
 
 /**
  * SVG Icons for each video type
@@ -57,8 +58,10 @@ const VideoTypeIcons = {
 
 /**
  * Video Collection Card Component
+ * The icon, title and labels never change, so they are always shown; while `loading`, the stars,
+ * the viewed count and the button's wording hold their place until this collection's data arrives.
  */
-const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
+const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick }) => {
   const { totalStars, totalVideos, viewedVideos, hasStarted } = data;
   const progress = totalVideos > 0 ? (viewedVideos / totalVideos) * 100 : 0;
   const label = VIDEO_TYPE_LABELS[videoType] || videoType;
@@ -66,6 +69,7 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
 
   return (
     <Paper
+      aria-busy={loading}
       sx={{
         borderRadius: '0px',
         padding: '24px',
@@ -116,7 +120,7 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
               color: theme.palette.text.primary,
             }}
           >
-            {totalStars}
+            {loading ? <InlineBone width="28px" /> : totalStars}
           </Typography>
         </Box>
       </Box>
@@ -162,7 +166,7 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
               color: 'oklch(0.446 0.03 256.802)',
             }}
           >
-            {viewedVideos}/{totalVideos}
+            {loading ? <InlineBone width="36px" /> : `${viewedVideos}/${totalVideos}`}
           </Typography>
         </Box>
         <LinearProgress
@@ -198,11 +202,23 @@ const VideoCollectionCard = ({ videoType, data, theme, onContinueClick }) => {
           },
         }}
       >
-        {hasStarted ? 'Continue!' : 'Start now!'}
+        {loading ? <InlineBone width="96px" sx={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }} /> : hasStarted ? 'Continue!' : 'Start now!'}
       </Button>
     </Paper>
   );
 };
+
+// Video types to display (excluding replay)
+const VIDEO_TYPES = [
+  EXPLORE_VIDEO_TYPES.ARTS_CRAFTS,
+  EXPLORE_VIDEO_TYPES.COOKING,
+  EXPLORE_VIDEO_TYPES.MUSIC,
+  EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS,
+  EXPLORE_VIDEO_TYPES.STORY_TIME,
+  EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE,
+];
+
+const EMPTY_COLLECTION = { totalStars: 0, totalVideos: 0, viewedVideos: 0, hasStarted: false };
 
 /**
  * Explore Video Collections Cards Component
@@ -218,110 +234,52 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
   const { fetchExploreContent } = useExplore();
   const { getVideoTypeProgress, getTotalStarsForVideoType } = useExploreVideoWatch(childId);
   const [collectionsData, setCollectionsData] = useState({});
-  const [loading, setLoading] = useState(true);
 
-  // Video types to display (excluding replay)
-  const videoTypes = [
-    EXPLORE_VIDEO_TYPES.ARTS_CRAFTS,
-    EXPLORE_VIDEO_TYPES.COOKING,
-    EXPLORE_VIDEO_TYPES.MUSIC,
-    EXPLORE_VIDEO_TYPES.MOVEMENT_FITNESS,
-    EXPLORE_VIDEO_TYPES.STORY_TIME,
-    EXPLORE_VIDEO_TYPES.MANNERS_ETIQUETTE,
-  ];
+  // One collection: its list, progress and stars are asked for together, not one after another.
+  const loadCollection = async (videoType) => {
+    try {
+      const [content, progress, totalStars] = await Promise.all([
+        fetchExploreContent({ type: 'video', videoType, isPublished: true })
+          .then((result) => result?.data || [])
+          .catch(() => []),
+        getVideoTypeProgress(videoType),
+        getTotalStarsForVideoType(videoType),
+      ]);
+      const viewedVideos = progress.viewedVideos || 0;
+      return {
+        videoType,
+        totalStars,
+        // Use the list's length when the progress service does not know the total
+        totalVideos: progress.totalVideos || content.length,
+        viewedVideos,
+        hasStarted: viewedVideos > 0,
+      };
+    } catch (error) {
+      console.error(`Error loading data for ${videoType}:`, error);
+      return { videoType, totalStars: 0, totalVideos: 0, viewedVideos: 0, hasStarted: false };
+    }
+  };
 
   useEffect(() => {
-    const loadCollectionsData = async () => {
-      if (!childId) {
-        setLoading(false);
-        return;
-      }
+    if (!childId) return undefined;
 
-      try {
-        setLoading(true);
-        const dataPromises = videoTypes.map(async (videoType) => {
-          try {
-            // Fetch explore content for this video type
-            const result = await fetchExploreContent({
-              type: 'video',
-              videoType,
-              isPublished: true,
-            });
-            
-            const content = result?.data || [];
-            
-            // Calculate totals
-            const totalVideos = content.length;
-            
-            // Fetch progress (total videos and viewed videos) for this video type
-            let progress = { totalVideos: 0, viewedVideos: 0 };
-            try {
-              progress = await getVideoTypeProgress(videoType);
-              // Use progress.totalVideos if available, otherwise use content length
-              progress.totalVideos = progress.totalVideos || totalVideos;
-            } catch (error) {
-              console.error(`Error fetching progress for ${videoType}:`, error);
-              // Fallback to content length
-              progress.totalVideos = totalVideos;
-            }
-            
-            // Fetch total stars for this video type
-            let totalStars = 0;
-            try {
-              totalStars = await getTotalStarsForVideoType(videoType);
-            } catch (error) {
-              console.error(`Error fetching total stars for ${videoType}:`, error);
-              // Fallback: calculate from content
-              totalStars = content.reduce((sum, item) => sum + (item.starsAwarded || 10), 0);
-            }
-            
-            const viewedVideos = progress.viewedVideos || 0;
-            const hasStarted = viewedVideos > 0;
-            
-            return {
-              videoType,
-              totalStars,
-              totalVideos: progress.totalVideos,
-              viewedVideos,
-              hasStarted,
-            };
-          } catch (error) {
-            console.error(`Error loading data for ${videoType}:`, error);
-            return {
-              videoType,
-              totalStars: 0,
-              totalVideos: 0,
-              viewedVideos: 0,
-              hasStarted: false,
-            };
-          }
-        });
-
-        const results = await Promise.all(dataPromises);
-        const dataMap = {};
-        results.forEach((result) => {
-          dataMap[result.videoType] = result;
-        });
-        
-        setCollectionsData(dataMap);
-      } catch (error) {
-        console.error('Error loading collections data:', error);
-      } finally {
-        setLoading(false);
-      }
+    let cancelled = false;
+    // Each card fills in as its own data arrives; a refresh replaces the numbers quietly, never the cards.
+    const loadAll = () => {
+      VIDEO_TYPES.forEach(async (videoType) => {
+        const data = await loadCollection(videoType);
+        if (!cancelled) setCollectionsData((previous) => ({ ...previous, [videoType]: data }));
+      });
     };
 
-    loadCollectionsData();
-
-    // Listen for childStatsUpdated event to refresh progress when videos are watched
-    const handleStatsUpdate = () => {
-      loadCollectionsData();
-    };
-
-    window.addEventListener('childStatsUpdated', handleStatsUpdate);
+    setCollectionsData({});
+    loadAll();
+    // Refresh the progress when a video is watched
+    window.addEventListener('childStatsUpdated', loadAll);
 
     return () => {
-      window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+      cancelled = true;
+      window.removeEventListener('childStatsUpdated', loadAll);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
@@ -334,21 +292,6 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
       console.log('Navigate to video type:', videoType);
     }
   };
-
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '400px',
-        }}
-      >
-        <CircularProgress />
-      </Box>
-    );
-  }
 
   return (
     <Box
@@ -363,19 +306,16 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
         marginTop: '30px'
       }}
     >
-      {videoTypes.map((videoType) => {
-        const data = collectionsData[videoType] || {
-          totalStars: 0,
-          totalVideos: 0,
-          viewedVideos: 0,
-          hasStarted: false,
-        };
+      {VIDEO_TYPES.map((videoType) => {
+        const loaded = collectionsData[videoType];
+        const data = loaded || EMPTY_COLLECTION;
 
         return (
           <VideoCollectionCard
             key={videoType}
             videoType={videoType}
             data={data}
+            loading={Boolean(childId) && !loaded}
             theme={theme}
             onContinueClick={handleContinueClick}
           />

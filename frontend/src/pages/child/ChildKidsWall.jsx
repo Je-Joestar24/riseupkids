@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../config/themeColors';
 import useKidsWall from '../../hooks/kidsWallHook';
 import useChildProfile from '../../hooks/useChildProfile';
 import KidsWallHeader from '../../components/child/kidswall/KidsWallHeader';
 import KidsWallShareSomething from '../../components/child/kidswall/KidsWallShareSomething';
 import KidsWallCards from '../../components/child/kidswall/KidsWallCards';
+import KidsWallCardsSkeleton from '../../components/child/kidswall/KidsWallCardsSkeleton';
+import ChildLoadError from '../../components/child/common/ChildLoadError';
 import KidsWallFooter from '../../components/child/kidswall/KidsWallFooter';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
@@ -16,9 +18,10 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
  * Displays form to share posts and list of all posts
  */
 const ChildKidsWall = ({ childId }) => {
-  const { kidsWallEnabled } = useChildProfile(childId);
+  const { profile, loading: profileLoading, kidsWallEnabled } = useChildProfile(childId);
   const {
     posts,
+    loaded,
     loading,
     error,
     fetchPosts,
@@ -30,7 +33,7 @@ const ChildKidsWall = ({ childId }) => {
 
   // Fetch posts on mount (feed - all posts)
   useEffect(() => {
-    fetchPosts();
+    fetchPosts().catch(() => {});
   }, [fetchPosts]);
 
   // Handle post creation
@@ -79,46 +82,25 @@ const ChildKidsWall = ({ childId }) => {
           onSubmit={handleCreatePost}
           loading={loading}
           uploadEnabled={kidsWallEnabled}
+          checking={profileLoading && !profile}
         />
 
-        {/* Loading State */}
-        {loading && posts.length === 0 && (
-          <Box
-            sx={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '40px',
-            }}
-          >
-            <CircularProgress sx={{ color: themeColors.secondary }} />
-          </Box>
-        )}
+        {/* Loading State - the header and share card above never change, only the feed is a placeholder */}
+        {!loaded && !error && <KidsWallCardsSkeleton />}
 
-        {/* Error State */}
+        {/* Error State - a first load that failed can be retried */}
         {error && (
-          <Box
-            sx={{
-              padding: '20px',
-              marginTop: '24px',
-              backgroundColor: themeColors.bgCard,
-              borderRadius: '12px',
-            }}
-          >
-            <Typography
-              sx={{
-                color: themeColors.error,
-                fontSize: '1rem',
-                textAlign: 'center',
-              }}
-            >
-              {error}
-            </Typography>
+          <Box sx={{ marginTop: '24px', backgroundColor: themeColors.bgCard, borderRadius: '12px' }}>
+            <ChildLoadError
+              compact
+              message={error}
+              onRetry={loaded ? undefined : () => fetchPosts().catch(() => {})}
+            />
           </Box>
         )}
 
-        {/* Posts List */}
-        {!loading && posts.length > 0 && (
+        {/* Posts List - stays on screen while a refresh is under way */}
+        {posts.length > 0 && (
           <KidsWallCards
             posts={posts}
             onDelete={handleDeletePost}
@@ -128,8 +110,8 @@ const ChildKidsWall = ({ childId }) => {
           />
         )}
 
-        {/* Empty State */}
-        {!loading && posts.length === 0 && !error && (
+        {/* Empty State - only once the feed has really loaded */}
+        {loaded && posts.length === 0 && !error && (
           <Box
             sx={{
               padding: '40px',

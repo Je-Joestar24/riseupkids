@@ -2,14 +2,16 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { themeColors } from '../../../config/themeColors';
+import { InlineBone } from '../common/ChildSkeleton';
 
 /**
  * ChildJourneyHeader Component
  * 
  * Header section for My Journey page
- * Displays title and subtitle with white text
+ * Displays title and subtitle with white text. While the courses load, the title shows as usual and
+ * the step holds its place.
  */
-const ChildJourneyHeader = ({ week = 3, totalWeeks = 36 }) => {
+const ChildJourneyHeader = ({ week = 3, totalWeeks = 36, loading = false }) => {
   const theme = useTheme();
 
   return (
@@ -44,7 +46,7 @@ const ChildJourneyHeader = ({ week = 3, totalWeeks = 36 }) => {
           fontFamily: theme.typography.fontFamily,
         }}
       >
-        Step {week} of {totalWeeks}
+        {loading ? <InlineBone width="140px" sx={{ backgroundColor: 'rgba(255, 255, 255, 0.35)' }} /> : `Step ${week} of ${totalWeeks}`}
       </Typography>
     </Box>
   );

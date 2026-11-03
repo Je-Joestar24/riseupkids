@@ -287,7 +287,7 @@ const ExploreReplaysCards = ({ childId }) => {
         width: '100%',
       }}
     >
-      {videos.map((video) => {
+      {videos.map((video, index) => {
         const coverImageUrl = getVideoCoverImageUrl(video);
         const duration = getVideoDuration(video);
         // Get per-child view count (fallback to 0 if not loaded yet)
@@ -314,6 +314,7 @@ const ExploreReplaysCards = ({ childId }) => {
             <ExploreCoverImage
               src={coverImageUrl}
               alt={video?.title || 'Video thumbnail'}
+              index={index}
             >
               {/* Subject Badge - Upper Left (display none if not handled) */}
               {video?.subject && (

@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { themeColors } from '../../../config/themeColors';
+import { InlineBone } from '../common/ChildSkeleton';
 
 /**
  * ChildJourneySummary Component
@@ -11,7 +12,8 @@ import { themeColors } from '../../../config/themeColors';
 const ChildJourneySummary = ({ 
   completed = 2, 
   current = 1, 
-  locked = 33 
+  locked = 33,
+  loading = false,
 }) => {
   const theme = useTheme();
 
@@ -161,7 +163,7 @@ const ChildJourneySummary = ({
                 marginBottom: '4px',
               }}
             >
-              {item.count}
+              {loading ? <InlineBone width="32px" /> : item.count}
             </Typography>
 
             {/* Label */}

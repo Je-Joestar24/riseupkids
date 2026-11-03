@@ -8,7 +8,7 @@ import ChildModuleAudioCards from './ChildModuleAudioCards';
  * 
  * Audio assignments section displaying audio assignments from the course in a grid
  */
-const ChildModuleAudio = ({ audioAssignments = [], courseProgress = null, onAudioClick }) => {
+const ChildModuleAudio = ({ audioAssignments = [], courseProgress = null, onAudioClick, imageOffset = 0 }) => {
   // Get audio progress status map from course progress
   const getAudioProgressMap = () => {
     const progressMap = new Map();
@@ -100,6 +100,7 @@ const ChildModuleAudio = ({ audioAssignments = [], courseProgress = null, onAudi
             <ChildModuleAudioCards
               key={audioId || index}
               audio={audio}
+              imageIndex={imageOffset + index}
               status={audioStatus}
               onCardClick={() => {
                 if (onAudioClick) {

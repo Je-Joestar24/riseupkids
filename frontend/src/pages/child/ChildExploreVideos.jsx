@@ -13,8 +13,8 @@ const ChildExploreVideos = ({ childId }) => {
     const theme = useTheme();
     const { videoType } = useParams();
     const { getTotalStarsForVideoType } = useExploreVideoWatch(childId);
-    const [totalStars, setTotalStars] = useState(0);
-    const [loadingStars, setLoadingStars] = useState(true);
+    // null until the first answer, so the header shows a placeholder instead of a wrong 0
+    const [totalStars, setTotalStars] = useState(null);
 
     // Get child data from sessionStorage
     const getChildData = () => {
@@ -28,32 +28,28 @@ const ChildExploreVideos = ({ childId }) => {
 
     // Fetch total stars for this video type from API
     useEffect(() => {
+        if (!childId || !videoType) return undefined;
+
+        let cancelled = false;
         const fetchTotalStars = async () => {
-            if (!childId || !videoType) return;
-            
             try {
-                setLoadingStars(true);
                 const stars = await getTotalStarsForVideoType(videoType);
-                setTotalStars(stars || 0);
+                if (!cancelled) setTotalStars(stars || 0);
             } catch (error) {
                 console.error('Error fetching total stars for video type:', error);
-                setTotalStars(0);
-            } finally {
-                setLoadingStars(false);
+                if (!cancelled) setTotalStars((previous) => previous ?? 0);
             }
         };
 
+        setTotalStars(null);
         fetchTotalStars();
 
-        // Listen for childStatsUpdated event to refresh stars when a video is watched
-        const handleStatsUpdate = () => {
-            fetchTotalStars();
-        };
-
-        window.addEventListener('childStatsUpdated', handleStatsUpdate);
+        // Refresh quietly when a video is watched (the number is replaced, never blanked)
+        window.addEventListener('childStatsUpdated', fetchTotalStars);
 
         return () => {
-            window.removeEventListener('childStatsUpdated', handleStatsUpdate);
+            cancelled = true;
+            window.removeEventListener('childStatsUpdated', fetchTotalStars);
         };
     }, [childId, videoType, getTotalStarsForVideoType]);
 
@@ -83,7 +79,8 @@ const ChildExploreVideos = ({ childId }) => {
                 <ExploreVideosHeader
                     childId={childId}
                     videoType={videoType}
-                    totalStars={totalStars}
+                    totalStars={totalStars ?? 0}
+                    loading={totalStars === null}
                 />
 
                 <ExploreVideosShare

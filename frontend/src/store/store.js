@@ -20,6 +20,7 @@ import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
 import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
 import schoolProspectsReducer from './slices/schoolProspectsSlice';
+import childJourneyReducer from './slices/childJourneySlice';
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +45,7 @@ export const store = configureStore({
     cmsBookAdmin: cmsBookAdminReducer, // Admin CMS book builder state
     cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state
     schoolProspects: schoolProspectsReducer, // Admin school prospects list
+    childJourney: childJourneyReducer, // Child My Journey session cache
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Box } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { themeColors } from '../../config/themeColors';
 import useCourseProgress from '../../hooks/courseProgressHook';
 import { useAuth } from '../../hooks/userHook';
 import courseProgressService from '../../services/courseProgressService';
+import ChildModuleSkeleton from '../../components/child/module/ChildModuleSkeleton';
+import ChildLoadError from '../../components/child/common/ChildLoadError';
+import { JOURNEY_REFRESH_MIN_AGE_MS } from '../../store/slices/childJourneySlice';
 import ChildModuleHeader from '../../components/child/module/ChildModuleHeader';
 import ChildModuleBreadCrumbs from '../../components/child/module/ChildModuleBreadCrumbs';
 import ChildModuleProgress from '../../components/child/module/ChildModuleProgress';
@@ -20,6 +22,29 @@ import ChantRecordingModal from '../../components/child/module/ChantRecordingMod
 import ChildModulePrintables from '../../components/child/module/ChildModulePrintables';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
+const PAGE_BACKGROUND = 'rgb(212, 230, 227)';
+
+// Shared by the skeleton and the loaded page so the layout does not move when the course arrives.
+const PAGE_SX = {
+  minHeight: '100vh',
+  backgroundColor: PAGE_BACKGROUND,
+  paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
+  paddingTop: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+};
+
+const CONTAINER_SX = {
+  width: '100%',
+  maxWidth: '848px',
+  backgroundColor: 'transparent',
+  padding: { xs: '16px', sm: '0px' },
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+};
+
 /**
  * ChildJourneyModule Page
  * 
@@ -30,10 +55,11 @@ const ChildJourneyModule = ({ childId }) => {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const [courseDetails, setCourseDetails] = useState(null);
-  const [courses, setCourses] = useState([]); // Still need this for step number calculation
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { fetchChildCourses, fetchCourseDetailsForChild, getCoverImageUrl } = useCourseProgress(childId);
+  const [reloadKey, setReloadKey] = useState(0);
+  // The courses list is only needed for the step number
+  const { courses, fetchChildCourses, fetchCourseDetailsForChild, getCoverImageUrl } = useCourseProgress(childId);
   
   // Modal states
   const [scormOpen, setScormOpen] = useState(false);
@@ -63,11 +89,11 @@ const ChildJourneyModule = ({ childId }) => {
       setLoading(true);
       setError(null);
 
-      try {
-        // Fetch all courses first (for step number calculation)
-        const allCourses = await fetchChildCourses();
-        setCourses(allCourses);
+      // The list only gives the step number: load it alongside the details, never wait for it, and
+      // never fail the page if it fails (the step then falls back to 1).
+      fetchChildCourses({ minAgeMs: JOURNEY_REFRESH_MIN_AGE_MS }).catch(() => {});
 
+      try {
         // Fetch course details with populated contents
         const details = await fetchCourseDetailsForChild(courseId);
 
@@ -80,14 +106,14 @@ const ChildJourneyModule = ({ childId }) => {
 
         setCourseDetails(details);
       } catch (err) {
-        setError(err.message || 'Failed to load course');
+        setError((typeof err === 'string' ? err : err?.message) || 'Failed to load course');
       } finally {
         setLoading(false);
       }
     };
 
     loadCourse();
-  }, [childId, courseId, fetchChildCourses, fetchCourseDetailsForChild]);
+  }, [childId, courseId, fetchChildCourses, fetchCourseDetailsForChild, reloadKey]);
 
   // Get step number (sequential position based on course order)
   const getStepNumber = () => {
@@ -213,42 +239,21 @@ const ChildJourneyModule = ({ childId }) => {
   // Early returns AFTER all hooks
   if (loading) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          backgroundColor: 'rgb(212, 230, 227)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress sx={{ color: themeColors.primary }} />
+      <Box sx={PAGE_SX}>
+        <Box sx={CONTAINER_SX}>
+          <ChildModuleSkeleton />
+        </Box>
       </Box>
     );
   }
 
   if (error) {
     return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          backgroundColor: 'rgb(212, 230, 227)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: { xs: '16px', sm: '32px' },
-        }}
-      >
-        <Typography
-          sx={{
-            color: themeColors.text,
-            fontSize: '18px',
-            textAlign: 'center',
-          }}
-        >
-          {error}
-        </Typography>
-      </Box>
+      <ChildLoadError
+        message={error}
+        onRetry={() => setReloadKey((key) => key + 1)}
+        background={PAGE_BACKGROUND}
+      />
     );
   }
 
@@ -339,29 +344,9 @@ const ChildJourneyModule = ({ childId }) => {
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: '100vh',
-        backgroundColor: 'rgb(212, 230, 227)',
-        paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
-        paddingTop: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-      }}
-    >
+    <Box sx={PAGE_SX}>
       {/* Container with 848px max-width */}
-      <Box
-        sx={{
-          width: '100%',
-          maxWidth: '848px',
-          backgroundColor: 'transparent',
-          padding: { xs: '16px', sm: '0px' },
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
-      >
+      <Box sx={CONTAINER_SX}>
         {/* Header with Cover Image, Back Button, and Step Badge */}
         <ChildModuleHeader
           stepNumber={stepNumber}
@@ -396,6 +381,7 @@ const ChildJourneyModule = ({ childId }) => {
           {/* Library Component */}
           <ChildModuleLibrary
             books={books}
+            imageOffset={1}
             courseProgress={courseDetails}
             onBookClick={handleBookClick}
           />
@@ -404,6 +390,7 @@ const ChildJourneyModule = ({ childId }) => {
           <ChildModuleVideos
             ref={videosRef}
             videos={videos}
+            imageOffset={1 + books.length}
             courseProgress={courseDetails}
             onVideoClick={handleVideoClick}
             childId={childId}
@@ -413,6 +400,7 @@ const ChildJourneyModule = ({ childId }) => {
           {/* Chants Component */}
           <ChildModuleChants
             chants={chants}
+            imageOffset={1 + books.length + videos.length}
             courseProgress={courseDetails}
             onChantClick={handleChantClick}
           />
@@ -420,6 +408,7 @@ const ChildJourneyModule = ({ childId }) => {
           {/* Audio Assignments Component */}
           <ChildModuleAudio
             audioAssignments={audioAssignments}
+            imageOffset={1 + books.length + videos.length + chants.length}
             courseProgress={courseDetails}
             onAudioClick={handleAudioClick}
           />

@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box } from '@mui/material';
+import RemoteImage from '../common/RemoteImage';
 import { EXPLORE_COVER_ASPECT_RATIO } from '../../../constants/exploreVideoTypes';
 
 const DEFAULT_ASPECT = EXPLORE_COVER_ASPECT_RATIO;
@@ -31,28 +32,20 @@ const ExploreCoverImage = ({
   backgroundColor = '#f0f0f0',
   containerSx = {},
   imageSx = {},
+  index = 0,
 }) => {
-  const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT);
-  const imgRef = useRef(null);
-
-  const applyNaturalAspect = useCallback((naturalWidth, naturalHeight) => {
-    setAspectRatio(resolveExploreCoverAspectRatio(naturalWidth, naturalHeight));
-  }, []);
-
-  useEffect(() => {
-    setAspectRatio(DEFAULT_ASPECT);
-    const img = imgRef.current;
-    if (img?.complete && img.naturalWidth) {
-      applyNaturalAspect(img.naturalWidth, img.naturalHeight);
-    }
-  }, [src, applyNaturalAspect]);
+  const [measured, setMeasured] = useState(null);
+  const aspectRatio =
+    measured?.src === src
+      ? resolveExploreCoverAspectRatio(measured.width, measured.height)
+      : DEFAULT_ASPECT;
 
   const handleLoad = useCallback(
     (event) => {
       const { naturalWidth, naturalHeight } = event.currentTarget;
-      applyNaturalAspect(naturalWidth, naturalHeight);
+      setMeasured({ src, width: naturalWidth, height: naturalHeight });
     },
-    [applyNaturalAspect]
+    [src]
   );
 
   return (
@@ -67,11 +60,10 @@ const ExploreCoverImage = ({
       }}
     >
       {src ? (
-        <Box
-          component="img"
-          ref={imgRef}
+        <RemoteImage
           src={src}
           alt={alt}
+          index={index}
           onLoad={handleLoad}
           sx={{
             width: '100%',

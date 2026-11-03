@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
+import RemoteImage from '../common/RemoteImage';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import audioPlaceholder from '../../../assets/images/audio.png';
 
 /**
@@ -15,23 +16,11 @@ const ChildModuleAudioCards = ({
   audio,
   status,
   onCardClick,
+  imageIndex = 0, // Position of the cover on the page (decides when it loads)
 }) => {
   // Check if status is rejected (child-friendly handling)
   const isRejected = status === 'rejected';
   const isCompleted = status === 'completed';
-  // Get cover image URL
-  const getCoverImageUrl = (coverImagePath) => {
-    if (!coverImagePath) return null;
-
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
-  };
 
   // Use cover image or static placeholder
   const coverImageUrl = audio?.coverImage 
@@ -70,10 +59,10 @@ const ChildModuleAudioCards = ({
         }}
       >
         {/* Cover Image */}
-        <Box
-          component="img"
+        <RemoteImage
           src={coverImageUrl}
           alt={audio?.title || 'Audio assignment'}
+          index={imageIndex}
           sx={{
             position: 'absolute',
             top: 0,

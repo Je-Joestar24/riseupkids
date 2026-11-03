@@ -1,50 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import sampleImage from '../../../assets/images/sample.png';
+import sampleImage from '../../../assets/images/sample.webp';
 import { themeColors } from '../../../config/themeColors';
 import { useNavigate, useParams } from 'react-router-dom';
-import childrenService from '../../../services/childrenService';
+import { InlineBone } from '../common/ChildSkeleton';
 
 /**
  * ChildHomeStartLearning Component
  * 
  * Welcome card component for child home page
- * Displays personalized greeting with avatar and start learning button
- * 
- * Uses API to fetch child data if not provided via props
+ * Displays personalized greeting with avatar and start learning button.
+ * The child record comes from the page; `loading` holds the name's place until it arrives.
  */
-const ChildHomeStartLearning = ({ child: childProp }) => {
+const ChildHomeStartLearning = ({ child, loading = false }) => {
   const navigate = useNavigate();
   const { id: childId } = useParams();
-  const [child, setChild] = useState(childProp);
-
-  // Fetch child data from API if not provided via props
-  useEffect(() => {
-    // If we have a valid child prop, use it
-    if (childProp && childProp._id) {
-      setChild(childProp);
-      return;
-    }
-
-    // Otherwise, fetch from API
-    if (childId) {
-      childrenService.getChildById(childId)
-        .then((response) => {
-          setChild(response.data || response);
-        })
-        .catch((err) => {
-          console.error('[ChildHomeStartLearning] Error fetching child:', err);
-        });
-    }
-  }, [childId, childProp]);
-
-  // Update child when prop changes
-  useEffect(() => {
-    if (childProp && childProp._id) {
-      setChild(childProp);
-    }
-  }, [childProp]);
 
   const handleStartLearning = () => {
     navigate(`/child/${childId}/explore`);
@@ -52,6 +23,7 @@ const ChildHomeStartLearning = ({ child: childProp }) => {
 
   return (
     <Box
+      aria-busy={loading}
       sx={{
         backgroundColor: 'white',
         padding: '32px',
@@ -107,7 +79,7 @@ const ChildHomeStartLearning = ({ child: childProp }) => {
               lineHeight: 1.2,
             }}
           >
-            Hi, {child ? child.displayName : 'Friend'}!
+            {loading ? <InlineBone width="200px" /> : `Hi, ${child ? child.displayName : 'Friend'}!`}
           </Typography>
           <Typography
             sx={{

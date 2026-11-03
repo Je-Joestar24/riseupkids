@@ -16,7 +16,7 @@ import useCourseProgress from '../../../hooks/courseProgressHook';
  * @param {String} childId - Child's ID
  * @param {Number} refreshTrigger - Optional trigger value to force refresh (increment to refresh)
  */
-const ChildModuleVideos = forwardRef(({ videos = [], courseProgress = null, onVideoClick, childId, refreshTrigger = 0 }, ref) => {
+const ChildModuleVideos = forwardRef(({ videos = [], courseProgress = null, onVideoClick, childId, refreshTrigger = 0, imageOffset = 0 }, ref) => {
   const { getChildVideoWatches } = useCourseProgress(childId);
   const [videoWatches, setVideoWatches] = useState({}); // Map of videoId -> watch status
   const [loadingWatches, setLoadingWatches] = useState(false);
@@ -232,6 +232,7 @@ const ChildModuleVideos = forwardRef(({ videos = [], courseProgress = null, onVi
             <ChildModuleVideoCards
               key={videoId || index}
               video={video}
+              imageIndex={imageOffset + index}
               isCompleted={starsAlreadyAwarded} // Show completion checkbox when all checkboxes are filled
               progressCircles={progressCircles}
               onCardClick={() => {

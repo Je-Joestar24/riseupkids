@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Typography, IconButton, Button } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
+import RemoteImage from '../common/RemoteImage';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * Heart Icon Component (Custom SVG)
@@ -59,19 +60,7 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
   };
 
   // Get image URL
-  const getImageUrl = (image) => {
-    if (!image) return null;
-
-    // If already a full URL, return as-is
-    if (image.url && (image.url.startsWith('http://') || image.url.startsWith('https://'))) {
-      return image.url;
-    }
-
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    const path = image.url || image.filePath;
-    return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-  };
+  const getImageUrl = (image) => (image ? getCoverImageUrl(image.url || image.filePath) : null);
 
   // Get like count
   const getLikeCount = (post) => {
@@ -125,7 +114,7 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
         marginBottom: '32px',
       }}
     >
-      {posts.map((post) => {
+      {posts.map((post, index) => {
         const image = post.images?.[0];
         const imageUrl = image ? getImageUrl(image) : null;
         const child = post.child || {};
@@ -159,10 +148,10 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                   overflow: 'hidden',
                 }}
               >
-                <Box
-                  component="img"
+                <RemoteImage
                   src={imageUrl}
                   alt={post.title || 'Post image'}
+                  index={index}
                   sx={{
                     position: 'absolute',
                     top: 0,

@@ -12,7 +12,7 @@ import ExploreCoverImage from './ExploreCoverImage';
  * Card component for displaying replay videos in the Explore page
  * Shows cover photo, play icon, duration, title, creator, views, and Watch Now button
  */
-const ExploreReplaysCard = ({ content, onWatchClick }) => {
+const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
   const theme = useTheme();
   const { getCoverImageUrl, getVideoFileUrl } = useExplore();
 
@@ -64,6 +64,7 @@ const ExploreReplaysCard = ({ content, onWatchClick }) => {
         <ExploreCoverImage
           src={coverImageUrl}
           alt={content.title}
+          index={imageIndex}
           backgroundColor={theme.palette.custom.bgSecondary}
         >
           {/* Play Icon Overlay - Centered */}

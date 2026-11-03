@@ -17,7 +17,7 @@ import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
  * 
  * Library section displaying books from the course in a 3-column grid
  */
-const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) => {
+const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, imageOffset = 0 }) => {
   const { id: childId, courseId } = useParams();
   const dispatch = useDispatch();
   const { getChildBookReadings } = useCourseProgress(childId);
@@ -344,6 +344,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick }) 
               <ChildModuleCards
                 key={bookId || index}
                 book={book}
+                imageIndex={imageOffset + index}
                 isCompleted={isBookCompleted(book)}
                 progressCircles={getBookProgress(book)}
                 onCardClick={() => {

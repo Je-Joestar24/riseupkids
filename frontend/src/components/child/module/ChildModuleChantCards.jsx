@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
+import RemoteImage from '../common/RemoteImage';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * ChildModuleChantCards Component
@@ -13,20 +14,8 @@ const ChildModuleChantCards = ({
   chant,
   isCompleted = false,
   onCardClick,
+  imageIndex = 0, // Position of the cover on the page (decides when it loads)
 }) => {
-  // Get cover image URL
-  const getCoverImageUrl = (coverImagePath) => {
-    if (!coverImagePath) return null;
-    
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-    
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
-  };
 
   const coverImageUrl = chant?.coverImage ? getCoverImageUrl(chant.coverImage) : null;
 
@@ -63,10 +52,10 @@ const ChildModuleChantCards = ({
       >
         {/* Cover Image */}
         {coverImageUrl && (
-          <Box
-            component="img"
+          <RemoteImage
             src={coverImageUrl}
             alt={chant?.title || 'Chant cover'}
+            index={imageIndex}
             sx={{
               position: 'absolute',
               top: 0,

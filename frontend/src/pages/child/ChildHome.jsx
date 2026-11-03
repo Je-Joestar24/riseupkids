@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Box, CircularProgress } from '@mui/material';
+import { Box } from '@mui/material';
 import ChildHomeStartLearning from '../../components/child/home/ChildHomeStartLearning';
 import ChildHomeLiveClass from '../../components/child/home/ChildHomeLiveClass';
 import ChildHomeAccumlatedAwards from '../../components/child/home/ChildHomeAccumlatedAwards';
 import childrenService from '../../services/childrenService';
-import { themeColors } from '../../config/themeColors';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
@@ -19,7 +18,6 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
 const ChildHome = ({ childId }) => {
   const [child, setChild] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   // Fetch child data from API
   useEffect(() => {
@@ -31,12 +29,10 @@ const ChildHome = ({ childId }) => {
 
       try {
         setLoading(true);
-        setError(null);
         const response = await childrenService.getChildById(childId);
         setChild(response.data || response);
       } catch (err) {
         console.error('[ChildHome] Error fetching child data:', err);
-        setError(err?.message || 'Failed to load child data');
       } finally {
         setLoading(false);
       }
@@ -65,21 +61,6 @@ const ChildHome = ({ childId }) => {
     };
   }, [childId]);
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <CircularProgress sx={{ color: themeColors.primary }} />
-      </Box>
-    );
-  }
-
   return (
     <Box
       sx={{
@@ -99,13 +80,13 @@ const ChildHome = ({ childId }) => {
         }}
       >
         {/* Start Learning Welcome Card */}
-        <ChildHomeStartLearning child={child} />
+        <ChildHomeStartLearning child={child} loading={loading} />
 
-        {/* Next Live Class Card */}
+        {/* Next Live Class Card — loads alongside the child record, with its own placeholder */}
         <ChildHomeLiveClass />
 
         {/* Accumulated Awards */}
-        <ChildHomeAccumlatedAwards child={child} />
+        <ChildHomeAccumlatedAwards child={child} loading={loading} />
       </Box>
     </Box>
   );

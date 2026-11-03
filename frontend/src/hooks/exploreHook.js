@@ -17,6 +17,7 @@ import {
 import { showNotification } from '../store/slices/uiSlice';
 import { getVideoTypeLabel as getVideoTypeLabelFromConstants } from '../constants/exploreVideoTypes';
 import { BACKEND_BASE_URL } from '../config/constants';
+import { getCoverImageUrl } from '../utils/coverImageUrl';
 
 /**
  * Custom hook for explore content management
@@ -279,24 +280,6 @@ export const useExplore = () => {
     }
 
     return formData;
-  };
-
-  /**
-   * Get full URL for explore content cover image
-   * @param {String} coverImagePath - Relative cover image path (e.g., /uploads/explore/...)
-   * @returns {String} Full URL for the cover image
-   */
-  const getCoverImageUrl = (coverImagePath) => {
-    if (!coverImagePath) return null;
-    
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-    
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   };
 
   /**

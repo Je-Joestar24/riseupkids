@@ -1,7 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
+import RemoteImage from '../common/RemoteImage';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
 /**
  * ChildModuleVideoCards Component
@@ -14,20 +15,8 @@ const ChildModuleVideoCards = ({
     isCompleted = false,
     progressCircles = 0, // Number of circles filled (0-5) - static for now
     onCardClick,
+    imageIndex = 0, // Position of the cover on the page (decides when it loads)
 }) => {
-    // Get cover image URL
-    const getCoverImageUrl = (coverImagePath) => {
-        if (!coverImagePath) return null;
-
-        // If already a full URL, return as-is
-        if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-            return coverImagePath;
-        }
-
-        // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-        const baseUrl = BACKEND_BASE_URL;
-        return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
-    };
 
     // Videos use thumbnail or coverImage
     const coverImageUrl = video?.thumbnail || video?.coverImage 
@@ -68,10 +57,10 @@ const ChildModuleVideoCards = ({
             >
                 {/* Cover Image */}
                 {coverImageUrl && (
-                    <Box
-                        component="img"
+                    <RemoteImage
                         src={coverImageUrl}
                         alt={video?.title || 'Video thumbnail'}
+                        index={imageIndex}
                         sx={{
                             position: 'absolute',
                             top: 0,

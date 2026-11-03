@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import React, { useCallback, useEffect } from 'react';
+import { Box } from '@mui/material';
 import { themeColors } from '../../config/themeColors';
-import { useTheme } from '@mui/material/styles';
 import useCourseProgress from '../../hooks/courseProgressHook';
 import ChildJourneyHeader from '../../components/child/journey/ChildJourneyHeader';
 import ChildJourneyCards from '../../components/child/journey/ChildJourneyCards';
 import ChildJourneySummary from '../../components/child/journey/ChildJourneySummary';
+import ChildJourneyCardsSkeleton from '../../components/child/journey/ChildJourneyCardsSkeleton';
+import ChildLoadError from '../../components/child/common/ChildLoadError';
+import { JOURNEY_REFRESH_MIN_AGE_MS } from '../../store/slices/childJourneySlice';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
@@ -15,26 +17,30 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
  * Displays course progress in a card grid layout
  */
 const ChildJourney = ({ childId }) => {
-  const theme = useTheme();
   const {
     courses,
-    loading,
+    loaded,
     error,
     fetchChildCourses,
     getSummaryCounts,
   } = useCourseProgress(childId);
 
-  // Fetch courses on mount and when returning to the page (admin lock/unlock)
-  useEffect(() => {
-    if (childId) {
-      fetchChildCourses();
-    }
-  }, [childId, fetchChildCourses]);
+  // A failed refresh leaves the list on screen; only a first load with nothing to show reaches the error screen.
+  const refresh = useCallback(
+    (options) => fetchChildCourses(options).catch(() => {}),
+    [fetchChildCourses]
+  );
 
+  // Fetch courses on mount; the cached list (if any) is shown meanwhile.
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Re-check when returning to the tab (admin lock/unlock), quietly and not more than every 30 s.
   useEffect(() => {
     const onFocus = () => {
-      if (childId && document.visibilityState === 'visible') {
-        fetchChildCourses();
+      if (document.visibilityState === 'visible') {
+        refresh({ minAgeMs: JOURNEY_REFRESH_MIN_AGE_MS });
       }
     };
     document.addEventListener('visibilitychange', onFocus);
@@ -43,7 +49,7 @@ const ChildJourney = ({ childId }) => {
       document.removeEventListener('visibilitychange', onFocus);
       window.removeEventListener('focus', onFocus);
     };
-  }, [childId, fetchChildCourses]);
+  }, [refresh]);
 
   // Calculate current week and total weeks from courses
   // Uses sequential position (1, 2, 3...) not raw stepOrder values (10, 20, 30...)
@@ -93,45 +99,8 @@ const ChildJourney = ({ childId }) => {
   const { currentWeek, totalWeeks } = calculateWeeks();
   const summaryCounts = getSummaryCounts();
 
-  if (loading) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          backgroundColor: themeColors.primary,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <CircularProgress sx={{ color: themeColors.textInverse }} />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box
-        sx={{
-          minHeight: '100vh',
-          backgroundColor: themeColors.primary,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: { xs: '16px', sm: '32px' },
-        }}
-      >
-        <Typography
-          sx={{
-            color: themeColors.textInverse,
-            fontSize: '18px',
-            textAlign: 'center',
-          }}
-        >
-          {error}
-        </Typography>
-      </Box>
-    );
+  if (error && !loaded) {
+    return <ChildLoadError message={error} onRetry={() => refresh()} inverse background={themeColors.primary} />;
   }
 
   return (
@@ -158,17 +127,18 @@ const ChildJourney = ({ childId }) => {
           alignItems: 'center',
         }}
       >
-        {/* Header - Title and Subtitle */}
-        <ChildJourneyHeader week={currentWeek} totalWeeks={totalWeeks} />
+        {/* Header - Title stays; the step holds its place until the courses arrive */}
+        <ChildJourneyHeader week={currentWeek} totalWeeks={totalWeeks} loading={!loaded} />
 
         {/* Card Grid Area */}
-        <ChildJourneyCards courses={courses} />
+        {loaded ? <ChildJourneyCards courses={courses} /> : <ChildJourneyCardsSkeleton />}
 
-        {/* Progress Summary */}
+        {/* Progress Summary - labels stay; the counts hold their place */}
         <ChildJourneySummary
           completed={summaryCounts.completed}
           current={summaryCounts.current}
           locked={summaryCounts.locked}
+          loading={!loaded}
         />
       </Box>
     </Box>

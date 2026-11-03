@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Typography, Button, Paper, CircularProgress } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { themeColors } from '../../../config/themeColors';
 import ExploreVideosCardsEmpty from './ExploreVidoeCardsEmpty';
+import ExploreVideosCardsSkeleton from './ExploreVideosCardsSkeleton';
+import ChildLoadError from '../common/ChildLoadError';
+import { InlineBone } from '../common/ChildSkeleton';
 import VideoPlayerModal from '../common/VideoPlayerModal';
 import ExploreCoverImage from '../explore/ExploreCoverImage';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
+
+const toWatchStatus = (exploreContentId, status) => ({
+  exploreContentId: exploreContentId.toString(),
+  isWatched: status?.starsAwarded || (status?.currentWatchCount || 0) > 0,
+  watchCount: status?.currentWatchCount || 0,
+  starsAwarded: status?.starsAwarded || false,
+});
 
 /**
  * ExploreVideosCards Component
@@ -20,84 +30,68 @@ import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback'
  */
 const ExploreVideosCards = ({ childId, videoType }) => {
   const theme = useTheme();
-  const { fetchExploreContent, getCoverImageUrl, loading } = useExplore();
+  const { fetchExploreContent, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
-  const [videos, setVideos] = useState([]);
+  // null until the list has loaded, so the empty message never shows before then
+  const [videos, setVideos] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  // Watched state per video, filled in card by card; a card without an entry is still waiting
   const [videoWatchStatuses, setVideoWatchStatuses] = useState({});
-  const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedExploreContentId, setSelectedExploreContentId] = useState(null);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const lastLoadedRef = useRef({ childId: null, videoType: null });
-  const isLoadingRef = useRef(false);
 
-  // Fetch videos for this video type
+  // Fetch videos for this video type; the cards show as soon as the list arrives
   useEffect(() => {
-    // Skip if already loading or if same childId and videoType
-    if (isLoadingRef.current) return;
-    if (lastLoadedRef.current.childId === childId && lastLoadedRef.current.videoType === videoType) return;
-    if (!childId || !videoType) return;
-    
+    if (!childId || !videoType) return undefined;
+
+    let cancelled = false;
+    setVideos(null);
+    setLoadError(null);
+    setVideoWatchStatuses({});
+
     const loadVideos = async () => {
-      isLoadingRef.current = true;
-      lastLoadedRef.current = { childId, videoType };
-      
       try {
-        setLoadingStatuses(true);
         const result = await fetchExploreContent({
           type: 'video',
           videoType,
           isPublished: true,
         });
+        if (cancelled) return;
 
         const videoList = result?.data || [];
         setVideos(videoList);
 
-        // Fetch watch statuses for all videos using explore video watch status
-        const statusPromises = videoList.map(async (video) => {
-          const exploreContentId = video._id;
-          if (!exploreContentId) return null;
-
+        // Watch status for every video, asked for together; each card updates when its own answer comes
+        videoList.forEach(async (video) => {
+          if (!video._id) return;
+          let status = null;
           try {
-            const status = await getExploreVideoWatchStatus(exploreContentId);
-            return {
-              exploreContentId: exploreContentId.toString(),
-              isWatched: status?.starsAwarded || (status?.currentWatchCount || 0) > 0,
-              watchCount: status?.currentWatchCount || 0,
-              starsAwarded: status?.starsAwarded || false,
-            };
+            status = await getExploreVideoWatchStatus(video._id);
           } catch (error) {
-            // Video not watched yet or error fetching status
-            return {
-              exploreContentId: exploreContentId.toString(),
-              isWatched: false,
-              watchCount: 0,
-              starsAwarded: false,
-            };
+            // Not watched yet or error fetching status: treated as not watched
+          }
+          if (!cancelled) {
+            setVideoWatchStatuses((previous) => ({
+              ...previous,
+              [video._id.toString()]: toWatchStatus(video._id, status),
+            }));
           }
         });
-
-        const statuses = await Promise.all(statusPromises);
-        const statusMap = {};
-        statuses.forEach((status) => {
-          if (status) {
-            statusMap[status.exploreContentId] = status;
-          }
-        });
-        setVideoWatchStatuses(statusMap);
       } catch (error) {
         console.error('Error loading videos:', error);
-        // Reset last loaded on error so we can retry
-        lastLoadedRef.current = { childId: null, videoType: null };
-      } finally {
-        setLoadingStatuses(false);
-        isLoadingRef.current = false;
+        if (!cancelled) setLoadError(error?.message || (typeof error === 'string' ? error : 'Failed to load videos'));
       }
     };
 
     loadVideos();
+
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, videoType]); // Only depend on childId and videoType - functions are stable
+  }, [childId, videoType, reloadKey]); // Only depend on childId and videoType - functions are stable
 
   // Get cover image URL
   const getVideoCoverImageUrl = (video) => {
@@ -119,6 +113,10 @@ const ExploreVideosCards = ({ childId, videoType }) => {
     if (!exploreContentId) return false;
     return videoWatchStatuses[exploreContentId?.toString()]?.isWatched || false;
   };
+
+  // A video whose watch status has not arrived yet (it has no id to wait for otherwise)
+  const isWatchStatusPending = (video) =>
+    Boolean(video?._id) && videoWatchStatuses[video._id.toString()] === undefined;
 
   // Handle video card click
   const handleVideoClick = (video) => {
@@ -151,12 +149,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
         // Update the watch status in state - this will trigger re-render and update button
         setVideoWatchStatuses((prev) => ({
           ...prev,
-          [exploreContentId.toString()]: {
-            exploreContentId: exploreContentId.toString(),
-            isWatched: status?.starsAwarded || (status?.currentWatchCount || 0) > 0,
-            watchCount: status?.currentWatchCount || 0,
-            starsAwarded: status?.starsAwarded || false,
-          },
+          [exploreContentId.toString()]: toWatchStatus(exploreContentId, status),
         }));
         
         console.log('[ExploreVideosCards] Watch status updated, button should now show "Review Lesson"');
@@ -188,41 +181,21 @@ const ExploreVideosCards = ({ childId, videoType }) => {
     return text.substring(0, 50) + '...';
   };
 
-  // Loading state - white card similar to footer
-  if (loading || loadingStatuses) {
+  // First load: the grid of placeholders (the page, header and share card above stay put)
+  if (videos === null && !loadError) {
+    return <ExploreVideosCardsSkeleton />;
+  }
+
+  if (loadError) {
     return (
-      <Paper
-        sx={{
-          width: '100%',
-          padding: '32px',
-          backgroundColor: themeColors.bgCard,
-          borderRadius: '0px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          minHeight: '200px',
-        }}
-      >
-        <CircularProgress />
-        <Typography
-          sx={{
-            fontFamily: 'Quicksand, sans-serif',
-            fontSize: '18px',
-            fontWeight: 600,
-            color: themeColors.textSecondary,
-            textAlign: 'center',
-          }}
-        >
-          Loading videos...
-        </Typography>
+      <Paper sx={{ width: '100%', backgroundColor: themeColors.bgCard, borderRadius: '0px' }}>
+        <ChildLoadError compact message={loadError} onRetry={() => setReloadKey((key) => key + 1)} />
       </Paper>
     );
   }
 
   // Empty state
-  if (!loading && !loadingStatuses && videos.length === 0) {
+  if (videos.length === 0) {
     return <ExploreVideosCardsEmpty videoType={videoType} />;
   }
 
@@ -239,10 +212,11 @@ const ExploreVideosCards = ({ childId, videoType }) => {
         width: '100%',
       }}
     >
-      {videos.map((video) => {
+      {videos.map((video, index) => {
         const coverImageUrl = getVideoCoverImageUrl(video);
         const duration = getVideoDuration(video);
         const watched = isVideoWatched(video);
+        const statusPending = isWatchStatusPending(video);
         const description = truncateDescription(video?.description || '');
 
         return (
@@ -264,6 +238,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
             <ExploreCoverImage
               src={coverImageUrl}
               alt={video?.title || 'Video thumbnail'}
+              index={index}
             >
               {/* Completion Check Icon - Top Right */}
               {watched && (
@@ -389,7 +364,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
                   },
                 }}
               >
-                {watched ? 'Review Lesson' : 'Start Lesson'}
+                {statusPending ? <InlineBone width="110px" sx={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }} /> : watched ? 'Review Lesson' : 'Start Lesson'}
               </Button>
             </Box>
           </Paper>

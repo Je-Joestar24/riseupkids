@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Button, Typography, CircularProgress } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import StopIcon from '@mui/icons-material/Stop';
-import liveIcon from '../../../assets/images/live.png';
+import liveIcon from '../../../assets/images/live.webp';
 import liveClassImage from '../../../assets/images/liveclass.jpeg';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import { themeColors } from '../../../config/themeColors';
@@ -12,6 +12,7 @@ import meetingService from '../../../services/meetingService';
 import youtubeService from '../../../services/youtubeService';
 import useYouTubeLive from '../../../hooks/youtubeHook';
 import { useSelector } from 'react-redux';
+import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
 
 const CARD_STYLE = {
   backgroundColor: 'white',
@@ -148,14 +149,21 @@ const ChildHomeLiveClass = () => {
     return 'Starting soon!';
   };
 
-  const loading = meetingLoading && youtubeLoading;
+  const loading = meetingLoading || youtubeLoading;
   const hasAny = activeYoutubeLive || nextMeeting;
 
   if (loading && !hasAny) {
     return (
-      <Box sx={{ ...CARD_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
-        <CircularProgress sx={{ color: themeColors.primary }} aria-label="Loading live class" />
-      </Box>
+      <SkeletonFrame label="Loading live class" sx={{ ...CARD_STYLE, minHeight: '200px' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, marginBottom: 2 }}>
+          <Bone variant="circular" sx={{ width: 48, height: 48, flexShrink: 0 }} />
+          <Box sx={{ flex: 1 }}>
+            <Bone sx={{ width: 120, height: 26, marginBottom: '6px' }} />
+            <Bone sx={{ width: 200, height: 20 }} />
+          </Box>
+        </Box>
+        <Bone variant="rectangular" sx={{ width: '100%', height: 96 }} />
+      </SkeletonFrame>
     );
   }
 

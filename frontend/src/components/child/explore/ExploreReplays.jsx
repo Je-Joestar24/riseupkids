@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import ExploreReplaysCard from './ExploreReplaysCard';
+import ExploreReplaysSkeleton from './ExploreReplaysSkeleton';
 import VideoPlayerModal from '../common/VideoPlayerModal';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 import themeColors from '../../../config/themeColors';
@@ -137,11 +138,7 @@ const ExploreReplays = ({ childId }) => {
   }, [loading, replayContent]);
 
   if (loading) {
-    return (
-      <Box sx={{ marginBottom: 4 }}>
-        <Typography sx={{ fontFamily: 'Quicksand, sans-serif' }}>Loading replays...</Typography>
-      </Box>
-    );
+    return <ExploreReplaysSkeleton />;
   }
 
   if (!replayContent || replayContent.length === 0) {
@@ -233,7 +230,7 @@ const ExploreReplays = ({ childId }) => {
           paddingBottom: 1,
         }}
       >
-        {replayContent.map((content) => {
+        {replayContent.map((content, index) => {
           // Get per-child view count for this video
           const perChildViewCount = videoViewCounts[content._id?.toString()] ?? 0;
           
@@ -248,6 +245,7 @@ const ExploreReplays = ({ childId }) => {
               key={content._id}
               content={contentWithViewCount}
               onWatchClick={handleWatchClick}
+              imageIndex={index}
             />
           );
         })}

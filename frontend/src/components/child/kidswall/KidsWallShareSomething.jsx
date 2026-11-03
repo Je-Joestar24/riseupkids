@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
+import { InlineBone } from '../common/ChildSkeleton';
 import {
   KIDS_WALL_UPLOAD_DISABLED_BUTTON,
   KIDS_WALL_UPLOAD_DISABLED_SUBTITLE,
@@ -10,13 +11,15 @@ import {
 /**
  * KidsWallShareSomething Component
  * 
- * Promotional card component encouraging users to share their work
+ * Promotional card component encouraging users to share their work.
+ * While the child's consent is still being checked (`checking`), the wording that depends on it holds
+ * its place, so the card never claims uploads are off before it knows.
  */
-const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = true }) => {
+const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = true, checking = false }) => {
   const navigate = useNavigate();
 
   const handleShareClick = () => {
-    if (!uploadEnabled || !childId) return;
+    if (checking || !uploadEnabled || !childId) return;
     navigate(`/child/${childId}/wall/share`);
   };
 
@@ -98,7 +101,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
               fontWeight: 600
             }}
           >
-            {subtitle}
+            {checking ? <InlineBone width="260px" /> : subtitle}
           </Typography>
         </Box>
       </Box>
@@ -106,7 +109,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
       {/* Second Row: Button */}
       <Button
         onClick={handleShareClick}
-        disabled={loading || !uploadEnabled}
+        disabled={loading || checking || !uploadEnabled}
         fullWidth
         sx={{
           fontFamily: 'Quicksand, sans-serif',
@@ -130,7 +133,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
           },
         }}
       >
-        {uploadEnabled ? 'Share Something Cool!' : KIDS_WALL_UPLOAD_DISABLED_BUTTON}
+        {checking ? <InlineBone width="200px" /> : uploadEnabled ? 'Share Something Cool!' : KIDS_WALL_UPLOAD_DISABLED_BUTTON}
       </Button>
     </Box>
   );

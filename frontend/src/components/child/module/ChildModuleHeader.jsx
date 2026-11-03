@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import RemoteImage from '../common/RemoteImage';
 
 /**
  * ChildModuleHeader Component
@@ -22,14 +23,15 @@ const ChildModuleHeader = ({ stepNumber, onBack, coverImageUrl, courseTitle }) =
             marginTop: '20px',
             borderRadius: '0px',
             overflow: 'hidden',
+            backgroundColor: themeColors.bgTertiary,
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
           }}
         >
           {/* Cover Image */}
-          <Box
-            component="img"
+          <RemoteImage
             src={coverImageUrl}
             alt={courseTitle || 'Course cover'}
+            index={0}
             sx={{
               width: '100%',
               height: '100%',

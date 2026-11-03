@@ -4,6 +4,7 @@ import { Box, Typography, Button, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 import { themeColors } from '../../../config/themeColors';
+import { InlineBone } from '../common/ChildSkeleton';
 
 /**
  * Video Type Descriptions
@@ -113,8 +114,9 @@ const StarIcon = () => (
  * @param {String} childId - Child's ID
  * @param {String} videoType - Video type (e.g., 'cooking', 'music', etc.)
  * @param {Number} totalStars - Total stars earned for this video type
+ * @param {Boolean} loading - True until the total is known (the number holds its place)
  */
-const ExploreVideosHeader = ({ childId, videoType, totalStars = 0 }) => {
+const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = false }) => {
     const navigate = useNavigate();
     const theme = useTheme();
 
@@ -274,7 +276,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0 }) => {
                             color: themeColors.accent,
                         }}
                     >
-                        {totalStars}
+                        {loading ? <InlineBone width="32px" /> : totalStars}
                     </Typography>
                 </Box>
                 <Typography

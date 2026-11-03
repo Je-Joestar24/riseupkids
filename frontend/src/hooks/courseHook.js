@@ -17,7 +17,7 @@ import {
   closeContentDrawer,
 } from '../store/slices/courseSlice';
 import { showNotification } from '../store/slices/uiSlice';
-import { BACKEND_BASE_URL } from '../config/constants';
+import { getCoverImageUrl } from '../utils/coverImageUrl';
 import courseService from '../services/courseService';
 
 /**
@@ -378,24 +378,6 @@ export const useCourse = () => {
     });
     
     return grouped;
-  };
-
-  /**
-   * Get full URL for course cover image
-   * @param {String} coverImagePath - Relative cover image path (e.g., /uploads/courses/...)
-   * @returns {String} Full URL for the cover image
-   */
-  const getCoverImageUrl = (coverImagePath) => {
-    if (!coverImagePath) return null;
-    
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-    
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
   };
 
   /**

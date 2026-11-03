@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import courseProgressService from '../services/courseProgressService';
 import videoWatchService from '../services/videoWatchService';
 import bookReadingService from '../services/bookReadingService';
 import { showNotification } from '../store/slices/uiSlice';
-import { useDispatch } from 'react-redux';
-import { BACKEND_BASE_URL } from '../config/constants';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchChildJourney } from '../store/slices/childJourneySlice';
+import { getCoverImageUrl } from '../utils/coverImageUrl';
+
+const NO_COURSES = [];
 
 /**
  * Custom hook for course progress management
@@ -13,44 +16,21 @@ import { BACKEND_BASE_URL } from '../config/constants';
  */
 export const useCourseProgress = (childId) => {
   const dispatch = useDispatch();
-  const [courses, setCourses] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const courses = useSelector((state) => state.childJourney.coursesByChildId[childId] ?? NO_COURSES);
+  const error = useSelector((state) => state.childJourney.errorByChildId[childId] ?? null);
+  const loaded = useSelector((state) => state.childJourney.coursesByChildId[childId] !== undefined);
 
   /**
-   * Fetch all courses with progress for a child
-   * @param {Object} params - Optional query parameters (status, isDefault)
-   * @returns {Promise} Fetch result
+   * Fetch all courses with progress for a child (cached; see childJourneySlice).
+   * Rejects on failure — the caller decides how to show it, so a refresh that fails while a list
+   * is already on screen stays silent.
+   * @param {Object} [options] - `minAgeMs`: reuse a list fetched more recently than this
+   * @returns {Promise<Array>} The courses
    */
-  const fetchChildCourses = useCallback(async (params = {}) => {
-    if (!childId) {
-      setError('Child ID is required');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await courseProgressService.getChildCourses(childId, params);
-      if (response.success && response.data) {
-        setCourses(response.data);
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to fetch courses');
-      }
-    } catch (err) {
-      const errorMessage = err || 'Failed to fetch child courses';
-      setError(errorMessage);
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [childId, dispatch]);
+  const fetchChildCourses = useCallback(
+    (options) => (childId ? dispatch(fetchChildJourney(childId, options)) : Promise.resolve([])),
+    [childId, dispatch]
+  );
 
   /**
    * Get course progress for a specific course
@@ -211,24 +191,6 @@ export const useCourseProgress = (childId) => {
       throw err;
     }
   }, [childId, dispatch]);
-
-  /**
-   * Get full URL for course cover image
-   * @param {String} coverImagePath - Relative cover image path
-   * @returns {String} Full URL for the cover image
-   */
-  const getCoverImageUrl = useCallback((coverImagePath) => {
-    if (!coverImagePath) return null;
-    
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-    
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
-  }, []);
 
   /**
    * Calculate summary counts from courses
@@ -433,7 +395,7 @@ export const useCourseProgress = (childId) => {
   return {
     // State
     courses,
-    loading,
+    loaded,
     error,
     // Methods
     fetchChildCourses,

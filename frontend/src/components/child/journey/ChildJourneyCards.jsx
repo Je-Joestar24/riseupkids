@@ -3,7 +3,8 @@ import { Box, Card, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate, useParams } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
-import { BACKEND_BASE_URL } from '../../../config/constants';
+import RemoteImage from '../common/RemoteImage';
+import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import footstepsIcon from '../../../assets/images/footsteps.png';
 import lockIcon from '../../../assets/images/lock.png';
 import { isJourneyModuleLocked } from '../../../utils/journeyModuleAccess';
@@ -19,19 +20,6 @@ const ChildJourneyCards = ({ courses = [] }) => {
   const navigate = useNavigate();
   const { id: childId } = useParams();
 
-  // Get cover image URL helper
-  const getCoverImageUrl = (coverImagePath) => {
-    if (!coverImagePath) return null;
-    
-    // If already a full URL, return as-is
-    if (coverImagePath.startsWith('http://') || coverImagePath.startsWith('https://')) {
-      return coverImagePath;
-    }
-    
-    // Build full URL from relative path (BACKEND_BASE_URL is '' in dev so proxy is used)
-    const baseUrl = BACKEND_BASE_URL;
-    return `${baseUrl}${coverImagePath.startsWith('/') ? coverImagePath : `/${coverImagePath}`}`;
-  };
 
   // Truncate description to 50 characters with ellipsis
   const truncateDescription = (text, maxLength = 50) => {
@@ -255,10 +243,10 @@ const ChildJourneyCards = ({ courses = [] }) => {
               >
                 {/* Course cover image */}
                 {coverImageUrl ? (
-                  <Box
-                    component="img"
+                  <RemoteImage
                     src={coverImageUrl}
                     alt={course.title || 'Course cover'}
+                    index={index}
                     sx={{
                       position: 'absolute',
                       top: 0,

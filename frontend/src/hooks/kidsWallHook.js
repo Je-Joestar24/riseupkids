@@ -27,6 +27,7 @@ const useKidsWall = (childId = null) => {
   // Local state for child operations
   const [childPosts, setChildPosts] = useState([]);
   const [childLoading, setChildLoading] = useState(false);
+  const [childLoaded, setChildLoaded] = useState(false);
   const [childError, setChildError] = useState(null);
 
   // Determine if this is admin or child mode
@@ -60,6 +61,7 @@ const useKidsWall = (childId = null) => {
       try {
         const response = await kidsWallService.getAllPosts();
         setChildPosts(response.data || []);
+        setChildLoaded(true);
         return response;
       } catch (error) {
         const errorMessage = error?.message || error || 'Failed to fetch posts';
@@ -291,6 +293,7 @@ const useKidsWall = (childId = null) => {
     return {
       // State
       posts: childPosts,
+      loaded: childLoaded,
       loading: childLoading,
       error: childError,
       

@@ -9,7 +9,7 @@ import ChildModuleChantCards from './ChildModuleChantCards';
  * Chants section displaying chants from the course in a 3-column grid
  * Progress circles are static (0-5) for now
  */
-const ChildModuleChants = ({ chants = [], courseProgress = null, onChantClick }) => {
+const ChildModuleChants = ({ chants = [], courseProgress = null, onChantClick, imageOffset = 0 }) => {
   // Get completed chant IDs from progress
   const getCompletedChants = () => {
     const completedChants = new Set();
@@ -114,6 +114,7 @@ const ChildModuleChants = ({ chants = [], courseProgress = null, onChantClick })
             <ChildModuleChantCards
               key={chantId || index}
               chant={chant}
+              imageIndex={imageOffset + index}
               isCompleted={isChantCompleted(chant)}
               progressCircles={getChantProgress(chant)}
               onCardClick={() => {
