@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { ABOVE_THE_FOLD_IMAGES, imageLoadPlan } from './remoteImage';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { ABOVE_THE_FOLD_IMAGES, imageLoadPlan, prefetchImages } from './remoteImage';
 
 describe('imageLoadPlan', () => {
   it('loads the first pictures on the page at once, with high priority', () => {
@@ -28,5 +28,93 @@ describe('imageLoadPlan', () => {
   it('rounds a fractional position down', () => {
     expect(imageLoadPlan(3.9)).toEqual({ delayMs: 0, priority: 'high' });
     expect(imageLoadPlan(4.9)).toEqual({ delayMs: 150, priority: 'low' });
+  });
+});
+
+describe('prefetchImages', () => {
+  let created;
+  let RealImage;
+
+  beforeEach(() => {
+    created = [];
+    RealImage = globalThis.Image;
+    globalThis.Image = class {
+      constructor() {
+        created.push(this);
+      }
+    };
+  });
+  afterEach(() => {
+    globalThis.Image = RealImage;
+  });
+
+  const urlsOf = (pictures) => pictures.map((picture) => picture.src);
+
+  it('starts downloading each picture, with high priority', () => {
+    prefetchImages(['https://x.test/p1-a.png', 'https://x.test/p1-b.png']);
+
+    expect(urlsOf(created)).toEqual(['https://x.test/p1-a.png', 'https://x.test/p1-b.png']);
+    created.forEach((picture) => expect(picture.fetchPriority).toBe('high'));
+  });
+
+  it('only fetches the first four by default, and never more than the limit given', () => {
+    const many = Array.from({ length: 10 }, (_, i) => `https://x.test/p2-${i}.png`);
+
+    prefetchImages(many);
+    expect(urlsOf(created)).toEqual(many.slice(0, ABOVE_THE_FOLD_IMAGES));
+
+    created.length = 0;
+    prefetchImages(many, 6);
+    // The first four were asked for already; the limit lets two more through.
+    expect(urlsOf(created)).toEqual(many.slice(4, 6));
+  });
+
+  it('skips empty entries (a course with no cover) and fetches the pictures that exist', () => {
+    const list = ['https://x.test/p3-a.png', null, '', undefined, 'https://x.test/p3-b.png'];
+
+    prefetchImages(list);
+
+    expect(urlsOf(created)).toEqual(['https://x.test/p3-a.png', 'https://x.test/p3-b.png']);
+  });
+
+  it('does not ask for the same picture twice', () => {
+    prefetchImages(['https://x.test/p4.png']);
+    prefetchImages(['https://x.test/p4.png']);
+
+    expect(created).toHaveLength(1);
+  });
+
+  it('asks again after the picture failed to load', () => {
+    prefetchImages(['https://x.test/p5.png']);
+    created[0].onerror();
+
+    prefetchImages(['https://x.test/p5.png']);
+
+    expect(created).toHaveLength(2);
+  });
+
+  it('does not ask again once the picture has loaded', () => {
+    prefetchImages(['https://x.test/p6.png']);
+    created[0].onload();
+
+    prefetchImages(['https://x.test/p6.png']);
+
+    expect(created).toHaveLength(1);
+  });
+
+  it('does nothing for an empty or odd list, and does not throw', () => {
+    expect(() => {
+      prefetchImages([]);
+      prefetchImages(undefined);
+      prefetchImages(null);
+      prefetchImages('https://x.test/p7.png');
+    }).not.toThrow();
+    expect(created).toHaveLength(0);
+  });
+
+  it('does nothing where pictures cannot be created', () => {
+    delete globalThis.Image;
+
+    expect(() => prefetchImages(['https://x.test/p8.png'])).not.toThrow();
   });
 });

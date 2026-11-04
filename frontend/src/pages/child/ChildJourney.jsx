@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Box } from '@mui/material';
 import { themeColors } from '../../config/themeColors';
 import useCourseProgress from '../../hooks/courseProgressHook';
@@ -25,9 +25,16 @@ const ChildJourney = ({ childId }) => {
     getSummaryCounts,
   } = useCourseProgress(childId);
 
+  // The error screen waits for this page's own first answer: a failure recorded earlier by a
+  // background load (Home starts one) must not flash before the page has asked for itself.
+  const [answered, setAnswered] = useState(false);
+
   // A failed refresh leaves the list on screen; only a first load with nothing to show reaches the error screen.
   const refresh = useCallback(
-    (options) => fetchChildCourses(options).catch(() => {}),
+    (options) =>
+      fetchChildCourses(options)
+        .catch(() => {})
+        .finally(() => setAnswered(true)),
     [fetchChildCourses]
   );
 
@@ -99,7 +106,7 @@ const ChildJourney = ({ childId }) => {
   const { currentWeek, totalWeeks } = calculateWeeks();
   const summaryCounts = getSummaryCounts();
 
-  if (error && !loaded) {
+  if (error && !loaded && answered) {
     return <ChildLoadError message={error} onRetry={() => refresh()} inverse background={themeColors.primary} />;
   }
 

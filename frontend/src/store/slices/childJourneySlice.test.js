@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { configureStore } from '@reduxjs/toolkit';
-import childJourneyReducer, { fetchChildJourney } from './childJourneySlice';
+import childJourneyReducer, { fetchChildJourney, prefetchChildJourney } from './childJourneySlice';
 import { logoutUser } from './userSlice';
 import courseProgressService from '../../services/courseProgressService';
+import { prefetchImages } from '../../utils/remoteImage';
 
 vi.mock('../../services/courseProgressService', () => ({
   default: { getChildCourses: vi.fn() },
 }));
+vi.mock('../../utils/remoteImage', () => ({ prefetchImages: vi.fn() }));
 
 const getCourses = courseProgressService.getChildCourses;
 const ok = (data) => ({ success: true, data });
@@ -178,6 +180,86 @@ describe('childJourneySlice — session cache for My Journey', () => {
       await store.dispatch(fetchChildJourney('kid1'));
 
       expect(getCourses).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('covers', () => {
+    const withCover = (id, coverImage) => ({ course: { _id: id, coverImage } });
+
+    it('starts loading the covers, in list order, when the list arrives', async () => {
+      const store = makeStore();
+      getCourses.mockResolvedValue(
+        ok([withCover('a', '/uploads/a.png'), withCover('b', 'https://cdn.example/b.png'), withCover('c')])
+      );
+
+      await store.dispatch(fetchChildJourney('coverKid'));
+
+      expect(prefetchImages).toHaveBeenCalledTimes(1);
+      const urls = prefetchImages.mock.calls[0][0];
+      expect(urls[0]).toMatch(/\/uploads\/a\.png$/);
+      expect(urls[1]).toBe('https://cdn.example/b.png');
+      expect(urls[2]).toBeNull();
+    });
+
+    it('loads no covers when the request fails', async () => {
+      const store = makeStore();
+      getCourses.mockRejectedValue('Network down');
+
+      await expect(store.dispatch(fetchChildJourney('coverKid2'))).rejects.toBe('Network down');
+
+      expect(prefetchImages).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('prefetchChildJourney — started from Home', () => {
+    it('loads the list into the cache', async () => {
+      const store = makeStore();
+      getCourses.mockResolvedValue(ok([{ course: { _id: 'c1' } }]));
+
+      store.dispatch(prefetchChildJourney('preJourneyA'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(journey(store).coursesByChildId.preJourneyA).toEqual([{ course: { _id: 'c1' } }]);
+    });
+
+    it('does nothing without a child', () => {
+      const store = makeStore();
+
+      store.dispatch(prefetchChildJourney(''));
+      store.dispatch(prefetchChildJourney(undefined));
+
+      expect(getCourses).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when a list is already cached (the page refreshes it itself)', async () => {
+      const store = makeStore();
+      getCourses.mockResolvedValue(ok([]));
+      await store.dispatch(fetchChildJourney('preJourneyB'));
+
+      store.dispatch(prefetchChildJourney('preJourneyB'));
+
+      expect(getCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not repeat a request that is already under way', () => {
+      const store = makeStore();
+      getCourses.mockReturnValue(new Promise(() => {}));
+
+      store.dispatch(prefetchChildJourney('preJourneyC'));
+      store.dispatch(prefetchChildJourney('preJourneyC'));
+
+      expect(getCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it('never rejects: a failure is recorded, for the page to show only if it also fails', async () => {
+      const store = makeStore();
+      getCourses.mockRejectedValue('Network down');
+
+      store.dispatch(prefetchChildJourney('preJourneyD'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(journey(store).coursesByChildId.preJourneyD).toBeUndefined();
+      expect(journey(store).errorByChildId.preJourneyD).toBe('Network down');
     });
   });
 

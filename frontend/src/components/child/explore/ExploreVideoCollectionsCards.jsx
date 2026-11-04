@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Box, Typography, Button, Paper, LinearProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { Star as StarIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
+import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 import { InlineBone } from '../common/ChildSkeleton';
 
@@ -221,11 +222,44 @@ const VIDEO_TYPES = [
 const EMPTY_COLLECTION = { totalStars: 0, totalVideos: 0, viewedVideos: 0, hasStarted: false };
 
 /**
+ * One collection card. Its numbers are cached per child: only a first visit shows placeholders;
+ * after that the last numbers are drawn at once and replaced when the refresh arrives.
+ */
+const CollectionCard = ({ childId, videoType, load, theme, onContinueClick }) => {
+  const { data, loaded, error, refresh } = useCachedLoad(
+    childId ? `${childId}:explore:collection:${videoType}` : null,
+    load
+  );
+
+  // Refresh the numbers when a video is watched
+  useEffect(() => {
+    if (!childId) return undefined;
+    const onStatsUpdated = () => {
+      refresh().catch(() => {});
+    };
+    window.addEventListener('childStatsUpdated', onStatsUpdated);
+    return () => {
+      window.removeEventListener('childStatsUpdated', onStatsUpdated);
+    };
+  }, [childId, refresh]);
+
+  return (
+    <VideoCollectionCard
+      videoType={videoType}
+      data={data || EMPTY_COLLECTION}
+      loading={Boolean(childId) && !loaded && !error}
+      theme={theme}
+      onContinueClick={onContinueClick}
+    />
+  );
+};
+
+/**
  * Explore Video Collections Cards Component
- * 
+ *
  * Displays cards for each video type (excluding replay) in a 3-column grid
  * Shows total stars, progress, and continue/start button for each collection
- * 
+ *
  * @param {Function} onVideoTypeClick - Callback when a video type card is clicked
  * @param {String} childId - Child's ID for fetching progress
  */
@@ -233,56 +267,28 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
   const theme = useTheme();
   const { fetchExploreContent } = useExplore();
   const { getVideoTypeProgress, getTotalStarsForVideoType } = useExploreVideoWatch(childId);
-  const [collectionsData, setCollectionsData] = useState({});
 
   // One collection: its list, progress and stars are asked for together, not one after another.
+  // The progress and the stars must really have arrived: when they cannot, the numbers already on
+  // screen stay instead of being replaced by zeros (and a first visit shows zeros, uncached).
   const loadCollection = async (videoType) => {
-    try {
-      const [content, progress, totalStars] = await Promise.all([
-        fetchExploreContent({ type: 'video', videoType, isPublished: true })
-          .then((result) => result?.data || [])
-          .catch(() => []),
-        getVideoTypeProgress(videoType),
-        getTotalStarsForVideoType(videoType),
-      ]);
-      const viewedVideos = progress.viewedVideos || 0;
-      return {
-        videoType,
-        totalStars,
-        // Use the list's length when the progress service does not know the total
-        totalVideos: progress.totalVideos || content.length,
-        viewedVideos,
-        hasStarted: viewedVideos > 0,
-      };
-    } catch (error) {
-      console.error(`Error loading data for ${videoType}:`, error);
-      return { videoType, totalStars: 0, totalVideos: 0, viewedVideos: 0, hasStarted: false };
-    }
+    const [content, progress, totalStars] = await Promise.all([
+      fetchExploreContent({ type: 'video', videoType, isPublished: true }, { silent: true })
+        .then((result) => result?.data || [])
+        .catch(() => null),
+      getVideoTypeProgress(videoType, { strict: true }),
+      getTotalStarsForVideoType(videoType, { strict: true }),
+    ]);
+    const viewedVideos = progress.viewedVideos || 0;
+    return {
+      videoType,
+      totalStars,
+      // Use the list's length when the progress service does not know the total
+      totalVideos: progress.totalVideos || content?.length || 0,
+      viewedVideos,
+      hasStarted: viewedVideos > 0,
+    };
   };
-
-  useEffect(() => {
-    if (!childId) return undefined;
-
-    let cancelled = false;
-    // Each card fills in as its own data arrives; a refresh replaces the numbers quietly, never the cards.
-    const loadAll = () => {
-      VIDEO_TYPES.forEach(async (videoType) => {
-        const data = await loadCollection(videoType);
-        if (!cancelled) setCollectionsData((previous) => ({ ...previous, [videoType]: data }));
-      });
-    };
-
-    setCollectionsData({});
-    loadAll();
-    // Refresh the progress when a video is watched
-    window.addEventListener('childStatsUpdated', loadAll);
-
-    return () => {
-      cancelled = true;
-      window.removeEventListener('childStatsUpdated', loadAll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId]);
 
   const handleContinueClick = (videoType) => {
     if (onVideoTypeClick) {
@@ -306,21 +312,16 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
         marginTop: '30px'
       }}
     >
-      {VIDEO_TYPES.map((videoType) => {
-        const loaded = collectionsData[videoType];
-        const data = loaded || EMPTY_COLLECTION;
-
-        return (
-          <VideoCollectionCard
-            key={videoType}
-            videoType={videoType}
-            data={data}
-            loading={Boolean(childId) && !loaded}
-            theme={theme}
-            onContinueClick={handleContinueClick}
-          />
-        );
-      })}
+      {VIDEO_TYPES.map((videoType) => (
+        <CollectionCard
+          key={videoType}
+          childId={childId}
+          videoType={videoType}
+          load={() => loadCollection(videoType)}
+          theme={theme}
+          onContinueClick={handleContinueClick}
+        />
+      ))}
     </Box>
   );
 };

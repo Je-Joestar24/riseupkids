@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useExplore } from '../../../hooks/exploreHook';
@@ -7,6 +7,7 @@ import { themeColors } from '../../../config/themeColors';
 import ExploreVideosCardsEmpty from './ExploreVidoeCardsEmpty';
 import ExploreVideosCardsSkeleton from './ExploreVideosCardsSkeleton';
 import ChildLoadError from '../common/ChildLoadError';
+import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { InlineBone } from '../common/ChildSkeleton';
 import VideoPlayerModal from '../common/VideoPlayerModal';
 import ExploreCoverImage from '../explore/ExploreCoverImage';
@@ -18,6 +19,8 @@ const toWatchStatus = (exploreContentId, status) => ({
   watchCount: status?.currentWatchCount || 0,
   starsAwarded: status?.starsAwarded || false,
 });
+
+const NO_STATUSES = {};
 
 /**
  * ExploreVideosCards Component
@@ -32,66 +35,62 @@ const ExploreVideosCards = ({ childId, videoType }) => {
   const theme = useTheme();
   const { fetchExploreContent, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
-  // null until the list has loaded, so the empty message never shows before then
-  const [videos, setVideos] = useState(null);
-  const [loadError, setLoadError] = useState(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  // Watched state per video, filled in card by card; a card without an entry is still waiting
-  const [videoWatchStatuses, setVideoWatchStatuses] = useState({});
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedExploreContentId, setSelectedExploreContentId] = useState(null);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
 
-  // Fetch videos for this video type; the cards show as soon as the list arrives
+  // The list and each video's watched state are cached per child and video type: only a first visit
+  // shows placeholders; later visits draw the last answer at once and replace it when it arrives.
+  const listCache = useCachedLoad(
+    childId && videoType ? `${childId}:explore:videos:${videoType}` : null,
+    async ({ quiet }) => {
+      const result = await fetchExploreContent(
+        { type: 'video', videoType, isPublished: true },
+        { silent: quiet }
+      );
+      return result?.data || [];
+    }
+  );
+  // null until the list has loaded, so the empty message never shows before then
+  const videos = listCache.loaded ? listCache.data : null;
+  const loadError = listCache.error;
+
+  // Watched state per video, filled in card by card; a card without an entry is still waiting
+  const watchedCache = useCachedLoad(
+    childId && videoType ? `${childId}:explore:watched:${videoType}` : null,
+    null,
+    { enabled: false }
+  );
+  const videoWatchStatuses = watchedCache.data || NO_STATUSES;
+  const setVideoWatchStatuses = (updater) =>
+    watchedCache.setData((current) => updater(current || NO_STATUSES));
+
+  // Watch status for every video, asked for together; each card updates when its own answer comes.
+  // A video is asked about once per visit: a refreshed list only adds the videos that are new.
+  const videoIds = videos ? videos.map((video) => video._id).filter(Boolean).join(',') : '';
+  const askedRef = useRef({ scope: null, ids: new Set() });
   useEffect(() => {
-    if (!childId || !videoType) return undefined;
-
-    let cancelled = false;
-    setVideos(null);
-    setLoadError(null);
-    setVideoWatchStatuses({});
-
-    const loadVideos = async () => {
+    if (!videoIds) return;
+    const scope = `${childId}:${videoType}`;
+    if (askedRef.current.scope !== scope) askedRef.current = { scope, ids: new Set() };
+    const asked = askedRef.current.ids;
+    videoIds.split(',').filter((id) => !asked.has(id)).forEach(async (id) => {
+      asked.add(id);
+      let status = null;
+      let failed = false;
       try {
-        const result = await fetchExploreContent({
-          type: 'video',
-          videoType,
-          isPublished: true,
-        });
-        if (cancelled) return;
-
-        const videoList = result?.data || [];
-        setVideos(videoList);
-
-        // Watch status for every video, asked for together; each card updates when its own answer comes
-        videoList.forEach(async (video) => {
-          if (!video._id) return;
-          let status = null;
-          try {
-            status = await getExploreVideoWatchStatus(video._id);
-          } catch (error) {
-            // Not watched yet or error fetching status: treated as not watched
-          }
-          if (!cancelled) {
-            setVideoWatchStatuses((previous) => ({
-              ...previous,
-              [video._id.toString()]: toWatchStatus(video._id, status),
-            }));
-          }
-        });
+        status = await getExploreVideoWatchStatus(id);
       } catch (error) {
-        console.error('Error loading videos:', error);
-        if (!cancelled) setLoadError(error?.message || (typeof error === 'string' ? error : 'Failed to load videos'));
+        // Not watched yet or error fetching status: treated as not watched
+        failed = true;
       }
-    };
-
-    loadVideos();
-
-    return () => {
-      cancelled = true;
-    };
+      // A status that cannot be read again leaves the one already on screen
+      setVideoWatchStatuses((previous) =>
+        failed && previous[id] ? previous : { ...previous, [id]: toWatchStatus(id, status) }
+      );
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, videoType, reloadKey]); // Only depend on childId and videoType - functions are stable
+  }, [videoIds, childId, videoType]);
 
   // Get cover image URL
   const getVideoCoverImageUrl = (video) => {
@@ -189,7 +188,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
   if (loadError) {
     return (
       <Paper sx={{ width: '100%', backgroundColor: themeColors.bgCard, borderRadius: '0px' }}>
-        <ChildLoadError compact message={loadError} onRetry={() => setReloadKey((key) => key + 1)} />
+        <ChildLoadError compact message={loadError} onRetry={() => listCache.refresh().catch(() => {})} />
       </Paper>
     );
   }

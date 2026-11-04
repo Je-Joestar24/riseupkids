@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { Box } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import useCourseProgress from '../../hooks/courseProgressHook';
 import { useAuth } from '../../hooks/userHook';
 import courseProgressService from '../../services/courseProgressService';
 import ChildModuleSkeleton from '../../components/child/module/ChildModuleSkeleton';
 import ChildLoadError from '../../components/child/common/ChildLoadError';
 import { JOURNEY_REFRESH_MIN_AGE_MS } from '../../store/slices/childJourneySlice';
+import { selectChildModule } from '../../store/slices/childModuleSlice';
 import ChildModuleHeader from '../../components/child/module/ChildModuleHeader';
 import ChildModuleBreadCrumbs from '../../components/child/module/ChildModuleBreadCrumbs';
 import ChildModuleProgress from '../../components/child/module/ChildModuleProgress';
@@ -54,8 +56,12 @@ const CONTAINER_SX = {
 const ChildJourneyModule = ({ childId }) => {
   const { courseId } = useParams();
   const navigate = useNavigate();
-  const [courseDetails, setCourseDetails] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // The course comes from the session cache, so a course opened before (or started by a press on its
+  // card) is on screen at once; the skeleton is only for a first load with nothing cached.
+  const courseDetails = useSelector((state) => selectChildModule(state, childId, courseId));
+  const courseDetailsRef = useRef(courseDetails);
+  courseDetailsRef.current = courseDetails;
+  const [loading, setLoading] = useState(() => !courseDetails);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   // The courses list is only needed for the step number
@@ -79,40 +85,41 @@ const ChildJourneyModule = ({ childId }) => {
   const refreshInProgressRef = useRef(false);
 
   useEffect(() => {
-    const loadCourse = async () => {
-      if (!childId || !courseId) {
-        setError('Child ID and Course ID are required');
-        setLoading(false);
-        return;
-      }
+    if (!childId || !courseId) {
+      setError('Child ID and Course ID are required');
+      setLoading(false);
+      return undefined;
+    }
 
-      setLoading(true);
-      setError(null);
+    let cancelled = false;
+    // A cached course stays on screen while it refreshes; a failed refresh then stays silent.
+    const quiet = Boolean(courseDetailsRef.current);
+    setLoading(!quiet);
+    setError(null);
 
-      // The list only gives the step number: load it alongside the details, never wait for it, and
-      // never fail the page if it fails (the step then falls back to 1).
-      fetchChildCourses({ minAgeMs: JOURNEY_REFRESH_MIN_AGE_MS }).catch(() => {});
+    // The list only gives the step number: load it alongside the details, never wait for it, and
+    // never fail the page if it fails (the step then falls back to 1).
+    fetchChildCourses({ minAgeMs: JOURNEY_REFRESH_MIN_AGE_MS }).catch(() => {});
 
-      try {
-        // Fetch course details with populated contents
-        const details = await fetchCourseDetailsForChild(courseId);
-
-        // Check if course is accessible (honors admin Module Access overrides)
-        if (!details.accessible) {
+    fetchCourseDetailsForChild(courseId, { silent: quiet })
+      .then((details) => {
+        // Honors admin Module Access overrides, also for a course that was open a moment ago.
+        if (!cancelled && !details.accessible) {
           setError('This course is locked. Complete previous courses first.');
-          setLoading(false);
-          return;
         }
+      })
+      .catch((err) => {
+        if (!cancelled && !quiet) {
+          setError((typeof err === 'string' ? err : err?.message) || 'Failed to load course');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-        setCourseDetails(details);
-      } catch (err) {
-        setError((typeof err === 'string' ? err : err?.message) || 'Failed to load course');
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    loadCourse();
   }, [childId, courseId, fetchChildCourses, fetchCourseDetailsForChild, reloadKey]);
 
   // Get step number (sequential position based on course order)
@@ -333,13 +340,9 @@ const ChildJourneyModule = ({ childId }) => {
     console.log('SCORM completed:', data);
     // Refresh course details to update progress
     if (courseId) {
-      fetchCourseDetailsForChild(courseId)
-        .then((details) => {
-          setCourseDetails(details);
-        })
-        .catch((err) => {
-          console.error('Failed to refresh course details:', err);
-        });
+      fetchCourseDetailsForChild(courseId, { silent: true }).catch((err) => {
+        console.error('Failed to refresh course details:', err);
+      });
     }
   };
 
@@ -449,8 +452,7 @@ const ChildJourneyModule = ({ childId }) => {
           courseId={courseId}
           onAfterApproved={async () => {
             try {
-              const details = await fetchCourseDetailsForChild(courseId);
-              setCourseDetails(details);
+              await fetchCourseDetailsForChild(courseId, { silent: true });
             } catch (e) {
               // non-blocking
             }
@@ -471,8 +473,7 @@ const ChildJourneyModule = ({ childId }) => {
           courseId={courseId}
           onAfterComplete={async () => {
             try {
-              const details = await fetchCourseDetailsForChild(courseId);
-              setCourseDetails(details);
+              await fetchCourseDetailsForChild(courseId, { silent: true });
             } catch (e) {
               // non-blocking
             }

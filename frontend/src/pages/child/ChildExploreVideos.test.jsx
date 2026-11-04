@@ -12,6 +12,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../config/theme';
 import uiReducer from '../../store/slices/uiSlice';
+import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import { aspectRatioOf } from '../../test/aspectRatioOf';
 import ChildExploreVideos from './ChildExploreVideos';
 
@@ -44,8 +45,9 @@ function deferred() {
   return { promise, resolve };
 }
 
-const tree = () => {
-  const store = configureStore({ reducer: { ui: uiReducer } });
+const newStore = () => configureStore({ reducer: { ui: uiReducer, childPageCache: childPageCacheReducer } });
+
+const tree = (store = newStore()) => {
   return (
     <Provider store={store}>
       <ThemeProvider theme={theme}>
@@ -58,7 +60,7 @@ const tree = () => {
     </Provider>
   );
 };
-const mount = () => render(tree());
+const mount = (store) => render(tree(store));
 
 const flush = () => act(async () => {});
 const tick = (ms) => act(async () => vi.advanceTimersByTime(ms));
@@ -298,6 +300,129 @@ describe('Explore video list page', () => {
       expect(count(remove)).toBe(count(add));
       add.mockRestore();
       remove.mockRestore();
+    });
+  });
+
+  describe('coming back to a video list', () => {
+    async function firstVisit(store) {
+      mockWatch.getExploreVideoWatchStatus.mockImplementation(async (id) =>
+        id === 'v1' ? { currentWatchCount: 2, starsAwarded: true } : { currentWatchCount: 0, starsAwarded: false }
+      );
+      const view = mount(store);
+      await flush();
+      view.unmount();
+    }
+    const holdEverything = () => {
+      mockExplore.fetchExploreContent.mockReturnValue(new Promise(() => {}));
+      mockWatch.getTotalStarsForVideoType.mockReturnValue(new Promise(() => {}));
+      mockWatch.getExploreVideoWatchStatus.mockReturnValue(new Promise(() => {}));
+    };
+
+    it('shows the cards, each watched state and the star total at once, with no placeholder', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      holdEverything();
+
+      mount(store);
+      await tick(500);
+
+      expect(within(cardOf('Pancakes')).getByText('Review Lesson')).toBeInTheDocument();
+      expect(within(cardOf('Smoothie')).getByText('Start Lesson')).toBeInTheDocument();
+      expect(screen.getByText('30')).toBeInTheDocument();
+      expect(listSkeleton()).toBeNull();
+      expect(document.querySelectorAll('.MuiSkeleton-root')).toHaveLength(0);
+    });
+
+    it('has the cards from the very first render, before any request has started', async () => {
+      const store = newStore();
+      await firstVisit(store);
+
+      expect(renderToString(tree(store))).toContain('Pancakes');
+    });
+
+    it('replaces the list when the refresh arrives, and asks only for the new video’s watched state', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockWatch.getExploreVideoWatchStatus.mockClear();
+      mockWatch.getExploreVideoWatchStatus.mockResolvedValue({ currentWatchCount: 0, starsAwarded: false });
+      mockExplore.fetchExploreContent.mockResolvedValue({
+        data: [video('v1', 'Pancakes'), video('v2', 'Smoothie'), video('v3', 'Salad')],
+      });
+
+      mount(store);
+      await flush();
+
+      expect(screen.getByText('Salad')).toBeInTheDocument();
+      // The three videos are asked for once each at the start of the visit and the new one again after the
+      // refresh: v1 and v2 are not asked for a second time when the refreshed list arrives.
+      const asked = mockWatch.getExploreVideoWatchStatus.mock.calls.map(([id]) => id);
+      expect(asked.filter((id) => id === 'v1')).toHaveLength(1);
+      expect(asked.filter((id) => id === 'v2')).toHaveLength(1);
+      expect(asked.filter((id) => id === 'v3')).toHaveLength(1);
+    });
+
+    it('keeps the list and the stars, and shows nothing, when the refresh fails', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockExplore.fetchExploreContent.mockRejectedValue(new Error('down'));
+      mockWatch.getTotalStarsForVideoType.mockRejectedValue(new Error('down'));
+      mockWatch.getExploreVideoWatchStatus.mockRejectedValue(new Error('down'));
+
+      mount(store);
+      await flush();
+
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.getByText('30')).toBeInTheDocument();
+      expect(within(cardOf('Pancakes')).getByText('Review Lesson')).toBeInTheDocument();
+      expect(within(cardOf('Smoothie')).getByText('Start Lesson')).toBeInTheDocument();
+    });
+
+    it('asks quietly the second time, so a failed refresh makes no popup', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      expect(mockExplore.fetchExploreContent).toHaveBeenLastCalledWith(expect.anything(), { silent: false });
+
+      mount(store);
+      await flush();
+
+      expect(mockExplore.fetchExploreContent).toHaveBeenLastCalledWith(expect.anything(), { silent: true });
+    });
+
+    it('asks for the star total in a way that can fail, so a failure never turns it into 0', async () => {
+      mount();
+      await flush();
+
+      expect(mockWatch.getTotalStarsForVideoType).toHaveBeenCalledWith('cooking', { strict: true });
+    });
+
+    it('a first visit whose star total fails shows 0, not a placeholder, and remembers nothing', async () => {
+      const store = newStore();
+      mockWatch.getTotalStarsForVideoType.mockRejectedValue(new Error('down'));
+      const failed = mount(store);
+      await flush();
+      expect(screen.getAllByText('0').length).toBeGreaterThan(0);
+      expect(store.getState().childPageCache.entries['kid1:explore:stars:cooking']).toBeUndefined();
+      failed.unmount();
+
+      mockWatch.getTotalStarsForVideoType.mockResolvedValue(30);
+      mount(store);
+      await flush();
+
+      expect(screen.getByText('30')).toBeInTheDocument();
+    });
+
+    it('remembers an empty list too: the empty message is there at once', async () => {
+      const store = newStore();
+      mockExplore.fetchExploreContent.mockResolvedValue({ data: [] });
+      const view = mount(store);
+      await flush();
+      view.unmount();
+      holdEverything();
+
+      mount(store);
+
+      expect(emptyMessage()).toBeInTheDocument();
+      expect(listSkeleton()).toBeNull();
     });
   });
 });

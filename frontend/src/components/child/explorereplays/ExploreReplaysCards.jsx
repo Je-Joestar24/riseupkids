@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Button, Paper, CircularProgress } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
+import { useCachedLoad } from '../../../hooks/useCachedLoad';
+import { loadReplayViewCounts } from '../../../utils/replayViewCounts';
 import { themeColors } from '../../../config/themeColors';
 import VideoPlayerModal from '../common/VideoPlayerModal';
 import ExploreCoverImage from '../explore/ExploreCoverImage';
@@ -80,77 +82,36 @@ const EyeIcon = ({ size = 16, color = 'currentColor' }) => (
  */
 const ExploreReplaysCards = ({ childId }) => {
   const theme = useTheme();
-  const { fetchExploreContent, getCoverImageUrl, loading } = useExplore();
+  const { fetchExploreContent, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
-  const [videos, setVideos] = useState([]);
-  const [loadingStatuses, setLoadingStatuses] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const [videoViewCounts, setVideoViewCounts] = useState({}); // Map of exploreContentId -> viewCount
   const [selectedExploreContentId, setSelectedExploreContentId] = useState(null);
-  const lastLoadedRef = useRef({ childId: null });
-  const isLoadingRef = useRef(false);
 
-  // Fetch replay videos
-  useEffect(() => {
-    // Skip if already loading or if same childId
-    if (isLoadingRef.current) return;
-    if (lastLoadedRef.current.childId === childId) return;
-    if (!childId) return;
-    
-    const loadVideos = async () => {
-      isLoadingRef.current = true;
-      lastLoadedRef.current = { childId };
-      
-      try {
-        setLoadingStatuses(true);
-        const result = await fetchExploreContent({
-          type: 'video',
-          videoType: 'replay',
-          isPublished: true,
-        });
-
-        const videoList = result?.data || [];
-        setVideos(videoList);
-        
-        // Fetch per-child view counts for each replay video
-        if (childId && getExploreVideoWatchStatus) {
-          const viewCountPromises = videoList.map(async (video) => {
-            try {
-              const status = await getExploreVideoWatchStatus(video._id);
-              return {
-                exploreContentId: video._id.toString(),
-                viewCount: status?.currentWatchCount || 0,
-              };
-            } catch (error) {
-              console.error(`Error fetching view count for ${video._id}:`, error);
-              return {
-                exploreContentId: video._id.toString(),
-                viewCount: 0,
-              };
-            }
-          });
-          
-          const viewCounts = await Promise.all(viewCountPromises);
-          const viewCountMap = {};
-          viewCounts.forEach((item) => {
-            viewCountMap[item.exploreContentId] = item.viewCount;
-          });
-          setVideoViewCounts(viewCountMap);
-        }
-      } catch (error) {
-        console.error('Error loading replay videos:', error);
-        // Reset last loaded on error so we can retry
-        lastLoadedRef.current = { childId: null };
-      } finally {
-        setLoadingStatuses(false);
-        isLoadingRef.current = false;
-      }
-    };
-
-    loadVideos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId]); // Only depend on childId - functions are stable
+  // The list, with each video's view count for this child, is cached per child: only a first visit
+  // shows the loading card; later visits draw the last answer at once and replace it quietly.
+  const { data, loaded, error, setData } = useCachedLoad(
+    childId ? `${childId}:explore:replayList` : null,
+    async ({ quiet, previous }) => {
+      const result = await fetchExploreContent(
+        { type: 'video', videoType: 'replay', isPublished: true },
+        { silent: quiet }
+      );
+      const list = result?.data || [];
+      return {
+        videos: list,
+        viewCounts: await loadReplayViewCounts({
+          videos: list,
+          childId,
+          getStatus: getExploreVideoWatchStatus,
+          previousCounts: previous?.viewCounts,
+        }),
+      };
+    }
+  );
+  const videos = data?.videos || [];
+  const videoViewCounts = data?.viewCounts || {}; // Map of exploreContentId -> viewCount
+  const loadingList = Boolean(childId) && !loaded && !error;
 
   // Get cover image URL
   const getVideoCoverImageUrl = (video) => {
@@ -197,9 +158,9 @@ const ExploreReplaysCards = ({ childId }) => {
         const newViewCount = status?.currentWatchCount || 0;
         
         // Update the view count for this video
-        setVideoViewCounts((prev) => ({
-          ...prev,
-          [selectedExploreContentId.toString()]: newViewCount,
+        setData((previous) => ({
+          ...previous,
+          viewCounts: { ...previous?.viewCounts, [selectedExploreContentId.toString()]: newViewCount },
         }));
       } catch (error) {
         console.error('Error refreshing view count after video completion:', error);
@@ -210,7 +171,7 @@ const ExploreReplaysCards = ({ childId }) => {
   const getVideoObjectForPlayer = (exploreVideo) => buildExploreVideoForPlayer(exploreVideo);
 
   // Loading state
-  if (loading || loadingStatuses) {
+  if (loadingList) {
     return (
       <Paper
         sx={{
@@ -243,7 +204,7 @@ const ExploreReplaysCards = ({ childId }) => {
   }
 
   // Empty state
-  if (!loading && !loadingStatuses && videos.length === 0) {
+  if (videos.length === 0) {
     return (
       <Paper
         sx={{

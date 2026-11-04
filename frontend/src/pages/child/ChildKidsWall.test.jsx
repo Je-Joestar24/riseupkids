@@ -11,6 +11,7 @@ import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import kidsWallReducer from '../../store/slices/kidsWallSlice';
 import uiReducer from '../../store/slices/uiSlice';
+import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import kidsWallService from '../../services/kidsWallService';
 import childrenService from '../../services/childrenService';
 import {
@@ -47,9 +48,13 @@ function deferred() {
 
 const Where = () => <div data-testid="where">{useLocation().pathname}</div>;
 
-function mount() {
-  const store = configureStore({ reducer: { kidsWall: kidsWallReducer, ui: uiReducer } });
-  render(
+const newStore = () =>
+  configureStore({
+    reducer: { kidsWall: kidsWallReducer, ui: uiReducer, childPageCache: childPageCacheReducer },
+  });
+
+function mount(store = newStore()) {
+  const view = render(
     <Provider store={store}>
       <MemoryRouter initialEntries={['/child/kid1/wall']}>
         <Routes>
@@ -59,6 +64,7 @@ function mount() {
       </MemoryRouter>
     </Provider>
   );
+  return { store, ...view };
 }
 
 const flush = () => act(async () => {});
@@ -91,7 +97,7 @@ describe('Kids Wall page', () => {
     it('never flashes "No posts yet" before the feed has loaded — not even on the very first render', async () => {
       // renderToString is the first render only (no effects have run yet), which is what the child's
       // browser paints before the request starts.
-      const store = configureStore({ reducer: { kidsWall: kidsWallReducer, ui: uiReducer } });
+      const store = newStore();
       const firstRender = renderToString(
         <Provider store={store}>
           <MemoryRouter>
@@ -274,6 +280,118 @@ describe('Kids Wall page', () => {
       expect(kidsWallService.toggleLike).toHaveBeenCalledWith('p1', 'kid1');
       expect(screen.getByText('My painting')).toBeInTheDocument();
       expect(screen.getAllByRole('button', { name: 'Like' })[0]).toHaveTextContent('1');
+    });
+  });
+
+  describe('coming back to the wall', () => {
+    async function firstVisit(store, posts = [post('p1', 'My drawing'), post('p2', 'My painting')]) {
+      kidsWallService.getAllPosts.mockResolvedValue({ data: posts });
+      const view = mount(store);
+      await flush();
+      view.unmount();
+    }
+
+    it('shows the posts at once, with no placeholder, while the feed refreshes', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      kidsWallService.getAllPosts.mockReturnValue(new Promise(() => {}));
+
+      mount(store);
+      await tick(500);
+
+      expect(screen.getByText('My drawing')).toBeInTheDocument();
+      expect(screen.getByText('My painting')).toBeInTheDocument();
+      expect(feedSkeleton()).toBeNull();
+    });
+
+    it('has the posts from the very first render, before any request has started', async () => {
+      const store = newStore();
+      await firstVisit(store);
+
+      const firstRender = renderToString(
+        <Provider store={store}>
+          <MemoryRouter>
+            <ChildKidsWall childId="kid1" />
+          </MemoryRouter>
+        </Provider>
+      );
+
+      expect(firstRender).toContain('My drawing');
+    });
+
+    it('replaces the feed when the refresh arrives', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      kidsWallService.getAllPosts.mockResolvedValue({ data: [post('p3', 'A brand new post')] });
+
+      mount(store);
+      await flush();
+
+      expect(screen.getByText('A brand new post')).toBeInTheDocument();
+      expect(screen.queryByText('My drawing')).toBeNull();
+    });
+
+    it('keeps the posts, and shows no error, when the refresh fails', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      kidsWallService.getAllPosts.mockRejectedValue(new Error('Server error'));
+
+      mount(store);
+      await flush();
+
+      expect(screen.getByText('My drawing')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('a like given before leaving is still there when coming back', async () => {
+      const store = newStore();
+      kidsWallService.getAllPosts.mockResolvedValue({ data: [post('p1', 'My drawing'), post('p2', 'My painting')] });
+      kidsWallService.toggleLike.mockResolvedValue({
+        data: post('p1', 'My drawing', { likes: [{ child: { _id: 'kid1' } }] }),
+      });
+      const first = mount(store);
+      await flush();
+      await act(async () => screen.getAllByRole('button', { name: 'Like' })[0].click());
+      first.unmount();
+      kidsWallService.getAllPosts.mockReturnValue(new Promise(() => {}));
+
+      mount(store);
+      await tick(500);
+
+      expect(screen.getAllByRole('button', { name: 'Like' })[0]).toHaveTextContent('1');
+    });
+
+    it('an empty feed is remembered too: the empty message is there at once, not the placeholder', async () => {
+      const store = newStore();
+      await firstVisit(store, []);
+      kidsWallService.getAllPosts.mockReturnValue(new Promise(() => {}));
+
+      mount(store);
+
+      expect(emptyMessage()).toBeInTheDocument();
+      expect(feedSkeleton()).toBeNull();
+    });
+
+    it('asks again on every visit', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      kidsWallService.getAllPosts.mockClear();
+
+      mount(store);
+      await flush();
+
+      expect(kidsWallService.getAllPosts).toHaveBeenCalledTimes(1);
+    });
+
+    it('a refresh does not lock the share card', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      kidsWallService.getAllPosts.mockReturnValue(new Promise(() => {}));
+
+      mount(store);
+      await tick(500);
+
+      expect(screen.getByRole('button', { name: 'Share Something Cool!' })).toBeEnabled();
     });
   });
 });

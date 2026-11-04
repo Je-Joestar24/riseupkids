@@ -10,6 +10,9 @@ import {
 } from '../store/slices/kidsWallSlice';
 import { showNotification } from '../store/slices/uiSlice';
 import kidsWallService from '../services/kidsWallService';
+import { useCachedLoad } from './useCachedLoad';
+
+const NO_POSTS = [];
 
 /**
  * Custom hook for KidsWall management
@@ -24,10 +27,20 @@ const useKidsWall = (childId = null) => {
   const dispatch = useDispatch();
   const reduxState = useSelector((state) => state.kidsWall);
   
-  // Local state for child operations
-  const [childPosts, setChildPosts] = useState([]);
+  // Child operations. The feed is cached per child: only a first visit shows the placeholder, and
+  // a like, a new post or a deleted post updates the cached copy. The page asks for the feed, so
+  // the hook itself never loads it on mount (the share page uses it only to create a post).
+  const feed = useCachedLoad(
+    childId ? `${childId}:wall:feed` : null,
+    async () => {
+      const response = await kidsWallService.getAllPosts();
+      return response.data || [];
+    },
+    { enabled: false }
+  );
+  const childPosts = feed.data ?? NO_POSTS;
+  const childLoaded = feed.loaded;
   const [childLoading, setChildLoading] = useState(false);
-  const [childLoaded, setChildLoaded] = useState(false);
   const [childError, setChildError] = useState(null);
 
   // Determine if this is admin or child mode
@@ -55,23 +68,11 @@ const useKidsWall = (childId = null) => {
         throw error;
       }
     } else {
-      // Child mode: Use local state
-      setChildLoading(true);
+      // Child mode: the cached feed refreshes quietly; a failure shows only while nothing is cached
       setChildError(null);
-      try {
-        const response = await kidsWallService.getAllPosts();
-        setChildPosts(response.data || []);
-        setChildLoaded(true);
-        return response;
-      } catch (error) {
-        const errorMessage = error?.message || error || 'Failed to fetch posts';
-        setChildError(errorMessage);
-        throw error;
-      } finally {
-        setChildLoading(false);
-      }
+      return feed.refresh();
     }
-  }, [isAdminMode, childId, dispatch, reduxState.filters]);
+  }, [isAdminMode, childId, dispatch, reduxState.filters, feed.refresh]);
 
   /**
    * Approve a pending post
@@ -230,8 +231,8 @@ const useKidsWall = (childId = null) => {
     try {
       const response = await kidsWallService.toggleLike(postId, childId);
       // Update local posts state
-      setChildPosts((prevPosts) =>
-        prevPosts.map((post) =>
+      feed.setData((prevPosts) =>
+        (prevPosts || []).map((post) =>
           post._id === postId ? response.data : post
         )
       );
@@ -241,7 +242,7 @@ const useKidsWall = (childId = null) => {
       setChildError(errorMessage);
       throw error;
     }
-  }, [childId]);
+  }, [childId, feed.setData]);
 
   /**
    * Toggle star on a post (child mode only)
@@ -256,8 +257,8 @@ const useKidsWall = (childId = null) => {
     try {
       const response = await kidsWallService.toggleStar(postId, childId);
       // Update local posts state
-      setChildPosts((prevPosts) =>
-        prevPosts.map((post) =>
+      feed.setData((prevPosts) =>
+        (prevPosts || []).map((post) =>
           post._id === postId ? response.data : post
         )
       );
@@ -267,7 +268,7 @@ const useKidsWall = (childId = null) => {
       setChildError(errorMessage);
       throw error;
     }
-  }, [childId]);
+  }, [childId, feed.setData]);
 
   // Return appropriate state and methods based on mode
   if (isAdminMode) {
@@ -295,7 +296,7 @@ const useKidsWall = (childId = null) => {
       posts: childPosts,
       loaded: childLoaded,
       loading: childLoading,
-      error: childError,
+      error: childError || feed.error,
       
       // Actions
       fetchPosts,

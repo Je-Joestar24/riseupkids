@@ -6,9 +6,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../config/theme';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../constants/exploreVideoTypes';
+import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import ChildExplore from './ChildExplore';
 
 const mockExplore = {
@@ -48,17 +51,21 @@ function deferred() {
 
 const Where = () => <div data-testid="where">{useLocation().pathname}</div>;
 
-function mount() {
+const newStore = () => configureStore({ reducer: { childPageCache: childPageCacheReducer } });
+
+function mount(store = newStore()) {
   return render(
-    <ThemeProvider theme={theme}>
-      <MemoryRouter initialEntries={['/child/kid1/explore']}>
-        <Routes>
-          <Route path="/child/:id/explore" element={<ChildExplore childId="kid1" />} />
-          <Route path="/child/:id/explore/videos/:videoType" element={<Where />} />
-          <Route path="/child/:id/explore/replays" element={<Where />} />
-        </Routes>
-      </MemoryRouter>
-    </ThemeProvider>
+    <Provider store={store}>
+      <ThemeProvider theme={theme}>
+        <MemoryRouter initialEntries={['/child/kid1/explore']}>
+          <Routes>
+            <Route path="/child/:id/explore" element={<ChildExplore childId="kid1" />} />
+            <Route path="/child/:id/explore/videos/:videoType" element={<Where />} />
+            <Route path="/child/:id/explore/replays" element={<Where />} />
+          </Routes>
+        </MemoryRouter>
+      </ThemeProvider>
+    </Provider>
   );
 }
 
@@ -282,6 +289,144 @@ describe('Explore page', () => {
       await act(async () => screen.getByRole('button', { name: /See All/ }).click());
 
       expect(screen.getByTestId('where')).toHaveTextContent('/child/kid1/explore/replays');
+    });
+  });
+
+  describe('coming back to Explore', () => {
+    async function firstVisit(store) {
+      mockExplore.fetchContentByType.mockResolvedValue({ response: { data: [replay] } });
+      mockWatch.getExploreVideoWatchStatus.mockResolvedValue({ currentWatchCount: 4 });
+      const view = mount(store);
+      await flush();
+      view.unmount();
+    }
+    const holdEverything = () => {
+      mockExplore.fetchExploreContent.mockReturnValue(new Promise(() => {}));
+      mockExplore.fetchContentByType.mockReturnValue(new Promise(() => {}));
+      mockWatch.getVideoTypeProgress.mockReturnValue(new Promise(() => {}));
+      mockWatch.getTotalStarsForVideoType.mockReturnValue(new Promise(() => {}));
+    };
+
+    it('shows the collections and the replays at once, with no placeholder, while they refresh', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      holdEverything();
+
+      mount(store);
+      await tick(500);
+
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('2/5')).toBeInTheDocument();
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('Continue!')).toBeInTheDocument();
+      expect(screen.getByText('Replay one')).toBeInTheDocument();
+      expect(bones()).toHaveLength(0);
+      expect(replaysSkeleton()).toBeNull();
+    });
+
+    it('replaces the numbers when the refresh arrives', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockWatch.getVideoTypeProgress.mockResolvedValue({ totalVideos: 6, viewedVideos: 3 });
+
+      mount(store);
+      await flush();
+
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('3/6')).toBeInTheDocument();
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).queryByText('2/5')).toBeNull();
+    });
+
+    it('keeps the numbers, instead of turning them into zeros, when the refresh fails', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockWatch.getVideoTypeProgress.mockRejectedValue(new Error('down'));
+      mockWatch.getTotalStarsForVideoType.mockRejectedValue(new Error('down'));
+
+      mount(store);
+      await flush();
+
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('2/5')).toBeInTheDocument();
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('30')).toBeInTheDocument();
+    });
+
+    it('asks quietly the second time — the lists and the replays make no popup if they fail', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      expect(mockExplore.fetchContentByType).toHaveBeenLastCalledWith(
+        'video',
+        expect.anything(),
+        { silent: false }
+      );
+
+      mockExplore.fetchContentByType.mockClear();
+      mockExplore.fetchExploreContent.mockClear();
+      mount(store);
+      await flush();
+
+      expect(mockExplore.fetchContentByType).toHaveBeenCalledWith('video', expect.anything(), { silent: true });
+      mockExplore.fetchExploreContent.mock.calls.forEach(([, options]) => expect(options).toEqual({ silent: true }));
+    });
+
+    it('keeps the replays row, and shows nothing, when its refresh fails', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockExplore.fetchContentByType.mockRejectedValue(new Error('down'));
+
+      mount(store);
+      await flush();
+
+      expect(screen.getByText('Replay one')).toBeInTheDocument();
+      expect(screen.getByText('Watch Replays')).toBeInTheDocument();
+    });
+
+    it('asks for the numbers in a way that can fail, so a failure never turns them into zeros', async () => {
+      mount();
+      await flush();
+
+      TYPES.forEach((type) => {
+        expect(mockWatch.getVideoTypeProgress).toHaveBeenCalledWith(type, { strict: true });
+        expect(mockWatch.getTotalStarsForVideoType).toHaveBeenCalledWith(type, { strict: true });
+      });
+    });
+
+    it('asks again on every visit', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mockWatch.getVideoTypeProgress.mockClear();
+
+      mount(store);
+      await flush();
+
+      expect(mockWatch.getVideoTypeProgress).toHaveBeenCalledTimes(6);
+    });
+
+    it('a first visit that fails shows zeros, remembers nothing, and tries again next time', async () => {
+      const store = newStore();
+      mockWatch.getVideoTypeProgress.mockRejectedValue(new Error('down'));
+      const failed = mount(store);
+      await flush();
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('0/0')).toBeInTheDocument();
+      expect(bones()).toHaveLength(0);
+      failed.unmount();
+
+      mockWatch.getVideoTypeProgress.mockResolvedValue({ totalVideos: 5, viewedVideos: 2 });
+      mount(store);
+      await flush();
+
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('2/5')).toBeInTheDocument();
+    });
+
+    it('a stats update still refreshes the numbers quietly', async () => {
+      const store = newStore();
+      await firstVisit(store);
+      mount(store);
+      await flush();
+      mockWatch.getVideoTypeProgress.mockResolvedValue({ totalVideos: 5, viewedVideos: 4 });
+
+      await act(async () => {
+        window.dispatchEvent(new Event('childStatsUpdated'));
+      });
+
+      expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('4/5')).toBeInTheDocument();
+      expect(bones()).toHaveLength(0);
     });
   });
 });

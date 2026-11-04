@@ -21,6 +21,8 @@ import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
 import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
 import schoolProspectsReducer from './slices/schoolProspectsSlice';
 import childJourneyReducer from './slices/childJourneySlice';
+import childModuleReducer from './slices/childModuleSlice';
+import childPageCacheReducer from './slices/childPageCacheSlice';
 
 export const store = configureStore({
   reducer: {
@@ -46,6 +48,8 @@ export const store = configureStore({
     cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state
     schoolProspects: schoolProspectsReducer, // Admin school prospects list
     childJourney: childJourneyReducer, // Child My Journey session cache
+    childModule: childModuleReducer, // Child course page session cache
+    childPageCache: childPageCacheReducer, // Child Home / Explore / Kids Wall session cache
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

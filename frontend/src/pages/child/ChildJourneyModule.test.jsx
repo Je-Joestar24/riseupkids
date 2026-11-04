@@ -5,10 +5,16 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import childJourneyReducer from '../../store/slices/childJourneySlice';
+import childModuleReducer, {
+  moduleKey,
+  moduleReceived,
+  prefetchChildModule,
+} from '../../store/slices/childModuleSlice';
 import uiReducer from '../../store/slices/uiSlice';
 import courseProgressService from '../../services/courseProgressService';
 import ChildJourneyModule from './ChildJourneyModule';
@@ -79,10 +85,13 @@ function deferred() {
 
 let childCounter = 0;
 
-function mount() {
-  const childId = `kid${++childCounter}`;
-  const store = configureStore({ reducer: { childJourney: childJourneyReducer, ui: uiReducer } });
-  render(
+const newStore = () =>
+  configureStore({
+    reducer: { childJourney: childJourneyReducer, childModule: childModuleReducer, ui: uiReducer },
+  });
+
+function mount({ childId = `kid${++childCounter}`, store = newStore() } = {}) {
+  const view = render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[`/child/${childId}/journey/c2`]}>
         <Routes>
@@ -91,7 +100,7 @@ function mount() {
       </MemoryRouter>
     </Provider>
   );
-  return { store, childId };
+  return { store, childId, ...view };
 }
 
 const flush = () => act(async () => {});
@@ -194,6 +203,136 @@ describe('Course page', () => {
 
       expect(screen.queryByRole('status', { name: 'Loading the course' })).toBeNull();
       expect(screen.getByText('Second course')).toBeInTheDocument();
+    });
+  });
+
+  describe('a course opened before, or started by a press on its card', () => {
+    const cache = (store, childId, extra = {}) =>
+      store.dispatch(
+        moduleReceived({ key: moduleKey(childId, 'c2'), details: details(extra), at: Date.now() })
+      );
+    const skeleton = () => screen.queryByRole('status', { name: 'Loading the course' });
+
+    it('shows the cached course at once, with no skeleton, while it refreshes quietly', async () => {
+      const store = newStore();
+      cache(store, 'cacheKidA');
+      const refresh = deferred();
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(refresh.promise);
+
+      mount({ childId: 'cacheKidA', store });
+      expect(screen.getByText('Second course')).toBeInTheDocument();
+      await tick(500);
+
+      expect(skeleton()).toBeNull();
+      expect(screen.getByText('Second course')).toBeInTheDocument();
+      expect(getCourseDetailsForChild).toHaveBeenCalledTimes(1);
+    });
+
+    it('is on screen from the very first render, with no empty frame before the effects run', () => {
+      // renderToString is the first render only (no effects have run yet), which is what the
+      // child's browser paints before the request starts.
+      const store = newStore();
+      cache(store, 'cacheKidH');
+
+      const firstRender = renderToString(
+        <Provider store={store}>
+          <MemoryRouter initialEntries={['/child/cacheKidH/journey/c2']}>
+            <Routes>
+              <Route path="/child/:id/journey/:courseId" element={<ChildJourneyModule childId="cacheKidH" />} />
+            </Routes>
+          </MemoryRouter>
+        </Provider>
+      );
+
+      expect(firstRender).toContain('Second course');
+    });
+
+    it('replaces it with the fresh course when the refresh arrives', async () => {
+      const store = newStore();
+      cache(store, 'cacheKidB');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockResolvedValue(
+        ok(details({ course: { _id: 'c2', title: 'Second course, updated', contents: [] } }))
+      );
+
+      mount({ childId: 'cacheKidB', store });
+      await flush();
+
+      expect(screen.getByText('Second course, updated')).toBeInTheDocument();
+      expect(screen.queryByText('Second course')).toBeNull();
+    });
+
+    it('opening a course a second time shows it at once', async () => {
+      const store = newStore();
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockResolvedValue(ok(details()));
+      const first = mount({ childId: 'cacheKidC', store });
+      await flush();
+      first.unmount();
+
+      getCourseDetailsForChild.mockReturnValue(new Promise(() => {}));
+      mount({ childId: 'cacheKidC', store });
+
+      expect(screen.getByText('Second course')).toBeInTheDocument();
+      expect(skeleton()).toBeNull();
+    });
+
+    it('keeps the cached course, with no popup and no error, when the refresh fails', async () => {
+      const store = newStore();
+      cache(store, 'cacheKidD');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockRejectedValue('Server error');
+
+      mount({ childId: 'cacheKidD', store });
+      await flush();
+
+      expect(screen.getByText('Second course')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(store.getState().ui.notification.open).toBeFalsy();
+    });
+
+    it('shows the locked message, and forgets the course, when the refresh finds it locked', async () => {
+      const store = newStore();
+      cache(store, 'cacheKidE');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockResolvedValue(ok(details({ accessible: false })));
+
+      mount({ childId: 'cacheKidE', store });
+      await flush();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('This course is locked');
+      expect(screen.queryByText('Second course')).toBeNull();
+      expect(store.getState().childModule.detailsByKey[moduleKey('cacheKidE', 'c2')]).toBeUndefined();
+    });
+
+    it('joins a request a card already started instead of asking again', async () => {
+      const store = newStore();
+      const started = deferred();
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(started.promise);
+      store.dispatch(prefetchChildModule('cacheKidF', 'c2'));
+
+      mount({ childId: 'cacheKidF', store });
+      await flush();
+      expect(getCourseDetailsForChild).toHaveBeenCalledTimes(1);
+
+      started.resolve(ok(details()));
+      await flush();
+
+      expect(getCourseDetailsForChild).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Second course')).toBeInTheDocument();
+    });
+
+    it('still shows the error with Try again when nothing is cached and the request fails', async () => {
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockRejectedValue('Server error');
+
+      mount({ childId: 'cacheKidG' });
+      await flush();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Server error');
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
     });
   });
 

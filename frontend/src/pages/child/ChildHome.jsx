@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Box } from '@mui/material';
+import { useDispatch } from 'react-redux';
 import ChildHomeStartLearning from '../../components/child/home/ChildHomeStartLearning';
 import ChildHomeLiveClass from '../../components/child/home/ChildHomeLiveClass';
 import ChildHomeAccumlatedAwards from '../../components/child/home/ChildHomeAccumlatedAwards';
 import childrenService from '../../services/childrenService';
+import { useCachedLoad } from '../../hooks/useCachedLoad';
+import { prefetchChildJourney } from '../../store/slices/childJourneySlice';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
@@ -16,50 +19,41 @@ import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout'
  * especially for newly created children
  */
 const ChildHome = ({ childId }) => {
-  const [child, setChild] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
 
-  // Fetch child data from API
-  useEffect(() => {
-    const fetchChildData = async () => {
-      if (!childId) {
-        setLoading(false);
-        return;
-      }
-
+  // The child record is cached per child: only a first visit shows the placeholders; later visits
+  // draw the last counts at once and replace them when the refresh arrives.
+  const { data, loaded, error, refresh } = useCachedLoad(
+    childId ? `${childId}:home:child` : null,
+    async () => {
       try {
-        setLoading(true);
         const response = await childrenService.getChildById(childId);
-        setChild(response.data || response);
+        return response.data || response;
       } catch (err) {
         console.error('[ChildHome] Error fetching child data:', err);
-      } finally {
-        setLoading(false);
+        throw err;
       }
-    };
+    }
+  );
+  const child = data ?? null;
+  const loading = Boolean(childId) && !loaded && !error;
 
-    fetchChildData();
-  }, [childId]);
+  // Once Home has its own data, start My Journey's list so that page opens already filled.
+  useEffect(() => {
+    if (!loading && childId) dispatch(prefetchChildJourney(childId));
+  }, [loading, childId, dispatch]);
 
   // Listen for child stats updates and refresh data
   useEffect(() => {
+    if (!childId) return undefined;
     const handleStatsUpdate = () => {
-      if (childId) {
-        childrenService.getChildById(childId)
-          .then((response) => {
-            setChild(response.data || response);
-          })
-          .catch((err) => {
-            console.error('[ChildHome] Error refreshing child data:', err);
-          });
-      }
+      refresh().catch(() => {});
     };
-
     window.addEventListener('childStatsUpdated', handleStatsUpdate);
     return () => {
       window.removeEventListener('childStatsUpdated', handleStatsUpdate);
     };
-  }, [childId]);
+  }, [childId, refresh]);
 
   return (
     <Box

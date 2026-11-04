@@ -58,7 +58,8 @@ const RemoteImage = ({ src, alt, index = 0, sx, onLoad, imgRef, ...rest }) => {
       src={src}
       alt={alt}
       loading={priority === 'high' ? 'eager' : 'lazy'}
-      fetchPriority={priority}
+      // Lowercase on purpose: React 18 only knows this attribute in that spelling (React 19 takes fetchPriority).
+      fetchpriority={priority}
       decoding="async"
       onLoad={(event) => {
         setLoaded(true);

@@ -45,7 +45,7 @@ export const useExplore = () => {
    * @param {Object} params - Query parameters (optional, uses current filters if not provided)
    * @returns {Promise} Fetch result
    */
-  const fetchExploreContent = async (params = null) => {
+  const fetchExploreContent = async (params = null, { silent = false } = {}) => {
     try {
       const sourceParams = params || filters;
       // Create a new object to avoid mutating Redux state
@@ -58,10 +58,12 @@ export const useExplore = () => {
       const result = await dispatch(fetchAllExploreContent(queryParams)).unwrap();
       return result;
     } catch (error) {
-      dispatch(showNotification({
-        message: error?.message || error || 'Failed to fetch explore content',
-        type: 'error',
-      }));
+      if (!silent) {
+        dispatch(showNotification({
+          message: error?.message || error || 'Failed to fetch explore content',
+          type: 'error',
+        }));
+      }
       throw error;
     }
   };
@@ -178,15 +180,17 @@ export const useExplore = () => {
    * @param {Object} params - Query parameters
    * @returns {Promise} Fetch result
    */
-  const fetchContentByType = useCallback(async (type, params = {}) => {
+  const fetchContentByType = useCallback(async (type, params = {}, { silent = false } = {}) => {
     try {
       const result = await dispatch(fetchExploreContentByType({ type, params })).unwrap();
       return result;
     } catch (error) {
-      dispatch(showNotification({
-        message: error || 'Failed to fetch explore content by type',
-        type: 'error',
-      }));
+      if (!silent) {
+        dispatch(showNotification({
+          message: error || 'Failed to fetch explore content by type',
+          type: 'error',
+        }));
+      }
       throw error;
     }
   }, [dispatch]);

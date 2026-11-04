@@ -104,7 +104,7 @@ export const useExploreVideoWatch = (childId) => {
    * @param {String} videoType - Video type (e.g., 'replay', 'cooking', 'music', etc.)
    * @returns {Promise} Total stars earned for this video type
    */
-  const getTotalStarsForVideoType = useCallback(async (videoType) => {
+  const getTotalStarsForVideoType = useCallback(async (videoType, { strict = false } = {}) => {
     if (!childId || !videoType) {
       throw new Error('Child ID and Video Type are required');
     }
@@ -120,6 +120,8 @@ export const useExploreVideoWatch = (childId) => {
       const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get total stars for video type');
       // Don't show notification for status checks (might be called frequently)
       // Return 0 as fallback
+      // `strict`: a page that keeps its last number on screen needs to know the request failed.
+      if (strict) throw new Error(errorMessage);
       console.error('[ExploreVideoWatch] Error getting total stars:', errorMessage);
       return 0;
     }
@@ -130,7 +132,7 @@ export const useExploreVideoWatch = (childId) => {
    * @param {String} videoType - Video type (e.g., 'replay', 'cooking', 'music', etc.)
    * @returns {Promise} Progress data with totalVideos and viewedVideos
    */
-  const getVideoTypeProgress = useCallback(async (videoType) => {
+  const getVideoTypeProgress = useCallback(async (videoType, { strict = false } = {}) => {
     if (!childId || !videoType) {
       throw new Error('Child ID and Video Type are required');
     }
@@ -149,6 +151,7 @@ export const useExploreVideoWatch = (childId) => {
       const errorMessage = err instanceof Error ? err.message : (err || 'Failed to get video type progress');
       // Don't show notification for status checks (might be called frequently)
       // Return default values as fallback
+      if (strict) throw new Error(errorMessage);
       console.error('[ExploreVideoWatch] Error getting video type progress:', errorMessage);
       return {
         totalVideos: 0,

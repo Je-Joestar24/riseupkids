@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { useExplore } from '../../../hooks/exploreHook';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
+import { useCachedLoad } from '../../../hooks/useCachedLoad';
+import { loadReplayViewCounts } from '../../../utils/replayViewCounts';
 import ExploreReplaysCard from './ExploreReplaysCard';
 import ExploreReplaysSkeleton from './ExploreReplaysSkeleton';
 import VideoPlayerModal from '../common/VideoPlayerModal';
@@ -22,73 +24,37 @@ const ExploreReplays = ({ childId }) => {
   const { fetchContentByType } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);
 
-  const [replayContent, setReplayContent] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [selectedExploreContentId, setSelectedExploreContentId] = useState(null);
-  const [videoViewCounts, setVideoViewCounts] = useState({}); // Map of exploreContentId -> viewCount
-  const hasLoadedRef = useRef(false);
 
-  useEffect(() => {
-    if (!fetchContentByType || hasLoadedRef.current) return;
-
-    const loadReplays = async () => {
-      try {
-        setLoading(true);
-        hasLoadedRef.current = true;
-        const result = await fetchContentByType('video', {
-          videoType: 'replay',
-          limit: 4,
-          page: 1,
-        });
-
-        // The result structure is { type, response } where response contains { success, data, pagination }
-        console.log('ExploreReplays - API Result:', result);
-
-        const contentData = result?.response?.data || result?.data;
-        if (contentData && Array.isArray(contentData)) {
-          console.log('ExploreReplays - Setting content:', contentData);
-          setReplayContent(contentData);
-          
-          // Fetch per-child view counts for each replay video
-          if (childId && getExploreVideoWatchStatus) {
-            const viewCountPromises = contentData.map(async (content) => {
-              try {
-                const status = await getExploreVideoWatchStatus(content._id);
-                return {
-                  exploreContentId: content._id.toString(),
-                  viewCount: status?.currentWatchCount || 0,
-                };
-              } catch (error) {
-                console.error(`Error fetching view count for ${content._id}:`, error);
-                return {
-                  exploreContentId: content._id.toString(),
-                  viewCount: 0,
-                };
-              }
-            });
-            
-            const viewCounts = await Promise.all(viewCountPromises);
-            const viewCountMap = {};
-            viewCounts.forEach((item) => {
-              viewCountMap[item.exploreContentId] = item.viewCount;
-            });
-            setVideoViewCounts(viewCountMap);
-          }
-        } else {
-          console.warn('ExploreReplays - No valid data found in result:', result);
-        }
-      } catch (error) {
-        console.error('Error loading replay content:', error);
-        hasLoadedRef.current = false; // Allow retry on error
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadReplays();
-  }, [fetchContentByType, childId, getExploreVideoWatchStatus]);
+  // The row, with each video's view count for this child, is cached per child: only a first visit
+  // shows the placeholder; later visits draw the last answer at once and replace it quietly.
+  const { data, loaded, error, setData } = useCachedLoad(
+    childId ? `${childId}:explore:replayRow` : null,
+    async ({ quiet, previous }) => {
+      const result = await fetchContentByType(
+        'video',
+        { videoType: 'replay', limit: 4, page: 1 },
+        { silent: quiet }
+      );
+      // The result structure is { type, response } where response contains { success, data, pagination }
+      const content = result?.response?.data || result?.data;
+      if (!Array.isArray(content)) throw new Error('No replay videos found');
+      return {
+        content,
+        viewCounts: await loadReplayViewCounts({
+          videos: content,
+          childId,
+          getStatus: getExploreVideoWatchStatus,
+          previousCounts: previous?.viewCounts,
+        }),
+      };
+    }
+  );
+  const replayContent = data?.content || [];
+  const videoViewCounts = data?.viewCounts || {}; // Map of exploreContentId -> viewCount
+  const loading = Boolean(childId) && !loaded && !error;
 
   const handleSeeAll = () => {
     // Navigate to full replays page
@@ -122,9 +88,9 @@ const ExploreReplays = ({ childId }) => {
         const newViewCount = status?.currentWatchCount || 0;
         
         // Update the view count for this video
-        setVideoViewCounts((prev) => ({
-          ...prev,
-          [selectedExploreContentId.toString()]: newViewCount,
+        setData((previous) => ({
+          ...previous,
+          viewCounts: { ...previous?.viewCounts, [selectedExploreContentId.toString()]: newViewCount },
         }));
       } catch (error) {
         console.error('Error refreshing view count after video completion:', error);
@@ -132,21 +98,13 @@ const ExploreReplays = ({ childId }) => {
     }
   };
 
-  // Debug logging
-  useEffect(() => {
-    console.log('ExploreReplays - State:', { loading, replayContent, contentCount: replayContent?.length });
-  }, [loading, replayContent]);
-
   if (loading) {
     return <ExploreReplaysSkeleton />;
   }
 
   if (!replayContent || replayContent.length === 0) {
-    console.log('ExploreReplays - No content to display, replayContent:', replayContent);
     return null; // Don't show section if no content
   }
-
-  console.log('ExploreReplays - Rendering with content:', replayContent);
 
   return (
     <Box sx={{ marginBottom: 4 }}>

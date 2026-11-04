@@ -4,6 +4,7 @@ import { useTheme } from '@mui/material/styles';
 import { useNavigate, useParams } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
 import RemoteImage from '../common/RemoteImage';
+import useCoursePrefetch from '../../../hooks/useCoursePrefetch';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import footstepsIcon from '../../../assets/images/footsteps.png';
 import lockIcon from '../../../assets/images/lock.png';
@@ -19,6 +20,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
   const theme = useTheme();
   const navigate = useNavigate();
   const { id: childId } = useParams();
+  const { prefetch, startHover, cancelHover } = useCoursePrefetch(childId);
 
 
   // Truncate description to 50 characters with ellipsis
@@ -202,19 +204,26 @@ const ChildJourneyCards = ({ courses = [] }) => {
             const stepOrder = index + 1;
             const coverImageUrl = getCoverImageUrl(course.coverImage);
             
-            // Handle card click - only for completed or in_progress courses
+            // Only completed, in-progress and not-started courses open, and not while locked.
+            const isOpenable =
+              (status === 'completed' || status === 'in_progress' || status === 'not_started') &&
+              !isLocked &&
+              Boolean(childId) &&
+              Boolean(course._id || course.id);
+
             const handleCardClick = () => {
-              const isClickable = (status === 'completed' || status === 'in_progress' || status === 'not_started');
-              if (isClickable && !isLocked && childId && (course._id || course.id)) {
-                const courseId = course._id || course.id;
-                navigate(`/child/${childId}/journey/${courseId}`);
-              }
+              if (!isOpenable) return;
+              prefetch(courseItem); // does nothing if a press or hover already started it
+              navigate(`/child/${childId}/journey/${course._id || course.id}`);
             };
             
             return (
               <Card
                 key={course._id || course.id}
                 onClick={handleCardClick}
+                onPointerDown={isOpenable ? () => prefetch(courseItem) : undefined}
+                onPointerEnter={isOpenable ? (event) => startHover(courseItem, event) : undefined}
+                onPointerLeave={isOpenable ? cancelHover : undefined}
                 sx={{
                   backgroundColor: themeColors.bgCard,
                   borderRadius: '0px',

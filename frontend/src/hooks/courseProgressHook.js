@@ -5,6 +5,7 @@ import bookReadingService from '../services/bookReadingService';
 import { showNotification } from '../store/slices/uiSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchChildJourney } from '../store/slices/childJourneySlice';
+import { fetchChildModule } from '../store/slices/childModuleSlice';
 import { getCoverImageUrl } from '../utils/coverImageUrl';
 
 const NO_COURSES = [];
@@ -166,28 +167,26 @@ export const useCourseProgress = (childId) => {
   }, [childId, dispatch, fetchChildCourses]);
 
   /**
-   * Get course details with populated contents and child profile
+   * Get course details with populated contents and child profile (cached; see childModuleSlice).
+   * The cache holds the result, so callers read it from the store rather than keeping a copy.
    * @param {String} courseId - Course's ID
+   * @param {Object} [options] - `silent`: no popup on failure (a refresh the child did not ask for)
    * @returns {Promise} Course details with contents, child profile, and progress
    */
-  const fetchCourseDetailsForChild = useCallback(async (courseId) => {
+  const fetchCourseDetailsForChild = useCallback(async (courseId, { silent = false } = {}) => {
     if (!childId || !courseId) {
       throw new Error('Child ID and Course ID are required');
     }
 
     try {
-      const response = await courseProgressService.getCourseDetailsForChild(courseId, childId);
-      if (response.success && response.data) {
-        return response.data;
-      } else {
-        throw new Error(response.message || 'Failed to fetch course details');
-      }
+      return await dispatch(fetchChildModule(childId, courseId));
     } catch (err) {
-      const errorMessage = err || 'Failed to fetch course details';
-      dispatch(showNotification({
-        message: errorMessage,
-        type: 'error',
-      }));
+      if (!silent) {
+        dispatch(showNotification({
+          message: err || 'Failed to fetch course details',
+          type: 'error',
+        }));
+      }
       throw err;
     }
   }, [childId, dispatch]);

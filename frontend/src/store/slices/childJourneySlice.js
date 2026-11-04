@@ -1,5 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import courseProgressService from '../../services/courseProgressService';
+import { getCoverImageUrl } from '../../utils/coverImageUrl';
+import { prefetchImages } from '../../utils/remoteImage';
 import { logoutUser } from './userSlice';
 
 /**
@@ -72,6 +74,8 @@ export const fetchChildJourney = (childId, { minAgeMs = 0 } = {}) => (dispatch, 
         throw new Error(response?.message || 'Failed to fetch courses');
       }
       dispatch(journeyReceived({ childId, courses: response.data, at: Date.now() }));
+      // Only the covers at the top; the rest load as their cards are shown.
+      prefetchImages(response.data.map((item) => getCoverImageUrl(item.course?.coverImage)));
       return response.data;
     })
     .catch((err) => {
@@ -84,6 +88,18 @@ export const fetchChildJourney = (childId, { minAgeMs = 0 } = {}) => (dispatch, 
 
   inflightByChildId.set(childId, request);
   return request;
+};
+
+/**
+ * Start loading the list ahead of the page that shows it (Home does this, so My Journey opens
+ * already filled). Does nothing if a list is cached or being loaded. Never rejects: if it
+ * fails, My Journey asks again when it opens.
+ */
+export const prefetchChildJourney = (childId) => (dispatch, getState) => {
+  if (!childId) return;
+  if (getState().childJourney.coursesByChildId[childId] !== undefined) return;
+  if (inflightByChildId.has(childId)) return;
+  dispatch(fetchChildJourney(childId)).catch(() => {});
 };
 
 export const selectChildJourney = (state) => state.childJourney;

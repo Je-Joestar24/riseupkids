@@ -111,6 +111,13 @@ Steps 1–6 together are about **2.5–4 working days** and cover everything a c
 module pages. Steps 7–8 are the larger book-player work and are the same as the plan already written in
 `CMS_BOOKS_PRELOAD_SPEEDUP_PLAN.md` (Phases 1, 2 and 4) for the web.
 
+**Added later (step 5 widened).** The session cache was first planned only for My Journey and the course page.
+Home, Explore (collections, video lists, replays) and the Kids Wall kept their data in the page's own state, so
+every visit started from nothing and showed placeholders again. They now use the same pattern as the phone app
+(draw the last answer at once, refresh quietly, placeholders only on the very first visit). See
+`WEB_CHILD_PHASE3_PREFETCH.md`, part 2. Still not cached: the live-class card on Home (it shows who is live right
+now), Profile and Printables, and nothing survives a reload until step 8.
+
 ## Skeleton loading, page by page
 
 The app already has a skeleton for My Journey, the module page, Explore, Replays and Kids Wall (pulsing grey

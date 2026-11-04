@@ -4,23 +4,36 @@
  * quiet tab-focus refresh, and the error screen with retry.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import childJourneyReducer from '../../store/slices/childJourneySlice';
+import childJourneyReducer, { journeyFailed } from '../../store/slices/childJourneySlice';
+import childModuleReducer from '../../store/slices/childModuleSlice';
+import { HOVER_INTENT_MS } from '../../hooks/useCoursePrefetch';
 import uiReducer from '../../store/slices/uiSlice';
 import courseProgressService from '../../services/courseProgressService';
 import { aspectRatioOf } from '../../test/aspectRatioOf';
 import ChildJourney from './ChildJourney';
 
 vi.mock('../../services/courseProgressService', () => ({
-  default: { getChildCourses: vi.fn() },
+  default: { getChildCourses: vi.fn(), getCourseDetailsForChild: vi.fn() },
 }));
 vi.mock('../../services/videoWatchService', () => ({ default: {} }));
 vi.mock('../../services/bookReadingService', () => ({ default: {} }));
 
 const getCourses = courseProgressService.getChildCourses;
+
+// jsdom has no PointerEvent, so a fired event would lose its pointer type (mouse, touch, pen).
+if (!window.PointerEvent) {
+  window.PointerEvent = class PointerEvent extends MouseEvent {
+    constructor(type, init = {}) {
+      super(type, init);
+      this.pointerType = init.pointerType ?? '';
+    }
+  };
+}
 
 const course = (id, title, status = 'not_started') => ({
   course: { _id: id, title, description: `About ${title}` },
@@ -44,14 +57,20 @@ function deferred() {
 let childCounter = 0;
 let childId;
 
-const newStore = () => configureStore({ reducer: { childJourney: childJourneyReducer, ui: uiReducer } });
+const newStore = () =>
+  configureStore({
+    reducer: { childJourney: childJourneyReducer, childModule: childModuleReducer, ui: uiReducer },
+  });
+
+const Where = () => <div data-testid="where">{useLocation().pathname}</div>;
 
 function mountOn(store) {
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={[`/child/${childId}/journey`]}>
         <Routes>
-          <Route path="/child/:id/journey" element={<ChildJourney childId={childId} />} />
+          <Route path="/child/:id/journey" element={<><ChildJourney childId={childId} /><Where /></>} />
+          <Route path="/child/:id/journey/:courseId" element={<Where />} />
         </Routes>
       </MemoryRouter>
     </Provider>
@@ -298,6 +317,220 @@ describe('My Journey page', () => {
 
       expect(screen.queryByAltText('Plain')).toBeNull();
       expect(screen.getByText('📚')).toBeInTheDocument();
+    });
+  });
+
+  describe('an earlier background failure', () => {
+    it('does not flash the error before the page has asked for itself', async () => {
+      const store = newStore();
+      store.dispatch(journeyFailed({ childId, error: 'Home could not load it' }));
+      const pending = deferred();
+      getCourses.mockReturnValue(pending.promise);
+
+      mountOn(store);
+      await tick(200);
+
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(skeleton()).toBeInTheDocument();
+
+      pending.resolve(ok(course('c1', 'Alpha')));
+      await flush();
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
+    });
+
+    it('does not paint it on the very first render either', () => {
+      // renderToString is the first render only (no effects have run yet), which is what the
+      // child's browser paints before the page's request starts.
+      const store = newStore();
+      store.dispatch(journeyFailed({ childId, error: 'Home could not load it' }));
+
+      const firstRender = renderToString(
+        <Provider store={store}>
+          <MemoryRouter>
+            <ChildJourney childId={childId} />
+          </MemoryRouter>
+        </Provider>
+      );
+
+      expect(firstRender).not.toContain('Home could not load it');
+    });
+
+    it('shows the error when the page’s own request fails too', async () => {
+      const store = newStore();
+      store.dispatch(journeyFailed({ childId, error: 'Home could not load it' }));
+      getCourses.mockRejectedValue('Network down');
+
+      mountOn(store);
+      await flush();
+
+      expect(screen.getByRole('alert')).toHaveTextContent('Network down');
+    });
+  });
+
+  describe('starting a course before its page opens', () => {
+    const { getCourseDetailsForChild: getDetails } = courseProgressService;
+    const pathNow = () => screen.getByTestId('where').textContent;
+    const cardOf = (title) => screen.getByText(title).closest('.MuiCard-root');
+    const list = () =>
+      ok(
+        course('c1', 'Alpha', 'in_progress'),
+        { ...course('c2', 'Beta', 'locked'), accessible: false },
+        course('c3', 'Gamma', 'completed')
+      );
+
+    let RealImage;
+    let pictures;
+    beforeEach(() => {
+      getDetails.mockReturnValue(new Promise(() => {}));
+      pictures = [];
+      RealImage = globalThis.Image;
+      globalThis.Image = class {
+        constructor() {
+          pictures.push(this);
+        }
+      };
+    });
+    afterEach(() => {
+      globalThis.Image = RealImage;
+    });
+
+    async function mountList(items = list()) {
+      getCourses.mockResolvedValue(items);
+      const store = mount();
+      await flush();
+      return store;
+    }
+
+    it('pressing a card starts loading its course, while the page is still My Journey', async () => {
+      await mountList();
+
+      fireEvent.pointerDown(cardOf('Alpha'));
+
+      expect(getDetails).toHaveBeenCalledTimes(1);
+      expect(getDetails).toHaveBeenCalledWith('c1', childId);
+      expect(pathNow()).toBe(`/child/${childId}/journey`);
+    });
+
+    it('pressing and then clicking asks once, and opens the course', async () => {
+      await mountList();
+
+      fireEvent.pointerDown(cardOf('Alpha'));
+      fireEvent.click(cardOf('Alpha'));
+
+      expect(getDetails).toHaveBeenCalledTimes(1);
+      expect(pathNow()).toBe(`/child/${childId}/journey/c1`);
+    });
+
+    it('a click on its own (keyboard, assistive tools) also starts it, and opens the course', async () => {
+      await mountList();
+
+      fireEvent.click(cardOf('Gamma'));
+
+      expect(getDetails).toHaveBeenCalledWith('c3', childId);
+      expect(pathNow()).toBe(`/child/${childId}/journey/c3`);
+    });
+
+    it('a mouse resting on a card starts it after a short wait', async () => {
+      await mountList();
+
+      fireEvent.pointerEnter(cardOf('Alpha'), { pointerType: 'mouse' });
+      await tick(HOVER_INTENT_MS - 1);
+      expect(getDetails).not.toHaveBeenCalled();
+
+      await tick(1);
+      expect(getDetails).toHaveBeenCalledTimes(1);
+      expect(getDetails).toHaveBeenCalledWith('c1', childId);
+    });
+
+    it('a mouse just passing over a card starts nothing', async () => {
+      await mountList();
+
+      fireEvent.pointerEnter(cardOf('Alpha'), { pointerType: 'mouse' });
+      await tick(50);
+      fireEvent.pointerLeave(cardOf('Alpha'), { pointerType: 'mouse' });
+      await tick(500);
+
+      expect(getDetails).not.toHaveBeenCalled();
+    });
+
+    it('moving from one card to the next starts only the one the mouse rests on', async () => {
+      await mountList();
+
+      fireEvent.pointerEnter(cardOf('Alpha'), { pointerType: 'mouse' });
+      await tick(50);
+      fireEvent.pointerLeave(cardOf('Alpha'), { pointerType: 'mouse' });
+      fireEvent.pointerEnter(cardOf('Gamma'), { pointerType: 'mouse' });
+      await tick(500);
+
+      expect(getDetails).toHaveBeenCalledTimes(1);
+      expect(getDetails).toHaveBeenCalledWith('c3', childId);
+    });
+
+    it('a touch or pen “hover” does not start anything (only a real press does)', async () => {
+      await mountList();
+
+      fireEvent.pointerEnter(cardOf('Alpha'), { pointerType: 'touch' });
+      await tick(500);
+      expect(getDetails).not.toHaveBeenCalled();
+
+      fireEvent.pointerDown(cardOf('Alpha'), { pointerType: 'touch' });
+      expect(getDetails).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops waiting when the page is closed', async () => {
+      await mountList();
+      fireEvent.pointerEnter(cardOf('Alpha'), { pointerType: 'mouse' });
+
+      cleanup();
+      await tick(500);
+
+      expect(getDetails).not.toHaveBeenCalled();
+    });
+
+    it('a locked card starts nothing and does not open', async () => {
+      await mountList();
+
+      fireEvent.pointerDown(cardOf('Locked Step'));
+      fireEvent.pointerEnter(cardOf('Locked Step'), { pointerType: 'mouse' });
+      await tick(500);
+      fireEvent.click(cardOf('Locked Step'));
+
+      expect(getDetails).not.toHaveBeenCalled();
+      expect(pathNow()).toBe(`/child/${childId}/journey`);
+    });
+
+    it('also starts loading the card’s cover', async () => {
+      const items = ok(
+        ...['a', 'b', 'c', 'd', 'e'].map((letter) => ({
+          ...course(`${childId}${letter}`, `Course ${letter}`, 'in_progress'),
+          course: {
+            _id: `${childId}${letter}`,
+            title: `Course ${letter}`,
+            coverImage: `/uploads/${childId}${letter}.png`,
+          },
+        }))
+      );
+      await mountList(items);
+      // The first four covers were started when the list arrived; the fifth was not.
+      expect(pictures).toHaveLength(4);
+
+      await tick(150);
+      fireEvent.pointerDown(cardOf('Course e'));
+
+      expect(pictures).toHaveLength(5);
+      expect(pictures[4].src).toMatch(new RegExp(`/uploads/${childId}e\\.png$`));
+    });
+
+    it('a failed start is silent: no popup, and My Journey is untouched', async () => {
+      getDetails.mockRejectedValue('Server error');
+      const store = await mountList();
+
+      fireEvent.pointerDown(cardOf('Alpha'));
+      await flush();
+
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(store.getState().ui.notification.open).toBeFalsy();
+      expect(screen.getByText('Alpha')).toBeInTheDocument();
     });
   });
 

@@ -1,20 +1,26 @@
 import { Box } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import { useParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import ExploreVideosHeader from "../../components/child/explorevideos/ExploreVideosHeader";
 import ExploreVideosShare from "../../components/child/explorevideos/ExploreVideosShare";
 import ExploreVideosCards from "../../components/child/explorevideos/ExploreVideosCards";
 import ExploreVideosFooter from "../../components/child/explorevideos/ExploreVideosFooter";
 import { useExploreVideoWatch } from "../../hooks/exploreVideoWatchHook";
+import { useCachedLoad } from '../../hooks/useCachedLoad';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 const ChildExploreVideos = ({ childId }) => {
     const theme = useTheme();
     const { videoType } = useParams();
     const { getTotalStarsForVideoType } = useExploreVideoWatch(childId);
-    // null until the first answer, so the header shows a placeholder instead of a wrong 0
-    const [totalStars, setTotalStars] = useState(null);
+    // The total is cached per child and video type: only a first visit shows the placeholder.
+    // null until the first answer, so the header shows a placeholder instead of a wrong 0.
+    const stars = useCachedLoad(
+        childId && videoType ? `${childId}:explore:stars:${videoType}` : null,
+        () => getTotalStarsForVideoType(videoType, { strict: true })
+    );
+    const totalStars = stars.loaded ? (stars.data || 0) : stars.error ? 0 : null;
 
     // Get child data from sessionStorage
     const getChildData = () => {
@@ -26,32 +32,18 @@ const ChildExploreVideos = ({ childId }) => {
         }
     };
 
-    // Fetch total stars for this video type from API
+    // Refresh quietly when a video is watched (the number is replaced, never blanked)
     useEffect(() => {
         if (!childId || !videoType) return undefined;
 
-        let cancelled = false;
-        const fetchTotalStars = async () => {
-            try {
-                const stars = await getTotalStarsForVideoType(videoType);
-                if (!cancelled) setTotalStars(stars || 0);
-            } catch (error) {
-                console.error('Error fetching total stars for video type:', error);
-                if (!cancelled) setTotalStars((previous) => previous ?? 0);
-            }
+        const refreshStars = () => {
+            stars.refresh().catch(() => {});
         };
-
-        setTotalStars(null);
-        fetchTotalStars();
-
-        // Refresh quietly when a video is watched (the number is replaced, never blanked)
-        window.addEventListener('childStatsUpdated', fetchTotalStars);
-
+        window.addEventListener('childStatsUpdated', refreshStars);
         return () => {
-            cancelled = true;
-            window.removeEventListener('childStatsUpdated', fetchTotalStars);
+            window.removeEventListener('childStatsUpdated', refreshStars);
         };
-    }, [childId, videoType, getTotalStarsForVideoType]);
+    }, [childId, videoType, stars.refresh]);
 
     return (
         <Box

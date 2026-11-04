@@ -5,12 +5,16 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
+import { renderToString } from 'react-dom/server';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import childrenService from '../../services/childrenService';
 import meetingService from '../../services/meetingService';
 import youtubeService from '../../services/youtubeService';
+import courseProgressService from '../../services/courseProgressService';
+import childJourneyReducer, { journeyReceived } from '../../store/slices/childJourneySlice';
+import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import ChildHome from './ChildHome';
 
 vi.mock('../../services/childrenService', () => ({ default: { getChildById: vi.fn() } }));
@@ -18,6 +22,7 @@ vi.mock('../../services/meetingService', () => ({
   default: { getUpcomingMeetings: vi.fn(), getGuestModeLink: vi.fn() },
 }));
 vi.mock('../../services/youtubeService', () => ({ default: { getActiveLive: vi.fn() } }));
+vi.mock('../../services/courseProgressService', () => ({ default: { getChildCourses: vi.fn() } }));
 vi.mock('../../hooks/youtubeHook', () => ({
   default: () => ({ endLive: vi.fn(), actionLoading: false }),
 }));
@@ -42,18 +47,35 @@ function deferred() {
 
 const Where = () => <div data-testid="where">{useLocation().pathname}</div>;
 
-function mount() {
-  const store = configureStore({ reducer: { user: (state = {}) => state } });
-  render(
+const newStore = () =>
+  configureStore({
+    reducer: {
+      user: (state = {}) => state,
+      childJourney: childJourneyReducer,
+      childPageCache: childPageCacheReducer,
+    },
+  });
+
+const treeFor = (childId, store) => (
+  <Provider store={store}>
+    <MemoryRouter initialEntries={[`/child/${childId}/home`]}>
+      <ChildHome childId={childId} />
+    </MemoryRouter>
+  </Provider>
+);
+
+function mount({ childId = 'kid1', store = newStore() } = {}) {
+  const view = render(
     <Provider store={store}>
-      <MemoryRouter initialEntries={['/child/kid1/home']}>
+      <MemoryRouter initialEntries={[`/child/${childId}/home`]}>
         <Routes>
-          <Route path="/child/:id/home" element={<ChildHome childId="kid1" />} />
+          <Route path="/child/:id/home" element={<ChildHome childId={childId} />} />
           <Route path="/child/:id/explore" element={<Where />} />
         </Routes>
       </MemoryRouter>
     </Provider>
   );
+  return { store, ...view };
 }
 
 const flush = () => act(async () => {});
@@ -67,6 +89,7 @@ describe('Home page', () => {
     childrenService.getChildById.mockResolvedValue({ data: child() });
     meetingService.getUpcomingMeetings.mockResolvedValue({ success: true, data: [] });
     youtubeService.getActiveLive.mockResolvedValue({ success: true, data: null });
+    courseProgressService.getChildCourses.mockResolvedValue({ success: true, data: [] });
   });
   afterEach(() => vi.useRealTimers());
 
@@ -209,7 +232,7 @@ describe('Home page', () => {
     it('stops listening once the page is closed', async () => {
       const remove = vi.spyOn(window, 'removeEventListener');
       const add = vi.spyOn(window, 'addEventListener');
-      const store = configureStore({ reducer: { user: (state = {}) => state } });
+      const store = newStore();
       const { unmount } = render(
         <Provider store={store}>
           <MemoryRouter>
@@ -227,6 +250,151 @@ describe('Home page', () => {
       );
       add.mockRestore();
       remove.mockRestore();
+    });
+  });
+
+  describe('starting My Journey ahead of time', () => {
+    const getCourses = courseProgressService.getChildCourses;
+    const list = [{ course: { _id: 'c1', title: 'First' }, status: 'in_progress' }];
+
+    it('starts the list once Home has its own data, so My Journey opens already filled', async () => {
+      getCourses.mockResolvedValue({ success: true, data: list });
+
+      const { store } = mount({ childId: 'homeKidA' });
+      await flush();
+
+      expect(getCourses).toHaveBeenCalledTimes(1);
+      expect(getCourses).toHaveBeenCalledWith('homeKidA');
+      expect(store.getState().childJourney.coursesByChildId.homeKidA).toEqual(list);
+    });
+
+    it('waits for the child record first, so Home’s own request is not slowed down', async () => {
+      const pending = deferred();
+      childrenService.getChildById.mockReturnValue(pending.promise);
+
+      mount({ childId: 'homeKidB' });
+      await flush();
+      expect(getCourses).not.toHaveBeenCalled();
+
+      pending.resolve({ data: child() });
+      await flush();
+      expect(getCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not ask again when the list is already there', async () => {
+      const store = newStore();
+      store.dispatch(journeyReceived({ childId: 'homeKidC', courses: list, at: Date.now() }));
+
+      mount({ childId: 'homeKidC', store });
+      await flush();
+
+      expect(getCourses).not.toHaveBeenCalled();
+    });
+
+    it('asks once, not again when the stats refresh the child', async () => {
+      mount({ childId: 'homeKidD' });
+      await flush();
+
+      await act(async () => {
+        window.dispatchEvent(new Event('childStatsUpdated'));
+      });
+
+      expect(getCourses).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps Home working, and shows no popup or error, when the list cannot be loaded', async () => {
+      getCourses.mockRejectedValue('Network down');
+
+      mount({ childId: 'homeKidE' });
+      await flush();
+
+      expect(screen.getByText('Hi, Alex!')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+  });
+
+  describe('coming back to Home', () => {
+    async function firstVisit(childId, store, extra = {}) {
+      childrenService.getChildById.mockResolvedValueOnce({ data: child(extra) });
+      const view = mount({ childId, store });
+      await flush();
+      view.unmount();
+    }
+
+    it('shows the name and counts at once, with no placeholder, while the refresh is under way', async () => {
+      const store = newStore();
+      await firstVisit('backKidA', store);
+      childrenService.getChildById.mockReturnValue(new Promise(() => {}));
+
+      mount({ childId: 'backKidA', store });
+      await tick(500);
+
+      expect(screen.getByText('Hi, Alex!')).toBeInTheDocument();
+      expect(screen.getByText('5')).toBeInTheDocument();
+      expect(screen.getByText('12')).toBeInTheDocument();
+      expect(document.querySelector('.MuiSkeleton-root')).toBeNull();
+    });
+
+    it('has them from the very first render, before any request has started', async () => {
+      const store = newStore();
+      await firstVisit('backKidB', store);
+
+      const firstRender = renderToString(treeFor('backKidB', store));
+
+      expect(firstRender).toContain('Hi, Alex!');
+    });
+
+    it('replaces the counts when the refresh arrives', async () => {
+      const store = newStore();
+      await firstVisit('backKidC', store);
+      const refresh = deferred();
+      childrenService.getChildById.mockReturnValue(refresh.promise);
+      mount({ childId: 'backKidC', store });
+      await flush();
+
+      refresh.resolve({ data: child({ stats: { currentStreak: 6, totalStars: 20, totalBadges: 4 } }) });
+      await flush();
+
+      expect(screen.getByText('20')).toBeInTheDocument();
+      expect(screen.queryByText('12')).toBeNull();
+    });
+
+    it('keeps the counts, and shows nothing, when the refresh fails', async () => {
+      const store = newStore();
+      await firstVisit('backKidD', store);
+      childrenService.getChildById.mockRejectedValue(new Error('Server error'));
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mount({ childId: 'backKidD', store });
+      await flush();
+
+      expect(screen.getByText('Hi, Alex!')).toBeInTheDocument();
+      expect(screen.getByText('12')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      logged.mockRestore();
+    });
+
+    it('asks again on every visit', async () => {
+      const store = newStore();
+      await firstVisit('backKidE', store);
+      childrenService.getChildById.mockClear();
+
+      mount({ childId: 'backKidE', store });
+      await flush();
+
+      expect(childrenService.getChildById).toHaveBeenCalledTimes(1);
+    });
+
+    it('never shows another child’s name or counts', async () => {
+      const store = newStore();
+      await firstVisit('backKidF', store, { displayName: 'Sam' });
+      childrenService.getChildById.mockReturnValue(new Promise(() => {}));
+
+      mount({ childId: 'backKidG', store });
+      await tick(500);
+
+      expect(screen.queryByText('Hi, Sam!')).toBeNull();
+      expect(screen.queryByText('12')).toBeNull();
     });
   });
 });

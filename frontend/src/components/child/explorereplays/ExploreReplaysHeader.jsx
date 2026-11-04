@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Typography, Button, Paper } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { themeColors } from '../../../config/themeColors';
 import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
+import { useCachedLoad } from '../../../hooks/useCachedLoad';
 
 /**
  * Arrow Left SVG Icon
@@ -46,43 +47,30 @@ const ExploreReplaysHeader = ({ childId }) => {
     const navigate = useNavigate();
     const theme = useTheme();
     const { getTotalStarsForVideoType } = useExploreVideoWatch(childId);
-    const [totalStars, setTotalStars] = useState(0);
-    const [loadingStars, setLoadingStars] = useState(true);
+    // Cached per child (replays do not award stars, so this is normally 0): only a first visit waits
+    const stars = useCachedLoad(
+        childId ? `${childId}:explore:stars:replay` : null,
+        () => getTotalStarsForVideoType('replay', { strict: true })
+    );
+    const totalStars = stars.data || 0;
+    const loadingStars = Boolean(childId) && !stars.loaded && !stars.error;
 
     const handleBackClick = () => {
         navigate(`/child/${childId}/explore`);
     };
 
-    // Fetch total stars for replay videos (will be 0 since replays don't award stars)
+    // Refresh quietly when the child's stats change
     useEffect(() => {
-        const fetchTotalStars = async () => {
-            if (!childId) return;
-            
-            try {
-                setLoadingStars(true);
-                const stars = await getTotalStarsForVideoType('replay');
-                setTotalStars(stars || 0);
-            } catch (error) {
-                console.error('Error fetching total stars for replay videos:', error);
-                setTotalStars(0);
-            } finally {
-                setLoadingStars(false);
-            }
-        };
+        if (!childId) return undefined;
 
-        fetchTotalStars();
-
-        // Listen for childStatsUpdated event to refresh stars
         const handleStatsUpdate = () => {
-            fetchTotalStars();
+            stars.refresh().catch(() => {});
         };
-
         window.addEventListener('childStatsUpdated', handleStatsUpdate);
-
         return () => {
             window.removeEventListener('childStatsUpdated', handleStatsUpdate);
         };
-    }, [childId, getTotalStarsForVideoType]);
+    }, [childId, stars.refresh]);
 
 
     return (
