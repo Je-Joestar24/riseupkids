@@ -8,6 +8,9 @@ const CmsPlayerPreloadPanel = ({
   preloadSummary = null,
   title = 'Loading all content...',
   subtitle = 'Preparing media for smooth playback. Please wait.',
+  // True while there is nothing to measure yet (the book's pages are still being fetched): a moving bar and
+  // no percentage, instead of a "0% loaded" that looks stuck.
+  indeterminate = false,
 }) => {
   const percent = Math.max(0, Math.min(100, Number(preloadProgress) || 0));
 
@@ -45,14 +48,16 @@ const CmsPlayerPreloadPanel = ({
           {subtitle}
         </Typography>
         <LinearProgress
-          variant="determinate"
-          value={percent}
-          aria-label="Media preload progress"
+          variant={indeterminate ? 'indeterminate' : 'determinate'}
+          value={indeterminate ? undefined : percent}
+          aria-label={indeterminate ? 'Opening the book' : 'Media preload progress'}
           sx={{ height: 10, borderRadius: '999px', mb: 1.4 }}
         />
-        <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, color: '#141414' }}>
-          {percent}% loaded
-        </Typography>
+        {!indeterminate && (
+          <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, color: '#141414' }}>
+            {percent}% loaded
+          </Typography>
+        )}
         {preloadSummary?.failed?.length ? (
           <Typography sx={{ fontFamily: 'Quicksand, sans-serif', fontSize: '0.84rem', color: '#7a4b00', mt: 1 }}>
             Some files could not be preloaded, but playback will still continue.

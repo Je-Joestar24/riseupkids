@@ -10,15 +10,29 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 
-const probe = vi.hoisted(() => ({ readerLoads: 0, readerProps: null, playable: null }));
+const probe = vi.hoisted(() => ({
+  readerLoads: 0,
+  readerProps: null,
+  playable: null,
+  fetchBook: null,
+  preload: null,
+  fetchCalls: 0,
+  preloadCalls: [],
+}));
 
 vi.mock('../../../hooks/courseProgressHook', () => ({
   useCourseProgress: () => ({ getChildBookReadings: vi.fn(async () => ({ success: true, data: [] })) }),
 }));
 vi.mock('../../../hooks/cmsBookPlayer', () => ({
   default: () => ({
-    loadPlayableBookById: async () => ({ data: probe.playable }),
-    preloadBookMedia: async () => undefined,
+    loadPlayableBookById: (id) => {
+      probe.fetchCalls += 1;
+      return probe.fetchBook(id);
+    },
+    preloadBookMedia: (args) => {
+      probe.preloadCalls.push(args);
+      return probe.preload(args);
+    },
     clearPreloadState: () => {},
     preloadProgress: 0,
     preloadSummary: null,
@@ -53,7 +67,7 @@ const book = { _id: 'b1', title: 'Built-in story', packageType: 'builtin', cmsBo
 // A fresh copy of the section is imported for every test, which the first time takes a while.
 vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
 
-const mount = async () => {
+const mount = async (books = [book]) => {
   vi.resetModules();
   registerReader();
   const { default: ChildModuleLibrary } = await import('./ChildModuleLibrary');
@@ -62,7 +76,7 @@ const mount = async () => {
     <Provider store={configureStore({ reducer: { ui: (state = {}) => state } })}>
       <MemoryRouter initialEntries={['/child/kid1/journey/c1']}>
         <Routes>
-          <Route path="/child/:id/journey/:courseId" element={<ChildModuleLibrary books={[book]} />} />
+          <Route path="/child/:id/journey/:courseId" element={<ChildModuleLibrary books={books} />} />
         </Routes>
       </MemoryRouter>
     </Provider>
@@ -75,6 +89,10 @@ beforeEach(() => {
   probe.readerLoads = 0;
   probe.readerProps = null;
   probe.playable = { pages: [{ type: 'cover' }, { type: 'content' }] };
+  probe.fetchCalls = 0;
+  probe.preloadCalls = [];
+  probe.fetchBook = async () => ({ data: probe.playable });
+  probe.preload = async () => undefined;
 });
 
 afterEach(() => {
@@ -140,5 +158,172 @@ describe('Built-in book reader', () => {
     fireEvent.click(screen.getByText('Built-in story'));
     await settle(10);
     expect(screen.getByTestId('reader')).toBeInTheDocument();
+  });
+});
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+describe('Opening a built-in book', () => {
+  const tap = () => fireEvent.click(screen.getByText('Built-in story'));
+
+  beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('opens the reader at once, with the getting-ready panel, while the pages of the book are still on the way', async () => {
+    const gate = deferred();
+    probe.fetchBook = () => gate.promise;
+    await mount();
+    await settle(1500);
+
+    tap();
+    await settle(10);
+
+    expect(probe.readerProps.open).toBe(true);
+    expect(probe.readerProps.isFetchingBook).toBe(true);
+    expect(probe.readerProps.isPreloading).toBe(true);
+    expect(probe.readerProps.pages).toEqual([]);
+  });
+
+  it('hands the pages over, starts their media and ends the fetching wait when the book arrives', async () => {
+    const gate = deferred();
+    const preloading = deferred();
+    probe.fetchBook = () => gate.promise;
+    probe.preload = () => preloading.promise;
+    await mount();
+    await settle(1500);
+    tap();
+    await settle(10);
+
+    await act(async () => gate.resolve({ data: probe.playable }));
+
+    expect(probe.readerProps.open).toBe(true);
+    expect(probe.readerProps.isFetchingBook).toBe(false);
+    expect(probe.readerProps.pages).toHaveLength(2);
+    expect(probe.preloadCalls).toHaveLength(1);
+    expect(probe.preloadCalls[0]).toMatchObject({ bookId: 'cms1', pages: probe.playable.pages });
+  });
+
+  it('ignores a second tap while the book is on the way, so it is fetched only once', async () => {
+    probe.fetchBook = () => deferred().promise;
+    await mount();
+    await settle(1500);
+
+    tap();
+    tap();
+    tap();
+    await settle(10);
+
+    expect(probe.fetchCalls).toBe(1);
+  });
+
+  it('leaves the reader closed when it is closed while the book is on the way, even when the book then arrives', async () => {
+    const gate = deferred();
+    probe.fetchBook = () => gate.promise;
+    await mount();
+    await settle(1500);
+    tap();
+    await settle(10);
+
+    await act(async () => probe.readerProps.onClose());
+    expect(probe.readerProps.open).toBe(false);
+    await act(async () => gate.resolve({ data: probe.playable }));
+
+    expect(probe.readerProps.open).toBe(false);
+    expect(probe.readerProps.pages).toEqual([]);
+    expect(probe.readerProps.isFetchingBook).toBe(false);
+    expect(probe.preloadCalls).toHaveLength(0);
+  });
+
+  it('lets the child try again after closing, and ignores the late answer of the first tap', async () => {
+    const first = deferred();
+    const second = deferred();
+    const answers = [first, second];
+    probe.fetchBook = () => answers.shift().promise;
+    await mount();
+    await settle(1500);
+    tap();
+    await settle(10);
+    await act(async () => probe.readerProps.onClose());
+
+    tap();
+    await settle(10);
+    expect(probe.fetchCalls).toBe(2);
+    expect(probe.readerProps.open).toBe(true);
+
+    await act(async () => first.resolve({ data: { pages: [{ type: 'old' }] } }));
+    expect(probe.readerProps.isFetchingBook).toBe(true);
+    expect(probe.readerProps.pages).toEqual([]);
+    expect(probe.preloadCalls).toHaveLength(0);
+
+    await act(async () => second.resolve({ data: probe.playable }));
+    expect(probe.readerProps.pages).toHaveLength(2);
+    expect(probe.preloadCalls).toHaveLength(1);
+  });
+
+  it('closes the reader when the book cannot be fetched, and lets the child tap again', async () => {
+    probe.fetchBook = vi.fn().mockRejectedValueOnce('Book not found');
+    probe.fetchBook.mockImplementation(async () => ({ data: probe.playable }));
+    await mount();
+    await settle(1500);
+
+    tap();
+    await settle(10);
+
+    expect(probe.readerProps.open).toBe(false);
+    expect(probe.readerProps.isFetchingBook).toBe(false);
+    expect(probe.readerProps.isPreloading).toBe(false);
+
+    tap();
+    await settle(10);
+    expect(probe.fetchCalls).toBe(2);
+    expect(probe.readerProps.open).toBe(true);
+    expect(probe.readerProps.pages).toHaveLength(2);
+  });
+
+  it('keeps the reader open when only the media preload fails (the book itself is there)', async () => {
+    probe.preload = async () => {
+      throw new Error('media failed');
+    };
+    await mount();
+    await settle(1500);
+
+    tap();
+    await settle(10);
+
+    expect(probe.readerProps.open).toBe(true);
+    expect(probe.readerProps.pages).toHaveLength(2);
+  });
+
+  it('opens the reader for a book with no pages without starting a preload', async () => {
+    probe.playable = { pages: [] };
+    await mount();
+    await settle(1500);
+
+    tap();
+    await settle(10);
+
+    expect(probe.readerProps.open).toBe(true);
+    expect(probe.readerProps.pages).toEqual([]);
+    expect(probe.readerProps.isFetchingBook).toBe(false);
+    expect(probe.preloadCalls).toHaveLength(0);
+  });
+
+  it('does not fetch or open anything for a book that is not a built-in one', async () => {
+    await mount([{ _id: 'h1', title: 'Web book', packageType: 'html5', html5PackageId: 'pkg1' }]);
+    await settle(1500);
+
+    fireEvent.click(screen.getByText('Web book'));
+    await settle(10);
+
+    expect(probe.fetchCalls).toBe(0);
+    expect(probe.readerProps?.open ?? false).toBe(false);
   });
 });

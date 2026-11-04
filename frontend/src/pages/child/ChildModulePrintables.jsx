@@ -1,47 +1,40 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { useNavigate, useParams } from 'react-router-dom';
 import PrintablesHeader from '../../components/child/printables/PrintablesHeader';
 import PrintablesCards from '../../components/child/printables/PrintablesCards';
 import PrintablesFooter from '../../components/child/printables/PrintablesFooter';
+import PrintablesSkeleton from '../../components/child/printables/PrintablesSkeleton';
 import programMaterilialsService from '../../services/programMaterilialsService';
+import { useCachedLoad } from '../../hooks/useCachedLoad';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
 /**
  * Child printable materials page.
  * Route: /child/:id/journey/:courseId/printables
+ *
+ * The materials are kept per child for the session: only a first visit shows the placeholder, later
+ * visits draw the last list at once and replace it when the refresh arrives (a failed refresh behind a
+ * real list stays silent).
  */
 const ChildModulePrintables = () => {
     const navigate = useNavigate();
     const { id: childId, courseId } = useParams();
-    const [materials, setMaterials] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
 
     const numericCourseId = Number(courseId);
 
-    const fetchMaterials = async () => {
-        if (!childId) {
-            setError('Child ID is missing.');
-            setLoading(false);
-            return;
+    const { data: materials = null, loaded, error: loadError, refresh } = useCachedLoad(
+        childId ? `${childId}:printables` : null,
+        async () => {
+            try {
+                return await programMaterilialsService.getByChildId(childId);
+            } catch (err) {
+                throw new Error(typeof err === 'string' ? err : 'Failed to load printables.');
+            }
         }
-
-        setLoading(true);
-        setError('');
-        try {
-            const response = await programMaterilialsService.getByChildId(childId);
-            setMaterials(response);
-        } catch (err) {
-            setError(typeof err === 'string' ? err : 'Failed to load printables.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchMaterials();
-    }, [childId]);
+    );
+    const error = childId ? loadError : 'Child ID is missing.';
+    const loading = Boolean(childId) && !loaded && !error;
 
     const selectedModule = useMemo(() => {
         const modules = Array.isArray(materials?.modules) ? materials.modules : [];
@@ -98,13 +91,7 @@ const ChildModulePrintables = () => {
                 </Box>
 
                 {loading ? (
-                    <Typography
-                        role="status"
-                        aria-label="Loading printables"
-                        sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700 }}
-                    >
-                        Loading printables...
-                    </Typography>
+                    <PrintablesSkeleton />
                 ) : error ? (
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                         <Typography
@@ -114,19 +101,21 @@ const ChildModulePrintables = () => {
                         >
                             {error}
                         </Typography>
-                        <Button
-                            variant="contained"
-                            onClick={fetchMaterials}
-                            aria-label="Retry loading printables"
-                            sx={{
-                                alignSelf: 'flex-start',
-                                textTransform: 'none',
-                                fontWeight: 700,
-                                fontFamily: 'Quicksand, sans-serif',
-                            }}
-                        >
-                            Retry
-                        </Button>
+                        {childId && (
+                            <Button
+                                variant="contained"
+                                onClick={() => refresh().catch(() => {})}
+                                aria-label="Retry loading printables"
+                                sx={{
+                                    alignSelf: 'flex-start',
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                    fontFamily: 'Quicksand, sans-serif',
+                                }}
+                            >
+                                Retry
+                            </Button>
+                        )}
                     </Box>
                 ) : (
                     <PrintablesCards cards={printables} onDownload={handleDownload} />
@@ -141,4 +130,3 @@ const ChildModulePrintables = () => {
 };
 
 export default ChildModulePrintables;
-

@@ -123,6 +123,11 @@ now needs about 650 kB of script (193 kB compressed) instead of 2,059 kB (514 kB
 `WEB_CHILD_PHASE4_CODE_SPLITTING.md`. Still open from step 2: splitting the state store by area, and moving the
 book reader out of the admin folder.
 
+**Skeletons for Profile, Printables and the book wait done (Phase 5).** Both pages now use the session cache with a
+first-visit placeholder and a retry, and a built-in book opens the reader at the tap instead of after its pages
+arrive. The wait panel's content (keep it for the first page only) still depends on steps 7 and 8. See
+`WEB_CHILD_PHASE5_PLACEHOLDERS.md`.
+
 ## Skeleton loading, page by page
 
 The app already has a skeleton for My Journey, the module page, Explore, Replays and Kids Wall (pulsing grey

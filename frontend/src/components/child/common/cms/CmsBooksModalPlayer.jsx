@@ -26,6 +26,7 @@ const CmsBooksModalPlayer = ({
   onClose,
   pages = [],
   isPreloading = false,
+  isFetchingBook = false,
   preloadProgress = 0,
   preloadSummary = null,
   onSessionComplete,
@@ -119,10 +120,14 @@ const CmsBooksModalPlayer = ({
     );
   };
 
+  // While the book's pages are still being fetched there is no percentage to show yet.
   const renderPreloadingContent = () => (
     <CmsPlayerPreloadPanel
       preloadProgress={preloadProgress}
       preloadSummary={preloadSummary}
+      {...(isFetchingBook
+        ? { title: 'Opening your book...', subtitle: 'Getting the pages ready. Please wait.', indeterminate: true }
+        : {})}
     />
   );
 
