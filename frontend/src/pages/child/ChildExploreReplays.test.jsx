@@ -13,6 +13,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../config/theme';
 import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import ChildExploreReplays from './ChildExploreReplays';
+import * as lazyModals from '../../components/child/common/lazyModals';
 
 const mockExplore = {
   fetchExploreContent: vi.fn(),
@@ -211,6 +212,22 @@ describe('Replays page', () => {
 
       expect(mockWatch.getTotalStarsForVideoType).toHaveBeenCalledWith('replay', { strict: true });
       expect(store.getState().childPageCache.entries['kid1:explore:stars:replay'].data).toBe(0);
+    });
+  });
+
+  describe('the video player', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('is fetched quietly in the background once the page is up', async () => {
+      vi.useFakeTimers();
+      const preload = vi.spyOn(lazyModals.VideoPlayerModal, 'preload').mockResolvedValue(undefined);
+
+      mount();
+      await flush();
+      expect(preload).not.toHaveBeenCalled();
+
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(preload).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useDispatch } from 'react-redux';
 import { themeColors } from '../../../config/themeColors';
@@ -6,7 +6,8 @@ import ChildModuleCards from './ChildModuleCards';
 import { useCourseProgress } from '../../../hooks/courseProgressHook';
 import { useParams } from 'react-router-dom';
 import Html5Player from '../common/html5Player';
-import CmsPlayer from '../common/cmsPLayer';
+import { CmsPlayer } from '../common/lazyModals';
+import useIdlePreload from '../../../hooks/useIdlePreload';
 import CmsCompletionDialog from '../common/cmsCompletionDialog';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import { completeHtml5Book } from '../common/html5CompletionHandler';
@@ -27,6 +28,10 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
   const [html5Open, setHtml5Open] = useState(false);
   const [selectedHtml5Book, setSelectedHtml5Book] = useState(null);
   const [cmsOpen, setCmsOpen] = useState(false);
+  // The book reader's code is downloaded in the background and drawn only once a book has been opened.
+  const cmsOpened = useRef(false);
+  if (cmsOpen) cmsOpened.current = true;
+  useIdlePreload([CmsPlayer]);
   const [selectedCmsBook, setSelectedCmsBook] = useState(null);
   const [cmsPages, setCmsPages] = useState([]);
   const [sessionStartedAt, setSessionStartedAt] = useState(null);
@@ -379,15 +384,17 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
           fetchBookReadings();
         }}
       />
-      <CmsPlayer
-        open={cmsOpen}
-        onClose={handleCloseCms}
-        pages={cmsPages}
-        isPreloading={Boolean(cmsPlayerLoading?.preload)}
-        preloadProgress={preloadProgress}
-        preloadSummary={preloadSummary}
-        onSessionComplete={handleCmsSessionComplete}
-      />
+      {cmsOpened.current && (
+        <CmsPlayer
+          open={cmsOpen}
+          onClose={handleCloseCms}
+          pages={cmsPages}
+          isPreloading={Boolean(cmsPlayerLoading?.preload)}
+          preloadProgress={preloadProgress}
+          preloadSummary={preloadSummary}
+          onSessionComplete={handleCmsSessionComplete}
+        />
+      )}
       <CmsCompletionDialog
         open={cmsCompletionOpen}
         onClose={() => {

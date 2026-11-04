@@ -17,10 +17,13 @@ import ChildModuleVideos from '../../components/child/module/ChildModuleVideos';
 import ChildModuleAudio from '../../components/child/module/ChildModuleAudio';
 import ChildModuleChants from '../../components/child/module/ChildModuleChants';
 import ChildModuleFooter from '../../components/child/module/ChildModuleFooter';
-import ScormPlayer from '../../components/child/common/ScormPlayer';
-import VideoPlayerModal from '../../components/child/common/VideoPlayerModal';
-import AudioAssignmentRecordingModal from '../../components/child/module/AudioAssignmentRecordingModal';
-import ChantRecordingModal from '../../components/child/module/ChantRecordingModal';
+import {
+  ScormPlayer,
+  VideoPlayerModal,
+  AudioAssignmentRecordingModal,
+  ChantRecordingModal,
+} from '../../components/child/common/lazyModals';
+import useIdlePreload from '../../hooks/useIdlePreload';
 import ChildModulePrintables from '../../components/child/module/ChildModulePrintables';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
 
@@ -61,6 +64,12 @@ const ChildJourneyModule = ({ childId }) => {
   const courseDetails = useSelector((state) => selectChildModule(state, childId, courseId));
   const courseDetailsRef = useRef(courseDetails);
   courseDetailsRef.current = courseDetails;
+  // The pop-ups' code is downloaded in the background once the course is on screen, so tapping a video,
+  // a book or a recording does not wait for a download. They are not part of this page's own code.
+  useIdlePreload(
+    [VideoPlayerModal, ScormPlayer, AudioAssignmentRecordingModal, ChantRecordingModal],
+    Boolean(courseDetails)
+  );
   const [loading, setLoading] = useState(() => !courseDetails);
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);

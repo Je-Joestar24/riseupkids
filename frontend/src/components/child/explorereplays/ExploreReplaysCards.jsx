@@ -6,7 +6,8 @@ import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { loadReplayViewCounts } from '../../../utils/replayViewCounts';
 import { themeColors } from '../../../config/themeColors';
-import VideoPlayerModal from '../common/VideoPlayerModal';
+import { VideoPlayerModal } from '../common/lazyModals';
+import useIdlePreload from '../../../hooks/useIdlePreload';
 import ExploreCoverImage from '../explore/ExploreCoverImage';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 
@@ -81,6 +82,8 @@ const EyeIcon = ({ size = 16, color = 'currentColor' }) => (
  * @param {String} childId - Child's ID
  */
 const ExploreReplaysCards = ({ childId }) => {
+  // The player's code is downloaded in the background, so tapping a video does not wait for it.
+  useIdlePreload([VideoPlayerModal]);
   const theme = useTheme();
   const { fetchExploreContent, getCoverImageUrl } = useExplore();
   const { getExploreVideoWatchStatus } = useExploreVideoWatch(childId);

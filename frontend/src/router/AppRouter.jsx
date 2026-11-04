@@ -1,71 +1,98 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { BrowserRouter, Routes, Route, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, matchPath, useLocation, useParams } from 'react-router-dom';
 import { bootstrapSession } from '../store/slices/userSlice';
-import AuthLogin from '../pages/auth/AuthLogin';
-import AdminLoginOtp from '../pages/auth/AdminLoginOtp';
-import LoginTwoFactor from '../pages/auth/LoginTwoFactor';
-import ForgetPassword from '../pages/auth/ForgetPassword';
-import SendCode from '../pages/auth/SendCode';
-import ResetPassword from '../pages/auth/ResetPassword';
-import ParentSignup from '../pages/auth/ParentSignup';
-import ParentSignupSuccess from '../pages/auth/ParentSignupSuccess';
-import ParentSignupCancel from '../pages/auth/ParentSignupCancel';
-import ParentsChild from '../pages/parents/ParentsChild';
-import ParentsLogin from '../pages/parents/ParentsLogin';
-import ParentDashboard from '../pages/parents/ParentDashboard';
-import ParentsDashboardPrintableTab from '../pages/parents/ParentsDashboardPrintableTab';
-import ParentsLayout from '../layouts/ParentsLayout';
-import AdminDashboard from '../pages/admin/AdminDashboard';
-import AdminSetupTwoFactor from '../pages/admin/AdminSetupTwoFactor';
-import AdminDeletionRequests from '../pages/admin/AdminDeletionRequests';
-import AdminUsers from '../pages/admin/AdminUsers';
-import AdminModuleAccess from '../pages/admin/AdminModuleAccess';
-import AdminNotifications from '../pages/admin/AdminNotifications';
-import AdminActivities from '../pages/admin/AdminActivities';
-import AdminCourses from '../pages/admin/AdminCourses';
-import AdminExplore from '../pages/admin/AdminExplore';
-import AdminKidsWall from '../pages/admin/AdminKidsWall';
-import AdminCheckingAudio from '../pages/admin/AdminCheckingAudio';
-import AdminMeetings from '../pages/admin/AdminMeetings';
-import AdminYoutubeLive from '../pages/admin/AdminYoutubeLive';
-import AdminPrintables from '../pages/admin/AdminPrintables';
-import AdminLessonPlans from '../pages/admin/AdminLessonPlans';
-import AdminStarCamMissions from '../pages/admin/AdminStarCamMissions';
-import ContentCreatorLayout from '../layouts/ContentCreatorLayout';
-import ContentCreatorDashboard from '../pages/contentcreator/ContentCreatorDashboard';
-import AdminBooksBuilder from '../pages/admin/AdminBooksBuilder';
-import AdminBooksBuilderCreate from '../pages/admin/AdminBooksBuilderCreate';
-import AdminLayout from '../layouts/AdminLayout';
-import TeacherLayout from '../layouts/TeacherLayout';
-import TeacherDashboard from '../pages/teacher/TeacherDashboard';
-import ChildLayout from '../layouts/ChildLayout';
-import ChildHome from '../pages/child/ChildHome';
-import ChildJourney from '../pages/child/ChildJourney';
-import ChildJourneyModule from '../pages/child/ChildJourneyModule';
-import ChildModulePrintables from '../pages/child/ChildModulePrintables';
-import ChildKidsWall from '../pages/child/ChildKidsWall';
-import ChildShareSomething from '../pages/child/ChildShareSomething';
 import AuthedAccess from './access/AuthedAccess';
 import UnAuthed from './access/UnAuthed';
-import ChildExplore from '../pages/child/ChildExplore';
-import ChildExploreVideos from '../pages/child/ChildExploreVideos';
-import ChildExploreReplays from '../pages/child/ChildExploreReplays';
-import ChildProfile from '../pages/child/ChildProfile';
+import { RouteErrorBoundary, RouteFallback } from '../components/common/RouteLoading';
+import { preloadInSequence } from '../utils/lazyChunk';
+import { SITE_ROUTES, CHILD_AREA_PATH, CHILD_PAGES, CHILD_ROLES } from './routeTable';
+import { ROUTE_COMPONENTS } from './routeComponents';
 
 /**
- * ChildRouteWrapper Component
- * 
- * Wraps child routes to extract childId from URL params
- * and pass it to ChildLayout and child pages
+ * Starts the download of the given pages and layouts while the route is still being drawn, so a layout
+ * and the page inside it download side by side instead of one after the other. `idle` ones are warmed
+ * later, in the background. Does nothing for visitors the guard turns away (it sits inside the guard).
  */
-const ChildRouteWrapper = ({ children }) => {
-  const { id } = useParams();
+const WarmUp = ({ now = [], idle = [], children }) => {
+  now.forEach((component) => component.preload?.());
+
+  useEffect(() => (idle.length ? preloadInSequence(idle) : undefined), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return children;
+};
+
+const GuardedRoute = ({ route }) => {
+  const Page = ROUTE_COMPONENTS[route.page];
+  const Layout = route.layout ? ROUTE_COMPONENTS[route.layout] : null;
+  const idle = (route.warmWhenIdle || []).map((name) => ROUTE_COMPONENTS[name]);
 
   return (
-    <ChildLayout childId={id}>
-      {React.cloneElement(children, { childId: id })}
-    </ChildLayout>
+    <AuthedAccess allowedRoles={route.roles}>
+      <WarmUp now={Layout ? [Layout, Page] : [Page]} idle={idle}>
+        {Layout ? (
+          // The page waits inside the layout, so the menu and header stay on screen while its code downloads.
+          <Layout>
+            <Suspense fallback={<RouteFallback />}>
+              <Page />
+            </Suspense>
+          </Layout>
+        ) : (
+          <Page />
+        )}
+      </WarmUp>
+    </AuthedAccess>
+  );
+};
+
+/** Receives the child's id from the address and hands it to the page, as the old wrapper did. */
+const ChildPage = ({ Page }) => {
+  const { id } = useParams();
+  return <Page childId={id} />;
+};
+
+/**
+ * Entry to the child area. It starts the page's code at the same moment as the frame's, so the two
+ * download side by side (the page is otherwise only asked for once the frame has appeared).
+ */
+const ChildArea = () => {
+  const { pathname } = useLocation();
+  const Shell = ROUTE_COMPONENTS.ChildShell;
+
+  const current = CHILD_PAGES.find((route) => matchPath(`${CHILD_AREA_PATH}/${route.path}`, pathname));
+  if (current) ROUTE_COMPONENTS[current.page].preload();
+
+  return <Shell />;
+};
+
+const routeElement = (route) => {
+  switch (route.kind) {
+    case 'public': {
+      const Page = ROUTE_COMPONENTS[route.page];
+      return (
+        <UnAuthed>
+          <Page />
+        </UnAuthed>
+      );
+    }
+    case 'open': {
+      const Page = ROUTE_COMPONENTS[route.page];
+      return <Page />;
+    }
+    case 'redirect':
+      return <Navigate to={route.to} replace />;
+    default:
+      return <GuardedRoute route={route} />;
+  }
+};
+
+/** Boundary and loading screen for the whole site; they reset whenever the address changes. */
+const SiteFrame = ({ children }) => {
+  const { pathname } = useLocation();
+  return (
+    <RouteErrorBoundary resetKey={pathname}>
+      <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+    </RouteErrorBoundary>
   );
 };
 
@@ -83,617 +110,33 @@ const AppRouter = () => {
 
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Public Routes */}
-        <Route
-          path="/login"
-          element={
-            <UnAuthed>
-              <AuthLogin />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/login/verify-otp"
-          element={
-            <UnAuthed>
-              <AdminLoginOtp />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/login/verify-2fa"
-          element={
-            <UnAuthed>
-              <LoginTwoFactor />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/parent/signup"
-          element={
-            <UnAuthed>
-              <ParentSignup />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/parent/signup/success"
-          element={
-            <UnAuthed>
-              <ParentSignupSuccess />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/parent/signup/cancel"
-          element={
-            <UnAuthed>
-              <ParentSignupCancel />
-            </UnAuthed>
-          }
-        />
-        <Route
-          path="/parents/login"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ParentsLogin />
-            </AuthedAccess>
-          }
-        />
-        <Route path="/forget/password" element={<UnAuthed><ForgetPassword /></UnAuthed>} />
-        <Route path="/sendcode" element={<UnAuthed><SendCode /></UnAuthed>} />
-        <Route path="/reset-password" element={<UnAuthed><ResetPassword /></UnAuthed>} />
+      <SiteFrame>
+        <Routes>
+          {SITE_ROUTES.map((route) => (
+            <Route key={route.path} path={route.path} element={routeElement(route)} />
+          ))}
 
-        {/* Protected Routes */}
-        {/* Parent Routes */}
-        <Route
-          path="/parents/child"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ParentsChild />
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/parent/dashboard"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ParentsLayout>
-                <ParentDashboard />
-              </ParentsLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/parent/dashboard/printables"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ParentsLayout>
-                <ParentsDashboardPrintableTab />
-              </ParentsLayout>
-            </AuthedAccess>
-          }
-        />
-
-        {/* Child Routes */}
-        <Route
-          path="/child/:id/home"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildHome />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/journey"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildJourney />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/journey/:courseId"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildJourneyModule />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/journey/:courseId/printables"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildModulePrintables />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/explore"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildExplore />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/explore/videos/:videoType"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildExploreVideos />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/explore/replays"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildExploreReplays />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/wall"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildKidsWall />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/wall/share"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildShareSomething />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/child/:id/profile"
-          element={
-            <AuthedAccess allowedRoles={['parent']}>
-              <ChildRouteWrapper>
-                <ChildProfile />
-              </ChildRouteWrapper>
-            </AuthedAccess>
-          }
-        />
-
-        {/* Admin Routes */}
-        <Route
-          path="/admin/setup-2fa"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminSetupTwoFactor />
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/dashboard"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminDashboard />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/deletion-requests"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminDeletionRequests />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/users"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminUsers />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/module-access"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminModuleAccess />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/notifications"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminNotifications />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route path="/admin/content-creators" element={<Navigate to="/admin/users" replace />} />
-        <Route path="/admin/teachers" element={<Navigate to="/admin/users" replace />} />
-        <Route
-          path="/admin/courses/contents"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminActivities />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/courses"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminCourses />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/courses/explore"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminExplore />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/kids-wall"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminKidsWall />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/checking-audio"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminCheckingAudio />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/meetings"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminMeetings />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/youtube-live"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminYoutubeLive />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/printables"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminPrintables />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/lesson-plans"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminLessonPlans />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/built-in-books"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminBooksBuilder />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/built-in-books/create"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminBooksBuilderCreate />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/built-in-books/:bookId/edit"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminBooksBuilderCreate />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/star-cam-missions"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <AdminLayout>
-                <AdminStarCamMissions />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/admin/*"
-          element={
-            <AuthedAccess allowedRoles={['admin']}>
-              <AdminLayout>
-                <AdminDashboard />
-              </AdminLayout>
-            </AuthedAccess>
-          }
-        />
-
-        {/* Content Creator Routes */}
-        <Route
-          path="/content-creator/dashboard"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <ContentCreatorDashboard />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/contents"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminActivities />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/explore"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminExplore />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/built-in-books"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminBooksBuilder />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/built-in-books/create"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminBooksBuilderCreate />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/built-in-books/:bookId/edit"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminBooksBuilderCreate />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/star-cam-missions"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <AdminStarCamMissions />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/content-creator/*"
-          element={
-            <AuthedAccess allowedRoles={['content_creator']}>
-              <ContentCreatorLayout>
-                <ContentCreatorDashboard />
-              </ContentCreatorLayout>
-            </AuthedAccess>
-          }
-        />
-
-        {/* Teacher Routes */}
-        <Route
-          path="/teacher/dashboard"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <TeacherDashboard />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/courses/contents"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminActivities />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/courses"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminCourses />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/courses/explore"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminExplore />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/kids-wall"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminKidsWall />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/checking-audio"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <TeacherLayout>
-                <AdminCheckingAudio />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        
-        <Route
-          path="/teacher/meetings"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <TeacherLayout>
-                <AdminMeetings />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/youtube-live"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <TeacherLayout>
-                <AdminYoutubeLive />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/star-cam-missions"
-          element={
-            <AuthedAccess allowedRoles={['admin', 'teacher']}>
-              <TeacherLayout>
-                <AdminStarCamMissions />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/printables"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminPrintables />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/lesson-plans"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <AdminLessonPlans />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-        <Route
-          path="/teacher/*"
-          element={
-            <AuthedAccess allowedRoles={['teacher']}>
-              <TeacherLayout>
-                <TeacherDashboard />
-              </TeacherLayout>
-            </AuthedAccess>
-          }
-        />
-
-        {/* Default route - redirect to login */}
-        <Route path="/" element={<AuthLogin />} />
-
-        {/* Add more routes here as pages are created */}
-      </Routes>
+          {/* Child area: one frame (header + bottom navigation) above every child page */}
+          <Route
+            path={CHILD_AREA_PATH}
+            element={
+              <AuthedAccess allowedRoles={CHILD_ROLES}>
+                <ChildArea />
+              </AuthedAccess>
+            }
+          >
+            {CHILD_PAGES.map((route) => (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={<ChildPage Page={ROUTE_COMPONENTS[route.page]} />}
+              />
+            ))}
+          </Route>
+        </Routes>
+      </SiteFrame>
     </BrowserRouter>
   );
 };
 
 export default AppRouter;
-
-

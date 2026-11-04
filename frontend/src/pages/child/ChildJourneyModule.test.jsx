@@ -17,6 +17,7 @@ import childModuleReducer, {
 } from '../../store/slices/childModuleSlice';
 import uiReducer from '../../store/slices/uiSlice';
 import courseProgressService from '../../services/courseProgressService';
+import * as lazyModals from '../../components/child/common/lazyModals';
 import ChildJourneyModule from './ChildJourneyModule';
 
 vi.mock('../../services/courseProgressService', () => ({
@@ -416,6 +417,88 @@ describe('Course page', () => {
 
       expect(screen.queryByRole('alert')).toBeNull();
       expect(screen.getByText('Second course')).toBeInTheDocument();
+    });
+  });
+
+  describe('the pop-ups (video, interactive content, recordings)', () => {
+    const popups = () => [
+      lazyModals.VideoPlayerModal,
+      lazyModals.ScormPlayer,
+      lazyModals.AudioAssignmentRecordingModal,
+      lazyModals.ChantRecordingModal,
+    ];
+    const spyOnPreloads = (implementation = () => Promise.resolve()) =>
+      popups().map((popup) => vi.spyOn(popup, 'preload').mockImplementation(implementation));
+    const cacheCourse = (store, childId) =>
+      store.dispatch(moduleReceived({ key: moduleKey(childId, 'c2'), details: details(), at: Date.now() }));
+
+    afterEach(() => vi.restoreAllMocks());
+
+    it('are fetched quietly once the course is on screen, one after another', async () => {
+      const [video, scorm, audio, chant] = spyOnPreloads();
+      const store = newStore();
+      cacheCourse(store, 'popupKidA');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(new Promise(() => {}));
+
+      mount({ childId: 'popupKidA', store });
+      expect(video).not.toHaveBeenCalled(); // not at once: the page's own work comes first
+
+      await tick(600);
+      expect(video).toHaveBeenCalledTimes(1);
+      await tick(600);
+      expect(scorm).toHaveBeenCalledTimes(1);
+      await tick(600);
+      expect(audio).toHaveBeenCalledTimes(1);
+      await tick(600);
+      expect(chant).toHaveBeenCalledTimes(1);
+    });
+
+    it('wait for the course: nothing is fetched while the first load is still under way', async () => {
+      const spies = spyOnPreloads();
+      const pending = deferred();
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(pending.promise);
+
+      mount({ childId: 'popupKidB' });
+      await tick(5000);
+      spies.forEach((spy) => expect(spy).not.toHaveBeenCalled());
+
+      pending.resolve(ok(details()));
+      await flush();
+      await tick(600);
+      expect(spies[0]).toHaveBeenCalledTimes(1);
+    });
+
+    it('are fetched one at a time, the next only after the previous finished', async () => {
+      const first = deferred();
+      const [video, scorm] = spyOnPreloads(() => first.promise);
+      const store = newStore();
+      cacheCourse(store, 'popupKidC');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(new Promise(() => {}));
+
+      mount({ childId: 'popupKidC', store });
+      await tick(5000);
+
+      expect(video).toHaveBeenCalledTimes(1);
+      expect(scorm).not.toHaveBeenCalled();
+    });
+
+    it('stop being fetched when the child leaves the course', async () => {
+      const [video, scorm] = spyOnPreloads();
+      const store = newStore();
+      cacheCourse(store, 'popupKidD');
+      getChildCourses.mockResolvedValue(ok([]));
+      getCourseDetailsForChild.mockReturnValue(new Promise(() => {}));
+
+      const view = mount({ childId: 'popupKidD', store });
+      await tick(600);
+      view.unmount();
+      await tick(5000);
+
+      expect(video).toHaveBeenCalledTimes(1);
+      expect(scorm).not.toHaveBeenCalled();
     });
   });
 });

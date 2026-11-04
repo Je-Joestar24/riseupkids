@@ -15,6 +15,7 @@ import uiReducer from '../../store/slices/uiSlice';
 import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import { aspectRatioOf } from '../../test/aspectRatioOf';
 import ChildExploreVideos from './ChildExploreVideos';
+import * as lazyModals from '../../components/child/common/lazyModals';
 
 const mockExplore = {
   fetchExploreContent: vi.fn(),
@@ -423,6 +424,31 @@ describe('Explore video list page', () => {
 
       expect(emptyMessage()).toBeInTheDocument();
       expect(listSkeleton()).toBeNull();
+    });
+  });
+
+  describe('the video player', () => {
+    it('is fetched quietly in the background, not at once and not before the page is up', async () => {
+      const preload = vi.spyOn(lazyModals.VideoPlayerModal, 'preload').mockResolvedValue(undefined);
+
+      mount();
+      await flush();
+      expect(preload).not.toHaveBeenCalled();
+
+      await tick(600);
+      expect(preload).toHaveBeenCalledTimes(1);
+      preload.mockRestore();
+    });
+
+    it('is not fetched again when the page redraws or the list refreshes', async () => {
+      const preload = vi.spyOn(lazyModals.VideoPlayerModal, 'preload').mockResolvedValue(undefined);
+
+      mount();
+      await tick(600);
+      await tick(5000);
+
+      expect(preload).toHaveBeenCalledTimes(1);
+      preload.mockRestore();
     });
   });
 });

@@ -13,6 +13,7 @@ import theme from '../../config/theme';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../constants/exploreVideoTypes';
 import childPageCacheReducer from '../../store/slices/childPageCacheSlice';
 import ChildExplore from './ChildExplore';
+import * as lazyModals from '../../components/child/common/lazyModals';
 
 const mockExplore = {
   fetchExploreContent: vi.fn(),
@@ -427,6 +428,21 @@ describe('Explore page', () => {
 
       expect(within(card(EXPLORE_VIDEO_TYPES.COOKING)).getByText('4/5')).toBeInTheDocument();
       expect(bones()).toHaveLength(0);
+    });
+  });
+
+  describe('the video player (replays row)', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    it('is fetched quietly in the background once the page is up', async () => {
+      const preload = vi.spyOn(lazyModals.VideoPlayerModal, 'preload').mockResolvedValue(undefined);
+
+      mount();
+      await act(async () => {});
+      expect(preload).not.toHaveBeenCalled();
+
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(preload).toHaveBeenCalledTimes(1);
     });
   });
 });

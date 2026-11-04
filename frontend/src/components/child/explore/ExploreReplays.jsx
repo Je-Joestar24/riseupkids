@@ -8,7 +8,8 @@ import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { loadReplayViewCounts } from '../../../utils/replayViewCounts';
 import ExploreReplaysCard from './ExploreReplaysCard';
 import ExploreReplaysSkeleton from './ExploreReplaysSkeleton';
-import VideoPlayerModal from '../common/VideoPlayerModal';
+import { VideoPlayerModal } from '../common/lazyModals';
+import useIdlePreload from '../../../hooks/useIdlePreload';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 import themeColors from '../../../config/themeColors';
 
@@ -19,6 +20,8 @@ import themeColors from '../../../config/themeColors';
  * Fetches replay videos (videoType: 'replay') with limit of 4
  */
 const ExploreReplays = ({ childId }) => {
+  // The player's code is downloaded in the background, so tapping a video does not wait for it.
+  useIdlePreload([VideoPlayerModal]);
   const theme = useTheme();
   const navigate = useNavigate();
   const { fetchContentByType } = useExplore();

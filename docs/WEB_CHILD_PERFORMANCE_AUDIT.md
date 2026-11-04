@@ -118,6 +118,11 @@ every visit started from nothing and showed placeholders again. They now use the
 `WEB_CHILD_PHASE3_PREFETCH.md`, part 2. Still not cached: the live-class card on Home (it shows who is live right
 now), Profile and Printables, and nothing survives a reload until step 8.
 
+**Step 2 done (Phase 4).** The routes are split by area and the pop-ups load on demand; a child's Home
+now needs about 650 kB of script (193 kB compressed) instead of 2,059 kB (514 kB). See
+`WEB_CHILD_PHASE4_CODE_SPLITTING.md`. Still open from step 2: splitting the state store by area, and moving the
+book reader out of the admin folder.
+
 ## Skeleton loading, page by page
 
 The app already has a skeleton for My Journey, the module page, Explore, Replays and Kids Wall (pulsing grey
