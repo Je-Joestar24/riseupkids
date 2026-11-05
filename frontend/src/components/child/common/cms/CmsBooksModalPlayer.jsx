@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Dialog,
@@ -7,7 +7,7 @@ import {
   Typography,
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
-import { BACKEND_BASE_URL } from '../../../../config/constants';
+import homeIcon from '../../../../assets/images/book/home.png';
 import IntroTests from '../../../admin/common/cmsTest/IntroTests';
 import ContentTest from '../../../admin/common/cmsTest/ContentTest';
 import DemoTest from '../../../admin/common/cmsTest/DemoTest';
@@ -20,15 +20,30 @@ import {
   resolvePageType,
 } from '../../../admin/common/cmsTest/shared';
 import usePlayerViewport from '../../../../hooks/usePlayerViewport';
+import useCmsBookMedia from '../../../../hooks/useCmsBookMedia';
+import { CmsMediaSrcProvider } from '../../../../hooks/cmsMediaSrc';
+import { getCmsNextGateTimeoutMs } from '../../../../utils/cmsBookMediaPlan';
 import TurnPhonePrompt from './TurnPhonePrompt';
 
 const getPlayablePages = (pages = []) => pages.filter((page) => Boolean(page?.type));
 
+/**
+ * The built-in book reader.
+ *
+ * Two ways to run it:
+ *  - `autoLoadMedia` with the `book` (the child's way): the reader downloads the book's sound and video itself,
+ *    nearest page first. It opens as soon as page 1's files are in, keeps downloading behind it, and keeps
+ *    Next locked (with a small spinner on the button) until the next page's files are in. A page that takes too
+ *    long (10 s, 12 s for a video page) opens anyway and plays from the internet, so a child is never stuck.
+ *  - without it: the caller says when to wait (`isPreloading`) and nothing is downloaded here.
+ */
 const CmsBooksModalPlayer = ({
   open,
   onClose,
   pages = [],
-  isPreloading = false,
+  book = null,
+  autoLoadMedia = false,
+  isPreloading: isPreloadingProp = false,
   isFetchingBook = false,
   preloadProgress = 0,
   preloadSummary = null,
@@ -51,12 +66,44 @@ const CmsBooksModalPlayer = ({
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex < playablePages.length - 1;
 
+  // The book's own downloads (only when asked to; otherwise the caller decides when to wait).
+  const media = useCmsBookMedia({
+    enabled: Boolean(open && autoLoadMedia && book && playablePages.length > 0),
+    book,
+    pages: playablePages,
+    focusPageIndex: currentIndex,
+  });
+  const waitingForFirstPage = media.enabled && !media.startReady;
+  const isPreloading = isPreloadingProp || waitingForFirstPage;
+
+  // Next stays locked until the next page's files are in. After the wait budget the page opens anyway and plays
+  // from the internet (`streamAllowedFor` is the page the child was on when the budget ran out).
+  const [streamAllowedFor, setStreamAllowedFor] = useState(-1);
+  const nextReady = !media.enabled || !hasNext || streamAllowedFor === currentIndex || media.isPageReady(currentIndex + 1);
+  const nextLocked = hasNext && !nextReady;
+  // A correct answer (or any advance) that came while Next was locked: done as soon as the page is ready.
+  const [advanceQueued, setAdvanceQueued] = useState(false);
+
+  useEffect(() => {
+    if (!media.enabled || isPreloading || !hasNext || nextReady) return undefined;
+    const timer = setTimeout(
+      () => setStreamAllowedFor(currentIndex),
+      getCmsNextGateTimeoutMs(playablePages[currentIndex + 1])
+    );
+    return () => clearTimeout(timer);
+  }, [media.enabled, isPreloading, hasNext, nextReady, currentIndex, playablePages]);
+
   const goToIndex = (nextIndex) => {
+    setAdvanceQueued(false);
     setCurrentIndex(nextIndex);
   };
 
   const goNext = () => {
     if (isPreloading || !hasNext) return;
+    if (!nextReady) {
+      setAdvanceQueued(true);
+      return;
+    }
     goToIndex(currentIndex + 1);
   };
 
@@ -64,6 +111,12 @@ const CmsBooksModalPlayer = ({
     if (isPreloading || !hasPrev) return;
     goToIndex(currentIndex - 1);
   };
+
+  useEffect(() => {
+    if (!advanceQueued || isPreloading || !hasNext || !nextReady) return;
+    setAdvanceQueued(false);
+    setCurrentIndex(currentIndex + 1);
+  }, [advanceQueued, isPreloading, hasNext, nextReady, currentIndex]);
 
   const markPageScored = (page) => {
     const pageId = page?.pageId || page?.id;
@@ -100,6 +153,8 @@ const CmsBooksModalPlayer = ({
       trigger,
     }));
     setCurrentIndex(0);
+    setAdvanceQueued(false);
+    setStreamAllowedFor(-1);
     setResolvedPageIds({});
     setScore(0);
     setAttemptCount(0);
@@ -112,27 +167,30 @@ const CmsBooksModalPlayer = ({
   };
 
   const renderRewardContent = () => {
-    const homeIconUrl = `${BACKEND_BASE_URL}/book-seeds/home.png`;
-
+    // The picture bundled with the site (like the Next and Back buttons), not one fetched from the server: a server
+    // that does not serve it left only the words "Home button" on screen.
     return (
       <RewardTest
         page={currentPage}
         isPreloading={isPreloading}
         isFinalizing={isFinalizing}
-        homeIconUrl={homeIconUrl}
+        homeIconUrl={homeIcon}
         onHome={() => finalizeAndClose('home')}
       />
     );
   };
 
-  // While the book's pages are still being fetched there is no percentage to show yet.
+  // While the book's pages are still being fetched there is no percentage to show yet. When the reader downloads
+  // the media itself, the wait is for the first page only.
   const renderPreloadingContent = () => (
     <CmsPlayerPreloadPanel
-      preloadProgress={preloadProgress}
-      preloadSummary={preloadSummary}
+      preloadProgress={media.enabled ? media.startProgress : preloadProgress}
+      preloadSummary={media.enabled ? null : preloadSummary}
       {...(isFetchingBook
         ? { title: 'Opening your book...', subtitle: 'Getting the pages ready. Please wait.', indeterminate: true }
-        : {})}
+        : media.enabled
+          ? { title: 'Getting your book ready...', subtitle: 'Just the first page, then you can start.' }
+          : {})}
     />
   );
 
@@ -166,6 +224,7 @@ const CmsBooksModalPlayer = ({
           hasPrev={hasPrev}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          nextLocked={nextLocked}
           onPrev={goPrev}
           onNext={goNext}
         />
@@ -178,6 +237,7 @@ const CmsBooksModalPlayer = ({
           page={currentPage}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          nextLocked={nextLocked}
           onNext={goNext}
         />
       );
@@ -189,6 +249,7 @@ const CmsBooksModalPlayer = ({
           page={currentPage}
           hasNext={hasNext}
           isPreloading={isPreloading}
+          nextLocked={nextLocked}
           onNext={goNext}
         />
       );
@@ -264,9 +325,34 @@ const CmsBooksModalPlayer = ({
             <CloseIcon />
           </IconButton>
 
-          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-            {renderPageContent()}
-          </Box>
+          <CmsMediaSrcProvider resolve={media.resolve}>
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {renderPageContent()}
+            </Box>
+          </CmsMediaSrcProvider>
+          {advanceQueued && nextLocked && (
+            <Box
+              role="status"
+              sx={{
+                position: 'absolute',
+                left: '50%',
+                bottom: 'max(12px, env(safe-area-inset-bottom))',
+                transform: 'translateX(-50%)',
+                zIndex: 15,
+                px: 2,
+                py: 0.75,
+                borderRadius: '999px',
+                backgroundColor: 'rgba(0,0,0,0.65)',
+                color: '#fff',
+                fontFamily: 'Quicksand, sans-serif',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                pointerEvents: 'none',
+              }}
+            >
+              Getting the next page ready...
+            </Box>
+          )}
           {askToTurnPhone && <TurnPhonePrompt />}
         </Box>
       </DialogContent>

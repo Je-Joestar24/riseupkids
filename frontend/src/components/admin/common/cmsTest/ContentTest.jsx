@@ -4,6 +4,8 @@ import contentBackButtonImage from '../../../../assets/images/book/content_back_
 import contentNextButtonImage from '../../../../assets/images/book/content_next_button.png';
 import bigLogo from '../../../../assets/images/big-logo.png';
 import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
+import { useCmsMediaSrc } from '../../../../hooks/cmsMediaSrc';
+import CmsNextButtonWait, { lockedNextButtonSx } from './CmsNextButtonWait';
 import {
   imageActionButtonSx,
   pageFrameSx,
@@ -103,12 +105,13 @@ const ContentTest = ({
   hasPrev,
   hasNext,
   isPreloading,
+  nextLocked = false,
   onPrev,
   onNext,
 }) => {
   const bgImage = resolveImageUrl(page);
   const audioUrl = resolveAudioUrl(page);
-  const { src: audioSrc, onMediaError: onAudioError } = useMediaLoadRecovery(audioUrl);
+  const { src: audioSrc, onMediaError: onAudioError } = useMediaLoadRecovery(useCmsMediaSrc(audioUrl), audioUrl);
   const audioRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
   const pageKey = page?.pageId || page?.id || 'content';
@@ -353,8 +356,9 @@ const ContentTest = ({
       </IconButton>
       <IconButton
         onClick={onNext}
-        disabled={isPreloading || !hasNext}
+        disabled={isPreloading || !hasNext || nextLocked}
         aria-label="Go to next page"
+        aria-busy={nextLocked || undefined}
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
@@ -362,9 +366,11 @@ const ContentTest = ({
           bottom: '9.8148%',
           width: '7.5%',
           aspectRatio: '1 / 1',
+          ...lockedNextButtonSx(nextLocked),
         }}
       >
         <img src={contentNextButtonImage} alt="Next button" />
+        {nextLocked ? <CmsNextButtonWait /> : null}
       </IconButton>
     </Box>
   );

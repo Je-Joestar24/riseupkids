@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../../config/theme';
 import { installMatchMedia, SCREENS } from '../../../../test/matchMediaStub';
@@ -145,5 +145,31 @@ describe('Book reader on a phone held upright', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close book player' }));
 
     return vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+});
+
+describe('Book reader downloads', () => {
+  const book = { id: 'b1', pages: [{ pageId: 'p', type: 'content', audioUrl: 'https://cdn.test/a.mp3' }] };
+  let fetchSpy;
+
+  beforeEach(() => {
+    fetchSpy = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('downloads nothing while the reader is closed, even when it is handed a book', () => {
+    show({ open: false, book, pages: book.pages, autoLoadMedia: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('downloads the book\'s sound once it is open', async () => {
+    show({ open: true, book, pages: book.pages, autoLoadMedia: true });
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledWith('https://cdn.test/a.mp3', expect.objectContaining({ mode: 'cors' })));
+  });
+
+  it('downloads nothing when the caller manages the wait itself (no autoLoadMedia)', () => {
+    show({ open: true, book, pages: book.pages, isPreloading: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

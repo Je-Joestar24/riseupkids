@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, IconButton } from '@mui/material';
 import introPlayButtonImage from '../../../../assets/images/book/intro_play_button.png';
+import { useCmsMediaResolver } from '../../../../hooks/cmsMediaSrc';
+import CmsNextButtonWait, { lockedNextButtonSx } from './CmsNextButtonWait';
 import {
   imageActionButtonSx,
   pageFrameSx,
@@ -12,10 +14,12 @@ const IntroTests = ({
   page,
   hasNext,
   isPreloading,
+  nextLocked = false,
   onNext,
 }) => {
   const bgImage = resolveImageUrl(page);
   const backgroundMusicUrl = resolveIntroBackgroundMusicUrl(page);
+  const resolveMediaSrc = useCmsMediaResolver();
   const audioRef = useRef(null);
 
   const stopBackgroundMusic = useCallback(() => {
@@ -34,7 +38,7 @@ const IntroTests = ({
       return undefined;
     }
 
-    const audio = new Audio(backgroundMusicUrl);
+    const audio = new Audio(resolveMediaSrc(backgroundMusicUrl));
     audio.loop = true;
     audio.preload = 'auto';
     audio.setAttribute('aria-hidden', 'true');
@@ -57,7 +61,7 @@ const IntroTests = ({
       audio.removeEventListener('canplaythrough', tryPlay);
       stopBackgroundMusic();
     };
-  }, [backgroundMusicUrl, isPreloading, stopBackgroundMusic]);
+  }, [backgroundMusicUrl, isPreloading, stopBackgroundMusic, resolveMediaSrc]);
 
   const handleNext = () => {
     stopBackgroundMusic();
@@ -77,8 +81,9 @@ const IntroTests = ({
 
       <IconButton
         onClick={handleNext}
-        disabled={isPreloading || !hasNext}
+        disabled={isPreloading || !hasNext || nextLocked}
         aria-label="Play intro and continue"
+        aria-busy={nextLocked || undefined}
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
@@ -87,9 +92,11 @@ const IntroTests = ({
           width: '7.5%',
           aspectRatio: '1 / 1',
           transform: 'translateX(-50%)',
+          ...lockedNextButtonSx(nextLocked),
         }}
       >
         <img src={introPlayButtonImage} alt="Intro play button" />
+        {nextLocked ? <CmsNextButtonWait /> : null}
       </IconButton>
     </Box>
   );

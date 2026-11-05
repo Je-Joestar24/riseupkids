@@ -18,6 +18,7 @@ import {
   resolveDropZoneAudioUrl,
   resolveImageUrl,
 } from './shared';
+import { useCmsMediaResolver } from '../../../../hooks/cmsMediaSrc';
 import { resolveCmsInteractiveFeedbackAudioUrl } from './cmsInteractiveFeedbackAudio';
 import {
   CMS_GOOD_JOB_ADVANCE_DELAY_MS,
@@ -69,6 +70,7 @@ const InteractiveTest = ({
   onRetry,
   onCorrectDrop,
 }) => {
+  const resolveMediaSrc = useCmsMediaResolver();
   const optionAudioRef = useRef(null);
   const answerAudioRef = useRef(null);
   const feedbackAudioRef = useRef(null);
@@ -444,7 +446,7 @@ const InteractiveTest = ({
       optionAudioRef.current.currentTime = 0;
     }
 
-    optionAudioRef.current = new Audio(option.audio);
+    optionAudioRef.current = new Audio(resolveMediaSrc(option.audio));
     optionAudioRef.current.onended = () => setPlayingOptionId('');
     optionAudioRef.current.onerror = () => setPlayingOptionId('');
     optionAudioRef.current.play().catch(() => {
@@ -468,7 +470,7 @@ const InteractiveTest = ({
       answerAudioRef.current.currentTime = 0;
     }
 
-    answerAudioRef.current = new Audio(zone.audio);
+    answerAudioRef.current = new Audio(resolveMediaSrc(zone.audio));
     answerAudioRef.current.onended = () => setPlayingAnswerId('');
     answerAudioRef.current.onerror = () => setPlayingAnswerId('');
     answerAudioRef.current.play().catch(() => {

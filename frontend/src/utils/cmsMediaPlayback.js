@@ -13,8 +13,12 @@ export const withMediaCacheBust = (url, nonce = Date.now()) => {
   return `${trimmed}${sep}rukcb=${nonce}`;
 };
 
-/** Retry media once with a cache-bust param after ERR_CACHE_OPERATION_NOT_SUPPORTED. */
-export const useMediaLoadRecovery = (url) => {
+/**
+ * Retry media once after an error. Normally that is the same address with a cache-bust param
+ * (ERR_CACHE_OPERATION_NOT_SUPPORTED). When `url` is the reader's local copy (a `blob:` address, which takes no
+ * query), the retry is the original internet address, `fallbackUrl`, instead.
+ */
+export const useMediaLoadRecovery = (url, fallbackUrl) => {
   const [src, setSrc] = useState(url || '');
   const [retried, setRetried] = useState(false);
 
@@ -26,8 +30,12 @@ export const useMediaLoadRecovery = (url) => {
   const onMediaError = useCallback(() => {
     if (retried || !url) return;
     setRetried(true);
+    if (url.startsWith('blob:')) {
+      if (fallbackUrl && fallbackUrl !== url) setSrc(fallbackUrl);
+      return;
+    }
     setSrc(withMediaCacheBust(url));
-  }, [retried, url]);
+  }, [retried, url, fallbackUrl]);
 
   return { src, onMediaError, retried };
 };

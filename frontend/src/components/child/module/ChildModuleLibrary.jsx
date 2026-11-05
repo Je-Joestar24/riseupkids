@@ -42,18 +42,12 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
   const openingAttempt = useRef(0);
   const attemptCounter = useRef(0);
   const [selectedCmsBook, setSelectedCmsBook] = useState(null);
+  const [cmsBook, setCmsBook] = useState(null); // the playable book as the server sent it (pages, media list, version)
   const [cmsPages, setCmsPages] = useState([]);
   const [sessionStartedAt, setSessionStartedAt] = useState(null);
   const [cmsCompletionOpen, setCmsCompletionOpen] = useState(false);
   const [cmsCompletionData, setCmsCompletionData] = useState(null);
-  const {
-    loadPlayableBookById,
-    preloadBookMedia,
-    clearPreloadState,
-    preloadProgress,
-    preloadSummary,
-    loading: cmsPlayerLoading,
-  } = useCmsBookPlayer();
+  const { loadPlayableBookById } = useCmsBookPlayer();
 
   const selectedBookId = useMemo(() => {
     if (!selectedHtml5Book) return null;
@@ -113,25 +107,19 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
     void enterPlayerFullscreen();
 
     try {
-      clearPreloadState();
       setCmsFetching(true);
       setCmsOpen(true);
       const response = await loadPlayableBookById(cmsBookId);
       if (openingAttempt.current !== attempt) return; // closed while the book was coming
-      openingAttempt.current = 0; // the book is here: from now on only the media can still fail
+      openingAttempt.current = 0; // the book is here
       const playableBook = response?.data || null;
       const playablePages = Array.isArray(playableBook?.pages) ? playableBook.pages : [];
       setSelectedCmsBook(book);
+      setCmsBook(playableBook);
       setCmsPages(playablePages);
       setSessionStartedAt(Date.now());
-
-      const preloadPromise = playablePages.length > 0
-        ? preloadBookMedia({ bookId: cmsBookId, pages: playablePages, book: playableBook })
-        : null;
+      // The reader downloads the book's media itself from here (page 1 first, the rest behind it).
       setCmsFetching(false);
-      if (preloadPromise) {
-        await preloadPromise;
-      }
     } catch (error) {
       // The book could not be fetched (the failure was already announced): leave the reader.
       if (openingAttempt.current === attempt) {
@@ -142,7 +130,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
       }
       console.error('Error loading CMS built-in book:', error);
     }
-  }, [canOpenCmsBuiltin, clearPreloadState, loadPlayableBookById, preloadBookMedia]);
+  }, [canOpenCmsBuiltin, loadPlayableBookById]);
 
   const handleCloseCms = useCallback(() => {
     openingAttempt.current = 0;
@@ -150,10 +138,10 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
     setCmsFetching(false);
     setCmsOpen(false);
     setCmsPages([]);
+    setCmsBook(null);
     setSelectedCmsBook(null);
     setSessionStartedAt(null);
-    clearPreloadState();
-  }, [clearPreloadState]);
+  }, []);
 
   const handleCmsSessionComplete = useCallback(
     async ({
@@ -419,10 +407,10 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
           open={cmsOpen}
           onClose={handleCloseCms}
           pages={cmsPages}
-          isPreloading={Boolean(cmsPlayerLoading?.preload) || cmsFetching}
+          book={cmsBook}
+          autoLoadMedia
+          isPreloading={cmsFetching}
           isFetchingBook={cmsFetching}
-          preloadProgress={preloadProgress}
-          preloadSummary={preloadSummary}
           onSessionComplete={handleCmsSessionComplete}
         />
       )}

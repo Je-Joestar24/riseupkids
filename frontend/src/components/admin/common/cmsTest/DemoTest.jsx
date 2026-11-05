@@ -2,6 +2,8 @@ import React from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
 import demoPlayButtonImage from '../../../../assets/images/book/demo_play_button.png';
 import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
+import { useCmsMediaSrc } from '../../../../hooks/cmsMediaSrc';
+import CmsNextButtonWait, { lockedNextButtonSx } from './CmsNextButtonWait';
 import {
   cmsPageSubtitleTextSx,
   cmsPageSubtitleWrapSx,
@@ -15,11 +17,12 @@ const DemoTest = ({
   page,
   hasNext,
   isPreloading,
+  nextLocked = false,
   onNext,
 }) => {
   const bgImage = resolveImageUrl(page);
   const videoUrl = resolveVideoUrl(page);
-  const { src: videoSrc, onMediaError: onVideoError } = useMediaLoadRecovery(videoUrl);
+  const { src: videoSrc, onMediaError: onVideoError } = useMediaLoadRecovery(useCmsMediaSrc(videoUrl), videoUrl);
 
   return (
     <Box sx={pageFrameSx}>
@@ -56,8 +59,9 @@ const DemoTest = ({
 
       <IconButton
         onClick={onNext}
-        disabled={isPreloading || !hasNext}
+        disabled={isPreloading || !hasNext || nextLocked}
         aria-label="Play demo and continue to interactive"
+        aria-busy={nextLocked || undefined}
         sx={{
           ...imageActionButtonSx,
           position: 'absolute',
@@ -66,9 +70,11 @@ const DemoTest = ({
           width: '7.5%',
           aspectRatio: '1 / 1',
           zIndex: 30,
+          ...lockedNextButtonSx(nextLocked),
         }}
       >
         <img src={demoPlayButtonImage} alt="Demo play button" />
+        {nextLocked ? <CmsNextButtonWait /> : null}
       </IconButton>
     </Box>
   );

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { Box, IconButton, Typography } from '@mui/material';
+import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
+import { useCmsMediaResolver, useCmsMediaSrc } from '../../../../hooks/cmsMediaSrc';
 import {
   cmsPageSubtitleTextSx,
   cmsPageSubtitleWrapSx,
@@ -19,7 +21,9 @@ const RewardTest = ({
 }) => {
   const bgImage = resolveImageUrl(page);
   const videoUrl = resolveVideoUrl(page);
+  const { src: videoSrc, onMediaError: onVideoError } = useMediaLoadRecovery(useCmsMediaSrc(videoUrl), videoUrl);
   const rewardAudioUrl = resolveRewardAudioUrl(page);
+  const resolveMediaSrc = useCmsMediaResolver();
   const audioRef = useRef(null);
 
   const stopRewardAudio = useCallback(() => {
@@ -37,7 +41,7 @@ const RewardTest = ({
       return undefined;
     }
 
-    const audio = new Audio(rewardAudioUrl);
+    const audio = new Audio(resolveMediaSrc(rewardAudioUrl));
     audio.preload = 'auto';
     audio.setAttribute('aria-hidden', 'true');
     audioRef.current = audio;
@@ -59,7 +63,7 @@ const RewardTest = ({
       audio.removeEventListener('canplaythrough', tryPlay);
       stopRewardAudio();
     };
-  }, [isPreloading, rewardAudioUrl, stopRewardAudio]);
+  }, [isPreloading, rewardAudioUrl, stopRewardAudio, resolveMediaSrc]);
 
   const handleHome = () => {
     stopRewardAudio();
@@ -77,15 +81,17 @@ const RewardTest = ({
         />
       ) : null}
 
-      {videoUrl ? (
+      {videoSrc ? (
         <Box
           component="video"
-          src={videoUrl}
+          key={videoSrc}
+          src={videoSrc}
           autoPlay
           muted
           loop
           playsInline
           aria-label="Reward video preview"
+          onError={onVideoError}
           sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }}
         />
       ) : null}

@@ -199,11 +199,9 @@ describe('Opening a built-in book', () => {
     expect(probe.readerProps.pages).toEqual([]);
   });
 
-  it('hands the pages over, starts their media and ends the fetching wait when the book arrives', async () => {
+  it('hands the book over to the reader (which downloads its media itself) and ends the fetching wait when the book arrives', async () => {
     const gate = deferred();
-    const preloading = deferred();
     probe.fetchBook = () => gate.promise;
-    probe.preload = () => preloading.promise;
     await mount();
     await settle(1500);
     tap();
@@ -214,8 +212,12 @@ describe('Opening a built-in book', () => {
     expect(probe.readerProps.open).toBe(true);
     expect(probe.readerProps.isFetchingBook).toBe(false);
     expect(probe.readerProps.pages).toHaveLength(2);
-    expect(probe.preloadCalls).toHaveLength(1);
-    expect(probe.preloadCalls[0]).toMatchObject({ bookId: 'cms1', pages: probe.playable.pages });
+    // the reader gets the whole book (its media list and version) and downloads from it itself
+    expect(probe.readerProps.book).toBe(probe.playable);
+    expect(probe.readerProps.autoLoadMedia).toBe(true);
+    expect(probe.readerProps.isPreloading).toBe(false); // the reader adds its own wait for page 1
+    // the old whole-book preload is not run for children any more
+    expect(probe.preloadCalls).toHaveLength(0);
   });
 
   it('ignores a second tap while the book is on the way, so it is fetched only once', async () => {
@@ -246,7 +248,7 @@ describe('Opening a built-in book', () => {
     expect(probe.readerProps.open).toBe(false);
     expect(probe.readerProps.pages).toEqual([]);
     expect(probe.readerProps.isFetchingBook).toBe(false);
-    expect(probe.preloadCalls).toHaveLength(0);
+    expect(probe.readerProps.book).toBeNull();
   });
 
   it('lets the child try again after closing, and ignores the late answer of the first tap', async () => {
@@ -268,11 +270,11 @@ describe('Opening a built-in book', () => {
     await act(async () => first.resolve({ data: { pages: [{ type: 'old' }] } }));
     expect(probe.readerProps.isFetchingBook).toBe(true);
     expect(probe.readerProps.pages).toEqual([]);
-    expect(probe.preloadCalls).toHaveLength(0);
+    expect(probe.readerProps.book).toBeNull();
 
     await act(async () => second.resolve({ data: probe.playable }));
     expect(probe.readerProps.pages).toHaveLength(2);
-    expect(probe.preloadCalls).toHaveLength(1);
+    expect(probe.readerProps.book).toBe(probe.playable);
   });
 
   it('closes the reader when the book cannot be fetched, and lets the child tap again', async () => {
@@ -295,18 +297,19 @@ describe('Opening a built-in book', () => {
     expect(probe.readerProps.pages).toHaveLength(2);
   });
 
-  it('keeps the reader open when only the media preload fails (the book itself is there)', async () => {
-    probe.preload = async () => {
-      throw new Error('media failed');
-    };
+  it('closing the reader lets go of the book, so its downloaded media can be freed', async () => {
     await mount();
     await settle(1500);
 
     tap();
     await settle(10);
 
-    expect(probe.readerProps.open).toBe(true);
-    expect(probe.readerProps.pages).toHaveLength(2);
+    expect(probe.readerProps.book).toBe(probe.playable);
+
+    await act(async () => probe.readerProps.onClose());
+    expect(probe.readerProps.open).toBe(false);
+    expect(probe.readerProps.book).toBeNull();
+    expect(probe.readerProps.pages).toEqual([]);
   });
 
   it('opens the reader for a book with no pages without starting a preload', async () => {

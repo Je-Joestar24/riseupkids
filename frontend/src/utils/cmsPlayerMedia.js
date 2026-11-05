@@ -27,11 +27,10 @@ const pushMediaObjectUrl = (set, value) => {
   }
 };
 
-/** Collect every remote URL referenced by playable pages (parity with native app player). */
-export const collectCmsPlayerMediaUrls = (pages = [], bookMeta = {}) => {
-  const set = new Set();
-
-  (pages || []).forEach((page) => {
+/** Add every remote URL one page refers to (its pictures, sound, video, options and drop zones). */
+const addPageMediaUrls = (set, page) => {
+  if (!page) return;
+  {
     const media = page?.media || {};
     const pageType = resolvePageType(page?.type);
 
@@ -79,7 +78,21 @@ export const collectCmsPlayerMediaUrls = (pages = [], bookMeta = {}) => {
       const pageLevelAudios = [page?.answerAudioOne, page?.answerAudioTwo];
       pushUrl(set, pageLevelAudios[index]);
     });
-  });
+  }
+};
+
+/** Every remote URL one page needs, in a stable order. */
+export const collectCmsPageMediaUrls = (page) => {
+  const set = new Set();
+  addPageMediaUrls(set, page);
+  return Array.from(set);
+};
+
+/** Collect every remote URL referenced by playable pages (parity with native app player). */
+export const collectCmsPlayerMediaUrls = (pages = [], bookMeta = {}) => {
+  const set = new Set();
+
+  (pages || []).forEach((page) => addPageMediaUrls(set, page));
 
   pushUrl(set, bookMeta.introBackgroundMusicUrl || resolveIntroBackgroundMusicUrl({ pages, ...bookMeta }));
   pushUrl(set, bookMeta.coverImageUrl);
@@ -105,7 +118,7 @@ const withTimeout = (promise, ms, label) =>
       });
   });
 
-const preloadImage = (url) =>
+export const preloadImage = (url) =>
   withTimeout(
     new Promise((resolve, reject) => {
       const img = new Image();
@@ -137,7 +150,7 @@ const preloadMediaElement = (url) =>
     url
   );
 
-const getMediaKind = (url = '') => {
+export const getMediaKind = (url = '') => {
   const normalized = String(url).toLowerCase();
   if (/\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/.test(normalized) || normalized.includes('/videos/')) {
     return 'video';
