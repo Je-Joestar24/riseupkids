@@ -1,4 +1,4 @@
-import { looksLikeBunnyExploreEmbedUrl } from './bunnyExploreEmbed';
+import { looksLikeBunnyPlaybackEmbedUrl } from './bunnyExploreEmbed';
 
 /**
  * Resolve how a module (journey step) video should be played on web.
@@ -21,7 +21,7 @@ export function isModuleBunnyEmbed(item) {
   if (!item) return false;
   if (item.videoSource === 'embed') return true;
   const raw = item.embedUrl ?? item.url ?? item.cloudUrl;
-  return looksLikeBunnyExploreEmbedUrl(raw);
+  return looksLikeBunnyPlaybackEmbedUrl(raw);
 }
 
 /**
@@ -51,7 +51,7 @@ export function resolveModuleVideoPlayback(item, buildMediaUrl) {
   const embedCandidates = [item.embedUrl, item.url, item.cloudUrl];
   for (const raw of embedCandidates) {
     if (!raw) continue;
-    if (looksLikeBunnyExploreEmbedUrl(raw)) {
+    if (looksLikeBunnyPlaybackEmbedUrl(raw)) {
       return { mode: 'embed', url: resolve(raw) };
     }
   }

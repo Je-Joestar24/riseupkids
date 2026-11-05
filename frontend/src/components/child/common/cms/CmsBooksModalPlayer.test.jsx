@@ -3,14 +3,24 @@
  * its media (a percentage). The page components are stood in for; the real wait panel is used.
  */
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ThemeProvider } from '@mui/material/styles';
 import theme from '../../../../config/theme';
+import { installMatchMedia, SCREENS } from '../../../../test/matchMediaStub';
 import CmsBooksModalPlayer from './CmsBooksModalPlayer';
 
 vi.mock('../../../admin/common/cmsTest/IntroTests', () => ({ default: () => <p>intro page</p> }));
-vi.mock('../../../admin/common/cmsTest/ContentTest', () => ({ default: () => <p>content page</p> }));
+// A page with a little state of its own (a tap counter), to see whether it survives a rotation
+vi.mock('../../../admin/common/cmsTest/ContentTest', async () => {
+  const { useState } = await import('react');
+  return {
+    default: () => {
+      const [taps, setTaps] = useState(0);
+      return <p onClick={() => setTaps(taps + 1)}>{taps ? `content page (${taps})` : 'content page'}</p>;
+    },
+  };
+});
 vi.mock('../../../admin/common/cmsTest/DemoTest', () => ({ default: () => <p>demo page</p> }));
 vi.mock('../../../admin/common/cmsTest/InteractiveTest', () => ({ default: () => <p>interactive page</p> }));
 vi.mock('../../../admin/common/cmsTest/RewardTest', () => ({ default: () => <p>reward page</p> }));
@@ -61,5 +71,79 @@ describe('Book reader waiting states', () => {
     show({ pages: [], isPreloading: true, isFetchingBook: true });
 
     expect(screen.getByRole('button', { name: 'Close book player' })).toBeEnabled();
+  });
+});
+
+describe('Book reader on a phone held upright', () => {
+  let screenStub;
+  afterEach(() => screenStub?.restore());
+
+  const turnCard = () => screen.queryByText('Turn your phone sideways');
+
+  it('asks the child to turn the phone, over the book, with Close still usable', () => {
+    screenStub = installMatchMedia(SCREENS.phoneUpright);
+    show({ pages, isPreloading: false });
+
+    expect(turnCard()).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Turn your phone sideways');
+    expect(screen.getByRole('button', { name: 'Close book player' })).toBeEnabled();
+    // the book itself is still there underneath
+    expect(screen.getByText('content page')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['a computer', SCREENS.desktop],
+    ['a computer window dragged narrow and tall', { width: 400, height: 800, touch: false }],
+    ['a tablet held upright', SCREENS.tablet],
+    ['a phone held sideways', SCREENS.phoneSideways],
+  ])('shows no card on %s', (_name, size) => {
+    screenStub = installMatchMedia(size);
+    show({ pages, isPreloading: false });
+
+    expect(turnCard()).toBeNull();
+    expect(screen.getByText('content page')).toBeInTheDocument();
+  });
+
+  it('also covers the loading panel, which keeps loading underneath', () => {
+    screenStub = installMatchMedia(SCREENS.phoneUpright);
+    show({ pages: [], isPreloading: true, isFetchingBook: true });
+
+    expect(turnCard()).toBeInTheDocument();
+    expect(screen.getByText('Opening your book...')).toBeInTheDocument();
+  });
+
+  it('goes away when the phone is turned, and comes back when it is turned upright again', async () => {
+    screenStub = installMatchMedia(SCREENS.phoneUpright);
+    show({ pages, isPreloading: false });
+    expect(turnCard()).toBeInTheDocument();
+
+    await act(async () => screenStub.set(SCREENS.phoneSideways));
+    expect(turnCard()).toBeNull();
+
+    await act(async () => screenStub.set(SCREENS.phoneUpright));
+    expect(turnCard()).toBeInTheDocument();
+  });
+
+  it('keeps the page it was on, with its own state, through a rotation (the book is not rebuilt)', async () => {
+    screenStub = installMatchMedia(SCREENS.phoneSideways);
+    show({ pages, isPreloading: false });
+    fireEvent.click(screen.getByText('content page'));
+    const pageAfterTap = screen.getByText('content page (1)');
+
+    await act(async () => screenStub.set(SCREENS.phoneUpright));
+    expect(screen.getByText('content page (1)')).toBe(pageAfterTap);
+
+    await act(async () => screenStub.set(SCREENS.phoneSideways));
+    expect(screen.getByText('content page (1)')).toBe(pageAfterTap);
+  });
+
+  it('can be closed from the card', () => {
+    screenStub = installMatchMedia(SCREENS.phoneUpright);
+    const onClose = vi.fn();
+    show({ pages, isPreloading: false, onClose, onSessionComplete: () => {} });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close book player' }));
+
+    return vi.waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });

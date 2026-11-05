@@ -13,7 +13,12 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Close as CloseIcon, PlayArrow as PlayArrowIcon } from '@mui/icons-material';
+import {
+  Close as CloseIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
+  PlayArrow as PlayArrowIcon,
+} from '@mui/icons-material';
 import { themeColors } from '../../../config/themeColors';
 import ScormPlayer from './ScormPlayer';
 import useCourseProgress from '../../../hooks/courseProgressHook';
@@ -27,6 +32,13 @@ import html5Service from '../../../services/html5Service';
 import CmsBooksModalPlayer from './cms/CmsBooksModalPlayer';
 import BunnyEmbedIframe from './BunnyEmbedIframe';
 import { resolveChildVideoPlayback } from '../../../utils/childVideoPlayback';
+import usePlayerViewport from '../../../hooks/usePlayerViewport';
+import {
+  enterPlayerFullscreen,
+  exitPlayerFullscreen,
+  isPlayerFullscreen,
+  playerFullscreenSupported,
+} from '../../../utils/playerFullscreen';
 
 const buildMediaUrl = (path) => {
   if (!path || typeof path !== 'string') return null;
@@ -164,6 +176,23 @@ const VideoPlayerModal = ({
 }) => {
   const theme = useTheme();
   const isMobileLayout = useMediaQuery(theme.breakpoints.down('sm'));
+  // A touch phone held sideways gets its own full-screen layout. Everything else (computers, tablets, the
+  // upright-phone card) keeps the layouts that existed before.
+  const isPhoneSideways = usePlayerViewport() === 'phone-landscape';
+  // Real full screen (the phone app has a Fullscreen button too) is offered only on touch phones whose browser can
+  // do it (not iPhone Safari), upright or sideways. Never on a computer or a tablet.
+  const canGoFullscreen = playerFullscreenSupported();
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setIsFullscreen(isPlayerFullscreen());
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  // Whatever full screen this player asked for is given back when it closes (it does nothing if none was asked).
+  useEffect(() => {
+    if (!open) void exitPlayerFullscreen();
+    return () => { void exitPlayerFullscreen(); };
+  }, [open]);
   const dispatch = useDispatch();
   const videoRef = useRef(null);
   const autoCloseTimerRef = useRef(null); // Ref to track auto-close timer
@@ -199,6 +228,9 @@ const VideoPlayerModal = ({
   const embedUrl = isBunnyEmbed ? playback.url : null;
   const fileVideoUrl = !isBunnyEmbed ? playback.url : null;
   const hasPlayableSource = Boolean(isBunnyEmbed ? embedUrl : fileVideoUrl);
+  // A Bunny video on a sideways phone is the full-screen view (as in the phone app): the picture fills the screen and
+  // there is no header, title or Close button, only a screen toggle (top right) and "I finished watching" (bottom left).
+  const bunnyStage = isPhoneSideways && isBunnyEmbed;
 
   // Get video watch methods from hooks
   // Note: Using markVideoWatched and getVideoWatchStatus from hook
@@ -739,8 +771,10 @@ const VideoPlayerModal = ({
         fontFamily: 'Quicksand, sans-serif',
         fontWeight: 700,
         textTransform: 'none',
-        padding: isMobileLayout ? '12px 16px' : '12px 32px',
-        fontSize: isMobileLayout ? '1rem' : '1.3rem',
+        padding: isMobileLayout ? '12px 16px' : isPhoneSideways ? '4px 12px' : '12px 32px',
+        fontSize: isMobileLayout ? '1rem' : isPhoneSideways ? '0.9rem' : '1.3rem',
+        whiteSpace: isPhoneSideways ? 'nowrap' : undefined,
+        flexShrink: isPhoneSideways ? 0 : undefined,
         borderRadius: '12px',
         '&:hover': {
           backgroundColor: themeColors.orange,
@@ -763,8 +797,8 @@ const VideoPlayerModal = ({
         fontFamily: 'Quicksand, sans-serif',
         fontWeight: 700,
         textTransform: 'none',
-        padding: isMobileLayout ? '10px 20px' : '16px 48px',
-        fontSize: isMobileLayout ? '1rem' : '1.8rem',
+        padding: isMobileLayout ? '10px 20px' : isPhoneSideways ? '8px 24px' : '16px 48px',
+        fontSize: isMobileLayout ? '1rem' : isPhoneSideways ? '1.1rem' : '1.8rem',
         borderRadius: '16px',
         boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.3)',
         '&:hover': {
@@ -803,8 +837,9 @@ const VideoPlayerModal = ({
       <Dialog
         open={open && !scormOpen && !html5Open && !cmsBookOpen && !showCompletionDialog && !isClosingModal}
         onClose={handleCloseAttempt}
-        maxWidth={isMobileLayout ? 'xs' : 'lg'}
+        maxWidth={isPhoneSideways ? false : isMobileLayout ? 'xs' : 'lg'}
         fullWidth
+        fullScreen={isPhoneSideways}
         disableEscapeKeyDown={true}
         sx={{
           '& .MuiDialog-container': {
@@ -827,6 +862,15 @@ const VideoPlayerModal = ({
             backgroundColor: themeColors.bgCard,
             borderBottom: isMobileLayout ? `3px solid ${themeColors.secondary}` : undefined,
             m: 0,
+            ...(isPhoneSideways
+              ? {
+                  borderRadius: 0,
+                  height: '100dvh',
+                  maxHeight: '100dvh',
+                  maxWidth: 'none',
+                  backgroundColor: '#000',
+                }
+              : {}),
           },
         }}
         BackdropProps={{
@@ -839,6 +883,7 @@ const VideoPlayerModal = ({
           },
         }}
       >
+        {!bunnyStage && (
         <DialogTitle
           sx={{
             display: 'flex',
@@ -848,6 +893,15 @@ const VideoPlayerModal = ({
             flexShrink: 0,
             backgroundColor: themeColors.bgCard,
             borderBottom: isMobileLayout ? `2px solid ${themeColors.bgTertiary}` : undefined,
+            ...(isPhoneSideways
+              ? {
+                  padding: 0,
+                  paddingLeft: 'max(12px, env(safe-area-inset-left))',
+                  paddingRight: 'max(8px, env(safe-area-inset-right))',
+                  minHeight: 44,
+                  gap: 1,
+                }
+              : {}),
           }}
         >
           <Typography
@@ -855,7 +909,7 @@ const VideoPlayerModal = ({
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 700,
-              fontSize: isMobileLayout ? '1.25rem' : '2rem',
+              fontSize: isMobileLayout ? '1.25rem' : isPhoneSideways ? '1.05rem' : '2rem',
               color: themeColors.primary,
               flex: 1,
               mr: 1,
@@ -866,6 +920,15 @@ const VideoPlayerModal = ({
           >
             {video?.title || 'Video'}
           </Typography>
+          {canGoFullscreen && (
+            <IconButton
+              onClick={() => (isFullscreen ? exitPlayerFullscreen() : enterPlayerFullscreen())}
+              aria-label={isFullscreen ? 'Leave full screen' : 'Full screen'}
+              sx={{ color: themeColors.textSecondary, flexShrink: 0, minWidth: 44, minHeight: 44 }}
+            >
+              {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+            </IconButton>
+          )}
           <IconButton
             onClick={handleCloseAttempt}
             size={isMobileLayout ? 'medium' : 'large'}
@@ -887,12 +950,14 @@ const VideoPlayerModal = ({
                       transform: 'scale(1.1)',
                     },
                   }),
+              ...(isPhoneSideways ? { padding: '6px', '&:hover': { transform: 'none' } } : {}),
             }}
             aria-label="Close video"
           >
-            <CloseIcon sx={{ fontSize: isMobileLayout ? '1.625rem' : '2rem' }} />
+            <CloseIcon sx={{ fontSize: isMobileLayout ? '1.625rem' : isPhoneSideways ? '1.5rem' : '2rem' }} />
           </IconButton>
         </DialogTitle>
+        )}
 
         <DialogContent
           sx={{
@@ -906,7 +971,7 @@ const VideoPlayerModal = ({
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: isMobileLayout ? 'flex-start' : isBunnyEmbed ? 'stretch' : 'center',
-            ...(isMobileLayout || isBunnyEmbed ? {} : { minHeight: '400px' }),
+            ...(isMobileLayout || isBunnyEmbed || isPhoneSideways ? {} : { minHeight: '400px' }),
           }}
         >
           {isBunnyEmbed && embedUrl ? (
@@ -950,6 +1015,39 @@ const VideoPlayerModal = ({
                   </Box>
                 )}
               </Box>
+
+              {bunnyStage && canGoFullscreen && (
+                <IconButton
+                  onClick={() => (isFullscreen ? exitPlayerFullscreen() : enterPlayerFullscreen())}
+                  aria-label={isFullscreen ? 'Leave full screen' : 'Full screen'}
+                  sx={{
+                    position: 'absolute',
+                    top: 'max(8px, env(safe-area-inset-top))',
+                    right: 'max(8px, env(safe-area-inset-right))',
+                    zIndex: 25,
+                    width: 44,
+                    height: 44,
+                    color: '#fff',
+                    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                    '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.6)' },
+                  }}
+                >
+                  {isFullscreen ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                </IconButton>
+              )}
+
+              {bunnyStage && showBunnyFinishButton && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: 'max(12px, env(safe-area-inset-left))',
+                    bottom: 'max(12px, env(safe-area-inset-bottom))',
+                    zIndex: 25,
+                  }}
+                >
+                  {finishWatchingButton}
+                </Box>
+              )}
 
               {isMobileLayout && showBunnyFinishButton && (
                 <Box
@@ -1140,6 +1238,7 @@ const VideoPlayerModal = ({
           )}
         </DialogContent>
 
+        {!isPhoneSideways && (
         <DialogActions
           sx={{
             padding: isMobileLayout ? 2 : 2,
@@ -1190,6 +1289,7 @@ const VideoPlayerModal = ({
             Close
           </Button>
         </DialogActions>
+        )}
       </Dialog>
 
       {/* SCORM Player Modal */}

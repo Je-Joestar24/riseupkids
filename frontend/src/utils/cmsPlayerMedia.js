@@ -1,4 +1,4 @@
-import { looksLikeBunnyExploreEmbedUrl } from './bunnyExploreEmbed';
+import { looksLikeBunnyPlaybackEmbedUrl } from './bunnyExploreEmbed';
 import {
   resolveAudioUrl,
   resolveImageUrl,
@@ -11,7 +11,7 @@ import {
 
 const pushUrl = (set, url) => {
   const absolute = resolveCmsAbsoluteMediaUrl(url);
-  if (absolute && !looksLikeBunnyExploreEmbedUrl(absolute)) {
+  if (absolute && !looksLikeBunnyPlaybackEmbedUrl(absolute)) {
     set.add(absolute);
   }
 };

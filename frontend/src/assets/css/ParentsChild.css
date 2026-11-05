@@ -80,12 +80,44 @@
 
 /* Responsive Design */
 @media (max-width: 600px) {
+    /* The page grows with its content and scrolls (it was locked to the screen height, which cut the logo
+       and the lower buttons off), and the card takes the screen's width instead of a fixed 384px + 32px
+       padding that was wider than a phone. */
     .parents-child-page {
         padding: 1rem;
+        height: auto;
+        max-height: none;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible;
+    }
+
+    .parents-child-page .parents-child-container {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .parents-child-page .parents-child-card {
+        width: 100%;
+        padding: 0;
     }
 
     .parents-child-card-content {
+        width: 100%;
+        box-sizing: border-box;
         padding: 24px !important;
+    }
+}
+
+/* A touch phone held sideways: the screen is short, so the page must be able to scroll */
+@media (hover: none) and (pointer: coarse) and (orientation: landscape) and (max-height: 500px) {
+    .parents-child-page {
+        padding: 0.75rem 1rem;
+        height: auto;
+        max-height: none;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible;
     }
 }
 

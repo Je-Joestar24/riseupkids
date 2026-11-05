@@ -7,6 +7,7 @@ import { useMediaLoadRecovery } from '../../../../utils/cmsMediaPlayback';
 import {
   imageActionButtonSx,
   pageFrameSx,
+  phoneLandscapeOnly,
   resolveAudioUrl,
   resolveContentReadingFontSizePx,
   resolveImageUrl,
@@ -177,9 +178,11 @@ const ContentTest = ({
       readingFontSizePx != null
         ? {
             fontSize: `${readingFontSizePx}px`,
+            ...phoneLandscapeOnly({ fontSize: `max(15px, calc(${readingFontSizePx}px * 100dvh / 720))` }),
           }
         : {
             fontSize: { xs: '1.7rem', md: '2.4rem' },
+            ...phoneLandscapeOnly({ fontSize: 'clamp(15px, 5.4dvh, 24px)' }),
           },
     [readingFontSizePx]
   );
@@ -222,6 +225,7 @@ const ContentTest = ({
             justifyContent: 'space-between',
             alignItems: 'stretch',
             p: { xs: 2, md: 3 },
+            ...phoneLandscapeOnly({ p: '8px 12px' }),
             backgroundColor: '#fff',
             position: 'relative',
           }}
@@ -235,6 +239,7 @@ const ContentTest = ({
               alignItems: 'center',
               gap: { xs: 1, md: 1.4 },
               pt: { xs: 0.5, md: 1 },
+              ...phoneLandscapeOnly({ gap: 0.6, pt: 0 }),
             }}
           >
             {Array.from({ length: 14 }).map((_, dotIndex) => (
@@ -243,6 +248,7 @@ const ContentTest = ({
                 sx={{
                   width: { xs: 10, md: 14 },
                   height: { xs: 10, md: 14 },
+                  ...phoneLandscapeOnly({ width: 8, height: 8 }),
                   borderRadius: '50%',
                   backgroundColor: 'secondary.main',
                 }}
@@ -299,6 +305,7 @@ const ContentTest = ({
             sx={{
               width: { xs: '176px', md: '240px' },
               height: 'auto',
+              ...phoneLandscapeOnly({ width: 'auto', height: '24dvh', maxWidth: '100%' }),
               objectFit: 'contain',
               alignSelf: 'center',
             }}

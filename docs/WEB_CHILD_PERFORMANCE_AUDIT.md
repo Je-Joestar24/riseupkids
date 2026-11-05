@@ -128,6 +128,10 @@ first-visit placeholder and a retry, and a built-in book opens the reader at the
 arrive. The wait panel's content (keep it for the first page only) still depends on steps 7 and 8. See
 `WEB_CHILD_PHASE5_PLACEHOLDERS.md`.
 
+**Phone work for the players and the profile picker (built, Phase 6; notes in `WEB_CHILD_PHASE6_PHONE_PLAYERS.md`).** The video player and the built-in book player on phones (sideways,
+upright, rotating, full screen), with the rule that the computer view and the upright-phone video stay as they are:
+`WEB_CHILD_PLAYER_MOBILE_PLAN.md`.
+
 ## Skeleton loading, page by page
 
 The app already has a skeleton for My Journey, the module page, Explore, Replays and Kids Wall (pulsing grey

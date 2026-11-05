@@ -34,6 +34,15 @@ export const imageActionButtonSx = {
 };
 
 import { BACKEND_BASE_URL } from '../../../../config/constants';
+import { PHONE_LANDSCAPE_QUERY } from '../../../../hooks/usePlayerViewport';
+
+/**
+ * Styles that apply ONLY on a touch phone held sideways (the same test as `usePlayerViewport`, as plain CSS so
+ * it also covers pages that do not call the hook). A computer, a tablet or a phone held upright never matches,
+ * so nothing written through this changes how the book looks anywhere else. The admin preview shares these
+ * pages, so the same holds there.
+ */
+export const phoneLandscapeOnly = (styles) => ({ [`@media ${PHONE_LANDSCAPE_QUERY}`]: styles });
 
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 

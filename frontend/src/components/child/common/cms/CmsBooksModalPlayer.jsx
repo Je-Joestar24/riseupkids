@@ -16,8 +16,11 @@ import RewardTest from '../../../admin/common/cmsTest/RewardTest';
 import CmsPlayerPreloadPanel from '../../../admin/common/cmsTest/CmsPlayerPreloadPanel';
 import {
   pageFrameSx,
+  phoneLandscapeOnly,
   resolvePageType,
 } from '../../../admin/common/cmsTest/shared';
+import usePlayerViewport from '../../../../hooks/usePlayerViewport';
+import TurnPhonePrompt from './TurnPhonePrompt';
 
 const getPlayablePages = (pages = []) => pages.filter((page) => Boolean(page?.type));
 
@@ -31,6 +34,8 @@ const CmsBooksModalPlayer = ({
   preloadSummary = null,
   onSessionComplete,
 }) => {
+  // A phone held upright is asked to turn: the card is laid OVER the book, which stays mounted underneath.
+  const askToTurnPhone = usePlayerViewport() === 'phone-portrait';
   const playablePages = useMemo(() => getPlayablePages(pages), [pages]);
   const interactivePages = useMemo(
     () => playablePages.filter((page) => resolvePageType(page?.type) === 'interactive'),
@@ -245,6 +250,12 @@ const CmsBooksModalPlayer = ({
               color: '#fff',
               backgroundColor: 'orange.main',
               borderRadius: '10px',
+              ...phoneLandscapeOnly({
+                minWidth: 44,
+                minHeight: 44,
+                top: 'max(8px, env(safe-area-inset-top))',
+                right: 'max(10px, env(safe-area-inset-right))',
+              }),
               '&:hover': {
                 backgroundColor: 'orange.dark',
               },
@@ -256,6 +267,7 @@ const CmsBooksModalPlayer = ({
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
             {renderPageContent()}
           </Box>
+          {askToTurnPhone && <TurnPhonePrompt />}
         </Box>
       </DialogContent>
     </Dialog>

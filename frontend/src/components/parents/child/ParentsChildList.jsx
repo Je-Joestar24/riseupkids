@@ -94,12 +94,13 @@ const ParentsChildList = ({ children = [], onSelectChild }) => {
               </Box>
 
               {/* Child Info */}
-              <Box sx={{ flex: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
                     fontWeight: 700,
                     fontSize: '1.4rem',
+                    overflowWrap: 'anywhere',
                     color: textColor,
                     marginBottom: '4px',
                   }}

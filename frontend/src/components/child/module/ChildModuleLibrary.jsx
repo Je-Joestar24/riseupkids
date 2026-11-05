@@ -12,6 +12,7 @@ import CmsCompletionDialog from '../common/cmsCompletionDialog';
 import useCmsBookPlayer from '../../../hooks/cmsBookPlayer';
 import { completeHtml5Book } from '../common/html5CompletionHandler';
 import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
+import { enterPlayerFullscreen, exitPlayerFullscreen } from '../../../utils/playerFullscreen';
 
 /**
  * ChildModuleLibrary Component
@@ -32,6 +33,8 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
   const cmsOpened = useRef(false);
   if (cmsOpen) cmsOpened.current = true;
   useIdlePreload([CmsPlayer]);
+  // Full screen and the sideways lock (Android phones only) are given back whenever the section goes away.
+  useEffect(() => () => { void exitPlayerFullscreen(); }, []);
   // The reader opens at once on a tap, while the book's pages are fetched. `cmsFetching` is that wait;
   // `openingAttempt` is the tap whose book is still on the way (0 = none): a second
   // tap is ignored, and closing ends the attempt so a late answer does not open the reader again.
@@ -106,6 +109,8 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
     attemptCounter.current += 1;
     const attempt = attemptCounter.current;
     openingAttempt.current = attempt;
+    // Asked for inside the tap (a browser only grants it there); does nothing except on a phone that can.
+    void enterPlayerFullscreen();
 
     try {
       clearPreloadState();
@@ -133,6 +138,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
         openingAttempt.current = 0;
         setCmsFetching(false);
         setCmsOpen(false);
+        void exitPlayerFullscreen();
       }
       console.error('Error loading CMS built-in book:', error);
     }
@@ -140,6 +146,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
 
   const handleCloseCms = useCallback(() => {
     openingAttempt.current = 0;
+    void exitPlayerFullscreen();
     setCmsFetching(false);
     setCmsOpen(false);
     setCmsPages([]);

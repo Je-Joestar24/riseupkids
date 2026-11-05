@@ -4,7 +4,7 @@
  * first tap does not wait.
  */
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -18,6 +18,7 @@ const probe = vi.hoisted(() => ({
   preload: null,
   fetchCalls: 0,
   preloadCalls: [],
+  fs: { enter: vi.fn(async () => true), exit: vi.fn(async () => {}) },
 }));
 
 vi.mock('../../../hooks/courseProgressHook', () => ({
@@ -38,6 +39,10 @@ vi.mock('../../../hooks/cmsBookPlayer', () => ({
     preloadSummary: null,
     loading: { preload: false },
   }),
+}));
+vi.mock('../../../utils/playerFullscreen', () => ({
+  enterPlayerFullscreen: (...args) => probe.fs.enter(...args),
+  exitPlayerFullscreen: (...args) => probe.fs.exit(...args),
 }));
 vi.mock('./ChildModuleCards', () => ({
   default: ({ book, onCardClick }) => (
@@ -91,6 +96,8 @@ beforeEach(() => {
   probe.playable = { pages: [{ type: 'cover' }, { type: 'content' }] };
   probe.fetchCalls = 0;
   probe.preloadCalls = [];
+  probe.fs.enter.mockClear();
+  probe.fs.exit.mockClear();
   probe.fetchBook = async () => ({ data: probe.playable });
   probe.preload = async () => undefined;
 });
@@ -325,5 +332,89 @@ describe('Opening a built-in book', () => {
 
     expect(probe.fetchCalls).toBe(0);
     expect(probe.readerProps?.open ?? false).toBe(false);
+  });
+});
+
+describe('Full screen for a built-in book (phones that can)', () => {
+  const tap = () => fireEvent.click(screen.getByText('Built-in story'));
+
+  beforeEach(() => vi.spyOn(console, 'error').mockImplementation(() => {}));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is not asked for before a book is tapped', async () => {
+    await mount();
+    await settle(1500);
+
+    expect(probe.fs.enter).not.toHaveBeenCalled();
+  });
+
+  it('is asked for inside the tap, before the pages of the book have arrived (a browser only grants it in a tap)', async () => {
+    probe.fetchBook = () => deferred().promise;
+    await mount();
+    await settle(1500);
+
+    tap();
+
+    expect(probe.fs.enter).toHaveBeenCalledTimes(1);
+    expect(probe.fetchCalls).toBe(1);
+  });
+
+  it('is asked for once even when the card is tapped again while the book is on the way', async () => {
+    probe.fetchBook = () => deferred().promise;
+    await mount();
+    await settle(1500);
+
+    tap();
+    tap();
+
+    expect(probe.fs.enter).toHaveBeenCalledTimes(1);
+  });
+
+  it('is given back when the reader is closed', async () => {
+    await mount();
+    await settle(1500);
+    tap();
+    await settle(10);
+    expect(probe.fs.exit).not.toHaveBeenCalled();
+
+    await act(async () => probe.readerProps.onClose());
+
+    expect(probe.fs.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('is given back when the book cannot be fetched', async () => {
+    probe.fetchBook = async () => {
+      throw new Error('no book');
+    };
+    await mount();
+    await settle(1500);
+
+    tap();
+    await settle(10);
+
+    expect(probe.fs.enter).toHaveBeenCalledTimes(1);
+    expect(probe.fs.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('is given back when the page is left with the book open', async () => {
+    await mount();
+    await settle(1500);
+    tap();
+    await settle(10);
+    probe.fs.exit.mockClear();
+
+    cleanup();
+
+    expect(probe.fs.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not asked for by a book that is not a built-in one', async () => {
+    await mount([{ _id: 'h1', title: 'Web book', packageType: 'html5', html5PackageId: 'pkg1' }]);
+    await settle(1500);
+
+    fireEvent.click(screen.getByText('Web book'));
+    await settle(10);
+
+    expect(probe.fs.enter).not.toHaveBeenCalled();
   });
 });

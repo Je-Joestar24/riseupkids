@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from '../config/constants';
-import { looksLikeBunnyExploreEmbedUrl } from './bunnyExploreEmbed';
+import { looksLikeBunnyPlaybackEmbedUrl } from './bunnyExploreEmbed';
 
 /**
  * Resolve how an explore content item should be played on web.
@@ -15,7 +15,7 @@ export function isExploreBunnyEmbed(item) {
   const file = item.videoFile;
   if (file?.videoSource === 'embed') return true;
   const raw = item.videoFileUrl ?? file?.embedUrl ?? file?.url;
-  return looksLikeBunnyExploreEmbedUrl(raw);
+  return looksLikeBunnyPlaybackEmbedUrl(raw);
 }
 
 /**
@@ -56,7 +56,7 @@ export function resolveExploreVideoPlayback(item, buildMediaUrl = defaultBuildEx
   const candidates = [item.videoFileUrl, file?.embedUrl, file?.url];
   for (const raw of candidates) {
     if (!raw) continue;
-    if (looksLikeBunnyExploreEmbedUrl(raw)) {
+    if (looksLikeBunnyPlaybackEmbedUrl(raw)) {
       return { mode: 'embed', url: resolve(raw) };
     }
   }
