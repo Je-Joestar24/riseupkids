@@ -9,6 +9,7 @@ import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import footstepsIcon from '../../../assets/images/footsteps.png';
 import lockIcon from '../../../assets/images/lock.png';
 import { isJourneyModuleLocked } from '../../../utils/journeyModuleAccess';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildJourneyCards Component
@@ -225,6 +226,10 @@ const ChildJourneyCards = ({ courses = [] }) => {
                 onPointerEnter={isOpenable ? (event) => startHover(courseItem, event) : undefined}
                 onPointerLeave={isOpenable ? cancelHover : undefined}
                 sx={{
+                  // phones: one card per row at 85% of the width, centred, like the app
+                  width: { xs: '85%', sm: 'auto' },
+                  marginLeft: { xs: 'auto', sm: 0 },
+                  marginRight: { xs: 'auto', sm: 0 },
                   backgroundColor: themeColors.bgCard,
                   borderRadius: '0px',
                   overflow: 'hidden',
@@ -235,7 +240,8 @@ const ChildJourneyCards = ({ courses = [] }) => {
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   cursor: isLocked ? 'not-allowed' : 'pointer',
                   '&:hover': {
-                    transform: isLocked ? 'none' : 'scale(1.05)',
+                    // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+                    transform: { xs: 'none', sm: isLocked ? 'none' : 'scale(1.05)' },
                     boxShadow: isLocked ? theme.shadows[4] : theme.shadows[8],
                   },
                 }}
@@ -304,8 +310,8 @@ const ChildJourneyCards = ({ courses = [] }) => {
                       src={lockIcon}
                       alt="Locked journey step"
                       sx={{
-                        width: '92px',
-                        height: '92px',
+                        width: { xs: phoneFluid(64, 92), sm: '92px' },
+                        height: { xs: phoneFluid(64, 92), sm: '92px' },
                         objectFit: 'contain',
                       }}
                     />
@@ -339,9 +345,9 @@ const ChildJourneyCards = ({ courses = [] }) => {
             {/* Card Content */}
             <Box
               sx={{
-                padding: '16px',
+                padding: { xs: phoneFluid(14, 20), sm: '16px' },
                 display: 'flex',
-                gap: '12px',
+                gap: { xs: phoneFluid(10, 16), sm: '12px' },
               }}
             >
               {/* First Column - Icon */}
@@ -355,8 +361,8 @@ const ChildJourneyCards = ({ courses = [] }) => {
                 {/* Footsteps Icon */}
                 <Box
                   sx={{
-                    width: '48px',
-                    height: '48px',
+                    width: { xs: phoneFluid(40, 52), sm: '48px' },
+                    height: { xs: phoneFluid(40, 52), sm: '48px' },
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -393,7 +399,7 @@ const ChildJourneyCards = ({ courses = [] }) => {
                 {/* Title */}
                 <Typography
                   sx={{
-                    fontSize: '16px',
+                    fontSize: { xs: phoneFluid(15, 18), sm: '16px' },
                     fontWeight: 600,
                     color: themeColors.text,
                     fontFamily: theme.typography.fontFamily,

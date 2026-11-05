@@ -26,6 +26,7 @@ import {
 import useIdlePreload from '../../hooks/useIdlePreload';
 import ChildModulePrintables from '../../components/child/module/ChildModulePrintables';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { PHONE_PAGE_SIDE_PADDING } from '../../constants/childPhoneLayout';
 
 const PAGE_BACKGROUND = 'rgb(212, 230, 227)';
 
@@ -34,7 +35,8 @@ const PAGE_SX = {
   minHeight: '100vh',
   backgroundColor: PAGE_BACKGROUND,
   paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
-  paddingTop: '20px',
+  // phones: the side margin below already gives the top gap
+  paddingTop: { xs: '0px', sm: '20px' },
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -44,7 +46,7 @@ const CONTAINER_SX = {
   width: '100%',
   maxWidth: '848px',
   backgroundColor: 'transparent',
-  padding: { xs: '16px', sm: '0px' },
+  padding: { xs: PHONE_PAGE_SIDE_PADDING, sm: '0px' },
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
@@ -372,7 +374,8 @@ const ChildJourneyModule = ({ childId }) => {
           flexDirection: 'column',
           alignItems: 'center',
           width: '100%',
-          paddingX: '32px'
+          // phones: no extra side space (the page margin is enough, like the app)
+          paddingX: { xs: 0, sm: '32px' },
         }}>
           {/* Breadcrumbs */}
           <ChildModuleBreadCrumbs

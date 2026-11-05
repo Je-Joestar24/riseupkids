@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildModuleBreadCrumbs Component
@@ -28,7 +29,7 @@ const ChildModuleBreadCrumbs = ({ stepNumber, onJourneyClick }) => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        padding: '8px 16px', // y 8px, x 16px
+                        padding: { xs: `8px ${phoneFluid(8, 16)}`, sm: '8px 16px' }, // y 8px, x 16px (phones: x shrinks on small screens)
                         backgroundColor: 'rgba(255, 255, 255, 0.8)',
                         color: themeColors.secondary, // rgb(98, 202, 202)
                         fontSize: '16px',
@@ -84,7 +85,7 @@ const ChildModuleBreadCrumbs = ({ stepNumber, onJourneyClick }) => {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px',
-                        padding: '8px 16px', // y 8px, x 16px
+                        padding: { xs: `8px ${phoneFluid(8, 16)}`, sm: '8px 16px' }, // y 8px, x 16px (phones: x shrinks on small screens)
                         backgroundColor: themeColors.secondary, // rgb(98, 202, 202)
                         color: themeColors.textInverse, // white
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',

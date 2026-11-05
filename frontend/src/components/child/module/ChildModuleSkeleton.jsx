@@ -2,6 +2,7 @@ import React from 'react';
 import { Box } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const SECTION_COUNT = 2;
 const CARDS_PER_SECTION = 3;
@@ -14,11 +15,11 @@ const ChildModuleSkeleton = () => (
   <SkeletonFrame label="Loading the course" sx={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
     <Bone variant="rectangular" sx={{ width: '100%', aspectRatio: '1 / 1', marginTop: '20px' }} />
 
-    <Box sx={{ width: '100%', paddingX: '32px' }}>
+    <Box sx={{ width: '100%', paddingX: { xs: 0, sm: '32px' } }}>
       <Box
         sx={{
           width: '100%',
-          padding: '32px',
+          padding: { xs: phoneFluid(18, 32), sm: '32px' },
           backgroundColor: themeColors.textInverse,
           borderRadius: '24px',
           marginTop: '32px',
@@ -35,8 +36,8 @@ const ChildModuleSkeleton = () => (
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-              gap: '24px',
+              gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+              gap: { xs: '16px 4%', sm: '24px' },
             }}
           >
             {Array.from({ length: CARDS_PER_SECTION }, (_, card) => (

@@ -32,7 +32,8 @@ const ChildModulePrintables = ({ onPrintablesClick }) => {
           fontFamily: 'Quicksand, sans-serif',
           fontSize: { xs: '1.75rem', sm: '2.25rem' },
           fontWeight: 700, // within 600-700 max
-          color: themeColors.textInverse,
+          // phones: dark, readable on the light page (the white title is kept for computers and tablets)
+          color: { xs: themeColors.text, sm: themeColors.textInverse },
           mb: { xs: 3, sm: 4, md: 5 },
         }}
       >

@@ -8,6 +8,7 @@ import childrenService from '../../services/childrenService';
 import { useCachedLoad } from '../../hooks/useCachedLoad';
 import { prefetchChildJourney } from '../../store/slices/childJourneySlice';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { PHONE_PAGE_SIDE_PADDING } from '../../constants/childPhoneLayout';
 
 /**
  * ChildHome Page
@@ -61,6 +62,9 @@ const ChildHome = ({ childId }) => {
         minHeight: '100vh',
         paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
         paddingTop: '20px',
+        // Phones: a margin at both sides like the app (computers and tablets: none, as before)
+        paddingLeft: { xs: PHONE_PAGE_SIDE_PADDING, sm: 0 },
+        paddingRight: { xs: PHONE_PAGE_SIDE_PADDING, sm: 0 },
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'flex-start',

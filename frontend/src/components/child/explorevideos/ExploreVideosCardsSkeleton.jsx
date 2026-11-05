@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Paper } from '@mui/material';
 import { EXPLORE_COVER_ASPECT_RATIO } from '../../../constants/exploreVideoTypes';
 import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const CARD_COUNT = 6;
 
@@ -22,7 +23,14 @@ const ExploreVideosCardsSkeleton = () => (
     >
       {Array.from({ length: CARD_COUNT }, (_, index) => (
         <Paper key={index} sx={{ borderRadius: '0px', overflow: 'hidden', backgroundColor: 'white' }}>
-          <Box sx={{ position: 'relative', width: '100%', aspectRatio: EXPLORE_COVER_ASPECT_RATIO }}>
+          <Box
+            sx={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: { xs: 'auto', sm: EXPLORE_COVER_ASPECT_RATIO },
+              height: { xs: '192px', sm: 'auto' },
+            }}
+          >
             <Bone variant="rectangular" sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
             <Bone
               sx={{
@@ -36,7 +44,7 @@ const ExploreVideosCardsSkeleton = () => (
               }}
             />
           </Box>
-          <Box sx={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <Box sx={{ padding: { xs: phoneFluid(14, 20), sm: '20px' }, display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <Bone sx={{ width: '75%', height: 24 }} />
             <Box>
               <Bone sx={{ width: '100%', height: 16, marginBottom: '6px' }} />

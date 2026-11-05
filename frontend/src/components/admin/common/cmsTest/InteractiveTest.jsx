@@ -14,6 +14,7 @@ import {
 import {
   imageActionButtonSx,
   pageFrameSx,
+  phoneLandscapeOnly,
   resolveCmsAbsoluteMediaUrl,
   resolveDropZoneAudioUrl,
   resolveImageUrl,
@@ -1037,6 +1038,8 @@ const InteractiveTest = ({
           bottom: '5.1852%',
           zIndex: 30,
           pointerEvents: 'auto',
+          // a touch phone held sideways: 40% smaller (60% of its size), shrinking toward its corner so it stays where it is
+          ...phoneLandscapeOnly({ transform: 'scale(0.6)', transformOrigin: 'bottom right' }),
         }}
       >
         <img src={retryButtonImage} alt="" />

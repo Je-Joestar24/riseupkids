@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import RemoteImage from '../common/RemoteImage';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildModuleVideoCards Component
@@ -38,7 +39,8 @@ const ChildModuleVideoCards = ({
                 cursor: 'pointer',
                 transition: 'transform 0.2s ease',
                 '&:hover': {
-                    transform: 'scale(1.05)',
+                    // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+                    transform: { xs: 'none', sm: 'scale(1.05)' },
                 },
                 backgroundColor: 'white'
             }}
@@ -179,10 +181,10 @@ const ChildModuleVideoCards = ({
             <Box
                 sx={{
                     display: 'flex',
-                    gap: '8px',
+                    gap: { xs: phoneFluid(4, 8), sm: '8px' },
                     justifyContent: 'center',
                     alignItems: 'center',
-                    padding: '16px'
+                    padding: { xs: phoneFluid(8, 16), sm: '16px' },
                 }}
             >
                 {[0, 1, 2, 3, 4].map((index) => {
@@ -191,8 +193,12 @@ const ChildModuleVideoCards = ({
                         <Box
                             key={index}
                             sx={{
-                                width: '32px',
-                                height: '32px',
+                                // phones: the five circles shrink together to fit the card's width
+                                width: { xs: 'auto', sm: '32px' },
+                                height: { xs: 'auto', sm: '32px' },
+                                flex: { xs: '0 1 32px', sm: '0 1 auto' },
+                                minWidth: { xs: 0, sm: 'auto' },
+                                aspectRatio: { xs: '1 / 1', sm: 'auto' },
                                 borderRadius: '50%',
                                 border: `2px solid ${themeColors.secondary}`,
                                 backgroundColor: isFilled ? themeColors.secondary : 'transparent',

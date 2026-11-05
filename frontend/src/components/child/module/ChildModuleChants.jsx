@@ -87,7 +87,8 @@ const ChildModuleChants = ({ chants = [], courseProgress = null, onChantClick, i
         sx={{
           fontSize: '24px',
           fontWeight: 600,
-          color: themeColors.textInverse,
+          // phones: dark, readable on the light page (the white title is kept for computers and tablets)
+          color: { xs: themeColors.text, sm: themeColors.textInverse },
           marginBottom: '24px',
         }}
       >
@@ -99,11 +100,12 @@ const ChildModuleChants = ({ chants = [], courseProgress = null, onChantClick, i
         sx={{
           display: 'grid',
           gridTemplateColumns: {
-            xs: '1fr',
+            // phones: two cards per row, like the app
+            xs: 'repeat(2, minmax(0, 1fr))',
             sm: 'repeat(2, 1fr)',
             md: 'repeat(3, 1fr)',
           },
-          gap: '24px',
+          gap: { xs: '16px 4%', sm: '24px' },
         }}
       >
         {chants.map((chant, index) => {

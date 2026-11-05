@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Box, useMediaQuery } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import { useParams } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -9,9 +9,12 @@ import ExploreVideosFooter from "../../components/child/explorevideos/ExploreVid
 import { useExploreVideoWatch } from "../../hooks/exploreVideoWatchHook";
 import { useCachedLoad } from '../../hooks/useCachedLoad';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { phoneFluid } from '../../constants/childPhoneLayout';
 
 const ChildExploreVideos = ({ childId }) => {
     const theme = useTheme();
+    // The app no longer shows the share card on this page. On phones it is left out here too (computers and tablets keep it).
+    const isPhone = useMediaQuery(theme.breakpoints.down('sm'), { noSsr: true });
     const { videoType } = useParams();
     const { getTotalStarsForVideoType } = useExploreVideoWatch(childId);
     // The total is cached per child and video type: only a first visit shows the placeholder.
@@ -65,7 +68,8 @@ const ChildExploreVideos = ({ childId }) => {
                     gap: '20px',
                     display: 'flex',
                     flexDirection: 'column',
-                    px: { xs: '16px', sm: '24px', md: 0 },
+                    // phones: a little more room at the sides (16px before)
+                    px: { xs: phoneFluid(14, 22), sm: '24px', md: 0 },
                 }}
             >
                 <ExploreVideosHeader
@@ -75,11 +79,13 @@ const ChildExploreVideos = ({ childId }) => {
                     loading={totalStars === null}
                 />
 
-                <ExploreVideosShare
-                    childId={childId}
-                    videoType={videoType}
-                    totalStars={totalStars}
-                />
+                {!isPhone && (
+                    <ExploreVideosShare
+                        childId={childId}
+                        videoType={videoType}
+                        totalStars={totalStars}
+                    />
+                )}
 
                 <ExploreVideosCards
                     childId={childId}

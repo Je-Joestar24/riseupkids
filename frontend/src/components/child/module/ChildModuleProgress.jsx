@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildModuleProgress Component
@@ -23,7 +24,7 @@ const ChildModuleProgress = ({
     <Box
       sx={{
         width: '100%',
-        padding: '32px',
+        padding: { xs: phoneFluid(18, 32), sm: '32px' },
         backgroundColor: themeColors.textInverse, // white
         borderRadius: '24px',
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', // shadow-xl
@@ -33,7 +34,8 @@ const ChildModuleProgress = ({
       {/* Title */}
       <Typography
         sx={{
-          fontSize: '36px',
+          fontSize: { xs: phoneFluid(24, 36), sm: '36px' },
+          overflowWrap: { xs: 'anywhere', sm: 'normal' },
           fontWeight: 600,
           color: 'rgb(51, 51, 51)',
           marginBottom: '12px',
@@ -45,7 +47,7 @@ const ChildModuleProgress = ({
       {/* Description */}
       <Typography
         sx={{
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
           fontWeight: 400,
           color: 'rgb(51, 51, 51)',
           marginBottom: '24px',
@@ -112,8 +114,9 @@ const ChildModuleProgress = ({
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
-          gap: '16px',
+          // phones: the three cards sit side by side, like the app
+          gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', sm: 'repeat(3, 1fr)' },
+          gap: { xs: phoneFluid(8, 16), sm: '16px' },
           marginTop: '24px',
         }}
       >
@@ -121,7 +124,7 @@ const ChildModuleProgress = ({
         <Box
           sx={{
             textAlign: 'center',
-            padding: '16px',
+            padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
             borderRadius: '16px',
             backgroundColor: 'rgb(244, 237, 216)',
           }}
@@ -129,8 +132,8 @@ const ChildModuleProgress = ({
           {/* Icon Container */}
           <Box
             sx={{
-              width: '48px',
-              height: '48px',
+              width: { xs: phoneFluid(34, 48), sm: '48px' },
+              height: { xs: phoneFluid(34, 48), sm: '48px' },
               borderRadius: '50%',
               margin: '0 auto 8px auto',
               display: 'flex',
@@ -160,7 +163,7 @@ const ChildModuleProgress = ({
           {/* Count */}
           <Typography
             sx={{
-              fontSize: '24px',
+              fontSize: { xs: phoneFluid(19, 24), sm: '24px' },
               fontWeight: 600,
               color: themeColors.text, // black
               marginBottom: '4px',
@@ -171,7 +174,7 @@ const ChildModuleProgress = ({
           {/* Label */}
           <Typography
             sx={{
-              fontSize: '14px',
+              fontSize: { xs: phoneFluid(10.5, 14), sm: '14px' },
               fontWeight: 400,
               color: 'rgb(153, 153, 153)',
             }}
@@ -184,7 +187,7 @@ const ChildModuleProgress = ({
         <Box
           sx={{
             textAlign: 'center',
-            padding: '16px',
+            padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
             borderRadius: '16px',
             backgroundColor: 'rgb(244, 237, 216)',
           }}
@@ -192,8 +195,8 @@ const ChildModuleProgress = ({
           {/* Icon Container */}
           <Box
             sx={{
-              width: '48px',
-              height: '48px',
+              width: { xs: phoneFluid(34, 48), sm: '48px' },
+              height: { xs: phoneFluid(34, 48), sm: '48px' },
               borderRadius: '50%',
               margin: '0 auto 8px auto',
               display: 'flex',
@@ -222,7 +225,7 @@ const ChildModuleProgress = ({
           {/* Count */}
           <Typography
             sx={{
-              fontSize: '24px',
+              fontSize: { xs: phoneFluid(19, 24), sm: '24px' },
               fontWeight: 600,
               color: themeColors.text, // black
               marginBottom: '4px',
@@ -233,7 +236,7 @@ const ChildModuleProgress = ({
           {/* Label */}
           <Typography
             sx={{
-              fontSize: '14px',
+              fontSize: { xs: phoneFluid(10.5, 14), sm: '14px' },
               fontWeight: 400,
               color: 'rgb(153, 153, 153)',
             }}
@@ -246,7 +249,7 @@ const ChildModuleProgress = ({
         <Box
           sx={{
             textAlign: 'center',
-            padding: '16px',
+            padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
             borderRadius: '16px',
             backgroundColor: 'rgb(244, 237, 216)',
           }}
@@ -254,8 +257,8 @@ const ChildModuleProgress = ({
           {/* Icon Container */}
           <Box
             sx={{
-              width: '48px',
-              height: '48px',
+              width: { xs: phoneFluid(34, 48), sm: '48px' },
+              height: { xs: phoneFluid(34, 48), sm: '48px' },
               borderRadius: '50%',
               margin: '0 auto 8px auto',
               display: 'flex',
@@ -285,7 +288,7 @@ const ChildModuleProgress = ({
           {/* Count */}
           <Typography
             sx={{
-              fontSize: '24px',
+              fontSize: { xs: phoneFluid(19, 24), sm: '24px' },
               fontWeight: 600,
               color: themeColors.text, // black
               marginBottom: '4px',
@@ -296,7 +299,7 @@ const ChildModuleProgress = ({
           {/* Label */}
           <Typography
             sx={{
-              fontSize: '14px',
+              fontSize: { xs: phoneFluid(10.5, 14), sm: '14px' },
               fontWeight: 400,
               color: 'rgb(153, 153, 153)',
             }}

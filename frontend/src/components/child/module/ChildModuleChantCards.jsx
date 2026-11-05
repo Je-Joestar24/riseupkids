@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
 import RemoteImage from '../common/RemoteImage';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildModuleChantCards Component
@@ -33,7 +34,8 @@ const ChildModuleChantCards = ({
         cursor: 'pointer',
         transition: 'transform 0.2s ease',
         '&:hover': {
-          transform: 'scale(1.05)',
+          // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+          transform: { xs: 'none', sm: 'scale(1.05)' },
         },
         backgroundColor: themeColors.textInverse,
         borderRadius: '0px',
@@ -171,7 +173,7 @@ const ChildModuleChantCards = ({
       {/* Content Section - Title and Description */}
       <Box
         sx={{
-          padding: '20px',
+          padding: { xs: phoneFluid(10, 20), sm: '20px' },
         }}
       >
         {/* Title */}

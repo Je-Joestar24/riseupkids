@@ -11,6 +11,7 @@ import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { InlineBone } from '../common/ChildSkeleton';
 import { VideoPlayerModal } from '../common/lazyModals';
 import useIdlePreload from '../../../hooks/useIdlePreload';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import ExploreCoverImage from '../explore/ExploreCoverImage';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 
@@ -231,7 +232,8 @@ const ExploreVideosCards = ({ childId, videoType }) => {
               cursor: 'pointer',
               transition: 'transform 0.2s ease',
               '&:hover': {
-                transform: 'scale(1.02)',
+                // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+                transform: { xs: 'none', sm: 'scale(1.02)' },
               },
             }}
             onClick={() => handleVideoClick(video)}
@@ -241,6 +243,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
               src={coverImageUrl}
               alt={video?.title || 'Video thumbnail'}
               index={index}
+              phoneHeight={192}
             >
               {/* Completion Check Icon - Top Right */}
               {watched && (
@@ -304,7 +307,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
             {/* Row 2: Details */}
             <Box
               sx={{
-                padding: '20px',
+                padding: { xs: phoneFluid(14, 20), sm: '20px' },
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px',
@@ -313,7 +316,7 @@ const ExploreVideosCards = ({ childId, videoType }) => {
               {/* Row 1: Title */}
               <Typography
                 sx={{
-                  fontSize: '20px',
+                  fontSize: { xs: phoneFluid(17, 20), sm: '20px' },
                   fontWeight: 600,
                   color: themeColors.secondary,
                   fontFamily: 'Quicksand, sans-serif',

@@ -4,6 +4,7 @@ import fireIcon from '../../../assets/images/fire.png';
 import starIcon from '../../../assets/images/star.png';
 import { themeColors } from '../../../config/themeColors';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildHomeAccumlatedAwards Component
@@ -37,8 +38,9 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
       aria-busy={loading}
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(3, 1fr)' },
-        gap: '10px',
+        // phones: the three cards share the width evenly even when a label is wider than its card
+        gridTemplateColumns: { xs: 'repeat(3, minmax(0, 1fr))', sm: 'repeat(3, 1fr)' },
+        gap: { xs: phoneFluid(8, 12), sm: '10px' },
         marginTop: '16px',
       }}
     >
@@ -46,7 +48,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
       <Box
         sx={{
           backgroundColor: 'white',
-          padding: '16px',
+          padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           borderRadius: '0px',
           display: 'flex',
@@ -59,9 +61,9 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         {/* Fire Icon */}
         <Box
           sx={{
-            width: '48px',
-            height: '48px',
-            marginBottom: '8px',
+            width: { xs: phoneFluid(34, 44), sm: '48px' },
+            height: { xs: phoneFluid(34, 44), sm: '48px' },
+            marginBottom: { xs: phoneFluid(4, 8), sm: '8px' },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -71,8 +73,8 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
             src={fireIcon}
             alt="Day Streak"
             style={{
-              width: '48px',
-              height: '48px',
+              width: '100%',
+              height: '100%',
               objectFit: 'contain',
             }}
           />
@@ -82,7 +84,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '30px',
+            fontSize: { xs: phoneFluid(22, 28), sm: '30px' },
             fontWeight: 600,
             color: themeColors.orange, // --theme-orange: #e98a68
             marginBottom: '4px',
@@ -96,7 +98,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '14px',
+            fontSize: { xs: phoneFluid(11, 13.5), sm: '14px' },
             fontWeight: 600,
             color: themeColors.textSecondary,
             lineHeight: 1.4,
@@ -110,7 +112,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
       <Box
         sx={{
           backgroundColor: 'white',
-          padding: '16px',
+          padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           borderRadius: '0px',
           display: 'flex',
@@ -123,9 +125,9 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         {/* Star Icon */}
         <Box
           sx={{
-            width: '48px',
-            height: '48px',
-            marginBottom: '8px',
+            width: { xs: phoneFluid(34, 44), sm: '48px' },
+            height: { xs: phoneFluid(34, 44), sm: '48px' },
+            marginBottom: { xs: phoneFluid(4, 8), sm: '8px' },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -135,8 +137,8 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
             src={starIcon}
             alt="Total Stars"
             style={{
-              width: '48px',
-              height: '48px',
+              width: '100%',
+              height: '100%',
               objectFit: 'contain',
             }}
           />
@@ -146,7 +148,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '30px',
+            fontSize: { xs: phoneFluid(22, 28), sm: '30px' },
             fontWeight: 600,
             color: themeColors.orange, // --theme-orange: #e98a68
             marginBottom: '4px',
@@ -160,7 +162,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '14px',
+            fontSize: { xs: phoneFluid(11, 13.5), sm: '14px' },
             fontWeight: 600,
             color: themeColors.textSecondary,
             lineHeight: 1.4,
@@ -174,7 +176,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
       <Box
         sx={{
           backgroundColor: 'white',
-          padding: '16px',
+          padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(4, 10)}`, sm: '16px' },
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           borderRadius: '0px',
           display: 'flex',
@@ -187,9 +189,9 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         {/* Badge SVG Icon */}
         <Box
           sx={{
-            width: '48px',
-            height: '48px',
-            marginBottom: '8px',
+            width: { xs: phoneFluid(34, 44), sm: '48px' },
+            height: { xs: phoneFluid(34, 44), sm: '48px' },
+            marginBottom: { xs: phoneFluid(4, 8), sm: '8px' },
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -206,8 +208,8 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
             strokeLinecap="round"
             strokeLinejoin="round"
             style={{
-              width: '48px',
-              height: '48px',
+              width: '100%',
+              height: '100%',
             }}
             aria-hidden="true"
           >
@@ -220,7 +222,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '30px',
+            fontSize: { xs: phoneFluid(22, 28), sm: '30px' },
             fontWeight: 600,
             color: themeColors.secondary, // --theme-secondary: #85c2b9
             marginBottom: '4px',
@@ -234,7 +236,7 @@ const ChildHomeAccumlatedAwards = ({ child, loading = false }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '14px',
+            fontSize: { xs: phoneFluid(11, 13.5), sm: '14px' },
             fontWeight: 600,
             color: themeColors.textSecondary,
             lineHeight: 1.4,

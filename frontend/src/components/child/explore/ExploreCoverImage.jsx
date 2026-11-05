@@ -33,6 +33,7 @@ const ExploreCoverImage = ({
   containerSx = {},
   imageSx = {},
   index = 0,
+  phoneHeight = null, // phones only: a fixed picture height in px (like the app) instead of the usual proportions
 }) => {
   const [measured, setMeasured] = useState(null);
   const aspectRatio =
@@ -53,7 +54,9 @@ const ExploreCoverImage = ({
       sx={{
         position: 'relative',
         width: '100%',
-        aspectRatio,
+        ...(phoneHeight
+          ? { aspectRatio: { xs: 'auto', sm: aspectRatio }, height: { xs: `${phoneHeight}px`, sm: 'auto' } }
+          : { aspectRatio }),
         overflow: 'hidden',
         backgroundColor,
         ...containerSx,

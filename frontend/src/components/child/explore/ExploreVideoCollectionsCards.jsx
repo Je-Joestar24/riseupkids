@@ -7,6 +7,7 @@ import { useExploreVideoWatch } from '../../../hooks/exploreVideoWatchHook';
 import { useCachedLoad } from '../../../hooks/useCachedLoad';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * SVG Icons for each video type
@@ -73,7 +74,7 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
       aria-busy={loading}
       sx={{
         borderRadius: '0px',
-        padding: '24px',
+        padding: { xs: phoneFluid(16, 24), sm: '24px' },
         backgroundColor: theme.palette.background.paper,
         border: `1px solid ${theme.palette.border.main}`,
         boxShadow: theme.shadows[2],
@@ -83,7 +84,7 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
         transition: 'all 0.3s ease',
         '&:hover': {
           boxShadow: theme.shadows[4],
-          transform: 'translateY(-2px)',
+          transform: { xs: 'none', sm: 'translateY(-2px)' },
         },
       }}
     >
@@ -96,7 +97,14 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
           marginBottom: 2,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            // phones: the picture shrinks a little on small screens (65px on computers and tablets)
+            '& svg': { width: { xs: phoneFluid(48, 65), sm: '65px' }, height: { xs: phoneFluid(48, 65), sm: '65px' } },
+          }}
+        >
           {icon}
         </Box>
         <Box
@@ -116,7 +124,7 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '18px',
+              fontSize: { xs: phoneFluid(16, 18), sm: '18px' },
               fontWeight: 600,
               color: theme.palette.text.primary,
             }}
@@ -130,7 +138,7 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '24px',
+          fontSize: { xs: phoneFluid(20, 24), sm: '24px' },
           fontWeight: 600,
           color: theme.palette.secondary.main,
           marginBottom: 2,
@@ -191,9 +199,9 @@ const VideoCollectionCard = ({ videoType, data, loading, theme, onContinueClick 
         variant="contained"
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(17, 20), sm: '20px' },
           fontWeight: 600,
-          paddingY: '14px',
+          paddingY: { xs: phoneFluid(11, 14), sm: '14px' },
           borderRadius: '0px',
           backgroundColor: theme.palette.accent.main,
           color: theme.palette.textCustom.inverse,
@@ -308,7 +316,7 @@ const ExploreVideoCollectionsCards = ({ onVideoTypeClick, childId }) => {
           sm: 'repeat(2, 1fr)',
           md: 'repeat(3, 1fr)',
         },
-        gap: 3,
+        gap: { xs: phoneFluid(14, 24), sm: 3 },
         marginTop: '30px'
       }}
     >

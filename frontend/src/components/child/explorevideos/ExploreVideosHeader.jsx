@@ -5,6 +5,7 @@ import { useTheme } from '@mui/material/styles';
 import { EXPLORE_VIDEO_TYPES, VIDEO_TYPE_LABELS } from '../../../constants/exploreVideoTypes';
 import { themeColors } from '../../../config/themeColors';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * Video Type Descriptions
@@ -132,7 +133,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
         <Paper
             sx={{
                 width: '100%',
-                padding: '24px',
+                padding: { xs: phoneFluid(16, 24), sm: '24px' },
                 borderRadius: '0px',
                 boxShadow: theme.shadows[2],
                 border: `4px solid ${themeColors.orange}`,
@@ -154,7 +155,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                         alignItems: 'center',
                         gap: '8px',
                         color: themeColors.secondary,
-                        fontSize: '20px',
+                        fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
                         fontWeight: 600,
                         fontFamily: 'Quicksand, sans-serif',
                         textTransform: 'none',
@@ -171,7 +172,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                     <ArrowLeftIcon />
                     <Typography
                         sx={{
-                            fontSize: '20px',
+                            fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
                             fontWeight: 600,
                             fontFamily: 'Quicksand, sans-serif',
                             color: themeColors.secondary,
@@ -198,13 +199,13 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: themeColors.secondary,
-                            width: '48px',
-                            height: '48px',
-                            minWidth: '48px',
-                            minHeight: '48px',
+                            width: { xs: phoneFluid(36, 48), sm: '48px' },
+                            height: { xs: phoneFluid(36, 48), sm: '48px' },
+                            minWidth: { xs: phoneFluid(36, 48), sm: '48px' },
+                            minHeight: { xs: phoneFluid(36, 48), sm: '48px' },
                             '& svg': {
-                                width: '48px',
-                                height: '48px',
+                                width: { xs: phoneFluid(36, 48), sm: '48px' },
+                                height: { xs: phoneFluid(36, 48), sm: '48px' },
                             },
                         }}
                     >
@@ -213,7 +214,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                 )}
                 <Typography
                     sx={{
-                        fontSize: '36px',
+                        fontSize: { xs: phoneFluid(26, 36), sm: '36px' },
                         fontWeight: 600,
                         fontFamily: 'Quicksand, sans-serif',
                         color: themeColors.secondary,
@@ -235,7 +236,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
             >
                 <Typography
                     sx={{
-                        fontSize: '20px',
+                        fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
                         fontWeight: 600,
                         fontFamily: 'Quicksand, sans-serif',
                         color: 'oklch(0.551 0.027 264.364)',
@@ -270,7 +271,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                     <StarIcon />
                     <Typography
                         sx={{
-                            fontSize: '20px',
+                            fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
                             fontWeight: 600,
                             fontFamily: 'Quicksand, sans-serif',
                             color: themeColors.accent,
@@ -281,7 +282,7 @@ const ExploreVideosHeader = ({ childId, videoType, totalStars = 0, loading = fal
                 </Box>
                 <Typography
                     sx={{
-                        fontSize: '20px',
+                        fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
                         fontWeight: 600,
                         fontFamily: 'Quicksand, sans-serif',
                         color: themeColors.accent,

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { themeColors } from '../../../config/themeColors';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildJourneySummary Component
@@ -95,22 +96,24 @@ const ChildJourneySummary = ({
     <Box
       sx={{
         maxWidth: '100%',
-        padding: '24px',
+        // phones: as wide as the page (the 400px list inside would not fit a small screen)
+        width: { xs: '100%', sm: 'auto' },
+        padding: { xs: phoneFluid(16, 24), sm: '24px' },
         margin: '0 auto',
         backgroundColor: 'rgb(244, 237, 216)',
         borderRadius: '24px', // rounded-3xl
         boxShadow: theme.shadows[8], // shadow-xl
-        marginTop: '48px', // mt-12 equivalent
+        marginTop: { xs: phoneFluid(32, 48), sm: '48px' }, // mt-12 equivalent
       }}
     >
       {/* Title */}
       <Typography
         sx={{
-          fontSize: '24px',
+          fontSize: { xs: phoneFluid(20, 24), sm: '24px' },
           fontWeight: 600,
           color: themeColors.orange, // White
           textAlign: 'center',
-          marginBottom: '5px',
+          marginBottom: { xs: phoneFluid(10, 16), sm: '5px' },
           fontFamily: theme.typography.fontFamily,
         }}
       >
@@ -122,9 +125,9 @@ const ChildJourneySummary = ({
         sx={{
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '16px',
+          gap: { xs: phoneFluid(8, 16), sm: '16px' },
           textAlign: 'center',
-          width: '400px'
+          width: { xs: '100%', sm: '400px' },
         }}
       >
         {summaryItems.map((item, index) => (
@@ -156,7 +159,7 @@ const ChildJourneySummary = ({
             {/* Count */}
             <Typography
               sx={{
-                fontSize: '24px',
+                fontSize: { xs: phoneFluid(20, 24), sm: '24px' },
                 fontWeight: 600,
                 color: themeColors.text, // White
                 fontFamily: theme.typography.fontFamily,

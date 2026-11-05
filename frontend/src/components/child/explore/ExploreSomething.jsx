@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ExploreSomething Component
@@ -13,7 +14,7 @@ const ExploreSomething = () => {
       sx={{
         width: '100%',
         marginTop: '32px',
-        padding: '32px',
+        padding: { xs: phoneFluid(18, 32), sm: '32px' },
         border: '4px solid',
         backgroundColor: themeColors.bgCard,
         borderColor: themeColors.orange,
@@ -30,7 +31,7 @@ const ExploreSomething = () => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '30px',
+          fontSize: { xs: phoneFluid(22, 30), sm: '30px' },
           fontWeight: 700,
           color: themeColors.secondary,
           textAlign: 'center',
@@ -44,7 +45,7 @@ const ExploreSomething = () => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
           fontWeight: 600,
           color: 'oklch(0.446 0.03 256.802)',
           textAlign: 'center',

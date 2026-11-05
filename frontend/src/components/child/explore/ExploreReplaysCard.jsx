@@ -5,6 +5,7 @@ import { PlayArrow as PlayArrowIcon } from '@mui/icons-material';
 import { useExplore } from '../../../hooks/exploreHook';
 import { EXPLORE_COVER_ASPECT_RATIO } from '../../../constants/exploreVideoTypes';
 import ExploreCoverImage from './ExploreCoverImage';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ExploreReplaysCard Component
@@ -54,7 +55,8 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
         flexDirection: 'column',
         transition: 'transform 0.25s ease, box-shadow 0.25s ease',
         '&:hover': {
-          transform: 'scale(1.03)', // slightly bigger
+          // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+          transform: { xs: 'none', sm: 'scale(1.03)' }, // slightly bigger
           boxShadow: theme.shadows[6], // optional: stronger shadow
         },
       }}
@@ -66,6 +68,7 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
           alt={content.title}
           index={imageIndex}
           backgroundColor={theme.palette.custom.bgSecondary}
+          phoneHeight={160}
         >
           {/* Play Icon Overlay - Centered */}
           <Box
@@ -124,7 +127,8 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
           sx={{
             position: 'relative',
             width: '100%',
-            aspectRatio: EXPLORE_COVER_ASPECT_RATIO,
+            aspectRatio: { xs: 'auto', sm: EXPLORE_COVER_ASPECT_RATIO },
+            height: { xs: '160px', sm: 'auto' },
             backgroundColor: theme.palette.custom.bgSecondary,
             overflow: 'hidden',
             display: 'flex',
@@ -195,7 +199,7 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
       {/* Row 2: Content Details Container (20px padding all sides) */}
       <Box
         sx={{
-          padding: '20px',
+          padding: { xs: phoneFluid(14, 20), sm: '20px' },
           display: 'flex',
           flexDirection: 'column',
           gap: 1,
@@ -206,7 +210,7 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '20px',
+            fontSize: { xs: phoneFluid(17, 20), sm: '20px' },
             fontWeight: 700,
             color: theme.palette.secondary.main,
             lineHeight: 1.2,
@@ -286,7 +290,7 @@ const ExploreReplaysCard = ({ content, onWatchClick, imageIndex = 0 }) => {
               color: 'white',
               backgroundColor: theme.palette.accent.main,
               paddingY: '8px',
-              paddingX: '20px',
+              paddingX: { xs: phoneFluid(14, 20), sm: '20px' },
               borderRadius: '0px',
               textTransform: 'none',
               '&:hover': {

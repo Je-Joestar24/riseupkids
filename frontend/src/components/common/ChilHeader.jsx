@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import CloudIcon from '@mui/icons-material/Cloud';
 import smallLogo from '../../assets/images/small-logo.png';
 import { themeColors } from '../../config/themeColors';
+import { phoneFluid } from '../../constants/childPhoneLayout';
 import {
   CHILD_STATS_UPDATED_EVENT,
   getChildTotalStars,
@@ -83,7 +84,8 @@ const ChildHeader = ({ childId }) => {
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
         zIndex: (theme) => theme.zIndex.drawer + 1,
         borderRadius: '0px',
-        minHeight: '140px',
+        // phones: the app's 100px bar (computers and tablets keep 140px)
+        minHeight: { xs: '100px', sm: '140px' },
         display: 'flex',
       }}
     >
@@ -92,12 +94,13 @@ const ChildHeader = ({ childId }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          minHeight: '140px',
+          // (on tablets and computers the toolbar's own 64px rule has always been the one in effect)
+          minHeight: { xs: '100px', sm: '64px' },
           padding: { xs: '0 16px', sm: '0 24px' },
           maxWidth: '1080px',
           margin: 'auto',
           width: '100%',
-          gap: 2,
+          gap: { xs: 1, sm: 2 },
         }}
       >
         <Box
@@ -114,7 +117,7 @@ const ChildHeader = ({ childId }) => {
             src={smallLogo}
             alt="Rise Up Kids Logo"
             sx={{
-              height: { xs: '75px', sm: '110px' },
+              height: { xs: phoneFluid(52, 75), sm: '110px' },
               maxWidth: '100%',
               objectFit: 'contain',
               display: 'block',
@@ -135,14 +138,16 @@ const ChildHeader = ({ childId }) => {
             sx={{
               backgroundColor: themeColors.orange,
               color: 'white',
-              padding: '16px 32px',
+              padding: { xs: `${phoneFluid(10, 16)} ${phoneFluid(14, 28)}`, sm: '16px 32px' },
+              // the star is text: on phones it scales with the number beside it
+              fontSize: { xs: phoneFluid(20, 24), sm: '1.5rem' },
               borderRadius: '0px',
               display: 'flex',
               alignItems: 'center',
-              gap: 1,
+              gap: { xs: 0.5, sm: 1 },
               '&:hover': {
                 backgroundColor: '#d66b47',
-                transform: 'scale(1.05)',
+                transform: { xs: 'none', sm: 'scale(1.05)' },
               },
               transition: 'all 0.3s ease',
             }}
@@ -153,7 +158,7 @@ const ChildHeader = ({ childId }) => {
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 700,
-                fontSize: '24px',
+                fontSize: { xs: phoneFluid(20, 24), sm: '24px' },
                 textTransform: 'none',
                 color: 'white',
               }}
@@ -169,6 +174,8 @@ const ChildHeader = ({ childId }) => {
               color: themeColors.textInverse,
               padding: '8px',
               borderRadius: '8px',
+              // an invisible, do-nothing button (white on white): on phones it only takes room from the logo
+              display: { xs: 'none', sm: 'inline-flex' },
               '&:hover': {
                 backgroundColor: 'rgba(255, 255, 255, 0.3)',
                 transform: 'scale(1.05)',

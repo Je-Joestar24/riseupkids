@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildModuleFooter Component
@@ -12,7 +13,7 @@ const ChildModuleFooter = () => {
     <Box
       sx={{
         width: '100%',
-        padding: '32px',
+        padding: { xs: phoneFluid(18, 32), sm: '32px' },
         backgroundColor: themeColors.textInverse, // White background
         borderRadius: '24px',
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', // shadow-xl
@@ -56,7 +57,7 @@ const ChildModuleFooter = () => {
       {/* Main Title - "You're doing great!" */}
       <Typography
         sx={{
-          fontSize: '24px',
+          fontSize: { xs: phoneFluid(20, 24), sm: '24px' },
           fontWeight: 600,
           color: themeColors.primary, // Primary color
           marginBottom: '8px',
@@ -69,7 +70,7 @@ const ChildModuleFooter = () => {
       {/* Subtitle */}
       <Typography
         sx={{
-          fontSize: '18px',
+          fontSize: { xs: phoneFluid(15, 18), sm: '18px' },
           fontWeight: 400,
           color: themeColors.secondary, // Secondary color
           lineHeight: 1.5,

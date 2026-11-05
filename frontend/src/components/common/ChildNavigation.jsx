@@ -9,6 +9,7 @@ import {
 import childDarkIcon from '../../assets/images/child_dark.png';
 import childWhiteIcon from '../../assets/images/child.png';
 import { themeColors } from '../../config/themeColors';
+import { phoneFluid } from '../../constants/childPhoneLayout';
 
 /**
  * Custom Sparkles Icon Component (SVG)
@@ -55,6 +56,8 @@ const ChildNavigation = ({ childId }) => {
   const theme = useTheme();
   const isPhone = useMediaQuery(theme.breakpoints.down('sm'));
   const iconSize = isPhone ? 37 : 36;
+  // phones: the icon shrinks a little on very small screens (computers and tablets keep 36px)
+  const iconSizeCss = isPhone ? phoneFluid(28, 37) : '36px';
 
   // Determine current route value
   // Checks location.state.from to override active nav when needed
@@ -110,20 +113,20 @@ const ChildNavigation = ({ childId }) => {
       <style>
         {`
           .child-nav-icon {
-            width: ${iconSize}px !important;
-            height: ${iconSize}px !important;
-            min-width: ${iconSize}px !important;
-            min-height: ${iconSize}px !important;
-            max-width: ${iconSize}px !important;
-            max-height: ${iconSize}px !important;
+            width: ${iconSizeCss} !important;
+            height: ${iconSizeCss} !important;
+            min-width: ${iconSizeCss} !important;
+            min-height: ${iconSizeCss} !important;
+            max-width: ${iconSizeCss} !important;
+            max-height: ${iconSizeCss} !important;
           }
           .child-nav-icon svg {
-            width: ${iconSize}px !important;
-            height: ${iconSize}px !important;
-            min-width: ${iconSize}px !important;
-            min-height: ${iconSize}px !important;
-            max-width: ${iconSize}px !important;
-            max-height: ${iconSize}px !important;
+            width: ${iconSizeCss} !important;
+            height: ${iconSizeCss} !important;
+            min-width: ${iconSizeCss} !important;
+            min-height: ${iconSizeCss} !important;
+            max-width: ${iconSizeCss} !important;
+            max-height: ${iconSizeCss} !important;
           }
         `}
       </style>
@@ -201,14 +204,14 @@ const ChildNavigation = ({ childId }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: { xs: '37px', sm: '36px' },
-                  height: { xs: '37px', sm: '36px' },
+                  width: { xs: phoneFluid(28, 37), sm: '36px' },
+                  height: { xs: phoneFluid(28, 37), sm: '36px' },
                   color: isActive 
                     ? (item.value === 'wall' ? themeColors.secondary : 'white')
                     : inactiveColor,
                   '& > *': {
-                    width: `${iconSize}px !important`,
-                    height: `${iconSize}px !important`,
+                    width: `${iconSizeCss} !important`,
+                    height: `${iconSizeCss} !important`,
                   },
                   '& svg': {
                     color: isActive 
@@ -250,7 +253,7 @@ const ChildNavigation = ({ childId }) => {
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: { xs: '14px', sm: '14px' },
+                  fontSize: { xs: phoneFluid(11, 14), sm: '14px' },
                   fontWeight: isActive ? 700 : 500,
                   color: isActive 
                     ? (item.value === 'wall' ? themeColors.secondary : 'white')

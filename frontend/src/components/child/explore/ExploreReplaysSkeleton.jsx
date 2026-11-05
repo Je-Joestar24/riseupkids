@@ -18,7 +18,10 @@ const ExploreReplaysSkeleton = () => (
     <Box sx={{ display: 'flex', gap: 2, overflow: 'hidden', paddingBottom: 1 }}>
       {Array.from({ length: CARD_COUNT }, (_, index) => (
         <Box key={index} sx={{ width: '288px', flexShrink: 0, backgroundColor: 'white', overflow: 'hidden' }}>
-          <Bone variant="rectangular" sx={{ width: '100%', aspectRatio: EXPLORE_COVER_ASPECT_RATIO }} />
+          <Bone
+            variant="rectangular"
+            sx={{ width: '100%', aspectRatio: { xs: 'auto', sm: EXPLORE_COVER_ASPECT_RATIO }, height: { xs: '160px', sm: 'auto' } }}
+          />
           <Box sx={{ padding: '16px' }}>
             <Bone sx={{ width: '80%', height: 24, marginBottom: '8px' }} />
             <Bone sx={{ width: '50%', height: 18 }} />

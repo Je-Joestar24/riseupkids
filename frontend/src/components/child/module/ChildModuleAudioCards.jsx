@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import RemoteImage from '../common/RemoteImage';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 import audioPlaceholder from '../../../assets/images/audio.png';
@@ -41,7 +42,8 @@ const ChildModuleAudioCards = ({
         cursor: 'pointer',
         transition: 'transform 0.2s ease',
         '&:hover': {
-          transform: 'scale(1.05)',
+          // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+          transform: { xs: 'none', sm: 'scale(1.05)' },
         },
         backgroundColor: themeColors.textInverse,
         borderRadius: '0px', // Pointy borders (not rounded)
@@ -170,7 +172,7 @@ const ChildModuleAudioCards = ({
       {/* Content Section - 20px padding all sides */}
       <Box
         sx={{
-          padding: '20px',
+          padding: { xs: phoneFluid(10, 20), sm: '20px' },
         }}
       >
         {/* Title - 16px font size */}
@@ -241,6 +243,9 @@ const ChildModuleAudioCards = ({
         <Box
           sx={{
             display: 'flex',
+            // phones: the stars badge drops under the label when the narrow card cannot hold both
+            flexWrap: { xs: 'wrap', sm: 'nowrap' },
+            gap: { xs: '8px', sm: 'normal' },
             justifyContent: 'space-between',
             alignItems: 'center',
           }}

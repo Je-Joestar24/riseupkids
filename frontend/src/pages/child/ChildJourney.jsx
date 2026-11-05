@@ -9,6 +9,7 @@ import ChildJourneyCardsSkeleton from '../../components/child/journey/ChildJourn
 import ChildLoadError from '../../components/child/common/ChildLoadError';
 import { JOURNEY_REFRESH_MIN_AGE_MS } from '../../store/slices/childJourneySlice';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { PHONE_PAGE_SIDE_PADDING } from '../../constants/childPhoneLayout';
 
 /**
  * ChildJourney Page
@@ -116,7 +117,8 @@ const ChildJourney = ({ childId }) => {
         minHeight: '100vh',
         backgroundColor: themeColors.primary, // --theme-primary: #62caca
         paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
-        paddingTop: '40px',
+        // phones: the margin all round comes from the container below, so little is needed up here
+        paddingTop: { xs: '4px', sm: '40px' },
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -128,7 +130,7 @@ const ChildJourney = ({ childId }) => {
           width: '100%',
           maxWidth: '848px',
           backgroundColor: 'transparent',
-          padding: { xs: '16px', sm: '32px' },
+          padding: { xs: PHONE_PAGE_SIDE_PADDING, sm: '32px' },
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

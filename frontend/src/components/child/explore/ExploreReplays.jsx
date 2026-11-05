@@ -12,6 +12,7 @@ import { VideoPlayerModal } from '../common/lazyModals';
 import useIdlePreload from '../../../hooks/useIdlePreload';
 import { buildExploreVideoForPlayer } from '../../../utils/exploreVideoPlayback';
 import themeColors from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ExploreReplays Component
@@ -132,11 +133,11 @@ const ExploreReplays = ({ childId }) => {
             component="span"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
+              fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
               fontWeight: 700,
               color: 'white',
               backgroundColor: themeColors.primary,
-              paddingX: '16px',
+              paddingX: { xs: phoneFluid(10, 16), sm: '16px' },
               borderRadius: '4px'
             }}
           >
@@ -145,7 +146,7 @@ const ExploreReplays = ({ childId }) => {
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '24px',
+              fontSize: { xs: phoneFluid(19, 24), sm: '24px' },
               fontWeight: 700,
               color: theme.palette.secondary.main,
             }}
@@ -159,7 +160,7 @@ const ExploreReplays = ({ childId }) => {
           onClick={handleSeeAll}
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '18px',
+            fontSize: { xs: phoneFluid(15, 18), sm: '18px' },
             fontWeight: 700,
             color: theme.palette.orange.main,
             textTransform: 'none',

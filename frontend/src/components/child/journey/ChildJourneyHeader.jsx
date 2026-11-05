@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { themeColors } from '../../../config/themeColors';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildJourneyHeader Component
@@ -20,17 +21,19 @@ const ChildJourneyHeader = ({ week = 3, totalWeeks = 36, loading = false }) => {
         width: '100%',
         maxWidth: '848px',
         backgroundColor: 'transparent',
-        marginBottom: '32px',
+        marginBottom: { xs: phoneFluid(14, 24), sm: '32px' },
         textAlign: 'center',
       }}
     >
       {/* Title */}
       <Typography
         sx={{
-          fontSize: '36px',
+          fontSize: { xs: phoneFluid(24, 32), sm: '36px' },
+          // phones: the app's tight 1.15 (computers and tablets keep the page's usual 1.6)
+          lineHeight: { xs: 1.15, sm: 1.6 },
           fontWeight: 600,
           color: themeColors.textInverse, // White color
-          marginBottom: '8px',
+          marginBottom: { xs: phoneFluid(8, 14), sm: '8px' },
           fontFamily: theme.typography.fontFamily,
         }}
       >
@@ -40,7 +43,7 @@ const ChildJourneyHeader = ({ week = 3, totalWeeks = 36, loading = false }) => {
       {/* Subtitle - Progress */}
       <Typography
         sx={{
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
           fontWeight: 600,
           color: themeColors.textInverse, // White color
           fontFamily: theme.typography.fontFamily,

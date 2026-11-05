@@ -5,6 +5,7 @@ import sampleImage from '../../../assets/images/sample.webp';
 import { themeColors } from '../../../config/themeColors';
 import { useNavigate, useParams } from 'react-router-dom';
 import { InlineBone } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 /**
  * ChildHomeStartLearning Component
@@ -26,7 +27,7 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
       aria-busy={loading}
       sx={{
         backgroundColor: 'white',
-        padding: '32px',
+        padding: { xs: phoneFluid(16, 28), sm: '32px' },
         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
         border: `4px solid ${themeColors.orange}`, // --theme-orange: #e98a68
         borderRadius: '0px',
@@ -37,21 +38,21 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: '16px',
-          marginBottom: '24px',
+          gap: { xs: phoneFluid(10, 16), sm: '16px' },
+          marginBottom: { xs: phoneFluid(16, 24), sm: '24px' },
         }}
       >
         {/* Avatar */}
         <Box
           sx={{
-            width: '128px',
-            height: '128px',
+            width: { xs: phoneFluid(64, 96), sm: '128px' },
+            height: { xs: phoneFluid(64, 96), sm: '128px' },
             borderRadius: '50%',
             backgroundColor: themeColors.primary, // --theme-primary: #62caca
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
+            padding: { xs: phoneFluid(9, 15), sm: '20px' },
             flexShrink: 0,
           }}
         >
@@ -67,12 +68,13 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
           />
         </Box>
 
-        {/* Greeting Text */}
-        <Box>
+        {/* Greeting Text (phones: takes the room left beside the avatar so a long name wraps inside the card) */}
+        <Box sx={{ flex: { xs: '1 1 0', sm: '0 1 auto' }, minWidth: { xs: 0, sm: 'auto' } }}>
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '36px',
+              fontSize: { xs: phoneFluid(22, 30), sm: '36px' },
+              overflowWrap: { xs: 'anywhere', sm: 'normal' },
               fontWeight: 600,
               color: themeColors.primary, // --theme-primary: #62caca
               marginBottom: '4px',
@@ -84,7 +86,7 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '20px',
+              fontSize: { xs: phoneFluid(15, 19), sm: '20px' },
               color: themeColors.textSubheading,
               lineHeight: 1.4,
             }}
@@ -101,22 +103,24 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
         sx={{
           backgroundColor: themeColors.accent, // --theme-accent: #f2af10
           color: 'white',
-          padding: '24px 32px',
-          fontSize: '24px',
+          padding: { xs: `${phoneFluid(14, 22)} ${phoneFluid(12, 24)}`, sm: '24px 32px' },
+          fontSize: { xs: phoneFluid(18, 24), sm: '24px' },
           fontWeight: 600,
           fontFamily: 'Quicksand, sans-serif',
           textTransform: 'none',
+          whiteSpace: { xs: 'nowrap', sm: 'normal' },
           borderRadius: '0px',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '12px',
+          gap: { xs: phoneFluid(6, 10), sm: '12px' },
           transition: 'all 0.3s ease',
           '&:hover': {
             backgroundColor: '#e09f00',
             boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-            transform: 'scale(1.05)',
+            // a finger leaves no pointer behind, so the grow-on-hover effect would only stick on a phone
+            transform: { xs: 'none', sm: 'scale(1.05)' },
           },
           '&:active': {
             transform: 'scale(0.95)',
@@ -125,7 +129,7 @@ const ChildHomeStartLearning = ({ child, loading = false }) => {
       >
         <PlayArrowIcon
           sx={{
-            fontSize: '40px',
+            fontSize: { xs: phoneFluid(28, 36), sm: '40px' },
             fill: 'white',
           }}
         />

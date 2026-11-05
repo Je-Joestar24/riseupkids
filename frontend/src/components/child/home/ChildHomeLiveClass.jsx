@@ -13,10 +13,11 @@ import youtubeService from '../../../services/youtubeService';
 import useYouTubeLive from '../../../hooks/youtubeHook';
 import { useSelector } from 'react-redux';
 import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const CARD_STYLE = {
   backgroundColor: 'white',
-  padding: '24px',
+  padding: { xs: phoneFluid(14, 24), sm: '24px' },
   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
   border: `4px solid ${themeColors.secondary}`,
   borderRadius: '0px',
@@ -388,7 +389,7 @@ const ChildHomeLiveClass = () => {
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: '20px',
+                  fontSize: { xs: phoneFluid(17, 20), sm: '20px' },
                   fontWeight: 600,
                   color: themeColors.primary,
                 }}
@@ -403,8 +404,8 @@ const ChildHomeLiveClass = () => {
             sx={{
               backgroundColor: themeColors.primary,
               color: 'white',
-              padding: '20px 32px',
-              fontSize: '24px',
+              padding: { xs: `${phoneFluid(14, 18)} ${phoneFluid(12, 24)}`, sm: '20px 32px' },
+              fontSize: { xs: phoneFluid(18, 24), sm: '24px' },
               fontWeight: 600,
               fontFamily: 'Quicksand, sans-serif',
               textTransform: 'none',
@@ -417,7 +418,7 @@ const ChildHomeLiveClass = () => {
               '&:hover': {
                 backgroundColor: themeColors.primary,
                 boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                transform: 'scale(1.02)',
+                transform: { xs: 'none', sm: 'scale(1.02)' },
               },
             }}
           >

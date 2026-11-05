@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import { EXPLORE_VIDEO_TYPES } from '../../../constants/exploreVideoTypes';
 import starsImage from '../../../assets/images/stars.png';
 
@@ -45,7 +46,7 @@ const ExploreVideosFooter = ({ videoType }) => {
     <Box
       sx={{
         width: '100%',
-        padding: '32px',
+        padding: { xs: phoneFluid(18, 32), sm: '32px' },
         backgroundColor: themeColors.bgCard,
         borderRadius: '0px',
         display: 'flex',
@@ -61,6 +62,9 @@ const ExploreVideosFooter = ({ videoType }) => {
           alignItems: 'center',
           justifyContent: 'center',
           gap: '8px',
+          // phones: the three stars shrink a little on small screens (64 / 80 / 64px on computers and tablets)
+          '& svg': { width: { xs: phoneFluid(44, 64), sm: '64px' }, height: { xs: phoneFluid(44, 64), sm: '64px' } },
+          '& svg:nth-of-type(2)': { width: { xs: phoneFluid(56, 80), sm: '80px' }, height: { xs: phoneFluid(56, 80), sm: '80px' } },
         }}
       >
         {/* First Star - Orange, 64px */}
@@ -117,7 +121,7 @@ const ExploreVideosFooter = ({ videoType }) => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '30px',
+          fontSize: { xs: phoneFluid(22, 30), sm: '30px' },
           fontWeight: 700,
           color: themeColors.secondary,
           textAlign: 'center',
@@ -131,7 +135,7 @@ const ExploreVideosFooter = ({ videoType }) => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
           fontWeight: 600,
           color: 'oklch(0.446 0.03 256.802)',
           textAlign: 'center',
