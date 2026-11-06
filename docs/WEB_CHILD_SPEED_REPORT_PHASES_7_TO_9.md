@@ -2,7 +2,7 @@
 ## Progress report: Phases 7 to 9
 
 Date: 6 November 2026
-Scope: the built-in books on the website, and how the child pages look on a phone (Home, My Journey, the course page, Explore, Explore Videos, and the top bar and bottom tabs every child page shares).
+Scope: the built-in books on the website, and how the child pages look on a phone (Home, My Journey, the course page, Explore, Explore Videos, Printables, Kids' Wall, and the top bar and bottom tabs every child page shares).
 Goal: make books open fast and stay saved, and make the child pages look as clean on a phone as the phone app does, without changing anything on a computer.
 
 This continues the report for Phases 4 to 6.
@@ -15,11 +15,11 @@ This continues the report for Phases 4 to 6.
 
 **Phase 8 — Books stay saved between visits.** Once a book has been opened, its sounds and videos are kept on the child's device. The next visit needs no download at all, also with the internet off. If a book is edited, only the files that changed are downloaded again.
 
-**Phase 9 — The phone look.** Home, My Journey, the course page, Explore and Explore Videos, plus the top bar and bottom tabs, now follow the phone app's look on a phone: the same side margins, sizes that fit a small screen (checked from a 320 px screen up to a large phone), cards laid out the way the app lays them out, and nothing wider than the screen. The share card on Explore Videos is left out on phones, like in the app. The "Try again" button on the drag-and-drop book page is smaller on a phone held sideways.
+**Phase 9 — The phone look.** Home, My Journey, the course page, Explore, Explore Videos, Printables and Kids' Wall, plus the top bar and bottom tabs, now follow the phone app's look on a phone: the same side margins, sizes that fit a small screen (checked from a 320 px screen up to a large phone), cards laid out the way the app lays them out, and nothing wider than the screen. The share card on Explore Videos is left out on phones, like in the app. The "Try again" button on the drag-and-drop book page is smaller on a phone held sideways.
 
 **On a computer or a tablet nothing changed.** This was measured, not assumed: every box on the pages was recorded in a real browser before and after, at four screen widths, and the two matched exactly.
 
-The automated test suite grew from 67 files and 904 tests (after Phase 6) to **FILES files and TESTS tests**, and every phase was checked by breaking the code on purpose to confirm the tests catch it.
+The automated test suite grew from 67 files and 904 tests (after Phase 6) to **84 files and 1,156 tests**, and every phase was checked by breaking the code on purpose to confirm the tests catch it.
 
 ---
 
@@ -38,6 +38,8 @@ The automated test suite grew from 67 files and 904 tests (after Phase 6) to **F
 | My Journey on a phone | Full-width cards with a very tall picture; a Progress Summary wider than a small screen | Centred cards like the app; the summary fits |
 | The course page on a phone | Content squeezed into a narrow column; stat cards stacked; one huge card per row; white titles on a pale page | App-like margins; stat cards side by side; two cards per row; dark, readable titles |
 | Explore and Explore Videos on a phone | Computer-sized text and tall pictures | A little more room at the sides; the app's picture heights; text that scales; no share card |
+| Printables on a phone | Title squeezed into a thin column, Download button pushed off the screen | A stacked card per printable: picture, words, then a full-width Download button |
+| Kids' Wall on a phone | Header, share card and every post touching both screen edges; small like and star buttons; long posts running on | Side margins like the app; scaled-down header, share card and footer; bigger like and star buttons; long titles and texts cut with "…" at two and four lines |
 | "Try again" on the drag-and-drop page, phone held sideways | Very large | 40% smaller (60% of its old size) |
 
 ---
@@ -94,18 +96,22 @@ How it was done: a small sizing rule gives each size a value that grows with the
 
 **Explore Videos.** The same extra room; the header, its icon and its stars row scale; each video card uses the app's 192 px picture; the three footer stars shrink; the placeholders match. **The share card ("Made something tasty?" and its button) is left out on phones**, as in the app, where it is hidden whenever Kids' Wall is off. Tablets and computers still show it.
 
+**Printables.** Each printable used to be one row (picture, words and Download button side by side), which cannot fit a phone: the title was squeezed into a thin column and the button was pushed off the right edge. On a phone each printable is now a card: the picture on top (no empty box when it has none), then the title and description, then a full-width Download button that is easy to tap. The cards use the whole width, the title and printer shrink on small screens, and the first-load placeholder has the same shape. Tablets and computers keep the row.
+
+**Kids' Wall.** The page had no side space at all, so the header, the share card and every post card (and its square picture) touched both screen edges. On a phone it now has the app's side space. The header, the share card (its sparkles, title, words and button) and the footer scale down on small screens. On each post the heart and the "Great!" button are bigger and roomier to tap, as in the app, and a long title or text is cut with "…" at two and four lines, as the app does (the full text is no longer shown on a phone). The Share button and the heart no longer grow on hover on a phone. The first-load placeholder has the same spacing. Tablets and computers keep every value they had: two columns and the full text.
+
 **"Try again" on the drag-and-drop book page.** 40% smaller on a phone held sideways, shrinking toward its own corner so it stays where it was. Computers, tablets, a phone held upright and the admin preview are unchanged.
 
 ---
 
 ## 4. How it was verified
 
-- **Automated tests:** FILES files and TESTS tests, all passing (67 files and 904 tests after Phase 6).
+- **Automated tests:** 84 files and 1,156 tests, all passing (67 files and 904 tests after Phase 6).
   - Phase 7: a fake network the test controls (slow, failing, blocked, cut off, too big, stalled), tests for the plan, the downloader and the page sources, and whole-flow tests from tapping a book to closing it.
   - Phase 8: a fake device storage (full, off, damaged, never answering), tests for the saving layer and the downloader with it, and whole-flow tests across a first visit, repeat visits and an edited book.
-  - Phase 9: tests that read the style rules each page really generates and check that screens of 600 px and wider keep exactly their original values while phones get the new ones, for Home, My Journey, the course page, Explore, Explore Videos and the Try again button.
-- **Broken on purpose:** each phase's code was deliberately broken in many ways to prove the tests notice. Phase 7: about 64 ways. Phase 8: 28. Phase 9: about 125. Every one is now caught.
-- **Computer and tablet view compared, element by element.** For each page the position, size, spacing, font, colour and shadow of every element were recorded in a real browser at 1280, 1024, 768 and 600 px, from the committed code and from the new code: 103 elements on Home, 141 on My Journey, 262 on the course page, 247 on Explore and 156 on Explore Videos. **Zero differences.** This check also caught two small mistakes of mine along the way, which were fixed.
+  - Phase 9: tests that read the style rules each page really generates and check that screens of 600 px and wider keep exactly their original values while phones get the new ones, for Home, My Journey, the course page, Explore, Explore Videos, Printables, Kids' Wall and the Try again button.
+- **Broken on purpose:** each phase's code was deliberately broken in many ways to prove the tests notice. Phase 7: about 64 ways. Phase 8: 28. Phase 9: 238. Every one is now caught.
+- **Computer and tablet view compared, element by element.** For each page the position, size, spacing, font, colour and shadow of every element were recorded in a real browser at 1280, 1024, 768 and 600 px, from the committed code and from the new code: 103 elements on Home, 141 on My Journey, 262 on the course page, 247 on Explore, 156 on Explore Videos, 127 on Printables, and on Kids' Wall 155 with posts, 127 while loading and 70 with uploads off and no posts. **Zero differences.** This check also caught two small mistakes of mine along the way, which were fixed.
 - **Real browser checks.** Phase 7 and 8: a local file server on another address with real sound and video files, slowed down and made to fail on demand; the second visit asked for no sound or video, the files played from the saved copies, an edited file was the only one fetched again, and the size cap removed the oldest book. Phase 9: every page at 280, 320, 360, 375 and 412 px with long names and four-digit numbers, with nothing wider than the screen.
 - **A real Android phone** (Oppo Reno 8z) showed the web and app screens side by side for Home, My Journey and the course page, which is where those fixes came from.
 - **The website builds** after every phase.
@@ -120,7 +126,8 @@ How it was done: a small sizing rule gives each size a value that grows with the
 - **A video page's Next can wait up to 12 seconds on a slow connection**, where before it opened at once and the video streamed.
 - **Saved books are per device and per browser.** A browser may clear a site's storage when it is short of space, and Safari clears it after a period without use; the book then simply downloads again.
 - **Saving needs the media host to allow the website.** This is set up and was checked. Without it, files still play from the internet but are not saved.
-- **Not yet looked at on a phone:** Kids' Wall, Profile, the Printables page itself, and the pop-ups.
+- **Kids' Wall was done from the app's code, without phone screenshots**, and its upload form (the page that opens from "Share Something Cool!") is not part of this change.
+- **Not yet looked at on a phone:** the Kids' Wall upload form, Profile, and the pop-ups.
 - **Still to come:** the rest of the phone pass, and a first-book warm-up while the module page is idle.
 
 ---
@@ -140,7 +147,9 @@ On a phone:
 6. Open a course: stat cards side by side, two cards per row in each section, titles readable.
 7. Explore: replay cards with the shorter picture; the six collections fit. Open one: no share card; the video cards have the shorter picture.
 8. Open a drag-and-drop book page with the phone held sideways: the "Try again" button is clearly smaller than before.
-9. Try the smallest phone you have (or a narrow window): nothing is cut off at the sides.
+9. Open Printables from a course: each printable is a card with the picture on top and a full-width Download button; nothing is cut off at the sides.
+10. Open Kids' Wall: margins at both sides, a bigger heart and "Great!" button, long posts cut with "…", nothing cut off at the sides.
+11. Try the smallest phone you have (or a narrow window): nothing is cut off at the sides.
 
 ---
 
@@ -156,6 +165,8 @@ On a phone:
 | Phase 9: Home and My Journey | `pages/child/ChildHome.jsx`, `components/child/home/`, `pages/child/ChildJourney.jsx`, `components/child/journey/` |
 | Phase 9: the course page | `pages/child/ChildJourneyModule.jsx`, `components/child/module/` |
 | Phase 9: Explore and Explore Videos | `pages/child/ChildExplore.jsx`, `pages/child/ChildExploreVideos.jsx`, `components/child/explore/`, `components/child/explorevideos/` |
+| Phase 9: Printables | `pages/child/ChildModulePrintables.jsx`, `components/child/printables/` |
+| Phase 9: Kids' Wall | `pages/child/ChildKidsWall.jsx`, `components/child/kidswall/` |
 | Phase 9: Try again button | `components/admin/common/cmsTest/InteractiveTest.jsx` |
 | Tests added for these phases | `utils/cmsBookMedia*.test.js`, `hooks/useCmsBookMedia.test.jsx`, `hooks/cmsMediaSrc.test.jsx`, `components/child/module/cmsBookLoading.e2e.test.jsx`, `components/child/module/cmsBookSaved.e2e.test.jsx`, `constants/childPhoneLayout.test.js`, `pages/child/Child*PhoneLayout.test.jsx`, `components/admin/common/cmsTest/InteractiveTest.retryButton.test.jsx`; helpers `test/fakeNetwork.js`, `test/fakeCacheStorage.js`, `test/readResponsiveCss.js` |
 | Notes for each phase | `docs/WEB_CHILD_PHASE7_BOOK_LOADING.md`, `docs/WEB_CHILD_PHASE8_BOOK_SAVING.md`, `docs/WEB_CHILD_PHASE9_PHONE_HOME_JOURNEY.md` |

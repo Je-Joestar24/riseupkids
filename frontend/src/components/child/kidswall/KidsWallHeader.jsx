@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import starsImage from '../../../assets/images/stars.png';
 
 /**
@@ -13,10 +14,10 @@ const KidsWallHeader = () => {
     <Box
       sx={{
         width: '100%',
-        padding: '24px',
+        padding: { xs: phoneFluid(16, 24), sm: '24px' },
         border: '4px solid',
         borderColor: themeColors.orange,
-        marginBottom: '32px',
+        marginBottom: { xs: phoneFluid(20, 32), sm: '32px' },
         backgroundColor: themeColors.bgCard,
         borderRadius: '0px',
       }}
@@ -35,7 +36,7 @@ const KidsWallHeader = () => {
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 700,
-            fontSize: '30px',
+            fontSize: { xs: phoneFluid(24, 30), sm: '30px' },
             color: themeColors.secondary,
             textAlign: 'center',
             marginBottom: '0px',
@@ -43,12 +44,13 @@ const KidsWallHeader = () => {
         >
           Show & Tell!
         </Typography>
-        <img
+        <Box
+          component="img"
           src={starsImage}
           alt="Stars"
-          style={{
-            width: '48px',
-            height: '48px',
+          sx={{
+            width: { xs: phoneFluid(36, 48), sm: '48px' },
+            height: { xs: phoneFluid(36, 48), sm: '48px' },
             objectFit: 'contain',
           }}
         />
@@ -57,7 +59,7 @@ const KidsWallHeader = () => {
         component="p"
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(16, 20), sm: '20px' },
           color: 'oklch(0.551 0.027 264.364)',
           textAlign: 'center',
           fontWeight: 600

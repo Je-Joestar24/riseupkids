@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography, IconButton, Button } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import RemoteImage from '../common/RemoteImage';
 import { getCoverImageUrl } from '../../../utils/coverImageUrl';
 
@@ -110,8 +111,8 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
           sm: 'repeat(2, 1fr)',
           md: 'repeat(2, 1fr)',
         },
-        gap: '24px',
-        marginBottom: '32px',
+        gap: { xs: phoneFluid(16, 24), sm: '24px' },
+        marginBottom: { xs: phoneFluid(20, 32), sm: '32px' },
       }}
     >
       {posts.map((post, index) => {
@@ -165,7 +166,7 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
             )}
 
             {/* Second Row: Details and Interactions */}
-            <Box sx={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ padding: { xs: phoneFluid(12, 16), sm: '16px' }, display: 'flex', flexDirection: 'column' }}>
               {/* First Row: Name and Age */}
               <Box
                 sx={{
@@ -231,6 +232,12 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                     color: themeColors.secondary,
                     marginBottom: '8px',
                     lineHeight: 1.3,
+                    // phones: two lines at most, like the app
+                    display: { xs: '-webkit-box', sm: 'block' },
+                    WebkitBoxOrient: { xs: 'vertical', sm: 'horizontal' },
+                    WebkitLineClamp: { xs: 2, sm: 'none' },
+                    overflow: { xs: 'hidden', sm: 'visible' },
+                    overflowWrap: { xs: 'anywhere', sm: 'normal' },
                   }}
                 >
                   {post.title}
@@ -241,6 +248,12 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                     fontSize: '14px',
                     color: 'oklch(0.446 0.03 256.802)',
                     lineHeight: 1.5,
+                    // phones: four lines at most, like the app
+                    display: { xs: '-webkit-box', sm: 'block' },
+                    WebkitBoxOrient: { xs: 'vertical', sm: 'horizontal' },
+                    WebkitLineClamp: { xs: 4, sm: 'none' },
+                    overflow: { xs: 'hidden', sm: 'visible' },
+                    overflowWrap: { xs: 'anywhere', sm: 'normal' },
                   }}
                 >
                   {post.content}
@@ -266,14 +279,16 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                     alignItems: 'center',
                     gap: '4px',
                     color: isLiked ? themeColors.orange : 'rgb(107, 114, 128)',
-                    padding: '4px',
+                    // phones: a bigger heart and a roomier button, easy to tap
+                    padding: { xs: '10px 8px', sm: '4px' },
                     border: 'none',
                     background: 'transparent',
                     cursor: 'pointer',
                     fontFamily: 'Quicksand, sans-serif',
                     fontSize: '14px',
+                    '& svg': { width: { xs: '20px', sm: '16px' }, height: { xs: '20px', sm: '16px' } },
                     '&:hover': {
-                      transform: 'scale(1.1)',
+                      transform: { xs: 'none', sm: 'scale(1.1)' },
                     },
                     transition: 'all 0.2s',
                   }}
@@ -290,7 +305,7 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px',
-                    padding: '4px 8px',
+                    padding: { xs: '10px 12px', sm: '4px 8px' },
                     backgroundColor: isStarred ? themeColors.accent : themeColors.bgTertiary,
                     color: isStarred ? themeColors.textInverse : 'rgb(107, 114, 128)',
                     fontFamily: 'Quicksand, sans-serif',
@@ -298,6 +313,7 @@ const KidsWallCards = ({ posts = [], onDelete, onToggleLike, onToggleStar, curre
                     textTransform: 'none',
                     borderRadius: '4px',
                     minWidth: 'auto',
+                    '& svg': { width: { xs: '18px', sm: '16px' }, height: { xs: '18px', sm: '16px' } },
                     '&:hover': {
                       backgroundColor: isStarred ? themeColors.accent : themeColors.border,
                     },

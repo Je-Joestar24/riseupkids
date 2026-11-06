@@ -1,4 +1,4 @@
-# Web child side — Phase 9: phone look for Home, My Journey, the course page, Explore, Explore Videos and the shared top bar and tabs
+# Web child side — Phase 9: phone look for Home, My Journey, the course page, Explore, Explore Videos, Printables, Kids' Wall and the shared top bar and tabs
 
 Follows the earlier phone work (Phase 6: players and the profile picker). Web only. Tablets and computers (600px and
 wider) are unchanged; every change below sits on the phone side (under 600px) of a responsive value.
@@ -44,6 +44,18 @@ wider) are unchanged; every change below sits on the phone side (under 600px) of
   scale down; each video card uses the app's 192px picture and fluid text padding and title; the three footer stars shrink; the
   placeholders have the same picture heights. **The share card ("Made Something Tasty?" and its button) is left out on phones**,
   as in the app (where it is hidden whenever Kids' Wall is off); tablets and computers still show it.
+- **Printables** (`ChildModulePrintables` and its pieces): each printable was one row (a 128px picture, the words and the Download
+  button side by side), which cannot fit a phone: the title was squeezed into a thin column and the button pushed off the right edge
+  of the screen. On phones each printable is now a stacked card: the picture on top (no empty box when it has none), then the title and
+  description, then a full-width Download button that is easy to tap. The cards use the whole width, the title and printer shrink on
+  small screens, and the first-load placeholder has the same stacked shape. Tablets and computers keep the row.
+- **Kids' Wall** (`ChildKidsWall` and its pieces: header, share card, post cards, footer, first-load placeholder): the page had no
+  side space at all, so the header, the share card and every post card (and its square picture) touched both screen edges. Phones
+  now get the app's side space (12 to 18px depending on the screen, 16px in the app). The header, the share card (its sparkles,
+  title, words and button) and the footer scale down on small screens. On each post the heart and the "Great!" button are bigger
+  and roomier to tap (a 20px heart and an 18px star, as in the app; they were 16px with 4px of space), and a long title or text is
+  cut with "…" at two and four lines, as the app does. The Share button and the heart no longer grow on hover on phones. The
+  first-load placeholder has the same spacing. Tablets and computers keep every value they had (two columns, the full text).
 - **Try again button** on the drag-and-drop book page (`InteractiveTest`): 40% smaller (60% of its size), shrinking toward its own corner so it stays
   where it is, and only on a touch phone held sideways (the same rule the other sideways-phone book changes use). Computers,
   tablets, a phone held upright and the admin preview are unchanged.
@@ -54,13 +66,13 @@ wider) are unchanged; every change below sits on the phone side (under 600px) of
 
 1. **Real browser, before and after.** The committed code and the new code were each opened at 1280, 1024, 768 and 600px
    and every element's position, size, spacing, font, colour, shadow and 25 other properties were recorded (103 elements for Home,
-   141 for Journey, 262 for the course page, 247 for Explore and 156 for Explore Videos). The two matched exactly. This check caught two mistakes of mine on the way (a 140px toolbar minimum that was
+   141 for Journey, 262 for the course page, 247 for Explore, 156 for Explore Videos, 127 for Printables, and for Kids' Wall 155 with posts, 127 while loading and 70 with uploads off and no posts). The two matched exactly. This check caught two mistakes of mine on the way (a 140px toolbar minimum that was
    really 64px, and a title line height that was 1.6 not 1.5), both fixed.
 2. **Guard tests** (`pages/child/ChildHomePhoneLayout.test.jsx`, `ChildJourneyPhoneLayout.test.jsx`, helper
    `test/readResponsiveCss.js`): read the style rules the page really generates and assert the 600px-and-wider values equal the
-   original ones, and the phone values are the fluid ones. 20 tests for Home and Journey, 22 for the course page, 17 for the two Explore pages, plus 7 for the
+   original ones, and the phone values are the fluid ones. 20 tests for Home and Journey, 22 for the course page, 17 for the two Explore pages, 9 for Printables, 17 for Kids' Wall, plus 7 for the
    helper.
-3. **Break-it checks** on a scratch copy of the code: 25 deliberate breaks on Home and the shell, 24 on Journey, 37 on the course page and the Try again button, 40 on the two Explore pages; all were
+3. **Break-it checks** on a scratch copy of the code: 25 deliberate breaks on Home and the shell, 24 on Journey, 37 on the course page and the Try again button, 41 on the two Explore pages, 28 on Printables, 83 on Kids' Wall; all were
    caught.
 
 ## Seen in a real browser at 320, 360, 375 and 280px
@@ -77,7 +89,10 @@ tab labels stay readable, a long name ("Alexandrina") wraps inside the card, and
   be darkened everywhere.
 - Explore and Explore Videos were done from the code and the app's styles, without phone screenshots; sizes may need a tweak
   once you see them on a real phone.
-- The pages not yet checked on a phone: Kids' Wall, Profile, the Printables page itself, and the pop-ups. They share the
+- Kids' Wall was done from the code and the app's styles, without phone screenshots. The "Share Something Cool!" page that opens
+  from it (`ChildShareSomething`, the upload form) is not part of this change. One thing follows the app on purpose: long posts are cut
+  at two and four lines with no "read more" (on a phone the full text used to show). Say the word if the web should show it all.
+- The pages not yet checked on a phone: the Kids' Wall share form, Profile, and the pop-ups. They share the
   top bar and tabs, which are done. Send screenshots of them (web next to the app, same phone) and each gets the same treatment.
 - Pictures that start hidden then fade in (`RemoteImage`) stayed invisible in the test browser even for the committed code; they
   load normally on a real phone (the screenshots show them).

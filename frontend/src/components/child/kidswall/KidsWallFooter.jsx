@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import starsImage from '../../../assets/images/stars.png';
 
 /**
@@ -13,15 +14,15 @@ const KidsWallFooter = () => {
     <Box
       sx={{
         width: '100%',
-        marginTop: '32px',
-        padding: '32px',
+        marginTop: { xs: phoneFluid(20, 32), sm: '32px' },
+        padding: { xs: phoneFluid(20, 32), sm: '32px' },
         backgroundColor: themeColors.bgCard,
         borderRadius: '0px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '16px',
+        gap: { xs: phoneFluid(12, 16), sm: '16px' },
       }}
     >
       {/* Row 1: Stars Image */}
@@ -32,12 +33,13 @@ const KidsWallFooter = () => {
           justifyContent: 'center',
         }}
       >
-        <img
+        <Box
+          component="img"
           src={starsImage}
           alt="Stars"
-          style={{
-            width: '80px',
-            height: '80px',
+          sx={{
+            width: { xs: phoneFluid(56, 80), sm: '80px' },
+            height: { xs: phoneFluid(56, 80), sm: '80px' },
             objectFit: 'contain',
           }}
         />
@@ -47,7 +49,7 @@ const KidsWallFooter = () => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '30px',
+          fontSize: { xs: phoneFluid(22, 30), sm: '30px' },
           fontWeight: 700,
           color: themeColors.secondary,
           textAlign: 'center',
@@ -61,7 +63,7 @@ const KidsWallFooter = () => {
       <Typography
         sx={{
           fontFamily: 'Quicksand, sans-serif',
-          fontSize: '20px',
+          fontSize: { xs: phoneFluid(15, 20), sm: '20px' },
           fontWeight: 600,
           color: 'oklch(0.446 0.03 256.802)',
           textAlign: 'center',

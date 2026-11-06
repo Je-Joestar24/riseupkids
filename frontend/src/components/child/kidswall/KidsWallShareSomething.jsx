@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Button, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import { InlineBone } from '../common/ChildSkeleton';
 import {
   KIDS_WALL_UPLOAD_DISABLED_BUTTON,
@@ -31,11 +32,11 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
     <Box
       sx={{
         backgroundColor: themeColors.bgCard,
-        padding: '24px',
+        padding: { xs: phoneFluid(16, 24), sm: '24px' },
         border: '4px solid',
         borderColor: themeColors.secondary,
         borderRadius: '0px',
-        marginBottom: '32px',
+        marginBottom: { xs: phoneFluid(20, 32), sm: '32px' },
       }}
     >
       {/* First Row: Icon and Text */}
@@ -43,8 +44,8 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
         sx={{
           display: 'flex',
           alignItems: 'flex-start',
-          gap: '16px',
-          marginBottom: '16px',
+          gap: { xs: phoneFluid(10, 16), sm: '16px' },
+          marginBottom: { xs: phoneFluid(12, 16), sm: '16px' },
         }}
       >
         {/* First Column: Sparkles Icon */}
@@ -53,9 +54,11 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '48px',
-            height: '48px',
+            width: { xs: phoneFluid(36, 48), sm: '48px' },
+            height: { xs: phoneFluid(36, 48), sm: '48px' },
             flexShrink: 0,
+            // phones: the sparkles shrink with their box
+            '& svg': { width: { xs: '100%', sm: '48px' }, height: { xs: '100%', sm: '48px' } },
           }}
         >
           <svg
@@ -85,7 +88,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
             sx={{
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 700,
-              fontSize: '24px',
+              fontSize: { xs: phoneFluid(18, 24), sm: '24px' },
               color: themeColors.secondary,
               marginBottom: '4px',
             }}
@@ -96,7 +99,7 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '18px',
+              fontSize: { xs: phoneFluid(14, 18), sm: '18px' },
               color: uploadEnabled ? 'oklch(0.446 0.03 256.802)' : themeColors.textSecondary,
               fontWeight: 600
             }}
@@ -114,9 +117,9 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontWeight: 700,
-          fontSize: '1.2rem',
+          fontSize: { xs: phoneFluid(15, 19.2), sm: '1.2rem' },
           textTransform: 'none',
-          padding: '16px 24px',
+          padding: { xs: `${phoneFluid(12, 16)} ${phoneFluid(16, 24)}`, sm: '16px 24px' },
           borderRadius: '0px',
           backgroundColor: uploadEnabled ? themeColors.orange : themeColors.bgTertiary,
           color: uploadEnabled ? themeColors.textInverse : themeColors.textSecondary,
@@ -125,7 +128,8 @@ const KidsWallShareSomething = ({ childId, onSubmit, loading, uploadEnabled = tr
           '&:hover': {
             backgroundColor: uploadEnabled ? themeColors.orange : themeColors.bgTertiary,
             opacity: uploadEnabled ? 0.9 : 1,
-            transform: uploadEnabled ? 'scale(1.05)' : 'none',
+            // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+            transform: { xs: 'none', sm: uploadEnabled ? 'scale(1.05)' : 'none' },
           },
           '&:disabled': {
             backgroundColor: themeColors.bgTertiary,

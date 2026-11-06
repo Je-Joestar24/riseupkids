@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const PrintablesFooter = ({
   text = '💡 Tip: Print these pages and have fun completing them with crayons, markers, pencils, scissors, and glue!',
@@ -12,7 +13,7 @@ const PrintablesFooter = ({
         backgroundColor: '#ffffff',
         borderRadius: 3, // rounded corners
         boxShadow: '0 18px 40px rgba(0,0,0,0.12)',
-        p: '24px', // 24px all sides
+        p: { xs: phoneFluid(16, 24), sm: '24px' }, // 24px all sides (phones: a little less on small screens)
         textAlign: 'center',
       }}
     >

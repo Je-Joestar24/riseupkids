@@ -8,6 +8,7 @@ import PrintablesSkeleton from '../../components/child/printables/PrintablesSkel
 import programMaterilialsService from '../../services/programMaterilialsService';
 import { useCachedLoad } from '../../hooks/useCachedLoad';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { phoneFluid } from '../../constants/childPhoneLayout';
 
 /**
  * Child printable materials page.
@@ -76,7 +77,8 @@ const ChildModulePrintables = () => {
                 minHeight: '100vh',
                 backgroundColor: 'rgb(212, 230, 227)',
                 paddingBottom: CHILD_PAGE_NAV_CLEARANCE,
-                px: { xs: 2, sm: 3 },
+                // phones: a little more room at the sides (16px before)
+                px: { xs: phoneFluid(14, 22), sm: 3 },
                 py: 4,
                 display: 'flex',
                 justifyContent: 'center',

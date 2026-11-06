@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
 
 const CARD_COUNT = 4;
@@ -10,18 +11,18 @@ const CARD_COUNT = 4;
  * name line, title and text, like/star row), so nothing moves when the posts arrive.
  */
 const KidsWallCardsSkeleton = () => (
-  <SkeletonFrame label="Loading posts" sx={{ marginBottom: '32px' }}>
+  <SkeletonFrame label="Loading posts" sx={{ marginBottom: { xs: phoneFluid(20, 32), sm: '32px' } }}>
     <Box
       sx={{
         display: 'grid',
         gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
-        gap: '24px',
+        gap: { xs: phoneFluid(16, 24), sm: '24px' },
       }}
     >
       {Array.from({ length: CARD_COUNT }, (_, index) => (
         <Box key={index} sx={{ backgroundColor: themeColors.bgCard, overflow: 'hidden' }}>
           <Bone variant="rectangular" sx={{ width: '100%', aspectRatio: '1 / 1' }} />
-          <Box sx={{ padding: '16px' }}>
+          <Box sx={{ padding: { xs: phoneFluid(12, 16), sm: '16px' } }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <Bone variant="circular" sx={{ width: 36, height: 36, flexShrink: 0 }} />
               <Box sx={{ flex: 1 }}>

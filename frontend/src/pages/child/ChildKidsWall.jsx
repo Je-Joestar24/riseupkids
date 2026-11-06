@@ -10,6 +10,7 @@ import KidsWallCardsSkeleton from '../../components/child/kidswall/KidsWallCards
 import ChildLoadError from '../../components/child/common/ChildLoadError';
 import KidsWallFooter from '../../components/child/kidswall/KidsWallFooter';
 import { CHILD_PAGE_NAV_CLEARANCE } from '../../constants/childNavigationLayout';
+import { phoneFluid } from '../../constants/childPhoneLayout';
 
 /**
  * ChildKidsWall Page
@@ -70,7 +71,9 @@ const ChildKidsWall = ({ childId }) => {
         sx={{
           maxWidth: '848px',
           width: '100%',
-          margin: '0 auto'
+          margin: '0 auto',
+          // phones: the same breathing space at the sides as the app (16px); computers and tablets keep none
+          px: { xs: phoneFluid(12, 18), sm: 0 },
         }}
       >
         {/* Header */}
@@ -114,7 +117,7 @@ const ChildKidsWall = ({ childId }) => {
         {loaded && posts.length === 0 && !error && (
           <Box
             sx={{
-              padding: '40px',
+              padding: { xs: phoneFluid(16, 40), sm: '40px' },
               textAlign: 'center',
               marginTop: '24px',
             }}
@@ -122,7 +125,7 @@ const ChildKidsWall = ({ childId }) => {
             <Typography
               sx={{
                 color: themeColors.textSecondary,
-                fontSize: '1.2rem',
+                fontSize: { xs: phoneFluid(15, 19.2), sm: '1.2rem' },
                 fontFamily: 'Quicksand, sans-serif',
               }}
             >

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, ButtonBase, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const ArrowLeftIcon = ({ size = 24 }) => (
   <svg
@@ -137,13 +138,21 @@ const PrintablesHeader = ({
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2, sm: 4 }, mb: 1.5 }}>
-        <Box sx={{ color: themeColors.secondary, display: 'flex', alignItems: 'center' }}>
+        <Box
+          sx={{
+            color: themeColors.secondary,
+            display: 'flex',
+            alignItems: 'center',
+            // phones: the printer shrinks a little on small screens (48px on computers and tablets)
+            '& svg': { width: { xs: phoneFluid(36, 48), sm: '48px' }, height: { xs: phoneFluid(36, 48), sm: '48px' } },
+          }}
+        >
           <PrinterIcon />
         </Box>
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: { xs: '2.25rem', sm: '2.75rem' },
+            fontSize: { xs: phoneFluid(26, 36), sm: '2.75rem' },
             fontWeight: 700,
             color: themeColors.secondary,
             lineHeight: 1.1,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, ButtonBase, Typography } from '@mui/material';
 import { themeColors } from '../../../config/themeColors';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const DownloadIcon = ({ size = 24 }) => (
   <svg
@@ -23,7 +24,16 @@ const DownloadIcon = ({ size = 24 }) => (
 
 const PrintablesCards = ({ cards = [], onDownload }) => {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 3, sm: 4, padding: '16px 24px' } }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: { xs: 3, sm: 4, padding: '16px 24px' },
+        // phones: the cards use the whole width (computers and tablets keep the inset they have always had)
+        paddingLeft: { xs: 0, sm: '24px' },
+        paddingRight: { xs: 0, sm: '24px' },
+      }}
+    >
       {cards.map((card) => {
         const isDisabled = !card?.fileUrl;
 
@@ -34,10 +44,12 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
               bgColor: '#ffffff',
               borderRadius: 0,
               boxShadow: '0 12px 28px rgba(0,0,0,0.10)',
-              p: 3,
+              p: { xs: phoneFluid(14, 24), sm: 3 },
               display: 'flex',
-              alignItems: 'center',
-              gap: 3,
+              // phones: the picture, the words and the Download button sit one under the other
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'center' },
+              gap: { xs: phoneFluid(12, 24), sm: 3 },
               transition: 'box-shadow 200ms ease, transform 200ms ease',
               '&:hover': {
                 boxShadow: '0 22px 50px rgba(0,0,0,0.14)',
@@ -48,8 +60,11 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
             <Box
               sx={{
                 flexShrink: 0,
-                width: 128,
-                height: 128,
+                width: { xs: '100%', sm: 128 },
+                height: { xs: 'auto', sm: 128 },
+                aspectRatio: { xs: '4 / 3', sm: 'auto' },
+                // phones: no empty grey box for a printable that has no picture
+                display: { xs: card?.imageUrl ? 'block' : 'none', sm: 'block' },
                 overflow: 'hidden',
                 borderRadius: 0,
                 boxShadow: '0 6px 14px rgba(0,0,0,0.10)',
@@ -65,13 +80,13 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
               ) : null}
             </Box>
 
-            <Box sx={{ flexGrow: 1 }}>
+            <Box sx={{ flexGrow: 1, minWidth: { xs: 0, sm: 'auto' }, overflowWrap: { xs: 'anywhere', sm: 'normal' } }}>
               <Typography
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
                   fontWeight: 700,
                   color: themeColors.secondary,
-                  fontSize: { xs: '1.4rem', sm: '1.6rem' },
+                  fontSize: { xs: phoneFluid(18, 22.4), sm: '1.6rem' },
                   mb: 0.5,
                 }}
               >
@@ -84,7 +99,7 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
                     fontFamily: 'Quicksand, sans-serif',
                     fontWeight: 600,
                     color: themeColors.primary,
-                    fontSize: { xs: '1.05rem', sm: '1.15rem' },
+                    fontSize: { xs: phoneFluid(14.5, 16.8), sm: '1.15rem' },
                   }}
                 >
                   {card.description}
@@ -101,17 +116,20 @@ const PrintablesCards = ({ cards = [], onDownload }) => {
                 borderRadius: 0,
                 backgroundColor: themeColors.accent,
                 color: themeColors.textInverse,
-                px: 4,
-                py: 2,
+                // phones: as wide as the card, an easy thing to tap
+                width: { xs: '100%', sm: 'auto' },
+                px: { xs: 2, sm: 4 },
+                py: { xs: 1.5, sm: 2 },
                 fontFamily: 'Quicksand, sans-serif',
                 fontWeight: 700,
-                fontSize: { xs: '1.05rem', sm: '1.15rem' },
+                fontSize: { xs: phoneFluid(15, 16.8), sm: '1.15rem' },
                 boxShadow: '0 10px 20px rgba(0,0,0,0.10)',
                 transition: 'transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease',
                 '&:hover': {
                   backgroundColor: '#e09f00',
                   boxShadow: '0 14px 28px rgba(0,0,0,0.14)',
-                  transform: 'scale(1.03)',
+                  // (a finger leaves no pointer behind, so on phones the grow effect would only stick)
+                  transform: { xs: 'none', sm: 'scale(1.03)' },
                 },
                 '&:active': {
                   transform: 'scale(0.97)',

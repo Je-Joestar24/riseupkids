@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { Bone, SkeletonFrame } from '../common/ChildSkeleton';
+import { phoneFluid } from '../../../constants/childPhoneLayout';
 
 const CARD_COUNT = 3;
 
@@ -20,18 +21,22 @@ const PrintablesSkeleton = () => (
         sx={{
           backgroundColor: 'white',
           boxShadow: '0 12px 28px rgba(0,0,0,0.10)',
-          p: 3,
+          p: { xs: phoneFluid(14, 24), sm: 3 },
           display: 'flex',
-          alignItems: 'center',
-          gap: 3,
+          flexDirection: { xs: 'column', sm: 'row' },
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: { xs: phoneFluid(12, 24), sm: 3 },
         }}
       >
-        <Bone variant="rectangular" sx={{ flexShrink: 0, width: 128, height: 128 }} />
+        <Bone
+          variant="rectangular"
+          sx={{ flexShrink: 0, width: { xs: '100%', sm: 128 }, height: { xs: 'auto', sm: 128 }, aspectRatio: { xs: '4 / 3', sm: 'auto' } }}
+        />
         <Box sx={{ flexGrow: 1 }}>
           <Bone sx={{ width: '60%', height: 32, marginBottom: '8px' }} />
           <Bone sx={{ width: '85%', height: 22 }} />
         </Box>
-        <Bone variant="rectangular" sx={{ flexShrink: 0, width: 150, height: 56 }} />
+        <Bone variant="rectangular" sx={{ flexShrink: 0, width: { xs: '100%', sm: 150 }, height: 56 }} />
       </Box>
     ))}
   </SkeletonFrame>
