@@ -37,6 +37,7 @@ import {
   AutoStoriesOutlined,
   DeleteOutline,
   LockOpenOutlined,
+  TravelExploreOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
 
@@ -70,7 +71,10 @@ const AdminSidebar = () => {
         { text: 'Contents', icon: <AssignmentOutlined />, path: '/admin/courses/contents' },
         { text: 'Explore', icon: <PlayCircleOutlined />, path: '/admin/courses/explore' },
       ],
-    },/* 
+    },
+    // The list children see under Explore. Stays highlighted on its add / edit pages too.
+    { text: 'Experiences', icon: <TravelExploreOutlined />, path: '/admin/experiences', activeOnSubpaths: true },
+    /* 
     { text: 'Learning Paths', icon: <SchoolOutlined />, path: '/admin/learning-paths' }, */
     { text: 'Check Audio', icon: <AudiotrackOutlined />, path: '/admin/checking-audio' },
     { text: 'Printables', icon: <DescriptionOutlined />, path: '/admin/printables' },
@@ -162,6 +166,7 @@ const AdminSidebar = () => {
         <List sx={{ padding: 0 }}>
           {menuItems.map((item, index) => {
             const isActive = location.pathname === item.path ||
+              (item.activeOnSubpaths && location.pathname.startsWith(`${item.path}/`)) ||
               (item.subItems && item.subItems.some(sub => location.pathname === sub.path));
             const hasSubItems = item.subItems && item.subItems.length > 0;
 

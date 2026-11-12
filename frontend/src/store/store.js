@@ -18,6 +18,7 @@ import printableManagementReducer from './slices/printableManagementSlice';
 import lessonPlanManagementReducer from './slices/lessonPlanManagementSlice';
 import starCamMissionAdminReducer from './slices/starCamMissionAdminSlice';
 import cmsBookAdminReducer from './slices/cmsBookAdminSlice';
+import experienceAdminReducer from './slices/experienceAdminSlice';
 import cmsBookPlayerReducer from './slices/cmsBookPlayerSlice';
 import schoolProspectsReducer from './slices/schoolProspectsSlice';
 import childJourneyReducer from './slices/childJourneySlice';
@@ -45,6 +46,7 @@ export const store = configureStore({
     lessonPlanManagement: lessonPlanManagementReducer, // Lesson plans management state
     starCamMissionAdmin: starCamMissionAdminReducer, // Star Cam mission/category admin state
     cmsBookAdmin: cmsBookAdminReducer, // Admin CMS book builder state
+    experienceAdmin: experienceAdminReducer, // Admin experiences list state
     cmsBookPlayer: cmsBookPlayerReducer, // Parent CMS book player state
     schoolProspects: schoolProspectsReducer, // Admin school prospects list
     childJourney: childJourneyReducer, // Child My Journey session cache
