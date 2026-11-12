@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node seeders/userSeeder.js",
     "seed:badges": "node scripts/seedBadges.js",
+    "seed:experience-smoothie": "node scripts/seedSmoothieExperience.js",
     "seed:starcam-categories": "node scripts/seedStarCamCategories.js",
     "seed:starcam-missions": "node scripts/seedStarCamMissions.js",
     "seed:oid-labels": "node scripts/seedOidVisionLabels.js",

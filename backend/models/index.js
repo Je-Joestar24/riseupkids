@@ -41,6 +41,7 @@ const NotificationCampaign = require('./NotificationCampaign');
 const NotificationReceipt = require('./NotificationReceipt');
 const NotificationSchedulerLock = require('./NotificationSchedulerLock');
 const DevicePushToken = require('./DevicePushToken');
+const Experience = require('./Experience');
 
 module.exports = {
   User,
@@ -85,5 +86,6 @@ module.exports = {
   NotificationReceipt,
   NotificationSchedulerLock,
   DevicePushToken,
+  Experience,
 };
 
