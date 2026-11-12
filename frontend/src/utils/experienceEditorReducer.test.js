@@ -96,8 +96,12 @@ describe('fields', () => {
 
   it('changes the printable link and button without touching the other', () => {
     const state = run(loaded(), { type: 'set-printable', name: 'link', value: 'https://riseup.kids/a.pdf' });
-    expect(state.form.printable).toEqual({ link: 'https://riseup.kids/a.pdf', button: 'Print here' });
-    expect(run(state, { type: 'set-printable', name: 'button', value: 'Go' }).form.printable).toEqual({ link: 'https://riseup.kids/a.pdf', button: 'Go' });
+    expect(state.form.printable).toEqual({ source: 'link', link: 'https://riseup.kids/a.pdf', button: 'Print here' });
+    expect(run(state, { type: 'set-printable', name: 'button', value: 'Go' }).form.printable).toEqual({
+      source: 'link',
+      link: 'https://riseup.kids/a.pdf',
+      button: 'Go',
+    });
   });
 
   it('does not change the starting point (so unsaved changes can be measured)', () => {
@@ -340,5 +344,92 @@ describe('rows added by the admin are told apart from saved ones', () => {
     expect(new Set(keys).size).toBe(5);
     expect(state.form.videos[0].key).toBe(ID_A);
     expect(emptyVideo().key).not.toBe(state.form.videos[3].key);
+  });
+});
+
+describe('the printable: a link or an uploaded file', () => {
+  const pdf = (name = 'Recipe.pdf', size = 1000) => ({ name, size, type: 'application/pdf' });
+  const withSavedFile = () =>
+    run(initialEditorState({ isEdit: true }), {
+      type: 'loaded',
+      experience: { ...saved, printable: { link: '', file: 'https://cdn/r.pdf', fileName: 'Recipe.pdf', button: 'Print here', image: null } },
+    });
+
+  it('opens on the one the saved printable uses', () => {
+    expect(withSavedFile().form.printable.source).toBe('file');
+    expect(loaded().form.printable.source).toBe('link');
+  });
+
+  it('switches between the two, keeping what was typed and what was chosen', () => {
+    let state = run(loaded(), { type: 'set-printable', name: 'link', value: 'https://riseup.kids/a.pdf' });
+    state = run(state, { type: 'set-printable-source', source: 'file' }, { type: 'set-document', file: pdf() });
+    expect(state.form.printable.source).toBe('file');
+    state = run(state, { type: 'set-printable-source', source: 'link' });
+    expect(state.form.printable).toMatchObject({ source: 'link', link: 'https://riseup.kids/a.pdf' });
+    expect(state.form.printableFile.file).toEqual(pdf());
+  });
+
+  it('choosing the one that is already chosen changes nothing', () => {
+    const start = loaded();
+    expect(run(start, { type: 'set-printable-source', source: 'link' })).toBe(start);
+  });
+
+  it('switching clears the link problem and the file problem, but not the others', () => {
+    const base = { ...loaded(), fieldErrors: { 'printable.link': 'L', printableFile: 'F', 'printable.button': 'B', title: 'T', rows: {} } };
+    const state = run(base, { type: 'set-printable-source', source: 'file' });
+    expect(state.fieldErrors['printable.link']).toBeUndefined();
+    expect(state.fieldErrors.printableFile).toBeUndefined();
+    expect(state.fieldErrors['printable.button']).toBe('B');
+    expect(state.fieldErrors.title).toBe('T');
+  });
+
+  it('a good file is kept to be sent, and any earlier problem goes', () => {
+    const base = { ...loaded(), fieldErrors: { printableFile: 'Old', rows: {} } };
+    const state = run(base, { type: 'set-document', file: pdf() });
+    expect(state.form.printableFile).toEqual({ url: null, name: '', file: pdf(), remove: false });
+    expect(state.fieldErrors.printableFile).toBeUndefined();
+  });
+
+  it('a file of the wrong kind, an empty one or a too-big one is refused with the reason, and the old file stays', () => {
+    const start = withSavedFile();
+    const wrong = run(start, { type: 'set-document', file: pdf('notes.txt') });
+    expect(wrong.form.printableFile).toEqual(start.form.printableFile);
+    expect(wrong.fieldErrors.printableFile).toBe('The printable must be a PDF or a Word document (DOC or DOCX).');
+    expect(run(start, { type: 'set-document', file: pdf('a.pdf', 0) }).fieldErrors.printableFile).toBe('That file is empty.');
+    expect(run(start, { type: 'set-document', file: pdf('a.pdf', 20 * 1024 * 1024 + 1) }).fieldErrors.printableFile).toBe(
+      'The file is too large. The maximum size is 20 MB.'
+    );
+  });
+
+  it('removing a saved file marks it to be removed and keeps its name to show', () => {
+    const state = run(withSavedFile(), { type: 'remove-document' });
+    expect(state.form.printableFile).toEqual({ url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: true });
+  });
+
+  it('removing a file that was only just chosen leaves nothing to remove on the server', () => {
+    const state = run(loaded(), { type: 'set-document', file: pdf() }, { type: 'remove-document' });
+    expect(state.form.printableFile).toEqual({ url: null, name: '', file: null, remove: false });
+  });
+
+  it('removing a replacement of a saved file removes the saved one too', () => {
+    const state = run(withSavedFile(), { type: 'set-document', file: pdf('New.pdf') }, { type: 'remove-document' });
+    expect(state.form.printableFile).toMatchObject({ url: 'https://cdn/r.pdf', file: null, remove: true });
+  });
+
+  it('choosing a file after removing the saved one brings it back as a replacement', () => {
+    const state = run(withSavedFile(), { type: 'remove-document' }, { type: 'set-document', file: pdf('New.pdf') });
+    expect(state.form.printableFile).toMatchObject({ file: pdf('New.pdf'), remove: false });
+  });
+
+  it('removing clears the file problem', () => {
+    const base = { ...withSavedFile(), fieldErrors: { printableFile: 'x', rows: {} } };
+    expect(run(base, { type: 'remove-document' }).fieldErrors.printableFile).toBeUndefined();
+  });
+
+  it('is part of what has to be saved, and does not move the starting point', () => {
+    const start = withSavedFile();
+    const state = run(start, { type: 'set-printable-source', source: 'link' });
+    expect(state.initial).toBe(start.initial);
+    expect(state.saved).toBe(false);
   });
 });

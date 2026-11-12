@@ -11,10 +11,10 @@ const { uploadExperience } = require('../middleware/uploadExperience');
  * Smoothie page on the sales site)
  *
  * GET    /                    - list (?status=all|published|draft &search= &page= &limit=)
- * POST   /                    - create (JSON, or multipart with coverImage / printableImage)
+ * POST   /                    - create (JSON, or multipart with coverImage / printableImage / printableFile)
  * POST   /reorder             - save a new order: { order: [uuid, ...] } with every experience once
  * GET    /:uuid               - one experience, as the editor needs it
- * PUT    /:uuid               - edit the fields that are sent (JSON, or multipart with pictures)
+ * PUT    /:uuid               - edit the fields that are sent (JSON, or multipart with pictures and the printable file)
  * PATCH  /:uuid/publish       - show it to children
  * PATCH  /:uuid/unpublish     - hide it from children
  * POST   /:uuid/videos/reorder          - new order of the videos: { order: [videoId, ...] } with every video once

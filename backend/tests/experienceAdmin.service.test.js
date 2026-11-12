@@ -116,7 +116,7 @@ describe('createExperience', () => {
 
   it('stores the printable with the default button text', async () => {
     const created = await make({ printable: { link: 'https://riseup.kids/downloads/a.pdf' } });
-    expect(created.printable).toEqual({ image: null, link: 'https://riseup.kids/downloads/a.pdf', button: 'Print here' });
+    expect(created.printable).toEqual({ image: null, link: 'https://riseup.kids/downloads/a.pdf', file: null, fileName: '', button: 'Print here' });
   });
 
   it('stores the cover and printable pictures in the experiences folder', async () => {

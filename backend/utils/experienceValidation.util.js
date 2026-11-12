@@ -15,6 +15,7 @@ const LIMITS = Object.freeze({
   MAX_VIDEOS: 20,
   PRINTABLE_BUTTON_MAX: 60,
   URL_MAX: 2048,
+  FILE_NAME_MAX: 120,
   SEARCH_MAX: 100,
   PAGE_SIZE_DEFAULT: 20,
   PAGE_SIZE_MAX: 100,
@@ -341,6 +342,27 @@ function parseListQuery(query) {
   return { value, errors };
 }
 
+/**
+ * The name of an uploaded printable as it is shown to the admin: no folders, no control characters, no
+ * surrounding spaces, at most 120 characters (the ending is kept when it has to be cut).
+ * @param {unknown} name the name the browser sent
+ * @returns {string} a usable name, never empty
+ */
+function sanitizeFileName(name) {
+  const base = String(name === undefined || name === null ? '' : name)
+    .split(/[\\/]/)
+    .pop()
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!base || base === '.' || base === '..') return 'printable';
+  if (base.length <= LIMITS.FILE_NAME_MAX) return base;
+  const dot = base.lastIndexOf('.');
+  const ending = dot > 0 && base.length - dot <= 10 ? base.slice(dot) : '';
+  return base.slice(0, LIMITS.FILE_NAME_MAX - ending.length).trimEnd() + ending;
+}
+
 const escapeRegex = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 module.exports = {
@@ -354,5 +376,6 @@ module.exports = {
   validateExperienceInput,
   findPublishProblems,
   parseListQuery,
+  sanitizeFileName,
   escapeRegex,
 };

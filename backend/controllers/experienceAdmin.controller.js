@@ -10,7 +10,7 @@
  *   404 EXPERIENCE_NOT_FOUND / VIDEO_NOT_FOUND  no such experience or video (also for a malformed id)
  *   409 EXPERIENCE_CONFLICT / REORDER_STALE /   someone else changed it in the meantime
  *       VIDEO_REORDER_STALE
- *   413 / 415 (upload middleware)               picture too large / wrong type
+ *   413 / 415 (upload middleware)               picture or file too large / wrong type
  *   422 PUBLISH_BLOCKED                         it is not complete enough to be published
  *   502 IMAGE_UPLOAD_FAILED                     the picture could not be stored
  */
@@ -71,6 +71,7 @@ function readFiles(req) {
   return {
     coverImage: files.coverImage && files.coverImage[0],
     printableImage: files.printableImage && files.printableImage[0],
+    printableFile: files.printableFile && files.printableFile[0],
   };
 }
 
@@ -104,6 +105,7 @@ const update = handle(async (req, res) => {
     userId: req.user && req.user._id,
     removeCoverImage: truthy(body.removeCoverImage),
     removePrintableImage: truthy(body.removePrintableImage),
+    removePrintableFile: truthy(body.removePrintableFile),
     expectedUpdatedAt: body.expectedUpdatedAt,
   });
   logger.info({ userId: String(req.user._id), uuid: data.uuid }, '[Experience] updated');

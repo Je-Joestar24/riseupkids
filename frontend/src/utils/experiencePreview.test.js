@@ -121,3 +121,40 @@ describe('the printable', () => {
     expect(previewFromForm(withPrintable({ link: 'https://riseup.kids/a.pdf' }, [])).printable.band).toBe(BAND_COLORS.pale);
   });
 });
+
+describe('the printable when it is an uploaded file', () => {
+  const asFile = (document, extra = {}) =>
+    form({ videos: [video(1)], printable: { source: 'file', link: '', button: 'Print' }, printableFile: document, ...extra });
+  const none = { url: null, name: '', file: null, remove: false };
+
+  it('is on the page when a file is saved or newly chosen', () => {
+    expect(previewFromForm(asFile({ ...none, url: 'https://cdn/r.pdf', name: 'r.pdf' })).printable).toMatchObject({ button: 'Print' });
+    expect(previewFromForm(asFile({ ...none, file: new File(['x'], 'r.pdf') })).printable).toMatchObject({ button: 'Print' });
+  });
+
+  it('is not on the page when there is no file, or the saved one is being removed', () => {
+    expect(previewFromForm(asFile(none)).printable).toBeNull();
+    expect(previewFromForm(asFile({ ...none, url: 'https://cdn/r.pdf', name: 'r.pdf', remove: true })).printable).toBeNull();
+  });
+
+  it('a link typed before switching to a file does not make the printable appear', () => {
+    expect(previewFromForm(asFile(none, { printable: { source: 'file', link: 'https://riseup.kids/a.pdf', button: '' } })).printable).toBeNull();
+  });
+
+  it('a file saved earlier does not make the printable appear while "Link" is chosen and its link is empty', () => {
+    const withLinkChosen = form({
+      videos: [video(1)],
+      printable: { source: 'link', link: '', button: 'Print' },
+      printableFile: { ...none, url: 'https://cdn/r.pdf', name: 'r.pdf' },
+    });
+    expect(previewFromForm(withLinkChosen).printable).toBeNull();
+  });
+
+  it('with "Link" chosen the typed link makes it appear, as before', () => {
+    expect(previewFromForm(form({ printable: { source: 'link', link: 'https://riseup.kids/a.pdf', button: '' } })).printable).not.toBeNull();
+  });
+
+  it('a picture alone still makes it appear, in either mode', () => {
+    expect(previewFromForm(asFile(none), { printableImageSrc: 'blob:x' }).printable).toMatchObject({ imageSrc: 'blob:x' });
+  });
+});

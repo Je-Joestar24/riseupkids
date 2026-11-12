@@ -15,6 +15,16 @@ export const updatedLabel = (value) => {
   return `Updated ${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 };
 
+/** "350 KB", "2.4 MB": the size of a chosen file for people. */
+export const fileSizeLabel = (bytes) => {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+  const megabytes = size / (1024 * 1024);
+  return `${megabytes < 10 ? megabytes.toFixed(1).replace(/\.0$/, '') : Math.round(megabytes)} MB`;
+};
+
 /** The rows shown on this page: "from" and "to" (both 0 when there is nothing). */
 export const pageRange = (pagination) => {
   const total = Number(pagination?.total) || 0;

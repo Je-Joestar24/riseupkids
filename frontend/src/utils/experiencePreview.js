@@ -1,4 +1,4 @@
-import { normalizeBunnyLink } from './experienceForm';
+import { PRINTABLE_SOURCE, documentIsShown, normalizeBunnyLink } from './experienceForm';
 
 /**
  * What the preview of an experience shows, worked out from the form (so it works on what has been typed, before
@@ -62,9 +62,11 @@ export const previewFromForm = (form, { printableImageSrc = null } = {}) => {
     };
   });
 
-  // The printable is there when there is something to print or to show; otherwise the page has no such section.
-  const link = form.printable.link.trim();
-  const hasPrintable = Boolean(link) || Boolean(printableImageSrc);
+  // The printable is there when there is something to print (a link, or an uploaded file, whichever is chosen) or a
+  // picture to show; otherwise the page has no such section.
+  const hasTarget =
+    form.printable.source === PRINTABLE_SOURCE.FILE ? documentIsShown(form.printableFile) : Boolean(form.printable.link.trim());
+  const hasPrintable = hasTarget || Boolean(printableImageSrc);
   const printable = hasPrintable
     ? {
         imageSrc: printableImageSrc,

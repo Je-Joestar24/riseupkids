@@ -70,6 +70,9 @@ const ExperienceEditorMain = () => {
   const onMoveVideo = useCallback((from, to) => dispatch({ type: 'move-video', from, to }), [dispatch]);
   const onPickCover = useCallback((file) => dispatch({ type: 'set-picture', which: 'cover', file }), [dispatch]);
   const onRemoveCover = useCallback(() => dispatch({ type: 'remove-picture', which: 'cover' }), [dispatch]);
+  const onPrintableSource = useCallback((source) => dispatch({ type: 'set-printable-source', source }), [dispatch]);
+  const onPickDocument = useCallback((file) => dispatch({ type: 'set-document', file }), [dispatch]);
+  const onRemoveDocument = useCallback(() => dispatch({ type: 'remove-document' }), [dispatch]);
   const onPickPrintable = useCallback((file) => dispatch({ type: 'set-picture', which: 'printableImage', file }), [dispatch]);
   const onRemovePrintable = useCallback(() => dispatch({ type: 'remove-picture', which: 'printableImage' }), [dispatch]);
   const onPreview = useCallback((video) => setPreview(video), []);
@@ -260,10 +263,15 @@ const ExperienceEditorMain = () => {
             <ExperiencePrintableCard
               printable={form.printable}
               picture={form.printableImage}
+              document={form.printableFile}
               linkError={errors['printable.link'] || ''}
               buttonError={errors['printable.button'] || ''}
               pictureError={errors.printableImage || ''}
+              documentError={errors.printableFile || ''}
               onChange={onPrintable}
+              onSourceChange={onPrintableSource}
+              onPickDocument={onPickDocument}
+              onRemoveDocument={onRemoveDocument}
               onPick={onPickPrintable}
               onRemove={onRemovePrintable}
             />

@@ -19,7 +19,7 @@ import userEvent from '@testing-library/user-event';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { ThemeProvider } from '@mui/material/styles';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 vi.mock('../../../api/axios', () => ({
   default: { get: vi.fn(), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -56,7 +56,7 @@ const saved = (n = 1, overrides = {}) => ({
   description: 'Make a smoothie',
   coverImage: 'https://cdn.test/cover.png',
   videos: [1, 2, 3].map((i) => ({ id: hex(n * 10 + i), title: `Video ${i}`, embedUrl: LINK(i), position: i })),
-  printable: { image: 'https://cdn.test/print.png', link: 'https://riseup.kids/downloads/recipe.pdf', button: 'Print recipe here' },
+  printable: { image: 'https://cdn.test/print.png', link: 'https://riseup.kids/downloads/recipe.pdf', file: null, fileName: '', button: 'Print recipe here' },
   order: n,
   isPublished: false,
   publishedAt: null,
@@ -76,8 +76,8 @@ const readInput = (body) => {
 const save = (uuid, body) => {
   const isEdit = Boolean(uuid);
   const input = readInput(body);
-  const files = { coverImage: body.get('coverImage'), printableImage: body.get('printableImage') };
-  const record = { isEdit, input, files, flags: { removeCover: body.get('removeCoverImage'), removePrintable: body.get('removePrintableImage') }, expectedUpdatedAt: body.get('expectedUpdatedAt'), fields: Array.from(body.keys()) };
+  const files = { coverImage: body.get('coverImage'), printableImage: body.get('printableImage'), printableFile: body.get('printableFile') };
+  const record = { isEdit, input, files, flags: { removeCover: body.get('removeCoverImage'), removePrintable: body.get('removePrintableImage'), removeFile: body.get('removePrintableFile') }, expectedUpdatedAt: body.get('expectedUpdatedAt'), fields: Array.from(body.keys()) };
   saves.push(record);
 
   const doc = isEdit ? db.find((item) => item.uuid === uuid) : null;
@@ -95,7 +95,7 @@ const save = (uuid, body) => {
 
   const next = isEdit
     ? copy(doc)
-    : { uuid: `3f2b8c1e-5d4a-4b7e-8c9d-0a1b2c3d4f${String(db.length + 1).padStart(2, '0')}`, description: '', coverImage: null, videos: [], printable: { image: null, link: '', button: 'Print here' }, order: db.length + 1, isPublished: false, publishedAt: null, createdAt: '2026-11-12T08:00:00.000Z' };
+    : { uuid: `3f2b8c1e-5d4a-4b7e-8c9d-0a1b2c3d4f${String(db.length + 1).padStart(2, '0')}`, description: '', coverImage: null, videos: [], printable: { image: null, link: '', file: null, fileName: '', button: 'Print here' }, order: db.length + 1, isPublished: false, publishedAt: null, createdAt: '2026-11-12T08:00:00.000Z' };
   if (value.title !== undefined) next.title = value.title;
   if (value.description !== undefined) next.description = value.description;
   if (value.videos !== undefined) {
@@ -114,6 +114,22 @@ const save = (uuid, body) => {
   else if (record.flags.removeCover === 'true') next.coverImage = null;
   if (files.printableImage) next.printable.image = `https://cdn.test/${files.printableImage.name}`;
   else if (record.flags.removePrintable === 'true') next.printable.image = null;
+  if (files.printableFile) {
+    next.printable.file = `https://cdn.test/files/${files.printableFile.name}`;
+    next.printable.fileName = files.printableFile.name;
+  } else if (record.flags.removeFile === 'true') {
+    next.printable.file = null;
+    next.printable.fileName = '';
+  }
+  // The server keeps a link or a file, never both.
+  if (next.printable.link && next.printable.file) {
+    throw backendError(400, {
+      success: false,
+      code: 'VALIDATION_FAILED',
+      message: 'Please fix the highlighted fields.',
+      errors: [{ field: 'printable.link', message: 'Choose a link or a file for the printable, not both.' }],
+    });
+  }
   next.updatedAt = new Date(Date.parse(isEdit ? doc.updatedAt : '2026-11-12T08:00:00.000Z') + 60000).toISOString();
 
   if (isEdit) db[db.findIndex((item) => item.uuid === uuid)] = next;
@@ -940,6 +956,20 @@ describe('leaving the page', () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
+  it('while it is saving the browser does not ask (the page is about to move on by itself)', async () => {
+    const { user } = renderEditor();
+    type('Title', 'Smoothie');
+    const pending = deferred();
+    api.post.mockImplementationOnce(() => pending.promise);
+    await create(user);
+    await screen.findByRole('button', { name: 'Saving…' });
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    pending.resolve({ data: { success: true, message: 'Experience created.', data: { uuid: 'n', title: 'Smoothie' } } });
+    await waitFor(() => expect(where()).toBe('/admin/experiences'));
+  });
+
   it('a saved experience is not asked about on the way out', async () => {
     const { user } = renderEditor();
     type('Title', 'Smoothie');
@@ -1070,6 +1100,47 @@ describe('editing: opening', () => {
       </Provider>
     );
     await waitFor(() => expect(field('Title')).toHaveValue('Strawberry 2'));
+  });
+});
+
+describe('editing: moving from one experience to another without leaving the page', () => {
+  const Switcher = ({ to, label }) => {
+    const navigate = useNavigate();
+    return (
+      <button type="button" onClick={() => navigate(to)}>
+        {label}
+      </button>
+    );
+  };
+
+  it('opens the other experience with a clean form, and nothing typed in the first carries over', async () => {
+    db = [saved(1), saved(2)];
+    const store = configureStore({ reducer: { ui: uiReducer } });
+    const user = userEvent.setup();
+    render(
+      <Provider store={store}>
+        <ThemeProvider theme={theme}>
+          <MemoryRouter initialEntries={[editPath(1)]}>
+            <Switcher to={editPath(2)} label="Go to the second" />
+            <Switcher to="/admin/experiences/create" label="Go to add" />
+            <Routes>
+              <Route path="/admin/experiences/create" element={<AdminExperienceEditor />} />
+              <Route path="/admin/experiences/:uuid/edit" element={<AdminExperienceEditor />} />
+            </Routes>
+          </MemoryRouter>
+        </ThemeProvider>
+      </Provider>
+    );
+    await waitFor(() => expect(field('Title')).toHaveValue('Strawberry 1'));
+    type('Title', 'Typed in the first');
+    await user.click(screen.getByRole('button', { name: 'Go to the second' }));
+    await waitFor(() => expect(field('Title')).toHaveValue('Strawberry 2'));
+    expect(button('Save changes')).toBeDisabled(); // nothing carried over, so nothing is unsaved
+
+    type('Title', 'Typed in the second');
+    await user.click(screen.getByRole('button', { name: 'Go to add' }));
+    await waitFor(() => expect(field('Title')).toHaveValue(''));
+    expect(screen.getByRole('heading', { level: 1, name: 'Add experience' })).toBeInTheDocument();
   });
 });
 
@@ -1452,5 +1523,384 @@ describe('previewing: the page as children see it', () => {
     await create(user);
     await waitFor(() => expect(where()).toBe('/admin/experiences'));
     expect(db[1].title).toBe('Looked first');
+  });
+});
+
+// ================================================================ the printable: a link or a file
+
+describe('the printable: a link or an uploaded file', () => {
+  const MB = 1024 * 1024;
+  const radio = (name) => screen.getByRole('radio', { name });
+  const printableCard = () => screen.getByRole('region', { name: 'Printable' });
+  const pdf = (name = 'Recipe.pdf', content = 'x'.repeat(2048)) => new File([content], name, { type: 'application/pdf' });
+  const chooseFile = (file) => fireEvent.change(screen.getByLabelText('Printable document'), { target: { files: [file] } });
+
+  describe('choosing', () => {
+    it('is a pair of radio buttons: "Link" first, and the link box shows', () => {
+      renderEditor();
+      expect(screen.getByRole('radiogroup', { name: 'What children print' })).toBeInTheDocument();
+      expect(radio('Link')).toBeChecked();
+      expect(radio('Upload a file')).not.toBeChecked();
+      expect(field('Link to the file')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Printable document')).not.toBeInTheDocument();
+    });
+
+    it('"Upload a file" swaps the link box for a file chooser, and says what is allowed', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      expect(radio('Upload a file')).toBeChecked();
+      expect(screen.queryByLabelText('Link to the file')).not.toBeInTheDocument();
+      expect(within(printableCard()).getByText('No file chosen')).toBeInTheDocument();
+      expect(within(printableCard()).getByRole('button', { name: 'Choose file' })).toBeInTheDocument();
+      expect(within(printableCard()).getByText('PDF or Word (DOC, DOCX), up to 20 MB.')).toBeInTheDocument();
+      expect(screen.getByLabelText('Printable document')).toHaveAttribute('accept', expect.stringContaining('.pdf'));
+      expect(screen.getByLabelText('Printable document')).toHaveAttribute('accept', expect.stringContaining('.docx'));
+    });
+
+    it('switching back brings the link back with what was typed in it', async () => {
+      const { user } = renderEditor();
+      type('Link to the file', 'https://riseup.kids/a.pdf');
+      await user.click(radio('Upload a file'));
+      await user.click(radio('Link'));
+      expect(field('Link to the file')).toHaveValue('https://riseup.kids/a.pdf');
+    });
+
+    it('switching and coming back keeps a chosen file too', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf('Keep.pdf'));
+      await user.click(radio('Link'));
+      await user.click(radio('Upload a file'));
+      expect(within(printableCard()).getByText('Keep.pdf')).toBeInTheDocument();
+    });
+
+    it('the button text and the picture are there in both', async () => {
+      const { user } = renderEditor();
+      expect(field('Button text')).toBeInTheDocument();
+      expect(screen.getByLabelText('Printable picture file')).toBeInTheDocument();
+      await user.click(radio('Upload a file'));
+      expect(field('Button text')).toBeInTheDocument();
+      expect(screen.getByLabelText('Printable picture file')).toBeInTheDocument();
+    });
+  });
+
+  describe('adding a file', () => {
+    it('shows the chosen file with its name and size, and that it is saved with the experience', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf('Strawberry Recipe.pdf', 'x'.repeat(2048)));
+      const card = within(printableCard());
+      expect(card.getByText('Strawberry Recipe.pdf')).toBeInTheDocument();
+      expect(card.getByText(/New file · 2 KB\. It is saved when you save the experience\./)).toBeInTheDocument();
+      expect(card.getByRole('button', { name: 'Replace file' })).toBeInTheDocument();
+      expect(card.queryByText('No file chosen')).not.toBeInTheDocument();
+    });
+
+    it('is sent with an empty link, saved, and the server keeps its name', async () => {
+      const { user, store } = renderEditor();
+      type('Title', 'With a file');
+      type('Button text', 'Print recipe here');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf('Strawberry Recipe.pdf'));
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+
+      expect(lastSave().input.printable).toEqual({ link: '', button: 'Print recipe here' });
+      expect(lastSave().files.printableFile.name).toBe('Strawberry Recipe.pdf');
+      expect(lastSave().files.printableFile.type).toBe('application/pdf');
+      expect(db[1].printable).toMatchObject({ link: '', fileName: 'Strawberry Recipe.pdf', file: 'https://cdn.test/files/Strawberry Recipe.pdf' });
+      expect(notice(store).message).toBe('"With a file" was created.');
+    });
+
+    it('a Word document is accepted', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      await user.click(radio('Upload a file'));
+      chooseFile(new File(['x'], 'Recipe.docx', { type: '' }));
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().files.printableFile.type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
+
+    it('a link typed before switching is not sent with the file', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      type('Link to the file', 'https://riseup.kids/typed-before.pdf');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().input.printable.link).toBe('');
+      expect(db[1].printable.link).toBe('');
+    });
+
+    it('a wrong link typed before switching does not stop saving the file', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      type('Link to the file', 'not a link at all');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+    });
+
+    it('a file chosen and then "Link" picked is not sent', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      await user.click(radio('Link'));
+      type('Link to the file', 'https://riseup.kids/a.pdf');
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().files.printableFile).toBeNull();
+      expect(lastSave().input.printable.link).toBe('https://riseup.kids/a.pdf');
+    });
+
+    it('"Upload a file" with nothing chosen saves an empty printable', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      await user.click(radio('Upload a file'));
+      await create(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(db[1].printable).toMatchObject({ link: '', file: null });
+    });
+
+    it.each([
+      ['a text file', 'notes.txt', 'text/plain', 100],
+      ['a picture', 'photo.png', 'image/png', 100],
+      ['a program', 'setup.exe', 'application/x-msdownload', 100],
+    ])('refuses %s with the reason, and chooses nothing', async (_, name, type, size) => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      chooseFile(new File([new Uint8Array(size)], name, { type }));
+      expect(within(printableCard()).getByText('The printable must be a PDF or a Word document (DOC or DOCX).')).toBeInTheDocument();
+      expect(within(printableCard()).getByText('No file chosen')).toBeInTheDocument();
+    });
+
+    it('refuses an empty file', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      chooseFile(new File([], 'empty.pdf', { type: 'application/pdf' }));
+      expect(within(printableCard()).getByText('That file is empty.')).toBeInTheDocument();
+    });
+
+    it('accepts exactly 20 MB and refuses one byte more', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      const sized = (size) => {
+        const file = pdf('Big.pdf', 'x');
+        Object.defineProperty(file, 'size', { value: size });
+        return file;
+      };
+      chooseFile(sized(20 * MB + 1));
+      expect(within(printableCard()).getByText('The file is too large. The maximum size is 20 MB.')).toBeInTheDocument();
+      expect(within(printableCard()).getByText('No file chosen')).toBeInTheDocument();
+      chooseFile(sized(20 * MB));
+      expect(within(printableCard()).queryByText(/too large/)).not.toBeInTheDocument();
+      expect(within(printableCard()).getByText('Big.pdf')).toBeInTheDocument();
+    });
+
+    it('a good file after a refused one clears the problem', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      chooseFile(new File(['x'], 'notes.txt', { type: 'text/plain' }));
+      chooseFile(pdf());
+      expect(within(printableCard()).queryByText(/must be a PDF/)).not.toBeInTheDocument();
+    });
+
+    it('Remove clears a chosen file, and the same file can be chosen again', async () => {
+      const { user } = renderEditor();
+      await user.click(radio('Upload a file'));
+      const file = pdf('Again.pdf');
+      chooseFile(file);
+      await user.click(within(printableCard()).getByRole('button', { name: 'Remove' }));
+      expect(within(printableCard()).getByText('No file chosen')).toBeInTheDocument();
+      chooseFile(file);
+      expect(within(printableCard()).getByText('Again.pdf')).toBeInTheDocument();
+    });
+
+    it('a refusal from the server (a file that only looked right) is shown, and the form is kept', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      failures.post = () =>
+        backendError(415, { success: false, code: 'UNSUPPORTED_FILE_TYPE', message: 'That file does not look like a PDF or Word document. Check it opens, then try again.' });
+      await create(user);
+      expect(await screen.findByText('That file does not look like a PDF or Word document. Check it opens, then try again.')).toBeInTheDocument();
+      expect(field('Title')).toHaveValue('T');
+      expect(within(printableCard()).getByText('Recipe.pdf')).toBeInTheDocument();
+    });
+
+    it('a file too big for the server is shown too', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      failures.post = () => backendError(413, { success: false, code: 'FILE_TOO_LARGE', message: 'The file is too large. The maximum size is 20 MB.' });
+      await create(user);
+      expect(await screen.findByText('The file is too large. The maximum size is 20 MB.')).toBeInTheDocument();
+    });
+  });
+
+  describe('editing', () => {
+    const withSavedFile = () => {
+      db = [saved(1, { printable: { image: null, link: '', file: 'https://cdn.test/files/Recipe.pdf', fileName: 'Recipe.pdf', button: 'Print' } })];
+    };
+
+    it('an experience with a saved link opens on "Link"', async () => {
+      await openEdit();
+      expect(radio('Link')).toBeChecked();
+      expect(field('Link to the file')).toHaveValue('https://riseup.kids/downloads/recipe.pdf');
+    });
+
+    it('an experience with a saved file opens on "Upload a file", showing its name and a way to open it', async () => {
+      withSavedFile();
+      await openEdit();
+      expect(radio('Upload a file')).toBeChecked();
+      const card = within(printableCard());
+      expect(card.getByText('Recipe.pdf')).toBeInTheDocument();
+      const open = card.getByRole('link', { name: 'Open it' });
+      expect(open).toHaveAttribute('href', 'https://cdn.test/files/Recipe.pdf');
+      expect(open).toHaveAttribute('target', '_blank');
+      expect(open).toHaveAttribute('rel', expect.stringContaining('noopener'));
+      expect(card.getByRole('button', { name: 'Replace file' })).toBeInTheDocument();
+      expect(button('Save changes')).toBeDisabled();
+    });
+
+    it('keeping the saved file sends no file, no removal, and an empty link', async () => {
+      withSavedFile();
+      const { user } = await openEdit();
+      type('Title', 'Another title');
+      await saveChanges(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().files.printableFile).toBeNull();
+      expect(lastSave().flags.removeFile).toBeNull();
+      expect(lastSave().input.printable.link).toBe('');
+      expect(db[0].printable.fileName).toBe('Recipe.pdf');
+    });
+
+    it('a new file replaces the saved one', async () => {
+      withSavedFile();
+      const { user } = await openEdit();
+      chooseFile(pdf('New.pdf'));
+      expect(within(printableCard()).getByText('New.pdf')).toBeInTheDocument();
+      expect(button('Save changes')).toBeEnabled();
+      await saveChanges(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().files.printableFile.name).toBe('New.pdf');
+      expect(lastSave().flags.removeFile).toBeNull();
+      expect(db[0].printable.fileName).toBe('New.pdf');
+    });
+
+    it('Remove asks the server to remove the saved file', async () => {
+      withSavedFile();
+      const { user } = await openEdit();
+      await user.click(within(printableCard()).getByRole('button', { name: 'Remove' }));
+      expect(within(printableCard()).getByText('No file chosen')).toBeInTheDocument();
+      await saveChanges(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().flags.removeFile).toBe('true');
+      expect(db[0].printable).toMatchObject({ file: null, fileName: '' });
+    });
+
+    it('switching a saved file to a link: the link is sent and the file is removed, and the admin is told first', async () => {
+      withSavedFile();
+      const { user } = await openEdit();
+      await user.click(radio('Link'));
+      expect(within(printableCard()).getByText('The file that is saved now (Recipe.pdf) is removed when you save.')).toBeInTheDocument();
+      type('Link to the file', 'https://riseup.kids/b.pdf');
+      await saveChanges(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().input.printable.link).toBe('https://riseup.kids/b.pdf');
+      expect(lastSave().flags.removeFile).toBe('true');
+      expect(db[0].printable).toMatchObject({ link: 'https://riseup.kids/b.pdf', file: null });
+    });
+
+    it('the note about removing is only there when "Link" is chosen over a saved file', async () => {
+      const { user } = await openEdit(); // a saved link: nothing to remove
+      expect(within(printableCard()).queryByText(/is removed when you save/)).not.toBeInTheDocument();
+      await user.click(radio('Upload a file'));
+      await user.click(radio('Link'));
+      expect(within(printableCard()).queryByText(/is removed when you save/)).not.toBeInTheDocument();
+    });
+
+    it('while "Upload a file" is chosen over a saved file there is no note either', async () => {
+      withSavedFile();
+      await openEdit();
+      expect(within(printableCard()).queryByText(/is removed when you save/)).not.toBeInTheDocument();
+    });
+
+    it('switching a saved link to a file: the file is sent and the link is cleared', async () => {
+      const { user } = await openEdit();
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf('FromLink.pdf'));
+      await saveChanges(user);
+      await waitFor(() => expect(where()).toBe('/admin/experiences'));
+      expect(lastSave().input.printable.link).toBe('');
+      expect(lastSave().files.printableFile.name).toBe('FromLink.pdf');
+      expect(db[0].printable).toMatchObject({ link: '', fileName: 'FromLink.pdf' });
+    });
+
+    it('switching alone is a change that can be saved, and switching back is no change', async () => {
+      const { user } = await openEdit();
+      await user.click(radio('Upload a file'));
+      expect(button('Save changes')).toBeEnabled();
+      await user.click(radio('Link'));
+      expect(button('Save changes')).toBeDisabled();
+    });
+
+    it('leaving after switching asks first', async () => {
+      const { user } = await openEdit();
+      await user.click(radio('Upload a file'));
+      await user.click(button('Cancel'));
+      expect(await screen.findByText('Leave without saving?')).toBeInTheDocument();
+    });
+
+    it('the server refusing a link together with a file says so (it cannot be next to a link box that is not shown)', async () => {
+      withSavedFile();
+      const { user } = await openEdit();
+      // A form that forgot to remove the file (it never does): the server's own message still reaches the admin.
+      failures.put = () =>
+        backendError(400, {
+          success: false,
+          code: 'VALIDATION_FAILED',
+          message: 'Please fix the highlighted fields.',
+          errors: [{ field: 'printable.link', message: 'Choose a link or a file for the printable, not both.' }],
+        });
+      type('Title', 'Other');
+      await saveChanges(user);
+      expect(await screen.findByText('Choose a link or a file for the printable, not both.')).toBeInTheDocument();
+      expect(screen.getByText('Please fix the highlighted fields.')).toBeInTheDocument();
+    });
+  });
+
+  describe('previewing', () => {
+    it('a chosen file makes the printable show, with the button text', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      type('Button text', 'Print recipe here');
+      await user.click(radio('Upload a file'));
+      chooseFile(pdf());
+      await user.click(button('Preview'));
+      expect(within(screen.getByRole('region', { name: 'Preview of the experience on a laptop' })).getByRole('button', { name: 'Print recipe here' })).toBeInTheDocument();
+    });
+
+    it('"Upload a file" with no file chosen shows no printable', async () => {
+      const { user } = renderEditor();
+      type('Title', 'T');
+      type('Link to the file', 'https://riseup.kids/a.pdf');
+      await user.click(radio('Upload a file'));
+      await user.click(button('Preview'));
+      expect(screen.queryByRole('region', { name: 'Printable' })).not.toBeInTheDocument();
+    });
+
+    it('a saved file shows the printable in the preview', async () => {
+      db = [saved(1, { printable: { image: null, link: '', file: 'https://cdn.test/files/Recipe.pdf', fileName: 'Recipe.pdf', button: 'Print' } })];
+      const { user } = await openEdit();
+      await user.click(button('Preview'));
+      expect(within(screen.getByRole('region', { name: 'Preview of the experience on a laptop' })).getByRole('button', { name: 'Print' })).toBeInTheDocument();
+    });
   });
 });

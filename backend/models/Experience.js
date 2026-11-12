@@ -70,10 +70,13 @@ const experienceSchema = new mongoose.Schema(
         message: `An experience can have at most ${LIMITS.MAX_VIDEOS} videos`,
       },
     },
-    // Optional printable: a picture and a file on our own domain.
+    // Optional printable: a picture, and the thing to print as EITHER a link to a file on our own domain OR a file
+    // that was uploaded (PDF or Word document). Never both: the service refuses a request that would leave both.
     printable: {
       image: { type: String, default: null },
       link: { type: String, default: '', maxlength: LIMITS.URL_MAX },
+      file: { type: String, default: null },
+      fileName: { type: String, default: '', maxlength: LIMITS.FILE_NAME_MAX },
       button: {
         type: String,
         default: DEFAULT_PRINTABLE_BUTTON,

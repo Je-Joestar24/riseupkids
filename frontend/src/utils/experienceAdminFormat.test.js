@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pageRange, updatedLabel, videoCountLabel } from './experienceAdminFormat';
+import { fileSizeLabel, pageRange, updatedLabel, videoCountLabel } from './experienceAdminFormat';
 
 describe('videoCountLabel', () => {
   it('says "No videos", "1 video" and "N videos"', () => {
@@ -49,5 +49,27 @@ describe('pageRange', () => {
 
   it('copes with missing page or limit', () => {
     expect(pageRange({ total: 5 })).toEqual({ from: 1, to: 1, total: 5 });
+  });
+});
+
+describe('fileSizeLabel', () => {
+  it.each([
+    [1, '1 B'],
+    [1023, '1023 B'],
+    [1024, '1 KB'],
+    [2048, '2 KB'],
+    [350 * 1024, '350 KB'],
+    [1024 * 1024 - 1, '1024 KB'],
+    [1024 * 1024, '1 MB'],
+    [Math.round(2.4 * 1024 * 1024), '2.4 MB'],
+    [10 * 1024 * 1024, '10 MB'],
+    [Math.round(12.6 * 1024 * 1024), '13 MB'],
+    [20 * 1024 * 1024, '20 MB'],
+  ])('%i bytes is %s', (bytes, label) => {
+    expect(fileSizeLabel(bytes)).toBe(label);
+  });
+
+  it.each([0, -5, NaN, undefined, null, 'abc'])('%j is nothing to show', (value) => {
+    expect(fileSizeLabel(value)).toBe('');
   });
 });

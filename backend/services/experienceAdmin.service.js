@@ -18,9 +18,11 @@ const {
   validateExperienceInput,
   findPublishProblems,
   escapeRegex,
+  sanitizeFileName,
 } = require('../utils/experienceValidation.util');
 
 const IMAGE_FOLDER = 'experiences/images';
+const FILE_FOLDER = 'experiences/files';
 
 // ---------------------------------------------------------------- output shapes
 
@@ -42,7 +44,10 @@ function toDetail(doc) {
     })),
     printable: {
       image: (doc.printable && doc.printable.image) || null,
+      // The thing to print is a link OR an uploaded file, never both.
       link: (doc.printable && doc.printable.link) || '',
+      file: (doc.printable && doc.printable.file) || null,
+      fileName: (doc.printable && doc.printable.file && doc.printable.fileName) || '',
       button: (doc.printable && doc.printable.button) || '',
     },
     order: doc.order || 0,
@@ -92,6 +97,17 @@ async function uploadImage(file) {
   }
 }
 
+/** Stores the printable file (PDF or Word document). The same stable failure code as a picture: the admin's answer is the same. */
+async function uploadPrintableFile(file) {
+  try {
+    const { url } = await s3Service.uploadFileFromMulter(file, FILE_FOLDER);
+    return url;
+  } catch (error) {
+    logger.error({ err: error.message }, '[Experience] printable file upload failed');
+    throw new ExperienceError(502, 'IMAGE_UPLOAD_FAILED', 'We could not save the file. Please try again.');
+  }
+}
+
 /** Removes a picture from storage. Never throws: a leftover file must not fail the admin's request. */
 async function deleteImageQuietly(url) {
   if (!url || typeof url !== 'string') return;
@@ -136,6 +152,13 @@ function validationFailed(errors) {
   return new ExperienceError(400, 'VALIDATION_FAILED', 'Please fix the highlighted fields.', errors);
 }
 
+/** The thing to print is a link or a file. Both at once would leave children with two things to print and no way to tell which. */
+function assertLinkOrFile(link, hasFile) {
+  if (link && hasFile) {
+    throw validationFailed([{ field: 'printable.link', message: 'Choose a link or a file for the printable, not both.' }]);
+  }
+}
+
 function publishBlocked(problems, message = 'This experience cannot be published yet.') {
   return new ExperienceError(422, 'PUBLISH_BLOCKED', message, problems);
 }
@@ -176,7 +199,7 @@ async function getExperience(uuid) {
 
 /**
  * @param {object} input request body
- * @param {{ files?: { coverImage?: object, printableImage?: object }, userId?: unknown }} [context]
+ * @param {{ files?: { coverImage?: object, printableImage?: object, printableFile?: object }, userId?: unknown }} [context]
  */
 async function createExperience(input, { files = {}, userId = null } = {}) {
   const { value, errors } = validateExperienceInput(input);
@@ -188,10 +211,13 @@ async function createExperience(input, { files = {}, userId = null } = {}) {
     if (problems.length) throw publishBlocked(problems);
   }
 
+  assertLinkOrFile(value.printable && value.printable.link, Boolean(files.printableFile));
+
   const uploaded = [];
   try {
     let coverImage = null;
     let printableImage = null;
+    let printableFile = null;
     if (files.coverImage) {
       coverImage = await uploadImage(files.coverImage);
       uploaded.push(coverImage);
@@ -199,6 +225,10 @@ async function createExperience(input, { files = {}, userId = null } = {}) {
     if (files.printableImage) {
       printableImage = await uploadImage(files.printableImage);
       uploaded.push(printableImage);
+    }
+    if (files.printableFile) {
+      printableFile = await uploadPrintableFile(files.printableFile);
+      uploaded.push(printableFile);
     }
 
     // New experiences go to the end of the list.
@@ -210,7 +240,13 @@ async function createExperience(input, { files = {}, userId = null } = {}) {
       description: value.description || '',
       coverImage,
       videos: value.videos || [],
-      printable: { image: printableImage, link: printable.link || '', button: printable.button || undefined },
+      printable: {
+        image: printableImage,
+        link: printable.link || '',
+        file: printableFile,
+        fileName: printableFile ? sanitizeFileName(files.printableFile.originalname) : '',
+        button: printable.button || undefined,
+      },
       order: ((last && last.order) || 0) + 1,
       isPublished: wantsPublish,
       publishedAt: wantsPublish ? new Date() : null,
@@ -233,7 +269,14 @@ async function createExperience(input, { files = {}, userId = null } = {}) {
 async function updateExperience(
   uuid,
   input,
-  { files = {}, userId = null, removeCoverImage = false, removePrintableImage = false, expectedUpdatedAt } = {}
+  {
+    files = {},
+    userId = null,
+    removeCoverImage = false,
+    removePrintableImage = false,
+    removePrintableFile = false,
+    expectedUpdatedAt,
+  } = {}
 ) {
   const doc = await findByUuidOrThrow(uuid);
 
@@ -242,8 +285,15 @@ async function updateExperience(
   const { value, errors } = validateExperienceInput(input, { partial: true });
   if (errors.length) throw validationFailed(errors);
 
-  const changesPictures = Boolean(files.coverImage || files.printableImage || removeCoverImage || removePrintableImage);
-  if (Object.keys(value).length === 0 && !changesPictures) {
+  const changesFiles = Boolean(
+    files.coverImage ||
+      files.printableImage ||
+      files.printableFile ||
+      removeCoverImage ||
+      removePrintableImage ||
+      removePrintableFile
+  );
+  if (Object.keys(value).length === 0 && !changesFiles) {
     throw new ExperienceError(400, 'NOTHING_TO_UPDATE', 'There is nothing to change. Send at least one field.');
   }
 
@@ -254,6 +304,10 @@ async function updateExperience(
     doc.printable.link = value.printable.link;
     doc.printable.button = value.printable.button;
   }
+
+  // What the printable will be once this is saved: a link or a file, not both (nothing has been stored yet if it is refused).
+  const hasFileAfter = files.printableFile ? true : removePrintableFile ? false : Boolean(doc.printable.file);
+  assertLinkOrFile(doc.printable.link, hasFileAfter);
 
   const willBePublished = value.isPublished !== undefined ? value.isPublished : doc.isPublished;
   if (willBePublished) {
@@ -292,6 +346,17 @@ async function updateExperience(
     } else if (removePrintableImage && doc.printable.image) {
       replaced.push(doc.printable.image);
       doc.printable.image = null;
+    }
+    if (files.printableFile) {
+      const url = await uploadPrintableFile(files.printableFile);
+      uploaded.push(url);
+      if (doc.printable.file) replaced.push(doc.printable.file);
+      doc.printable.file = url;
+      doc.printable.fileName = sanitizeFileName(files.printableFile.originalname);
+    } else if (removePrintableFile && doc.printable.file) {
+      replaced.push(doc.printable.file);
+      doc.printable.file = null;
+      doc.printable.fileName = '';
     }
 
     doc.updatedBy = userId;
@@ -439,11 +504,11 @@ async function reorderExperiences(uuids) {
 /** Deletes for good (the admin confirms in the screen). The videos stay in Bunny: only links are stored. */
 async function deleteExperience(uuid) {
   const doc = await findByUuidOrThrow(uuid);
-  const pictures = [doc.coverImage, doc.printable && doc.printable.image];
+  const pictures = [doc.coverImage, doc.printable && doc.printable.image, doc.printable && doc.printable.file];
   const deleted = await Experience.deleteOne({ _id: doc._id });
   // Someone else deleted it between our read and our delete: it is gone, which is what was asked.
   if (!deleted || deleted.deletedCount === 0) throw notFound();
-  await Promise.all(pictures.map(deleteImageQuietly));
+  await Promise.all(pictures.map(deleteImageQuietly)); // the printable file too: it is stored like a picture
   return { uuid: doc.uuid, title: doc.title };
 }
 

@@ -15,6 +15,7 @@ import ExperienceDetailsSection from './ExperienceDetailsSection';
 import { ExperienceCoverCard, ExperiencePrintableCard } from './ExperiencePicturesCards';
 import FieldFooter from './FieldFooter';
 import ImagePicker from './ImagePicker';
+import DocumentPicker from './DocumentPicker';
 import VideoPreviewDialog from './VideoPreviewDialog';
 
 const wrap = (ui) => render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
@@ -26,6 +27,8 @@ beforeAll(() => {
 afterEach(cleanup);
 
 const none = { url: null, file: null, remove: false };
+const noDocument = { url: null, name: '', file: null, remove: false };
+const linkSource = { source: 'link', link: '', button: '' };
 const png = (name = 'a.png') => new File(['x'], name, { type: 'image/png' });
 
 describe('ExperienceSaveBanner', () => {
@@ -306,8 +309,9 @@ describe('the pictures cards', () => {
     const user = userEvent.setup();
     wrap(
       <ExperiencePrintableCard
-        printable={{ link: 'https://riseup.kids/a.pdf', button: 'Go' }}
+        printable={{ source: 'link', link: 'https://riseup.kids/a.pdf', button: 'Go' }}
         picture={none}
+        document={noDocument}
         linkError="Printable link must use https."
         buttonError="Too long."
         pictureError="Too big."
@@ -330,7 +334,7 @@ describe('the pictures cards', () => {
   });
 
   it('explains the button text default and the link rule', () => {
-    wrap(<ExperiencePrintableCard printable={{ link: '', button: '' }} picture={none} onChange={() => {}} onPick={() => {}} onRemove={() => {}} />);
+    wrap(<ExperiencePrintableCard printable={linkSource} picture={none} document={noDocument} onChange={() => {}} onPick={() => {}} onRemove={() => {}} />);
     expect(screen.getByText('A file on our own website (riseup.kids), starting with https.')).toBeInTheDocument();
     expect(screen.getByText(/Empty shows/)).toBeInTheDocument();
   });
@@ -351,5 +355,198 @@ describe('VideoPreviewDialog', () => {
     expect(within(dialog).getByTitle('Preview of The story')).toHaveAttribute('src', 'https://iframe.mediadelivery.net/embed/1/a');
     await user.click(within(dialog).getByRole('button', { name: 'Close preview' }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('DocumentPicker', () => {
+  const pdf = (name = 'Recipe.pdf', size = 2048) => {
+    const file = new File(['x'], name, { type: 'application/pdf' });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  };
+  const picker = (props) =>
+    wrap(<DocumentPicker id="doc" document={noDocument} onPick={() => {}} onRemove={() => {}} {...props} />);
+
+  it('with no file: says so, offers to choose one, and offers no Remove', () => {
+    picker({});
+    expect(screen.getByText('No file chosen')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose file' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
+  });
+
+  it('only offers PDF and Word documents', () => {
+    picker({});
+    const accept = screen.getByLabelText('Printable document').getAttribute('accept');
+    expect(accept).toBe(
+      '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+  });
+
+  it('a saved file shows its name and a way to open it in a new tab, and can be replaced or removed', async () => {
+    const onRemove = vi.fn();
+    const user = userEvent.setup();
+    picker({ document: { url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: false }, onRemove });
+    expect(screen.getByText('Recipe.pdf')).toBeInTheDocument();
+    const open = screen.getByRole('link', { name: 'Open it' });
+    expect(open).toHaveAttribute('href', 'https://cdn/r.pdf');
+    expect(open).toHaveAttribute('target', '_blank');
+    expect(open.getAttribute('rel')).toContain('noopener');
+    expect(open.getAttribute('rel')).toContain('noreferrer');
+    expect(screen.getByRole('button', { name: 'Replace file' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it('a saved file with no name shows a plain one', () => {
+    picker({ document: { url: 'https://cdn/r.pdf', name: '', file: null, remove: false } });
+    expect(screen.getByText('Printable file')).toBeInTheDocument();
+  });
+
+  it('a file marked to be removed shows nothing', () => {
+    picker({ document: { url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: true } });
+    expect(screen.queryByText('Recipe.pdf')).not.toBeInTheDocument();
+    expect(screen.getByText('No file chosen')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open it' })).not.toBeInTheDocument();
+  });
+
+  it('a chosen file shows its name and size, no "Open it", and is given back to the page', async () => {
+    const onPick = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = picker({ onPick });
+    const file = pdf('New.pdf', 350 * 1024);
+    await user.upload(screen.getByLabelText('Printable document'), file);
+    expect(onPick).toHaveBeenCalledWith(file);
+    rerender(
+      <ThemeProvider theme={theme}>
+        <DocumentPicker id="doc" document={{ url: null, name: '', file, remove: false }} onPick={onPick} onRemove={() => {}} />
+      </ThemeProvider>
+    );
+    expect(screen.getByText('New.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/New file · 350 KB\. It is saved when you save the experience\./)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open it' })).not.toBeInTheDocument();
+  });
+
+  it('a chosen file wins over a saved one', () => {
+    const file = pdf('New.pdf');
+    picker({ document: { url: 'https://cdn/old.pdf', name: 'Old.pdf', file, remove: true } });
+    expect(screen.getByText('New.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('Old.pdf')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open it' })).not.toBeInTheDocument(); // the old file is not offered next to the new one
+  });
+
+  it('shows the hint, or the problem instead of it', () => {
+    picker({ hint: 'PDF or Word (DOC, DOCX), up to 20 MB.' });
+    expect(screen.getByText('PDF or Word (DOC, DOCX), up to 20 MB.')).toBeInTheDocument();
+    cleanup();
+    picker({ hint: 'PDF or Word (DOC, DOCX), up to 20 MB.', error: 'That file is empty.' });
+    expect(screen.queryByText('PDF or Word (DOC, DOCX), up to 20 MB.')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('That file is empty.');
+  });
+
+  it('can choose the same file again after choosing it once', async () => {
+    const onPick = vi.fn();
+    const user = userEvent.setup();
+    picker({ onPick });
+    const file = pdf();
+    await user.upload(screen.getByLabelText('Printable document'), file);
+    await user.upload(screen.getByLabelText('Printable document'), file);
+    expect(onPick).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('the printable card: link or file', () => {
+  const card = (props) =>
+    wrap(
+      <ExperiencePrintableCard
+        printable={linkSource}
+        picture={none}
+        document={noDocument}
+        onChange={() => {}}
+        onSourceChange={() => {}}
+        onPickDocument={() => {}}
+        onRemoveDocument={() => {}}
+        onPick={() => {}}
+        onRemove={() => {}}
+        {...props}
+      />
+    );
+
+  it('has two radio buttons, "Link" and "Upload a file", and the chosen one is checked', () => {
+    card({});
+    const group = screen.getByRole('radiogroup', { name: 'What children print' });
+    expect(within(group).getAllByRole('radio').map((radio) => radio.getAttribute('value'))).toEqual(['link', 'file']);
+    expect(screen.getByRole('radio', { name: 'Link' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Upload a file' })).not.toBeChecked();
+    cleanup();
+    card({ printable: { source: 'file', link: '', button: '' } });
+    expect(screen.getByRole('radio', { name: 'Upload a file' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Link' })).not.toBeChecked();
+  });
+
+  it('tells the page which one was picked', async () => {
+    const onSourceChange = vi.fn();
+    const user = userEvent.setup();
+    card({ onSourceChange });
+    await user.click(screen.getByRole('radio', { name: 'Upload a file' }));
+    expect(onSourceChange).toHaveBeenCalledWith('file');
+  });
+
+  it('"Link" shows the link box and not the file chooser; "Upload a file" the other way round', () => {
+    card({});
+    expect(screen.getByLabelText('Link to the file')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Printable document')).not.toBeInTheDocument();
+    cleanup();
+    card({ printable: { source: 'file', link: '', button: '' } });
+    expect(screen.queryByLabelText('Link to the file')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Printable document')).toBeInTheDocument();
+  });
+
+  it('shows the file problem next to the file chooser', () => {
+    card({ printable: { source: 'file', link: '', button: '' }, documentError: 'That file is empty.' });
+    expect(screen.getByRole('alert')).toHaveTextContent('That file is empty.');
+  });
+
+  it('gives the file and its removal to the page', async () => {
+    const onPickDocument = vi.fn();
+    const onRemoveDocument = vi.fn();
+    const user = userEvent.setup();
+    card({
+      printable: { source: 'file', link: '', button: '' },
+      document: { url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: false },
+      onPickDocument,
+      onRemoveDocument,
+    });
+    const file = new File(['x'], 'New.pdf', { type: 'application/pdf' });
+    await user.upload(screen.getByLabelText('Printable document'), file);
+    expect(onPickDocument).toHaveBeenCalledWith(file);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(onRemoveDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('warns that a saved file goes when "Link" is chosen over it, and only then', () => {
+    const saved = { url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: false };
+    card({ document: saved });
+    expect(screen.getByRole('note')).toHaveTextContent('The file that is saved now (Recipe.pdf) is removed when you save.');
+    cleanup();
+    card({ document: noDocument });
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    cleanup();
+    card({ printable: { source: 'file', link: '', button: '' }, document: saved });
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
+  it('a saved file with no name is called "printable file" in the warning', () => {
+    card({ document: { url: 'https://cdn/r.pdf', name: '', file: null, remove: false } });
+    expect(screen.getByRole('note')).toHaveTextContent('The file that is saved now (printable file) is removed when you save.');
+  });
+
+  it('the button text and the picture are there in both choices', () => {
+    card({});
+    expect(screen.getByLabelText('Button text')).toBeInTheDocument();
+    expect(screen.getByLabelText('Printable picture file')).toBeInTheDocument();
+    cleanup();
+    card({ printable: { source: 'file', link: '', button: '' } });
+    expect(screen.getByLabelText('Button text')).toBeInTheDocument();
+    expect(screen.getByLabelText('Printable picture file')).toBeInTheDocument();
   });
 });

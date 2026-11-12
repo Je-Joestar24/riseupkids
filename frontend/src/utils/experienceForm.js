@@ -14,10 +14,30 @@ export const LIMITS = Object.freeze({
   PRINTABLE_BUTTON_MAX: 60,
   URL_MAX: 2048,
   MAX_IMAGE_BYTES: 8 * 1024 * 1024,
+  MAX_DOCUMENT_BYTES: 20 * 1024 * 1024,
 });
 
 export const IMAGE_TYPES = Object.freeze(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 export const IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp';
+
+/**
+ * The files a printable may be when it is uploaded: a PDF or a Word document. The server checks the ending of the
+ * name, the type and the first bytes of the file; here only the ending is checked, and the type is filled in from it
+ * when the file is sent (a browser does not always know the type of a Word file).
+ */
+export const DOCUMENT_TYPES = Object.freeze([
+  { extension: '.pdf', mime: 'application/pdf' },
+  { extension: '.doc', mime: 'application/msword' },
+  { extension: '.docx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+]);
+export const DOCUMENT_ACCEPT = ['.pdf', '.doc', '.docx', ...DOCUMENT_TYPES.map((type) => type.mime)].join(',');
+export const DOCUMENT_TYPE_MESSAGE = 'The printable must be a PDF or a Word document (DOC or DOCX).';
+
+/** The ending of a file name, in lower case ('' when there is none). */
+export const fileExtension = (name) => {
+  const match = /\.[^./\\]+$/.exec(String(name || ''));
+  return match ? match[0].toLowerCase() : '';
+};
 
 const BUNNY_IFRAME_HOST = 'iframe.mediadelivery.net';
 const BUNNY_PLAYER_HOST = 'player.mediadelivery.net';
@@ -33,14 +53,21 @@ export const emptyVideo = () => ({ key: nextVideoKey(), id: null, title: '', emb
 
 const emptyPicture = (url = null) => ({ url, file: null, remove: false });
 
+/** The printable file: the saved one (its address and name), a newly chosen one, or a request to remove the saved one. */
+const emptyDocument = (url = null, name = '') => ({ url, name, file: null, remove: false });
+
+/** How the printable is given to children: 'link' (a file on our own website) or 'file' (one that is uploaded). Never both. */
+export const PRINTABLE_SOURCE = Object.freeze({ LINK: 'link', FILE: 'file' });
+
 export const emptyForm = () => ({
   title: '',
   description: '',
   isPublished: false,
   videos: [],
-  printable: { link: '', button: '' },
+  printable: { source: PRINTABLE_SOURCE.LINK, link: '', button: '' },
   cover: emptyPicture(),
   printableImage: emptyPicture(),
+  printableFile: emptyDocument(),
 });
 
 /** The form for an experience the server sent (the detail answer). */
@@ -57,14 +84,19 @@ export const formFromExperience = (experience) => {
       title: video.title || '',
       embedUrl: video.embedUrl || '',
     })),
-    printable: { link: printable.link || '', button: printable.button || '' },
+    // A saved printable is a file or a link; the form opens on whichever it is.
+    printable: { source: printable.file ? PRINTABLE_SOURCE.FILE : PRINTABLE_SOURCE.LINK, link: printable.link || '', button: printable.button || '' },
     cover: emptyPicture(source.coverImage || null),
     printableImage: emptyPicture(printable.image || null),
+    printableFile: emptyDocument(printable.file || null, printable.fileName || ''),
   };
 };
 
 /** The picture that is shown: a newly chosen file wins, a removed one shows nothing. */
 export const pictureIsShown = (picture) => Boolean(picture.file) || (Boolean(picture.url) && !picture.remove);
+
+/** Is there a printable file: a newly chosen one, or the saved one that has not been removed? */
+export const documentIsShown = (item) => Boolean(item.file) || (Boolean(item.url) && !item.remove);
 
 // ---------------------------------------------------------------- video links
 
@@ -103,6 +135,15 @@ export const checkImageFile = (file) => {
   if (!file) return 'Choose a picture.';
   if (!IMAGE_TYPES.includes(file.type)) return 'Pictures must be JPG, PNG or WebP.';
   if (file.size > LIMITS.MAX_IMAGE_BYTES) return 'The picture is too large. The maximum size is 8 MB.';
+  return '';
+};
+
+/** '' when the file can be used as the printable, otherwise the reason. */
+export const checkDocumentFile = (file) => {
+  if (!file) return 'Choose a file.';
+  if (!DOCUMENT_TYPES.some((type) => type.extension === fileExtension(file.name))) return DOCUMENT_TYPE_MESSAGE;
+  if (!file.size) return 'That file is empty.';
+  if (file.size > LIMITS.MAX_DOCUMENT_BYTES) return 'The file is too large. The maximum size is 20 MB.';
   return '';
 };
 
@@ -168,7 +209,8 @@ export const validateForm = (form) => {
     if (row.title || row.embedUrl) errors.rows[video.key] = row;
   });
 
-  const linkError = printableLinkError(form.printable.link);
+  // Only the printable's link is sent when "Link" is chosen; the one typed before switching to a file is not checked.
+  const linkError = form.printable.source === PRINTABLE_SOURCE.FILE ? '' : printableLinkError(form.printable.link);
   if (linkError) errors['printable.link'] = linkError;
   if (form.printable.button.trim().length > LIMITS.PRINTABLE_BUTTON_MAX) {
     errors['printable.button'] = `Printable button text cannot exceed ${LIMITS.PRINTABLE_BUTTON_MAX} characters.`;
@@ -229,12 +271,19 @@ const snapshot = (form) =>
     printable: form.printable,
     cover: pictureSnapshot(form.cover),
     printableImage: pictureSnapshot(form.printableImage),
+    printableFile: pictureSnapshot(form.printableFile),
   });
 
 /** Has the admin changed anything since the form was loaded (or since it was empty)? */
 export const isFormDirty = (form, initial) => snapshot(form) !== snapshot(initial);
 
 // ---------------------------------------------------------------- what is sent
+
+/** The same file with the type its ending says it is (a browser may send none for a Word document). */
+const withDocumentType = (file) => {
+  const type = DOCUMENT_TYPES.find((item) => item.extension === fileExtension(file.name));
+  return type && file.type !== type.mime ? new File([file], file.name, { type: type.mime }) : file;
+};
 
 /**
  * The multipart body for create (POST) or edit (PUT). The order of the list is the order of the videos; a
@@ -258,12 +307,22 @@ export const buildFormData = (form, { expectedUpdatedAt = null } = {}) => {
       })
     )
   );
-  data.append('printable', JSON.stringify({ link: form.printable.link.trim(), button: form.printable.button.trim() }));
+  // "Link" sends the link; "Upload a file" sends an empty link and the file. Never both: the server refuses that.
+  const asFile = form.printable.source === PRINTABLE_SOURCE.FILE;
+  data.append('printable', JSON.stringify({ link: asFile ? '' : form.printable.link.trim(), button: form.printable.button.trim() }));
 
   if (form.cover.file) data.append('coverImage', form.cover.file);
   else if (form.cover.remove) data.append('removeCoverImage', 'true');
   if (form.printableImage.file) data.append('printableImage', form.printableImage.file);
   else if (form.printableImage.remove) data.append('removePrintableImage', 'true');
+
+  if (asFile) {
+    if (form.printableFile.file) data.append('printableFile', withDocumentType(form.printableFile.file));
+    else if (form.printableFile.remove) data.append('removePrintableFile', 'true');
+  } else if (form.printableFile.url) {
+    // Choosing "Link" in place of a saved file removes the file.
+    data.append('removePrintableFile', 'true');
+  }
 
   if (expectedUpdatedAt) data.append('expectedUpdatedAt', expectedUpdatedAt);
   return data;
@@ -284,6 +343,11 @@ export const placeServerErrors = (list, form) => {
   const other = [];
   (Array.isArray(list) ? list : []).forEach(({ field, message }) => {
     if (!message) return;
+    // The link box is not on the page while "Upload a file" is chosen, so its problem is told in the message instead.
+    if (field === 'printable.link' && form.printable.source === PRINTABLE_SOURCE.FILE) {
+      other.push(message);
+      return;
+    }
     if (['title', 'description', 'videos', 'printable.link', 'printable.button'].includes(field)) {
       errors[field] = errors[field] || message;
       return;

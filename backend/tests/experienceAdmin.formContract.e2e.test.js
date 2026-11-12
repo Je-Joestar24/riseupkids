@@ -92,7 +92,18 @@ const png = (size = 16) => Buffer.alloc(size, 1);
 const formRequest = (
   method,
   path,
-  { title = 'Strawberry', description = '', isPublished = false, videos = [], printable = { link: '', button: '' }, expectedUpdatedAt, files = {}, removeCover, removePrintable } = {}
+  {
+    title = 'Strawberry',
+    description = '',
+    isPublished = false,
+    videos = [],
+    printable = { link: '', button: '' },
+    expectedUpdatedAt,
+    files = {},
+    removeCover,
+    removePrintable,
+    removeFile,
+  } = {}
 ) => {
   let req = request(app)[method](path)
     .set('Authorization', `Bearer ${adminToken}`)
@@ -103,6 +114,8 @@ const formRequest = (
     .field('printable', JSON.stringify(printable));
   if (files.cover) req = req.attach('coverImage', png(), { filename: 'cover.png', contentType: 'image/png' });
   if (files.printable) req = req.attach('printableImage', png(), { filename: 'print.webp', contentType: 'image/webp' });
+  if (files.document) req = req.attach('printableFile', files.document.bytes, { filename: files.document.name, contentType: files.document.type });
+  if (removeFile) req = req.field('removePrintableFile', 'true');
   if (removeCover) req = req.field('removeCoverImage', 'true');
   if (removePrintable) req = req.field('removePrintableImage', 'true');
   if (expectedUpdatedAt) req = req.field('expectedUpdatedAt', expectedUpdatedAt);
@@ -327,6 +340,65 @@ describe('saving an edit from the form', () => {
       ['coverImage', 'createdAt', 'description', 'isPublished', 'order', 'printable', 'publishedAt', 'title', 'updatedAt', 'uuid', 'videos'].sort()
     );
     expect(Object.keys(res.body.data.videos[0]).sort()).toEqual(['embedUrl', 'id', 'position', 'title']);
-    expect(Object.keys(res.body.data.printable).sort()).toEqual(['button', 'image', 'link']);
+    expect(Object.keys(res.body.data.printable).sort()).toEqual(['button', 'file', 'fileName', 'image', 'link']);
+  });
+});
+
+describe('the printable as a link or as a file, from the form', () => {
+  const pdf = { bytes: Buffer.from('%PDF-1.7 contract test document'), name: 'Strawberry Recipe.pdf', type: 'application/pdf' };
+
+  it('"Upload a file": the file with an empty link, and a button text', async () => {
+    const res = await create({ title: 'With a file', printable: { link: '', button: 'Print recipe here' }, files: { document: pdf } });
+    expect(res.status).toBe(201);
+    expect(res.body.data.printable).toMatchObject({ link: '', button: 'Print recipe here', fileName: 'Strawberry Recipe.pdf' });
+    expect(res.body.data.printable.file).toMatch(/^https:\/\/cdn\.test\//);
+    expect(s3.uploadFileFromMulter).toHaveBeenCalledWith(expect.objectContaining({ originalname: 'Strawberry Recipe.pdf' }), 'experiences/files');
+  });
+
+  it('"Link": the link, no file', async () => {
+    const res = await create({ title: 'With a link', printable: { link: 'https://riseup.kids/a.pdf', button: 'Print' } });
+    expect(res.status).toBe(201);
+    expect(res.body.data.printable).toMatchObject({ link: 'https://riseup.kids/a.pdf', file: null, fileName: '' });
+  });
+
+  it('an edit from "Link" to "Upload a file" sends the file with the link cleared, and the old link is gone', async () => {
+    const created = (await create({ title: 'T', printable: { link: 'https://riseup.kids/a.pdf', button: 'Print' } })).body.data;
+    const res = await save(created.uuid, { title: 'T', printable: { link: '', button: 'Print' }, files: { document: pdf }, expectedUpdatedAt: created.updatedAt });
+    expect(res.status).toBe(200);
+    expect(res.body.data.printable).toMatchObject({ link: '', fileName: 'Strawberry Recipe.pdf' });
+  });
+
+  it('an edit from "Upload a file" to "Link" sends the link and removes the file', async () => {
+    const created = (await create({ title: 'T', printable: { link: '', button: 'Print' }, files: { document: pdf } })).body.data;
+    const res = await save(created.uuid, {
+      title: 'T',
+      printable: { link: 'https://riseup.kids/b.pdf', button: 'Print' },
+      removeFile: true,
+      expectedUpdatedAt: created.updatedAt,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.data.printable).toMatchObject({ link: 'https://riseup.kids/b.pdf', file: null, fileName: '' });
+    expect(s3.deleteByKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeping a saved file: the form sends no file and no removal, and an empty link', async () => {
+    const created = (await create({ title: 'T', printable: { link: '', button: 'Print' }, files: { document: pdf } })).body.data;
+    const res = await save(created.uuid, { title: 'T2', printable: { link: '', button: 'Print' }, expectedUpdatedAt: created.updatedAt });
+    expect(res.status).toBe(200);
+    expect(res.body.data.printable).toMatchObject({ file: created.printable.file, fileName: 'Strawberry Recipe.pdf' });
+    expect(s3.deleteByKey).not.toHaveBeenCalled();
+  });
+
+  it('removing the file with no link sends the removal alone', async () => {
+    const created = (await create({ title: 'T', printable: { link: '', button: 'Print' }, files: { document: pdf } })).body.data;
+    const res = await save(created.uuid, { title: 'T', printable: { link: '', button: 'Print' }, removeFile: true, expectedUpdatedAt: created.updatedAt });
+    expect(res.status).toBe(200);
+    expect(res.body.data.printable).toMatchObject({ file: null, fileName: '' });
+  });
+
+  it('a file that is not a PDF or Word document is refused with a message the form shows', async () => {
+    const res = await create({ title: 'T', files: { document: { bytes: Buffer.from('plain text'), name: 'notes.txt', type: 'text/plain' } } });
+    expect(res.status).toBe(415);
+    expect(res.body).toMatchObject({ code: 'UNSUPPORTED_FILE_TYPE', message: 'The printable must be a PDF or a Word document (DOC or DOCX).' });
   });
 });

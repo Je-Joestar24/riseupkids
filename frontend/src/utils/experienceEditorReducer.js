@@ -1,5 +1,5 @@
 import { arrayMove } from '@dnd-kit/sortable';
-import { LIMITS, NO_ERRORS, checkImageFile, emptyForm, emptyVideo, formFromExperience } from './experienceForm';
+import { LIMITS, NO_ERRORS, checkDocumentFile, checkImageFile, emptyForm, emptyVideo, formFromExperience } from './experienceForm';
 
 /**
  * The state of the Experience add / edit page, and every way it can change. Kept apart from the screen so
@@ -93,6 +93,29 @@ export function experienceEditorReducer(state, action) {
         { ...state.form, printable: { ...state.form.printable, [action.name]: action.value } },
         withoutKeys(state.fieldErrors, [`printable.${action.name}`])
       );
+
+    case 'set-printable-source': {
+      if (action.source === state.form.printable.source) return state;
+      // The link typed and the file chosen are both kept, so switching back and forth loses nothing.
+      return setForm(
+        state,
+        { ...state.form, printable: { ...state.form.printable, source: action.source } },
+        withoutKeys(state.fieldErrors, ['printable.link', 'printableFile'])
+      );
+    }
+
+    case 'set-document': {
+      const reason = checkDocumentFile(action.file);
+      if (reason) return { ...state, fieldErrors: { ...state.fieldErrors, printableFile: reason } };
+      const next = { ...state.form.printableFile, file: action.file, remove: false };
+      return setForm(state, { ...state.form, printableFile: next }, withoutKeys(state.fieldErrors, ['printableFile']));
+    }
+
+    case 'remove-document': {
+      const current = state.form.printableFile;
+      const next = { ...current, file: null, remove: Boolean(current.url) };
+      return setForm(state, { ...state.form, printableFile: next }, withoutKeys(state.fieldErrors, ['printableFile']));
+    }
 
     case 'add-video': {
       if (state.form.videos.length >= LIMITS.MAX_VIDEOS) return state;

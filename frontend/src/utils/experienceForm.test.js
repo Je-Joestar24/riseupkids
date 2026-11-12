@@ -4,6 +4,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  DOCUMENT_ACCEPT,
+  DOCUMENT_TYPES,
+  PRINTABLE_SOURCE,
+  checkDocumentFile,
+  documentIsShown,
+  fileExtension,
   BUNNY_LINK_HINT,
   IMAGE_ACCEPT,
   LIMITS,
@@ -56,9 +62,10 @@ describe('a new form', () => {
       description: '',
       isPublished: false,
       videos: [],
-      printable: { link: '', button: '' },
+      printable: { source: 'link', link: '', button: '' },
       cover: { url: null, file: null, remove: false },
       printableImage: { url: null, file: null, remove: false },
+      printableFile: { url: null, name: '', file: null, remove: false },
     });
   });
 
@@ -101,7 +108,8 @@ describe('the form of a saved experience', () => {
       { key: 'a'.repeat(24), id: 'a'.repeat(24), title: 'One', embedUrl: LINK },
       { key: 'b'.repeat(24), id: 'b'.repeat(24), title: 'Two', embedUrl: LINK_2 },
     ]);
-    expect(form.printable).toEqual({ link: 'https://riseup.kids/x.pdf', button: 'Print recipe here' });
+    expect(form.printable).toEqual({ source: 'link', link: 'https://riseup.kids/x.pdf', button: 'Print recipe here' });
+    expect(form.printableFile).toEqual({ url: null, name: '', file: null, remove: false });
     expect(form.cover).toEqual({ url: 'https://cdn/cover.png', file: null, remove: false });
     expect(form.printableImage).toEqual({ url: 'https://cdn/p.png', file: null, remove: false });
   });
@@ -110,7 +118,8 @@ describe('the form of a saved experience', () => {
     const form = formFromExperience({ title: 'T', videos: [] });
     expect(form.cover.url).toBeNull();
     expect(form.printableImage.url).toBeNull();
-    expect(form.printable).toEqual({ link: '', button: '' });
+    expect(form.printable).toEqual({ source: 'link', link: '', button: '' });
+    expect(form.printableFile).toEqual({ url: null, name: '', file: null, remove: false });
     expect(form.description).toBe('');
     expect(formFromExperience(undefined).title).toBe('');
   });
@@ -595,5 +604,235 @@ describe('placing what the server says', () => {
     expect(placeServerErrors([{ field: 'title' }], form)).toEqual({ errors: { rows: {} }, other: [] });
     expect(placeServerErrors(undefined, form)).toEqual({ errors: { rows: {} }, other: [] });
     expect(placeServerErrors(null, form)).toEqual({ errors: { rows: {} }, other: [] });
+  });
+});
+
+// ================================================================ the printable as a link or an uploaded file
+
+const MB = 1024 * 1024;
+const doc = (name = 'Recipe.pdf', size = 1000, type = 'application/pdf') => ({ name, size, type });
+const realFile = (name = 'Recipe.pdf', type = 'application/pdf', content = 'x') => new File([content], name, { type });
+const fileForm = (overrides = {}) =>
+  valid({ printable: { source: 'file', link: '', button: '' }, ...overrides });
+
+describe('the printable file: its types and limits', () => {
+  it('knows the ending of a name, in lower case, and none when there is none', () => {
+    expect(fileExtension('Recipe.PDF')).toBe('.pdf');
+    expect(fileExtension('my.recipe.v2.docx')).toBe('.docx');
+    expect(fileExtension('noending')).toBe('');
+    expect(fileExtension('')).toBe('');
+    expect(fileExtension(undefined)).toBe('');
+    expect(fileExtension('folder.d/file')).toBe('');
+  });
+
+  it('is a PDF, a Word document or an older Word document, and nothing else is offered', () => {
+    expect(DOCUMENT_TYPES.map((type) => type.extension)).toEqual(['.pdf', '.doc', '.docx']);
+    expect(DOCUMENT_ACCEPT).toBe(
+      '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    );
+  });
+
+  it.each(['Recipe.pdf', 'RECIPE.PDF', 'a.doc', 'a.docx', 'my.recipe.v2.pdf', 'with spaces.docx'])('accepts %s', (name) => {
+    expect(checkDocumentFile(doc(name))).toBe('');
+  });
+
+  it.each(['notes.txt', 'setup.exe', 'photo.png', 'page.html', 'macro.docm', 'sheet.xlsx', 'text.rtf', 'archive.pdf.exe', 'noending', 'recipe.pdf '])(
+    'refuses %j and says what is allowed',
+    (name) => {
+      expect(checkDocumentFile(doc(name))).toBe('The printable must be a PDF or a Word document (DOC or DOCX).');
+    }
+  );
+
+  it('refuses an empty file', () => {
+    expect(checkDocumentFile(doc('a.pdf', 0))).toBe('That file is empty.');
+  });
+
+  it('accepts exactly 20 MB and refuses one byte more', () => {
+    expect(checkDocumentFile(doc('a.pdf', 20 * MB))).toBe('');
+    expect(checkDocumentFile(doc('a.pdf', 20 * MB + 1))).toBe('The file is too large. The maximum size is 20 MB.');
+  });
+
+  it('asks for a file when there is none', () => {
+    expect(checkDocumentFile(null)).toBe('Choose a file.');
+    expect(checkDocumentFile(undefined)).toBe('Choose a file.');
+  });
+
+  it('a picture is not a printable document, and a document is not a picture', () => {
+    expect(checkDocumentFile(doc('photo.png', 100, 'image/png'))).toBe('The printable must be a PDF or a Word document (DOC or DOCX).');
+    expect(checkImageFile(doc('Recipe.pdf', 100, 'application/pdf'))).toBe('Pictures must be JPG, PNG or WebP.');
+  });
+});
+
+describe('the printable file: which one is used', () => {
+  it('a saved file opens the form on "Upload a file", with its address and name', () => {
+    const form = formFromExperience({ title: 'T', videos: [], printable: { file: 'https://cdn/r.pdf', fileName: 'Recipe.pdf', link: '', button: 'Print', image: null } });
+    expect(form.printable.source).toBe('file');
+    expect(form.printableFile).toEqual({ url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: false });
+  });
+
+  it('a saved link opens it on "Link"', () => {
+    const form = formFromExperience({ title: 'T', videos: [], printable: { file: null, fileName: '', link: 'https://riseup.kids/a.pdf', button: 'Print', image: null } });
+    expect(form.printable.source).toBe('link');
+    expect(form.printableFile.url).toBeNull();
+  });
+
+  it('with neither it opens on "Link"; the two source names are link and file', () => {
+    expect(formFromExperience({ title: 'T', videos: [] }).printable.source).toBe('link');
+    expect(PRINTABLE_SOURCE).toEqual({ LINK: 'link', FILE: 'file' });
+  });
+
+  it('a saved file with no name still has something to show', () => {
+    expect(formFromExperience({ title: 'T', videos: [], printable: { file: 'https://cdn/r.pdf' } }).printableFile.name).toBe('');
+  });
+
+  it('a file is there when it is saved and not removed, or newly chosen', () => {
+    expect(documentIsShown({ url: 'u', name: 'n', file: null, remove: false })).toBe(true);
+    expect(documentIsShown({ url: null, name: '', file: realFile(), remove: false })).toBe(true);
+    expect(documentIsShown({ url: 'u', name: 'n', file: null, remove: true })).toBe(false);
+    expect(documentIsShown({ url: 'u', name: 'n', file: realFile(), remove: true })).toBe(true);
+    expect(documentIsShown({ url: null, name: '', file: null, remove: false })).toBe(false);
+  });
+});
+
+describe('the printable file: checking the form', () => {
+  it('with "Link" a wrong link is a problem', () => {
+    expect(validateForm(valid({ printable: { source: 'link', link: 'nope', button: '' } }))['printable.link']).toBe('Printable link is not a valid link.');
+  });
+
+  it('with "Upload a file" the link that was typed before switching is not checked (it is not sent)', () => {
+    expect(validateForm(fileForm({ printable: { source: 'file', link: 'nope', button: '' } }))['printable.link']).toBeUndefined();
+    expect(hasErrors(validateForm(fileForm({ printable: { source: 'file', link: 'http://x', button: '' } })))).toBe(false);
+  });
+
+  it('the button text is checked in both', () => {
+    expect(validateForm(fileForm({ printable: { source: 'file', link: '', button: 'a'.repeat(61) } }))['printable.button']).toBe(
+      'Printable button text cannot exceed 60 characters.'
+    );
+  });
+
+  it('a form with no source named counts as "Link"', () => {
+    expect(validateForm(valid({ printable: { link: 'nope', button: '' } }))['printable.link']).toBe('Printable link is not a valid link.');
+  });
+});
+
+describe('the printable file: what changed', () => {
+  const saved = () =>
+    formFromExperience({ title: 'T', videos: [], printable: { file: 'https://cdn/r.pdf', fileName: 'Recipe.pdf', link: '', button: 'Print', image: null } });
+
+  it.each([
+    ['choosing "Link"', (f) => ({ ...f, printable: { ...f.printable, source: 'link' } })],
+    ['a new file', (f) => ({ ...f, printableFile: { ...f.printableFile, file: realFile('New.pdf') } })],
+    ['removing the file', (f) => ({ ...f, printableFile: { ...f.printableFile, remove: true } })],
+  ])('notices %s', (_, change) => {
+    expect(isFormDirty(change(saved()), saved())).toBe(true);
+  });
+
+  it('is not changed by merely looking at the form', () => {
+    expect(isFormDirty(saved(), saved())).toBe(false);
+  });
+
+  it('switching to "Link" and back is no change', () => {
+    const back = { ...saved(), printable: { ...saved().printable, source: 'link' } };
+    expect(isFormDirty({ ...back, printable: { ...back.printable, source: 'file' } }, saved())).toBe(false);
+  });
+});
+
+describe('the printable file: what is sent', () => {
+  const printable = (data) => JSON.parse(data.get('printable'));
+  const savedFile = { url: 'https://cdn/r.pdf', name: 'Recipe.pdf', file: null, remove: false };
+
+  it('"Link": the link, and no file part', () => {
+    const data = buildFormData(valid({ printable: { source: 'link', link: ' https://riseup.kids/a.pdf ', button: 'Print' } }));
+    expect(printable(data)).toEqual({ link: 'https://riseup.kids/a.pdf', button: 'Print' });
+    expect(data.has('printableFile')).toBe(false);
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('"Upload a file" with a chosen file: an EMPTY link and the file, under the name the server reads', () => {
+    const data = buildFormData(fileForm({ printable: { source: 'file', link: 'https://typed-before.example/x.pdf', button: 'Print' }, printableFile: { url: null, name: '', file: realFile('Recipe.pdf'), remove: false } }));
+    expect(printable(data)).toEqual({ link: '', button: 'Print' });
+    expect(data.get('printableFile')).toBeInstanceOf(File);
+    expect(data.get('printableFile').name).toBe('Recipe.pdf');
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('a Word file the browser gave no type for is sent with the type its ending says', () => {
+    const data = buildFormData(fileForm({ printableFile: { url: null, name: '', file: realFile('Recipe.docx', ''), remove: false } }));
+    expect(data.get('printableFile').type).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    const doc2 = buildFormData(fileForm({ printableFile: { url: null, name: '', file: realFile('Recipe.doc', ''), remove: false } }));
+    expect(doc2.get('printableFile').type).toBe('application/msword');
+    const pdf = buildFormData(fileForm({ printableFile: { url: null, name: '', file: realFile('Recipe.PDF', 'application/octet-stream'), remove: false } }));
+    expect(pdf.get('printableFile').type).toBe('application/pdf');
+  });
+
+  it('a file that already has the right type is sent as it is', () => {
+    const file = realFile('Recipe.pdf');
+    expect(buildFormData(fileForm({ printableFile: { url: null, name: '', file, remove: false } })).get('printableFile').name).toBe(file.name);
+  });
+
+  it('keeping the saved file sends no file and no removal, with an empty link', () => {
+    const data = buildFormData(fileForm({ printableFile: savedFile }));
+    expect(printable(data).link).toBe('');
+    expect(data.has('printableFile')).toBe(false);
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('removing the saved file asks for it to be removed', () => {
+    const data = buildFormData(fileForm({ printableFile: { ...savedFile, remove: true } }));
+    expect(data.get('removePrintableFile')).toBe('true');
+    expect(data.has('printableFile')).toBe(false);
+  });
+
+  it('a new file over a saved one replaces it: the file is sent, nothing is "removed"', () => {
+    const data = buildFormData(fileForm({ printableFile: { ...savedFile, file: realFile('New.pdf'), remove: true } }));
+    expect(data.get('printableFile').name).toBe('New.pdf');
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('choosing "Link" over a saved file sends the link AND the removal of the file', () => {
+    const data = buildFormData(valid({ printable: { source: 'link', link: 'https://riseup.kids/b.pdf', button: 'Print' }, printableFile: savedFile }));
+    expect(printable(data).link).toBe('https://riseup.kids/b.pdf');
+    expect(data.get('removePrintableFile')).toBe('true');
+  });
+
+  it('a file chosen but then "Link" picked is not sent', () => {
+    const data = buildFormData(valid({ printable: { source: 'link', link: 'https://riseup.kids/b.pdf', button: '' }, printableFile: { url: null, name: '', file: realFile(), remove: false } }));
+    expect(data.has('printableFile')).toBe(false);
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('"Upload a file" with nothing chosen and nothing saved sends no file at all (an empty printable)', () => {
+    const data = buildFormData(fileForm());
+    expect(printable(data)).toEqual({ link: '', button: '' });
+    expect(data.has('printableFile')).toBe(false);
+    expect(data.has('removePrintableFile')).toBe(false);
+  });
+
+  it('never sends a link and a file together, in any combination', () => {
+    const combos = [
+      valid({ printable: { source: 'link', link: 'https://riseup.kids/a.pdf', button: '' }, printableFile: { url: null, name: '', file: realFile(), remove: false } }),
+      fileForm({ printable: { source: 'file', link: 'https://riseup.kids/a.pdf', button: '' }, printableFile: { url: null, name: '', file: realFile(), remove: false } }),
+      fileForm({ printable: { source: 'file', link: 'https://riseup.kids/a.pdf', button: '' }, printableFile: savedFile }),
+    ];
+    combos.forEach((form) => {
+      const data = buildFormData(form);
+      expect(Boolean(printable(data).link) && data.has('printableFile')).toBe(false);
+    });
+  });
+});
+
+describe('the printable link problem while "Upload a file" is chosen', () => {
+  it('is told in the message, because the link box is not on the page', () => {
+    const form = { ...emptyForm(), printable: { source: 'file', link: '', button: '' }, videos: [] };
+    const { errors, other } = placeServerErrors([{ field: 'printable.link', message: 'Choose a link or a file for the printable, not both.' }], form);
+    expect(errors['printable.link']).toBeUndefined();
+    expect(other).toEqual(['Choose a link or a file for the printable, not both.']);
+  });
+
+  it('is next to the link box while "Link" is chosen', () => {
+    const form = { ...emptyForm(), videos: [] };
+    const { errors, other } = placeServerErrors([{ field: 'printable.link', message: 'Printable link must use https.' }], form);
+    expect(errors['printable.link']).toBe('Printable link must use https.');
+    expect(other).toEqual([]);
   });
 });

@@ -64,8 +64,13 @@ be long and cramped in a pop-up). Two columns on a desktop, one on a phone; a **
    edited it also shows when it was last changed.
 2. **Cover picture** — choose / replace / remove, with a preview (JPG, PNG or WebP, up to 8 MB, checked in the browser
    before anything is sent).
-3. **Printable (optional)** — a link to a file on our own website (https), the button text (empty shows "Print here",
-   up to 60 characters) and a picture.
+3. **Printable (optional)** — what children print, chosen with **two radio buttons: "Link" or "Upload a file"**
+   (never both), then the button text (empty shows "Print here", up to 60 characters) and a picture.
+   - **Link**: a link to a file on our own website (https).
+   - **Upload a file**: a **PDF or Word document (DOC, DOCX), up to 20 MB**. A chosen file shows its name and size; a saved
+     one shows its name and an **Open it** link (new tab) so the admin can check it; both can be replaced or removed.
+   - Switching keeps what was typed and chosen (switching back loses nothing). Choosing "Link" over a saved file says,
+     before saving, that the saved file is removed when the experience is saved.
 
 **Bottom bar:** "You have unsaved changes" / "No changes yet" / "Saving…", **Cancel** and **Create experience** / **Save
 changes**. While editing, Save waits until something has changed.
@@ -78,7 +83,8 @@ changes**. While editing, Save waits until something has changed.
 | Description | optional; up to 1000 |
 | Videos | at most 20; each needs a title (up to 200) and a Bunny embed link; the same video twice is refused on the second one |
 | Bunny link | `https://iframe.mediadelivery.net/embed/LIBRARY/VIDEO`. A link on the `player.` address is the same video: it is shown, and saved, as the embed link when the admin leaves the box. Spaces and `#…` are dropped. |
-| Printable link | optional; a valid https link, up to 2048 characters. Which websites are allowed is decided by the server (`riseup.kids` by default) and shown next to the box if it refuses. |
+| Printable link | only while "Link" is chosen; optional; a valid https link, up to 2048 characters. Which websites are allowed is decided by the server (`riseup.kids` by default) and shown next to the box if it refuses. A link typed before switching to "Upload a file" is not checked and not sent. |
+| Printable file | only while "Upload a file" is chosen; optional; the name must end in `.pdf`, `.doc` or `.docx`; not empty; at most 20 MB (exactly 20 MB is accepted). The server also checks that it really is that kind of file. |
 | Printable button text | optional; up to 60 |
 | Published | needs at least one video |
 | Pictures | JPG, PNG or WebP; at most 8 MB (exactly 8 MB is accepted) |
@@ -93,6 +99,16 @@ One multipart request (create: `POST /api/admin/experiences`, edit: `PUT /api/ad
 `description`, `isPublished` (`"true"` / `"false"`), `videos` and `printable` as JSON text, the picture files
 (`coverImage`, `printableImage`) only when a new one was chosen, `removeCoverImage` / `removePrintableImage`
 (`"true"`) when a saved picture was removed, and on an edit the `expectedUpdatedAt` that was loaded.
+
+The printable is sent as **one of two shapes**, never both:
+
+| Chosen | `printable` (JSON) | Other parts |
+|---|---|---|
+| Link | `{ link: "https://…", button }` | `removePrintableFile: "true"` when a file is saved (choosing "Link" replaces it) |
+| Upload a file | `{ link: "", button }` | `printableFile` (the file) when a new one was chosen; `removePrintableFile: "true"` when the saved one was removed; nothing when the saved one is kept |
+
+The file is sent with the type its ending says (`application/pdf`, `application/msword`, the DOCX type), because a browser
+does not always know the type of a Word file.
 
 - **The order of the list is the order of the videos.** A saved video is sent with its `id`, so it stays the same row;
   a new one has none. `position` is never sent: the server numbers the rows 1, 2, 3 …
@@ -169,7 +185,8 @@ title, band colours in turn, which videos can play, whether the printable is the
 ## Tests
 
 - `utils/experienceForm.test.js` — every rule at its exact limit (200/201, 1000/1001, 20/21, 60/61, 2048/2049, 8 MB / +1
-  byte), Bunny links, what is sent for create and edit, and how server messages are placed.
+  byte, the printable file's 20 MB / +1 byte and its types), Bunny links, what is sent for create and edit (every
+  link / file combination, and that a link and a file are never sent together), and how server messages are placed.
 - `utils/experienceEditorReducer.test.js` — every change of the form's state.
 - `services/experienceEditorService.test.js`, `services/experienceAdminService.test.js`,
   `store/slices/experienceAdminSlice.test.js` — addresses, bodies, answers, every kind of failure.
