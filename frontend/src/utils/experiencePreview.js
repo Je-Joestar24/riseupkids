@@ -2,8 +2,8 @@ import { PRINTABLE_SOURCE, documentIsShown, normalizeBunnyLink } from './experie
 
 /**
  * What the preview of an experience shows, worked out from the form (so it works on what has been typed, before
- * anything is saved). The page it draws is the phone app's Experience page (app/components/child/experience/
- * experience-view.tsx): a title band, one band per video, the printable, and a closing message with a button back
+ * anything is saved). The page it draws is the phone app's page of one experience (app/components/child/experiences/
+ * experience-detail-view.tsx): a title band, one band per video, the printable, and a closing message with a button back
  * to home. The phone app shows no footer or copyright line, so neither does the preview.
  */
 

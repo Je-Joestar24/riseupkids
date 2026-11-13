@@ -1,6 +1,6 @@
 /**
  * react-test-renderer ships with jest-expo but its type definitions are not installed. This declares
- * only the small part the component tests use (e.g. components/experienceTab.e2e.test.tsx).
+ * only the small part the component tests use (e.g. components/exploreExperienceDetail.e2e.test.tsx).
  */
 declare module 'react-test-renderer' {
   import type { ReactElement } from 'react';

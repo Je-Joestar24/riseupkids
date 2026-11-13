@@ -67,5 +67,7 @@ export const ROUTE_COMPONENTS = {
   ChildExplore: lazyChunk(() => import('../pages/child/ChildExplore')),
   ChildExploreVideos: lazyChunk(() => import('../pages/child/ChildExploreVideos')),
   ChildExploreReplays: lazyChunk(() => import('../pages/child/ChildExploreReplays')),
+  ChildExperiences: lazyChunk(() => import('../pages/child/ChildExperiences')),
+  ChildExperienceDetail: lazyChunk(() => import('../pages/child/ChildExperienceDetail')),
   ChildProfile: lazyChunk(() => import('../pages/child/ChildProfile')),
 };

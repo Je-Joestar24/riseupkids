@@ -7,12 +7,11 @@ withCleanKidsWallEnv();
 const values = (platform: 'ios' | 'android' | 'web') => getNavItems(platform).map((i) => i.value);
 
 describe('child footer navigation items — Kids Wall platform gate', () => {
-  it("omits the Kid's Wall tab on iOS and shows Experience in its place", () => {
-    expect(values('ios')).toEqual(['home', 'journey', 'explore', 'experience']);
-    expect(values('ios')).not.toContain('wall');
+  it("omits the Kid's Wall tab on iOS, which has three tabs and no replacement tab", () => {
+    expect(values('ios')).toEqual(['home', 'journey', 'explore']);
   });
 
-  it("includes the Kid's Wall tab on Android and Web, without the Experience tab", () => {
+  it("includes the Kid's Wall tab on Android and Web", () => {
     expect(values('android')).toEqual(['home', 'journey', 'explore', 'wall']);
     expect(values('web')).toEqual(['home', 'journey', 'explore', 'wall']);
   });
@@ -22,43 +21,44 @@ describe('child footer navigation items — Kids Wall platform gate', () => {
     expect(wall?.label).toBe("Kid's Wall");
   });
 
-  it("omits Kid's Wall and shows Experience on every platform when the QA preview flag is on", () => {
+  it("omits Kid's Wall on every platform when the QA preview flag is on", () => {
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW = 'true';
 
     for (const platform of ['ios', 'android', 'web'] as const) {
-      expect(values(platform)).toContain('experience');
-      expect(values(platform)).not.toContain('wall');
+      expect(values(platform)).toEqual(['home', 'journey', 'explore']);
     }
   });
 
-  it("re-adds Kid's Wall on iOS when EXPO_PUBLIC_KIDS_WALL_COMING_SOON=false, and drops Experience", () => {
+  it("re-adds Kid's Wall on iOS when EXPO_PUBLIC_KIDS_WALL_COMING_SOON=false", () => {
     process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON = 'false';
-    expect(values('ios')).toContain('wall');
-    expect(values('ios')).not.toContain('experience');
+    expect(values('ios')).toEqual(['home', 'journey', 'explore', 'wall']);
   });
 });
 
-describe('child footer navigation items — Experience tab', () => {
-  it("takes the place of Kid's Wall: four tabs on every platform, never both", () => {
+describe('child footer navigation items — no Experience tab', () => {
+  it('has no Experience tab on any platform, with or without the flags', () => {
     for (const platform of ['ios', 'android', 'web'] as const) {
-      const tabs = values(platform);
-      expect(tabs).toHaveLength(4);
-      expect(tabs.includes('wall') && tabs.includes('experience')).toBe(false);
+      expect(values(platform)).not.toContain('experience');
+      expect(getNavItems(platform).some((i) => /experience/i.test(i.label))).toBe(false);
+    }
+    process.env.EXPO_PUBLIC_KIDS_WALL_COMING_SOON_PREVIEW = 'true';
+    for (const platform of ['ios', 'android', 'web'] as const) {
+      expect(values(platform)).not.toContain('experience');
     }
   });
 
-  it('is labelled "Experience" and is the last tab on iOS', () => {
-    const ios = getNavItems('ios');
-
-    expect(ios[ios.length - 1]).toEqual({ value: 'experience', label: 'Experience', isImage: false });
+  it('keeps Explore lit on the experience screens (reached from the button on Explore)', () => {
+    expect(getActiveFromPath('/child/abc/explore')).toBe('explore');
+    expect(getActiveFromPath('/child/abc/explore-experience')).toBe('explore');
+    expect(getActiveFromPath('/child/abc/explore-experience-detail')).toBe('explore');
   });
 
-  it('highlights Experience on its own page, and never mixes it up with Explore or Wall', () => {
-    expect(getActiveFromPath('/child/abc/experience')).toBe('experience');
-    expect(getActiveFromPath('/child/abc/explore')).toBe('explore');
+  it('still tells every other tab apart', () => {
     expect(getActiveFromPath('/child/abc/explore-content')).toBe('explore');
+    expect(getActiveFromPath('/child/abc/replays')).toBe('explore');
     expect(getActiveFromPath('/child/abc/wall')).toBe('wall');
     expect(getActiveFromPath('/child/abc/journey')).toBe('journey');
+    expect(getActiveFromPath('/child/abc/module')).toBe('journey');
     expect(getActiveFromPath('/child/abc/home')).toBe('home');
   });
 });

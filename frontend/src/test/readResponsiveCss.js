@@ -3,6 +3,7 @@
  *
  *   phone   - the rules for `xs` values (under 600px; Material UI writes them as `(min-width:0px)`)
  *   desktop - the rules for `sm` values (600px and wider: tablets and computers)
+ *   wide    - the rules for `md` values (900px and wider: laptops and computers; only for pages that set an `md` value)
  *   base    - rules that apply at every width
  *
  * Each part is an object of `property: value` (rules for `:hover` are keyed `hover:property`, and rules for something
@@ -12,6 +13,7 @@
 
 const PHONE = '(min-width:0px)';
 const DESKTOP = '(min-width:600px)';
+const WIDE = '(min-width:900px)';
 
 const squash = (text) => String(text).replace(/\s+/g, '');
 
@@ -50,13 +52,14 @@ const styleRule = (rule, classes) => {
 
 export const readResponsiveCss = (element) => {
   const classes = [...element.classList].filter((name) => name.startsWith('css-'));
-  const result = { base: {}, phone: {}, desktop: {} };
+  const result = { base: {}, phone: {}, desktop: {}, wide: {} };
 
   const walk = (rules, part) => {
     for (const rule of rules) {
       if (rule.media) {
         const condition = squash(rule.media.mediaText);
-        const next = condition === squash(PHONE) ? 'phone' : condition === squash(DESKTOP) ? 'desktop' : null;
+        const next =
+          condition === squash(PHONE) ? 'phone' : condition === squash(DESKTOP) ? 'desktop' : condition === squash(WIDE) ? 'wide' : null;
         if (next) walk(rule.cssRules, next);
       } else if (rule.selectorText || rule.cssText) {
         const found = styleRule(rule, classes);

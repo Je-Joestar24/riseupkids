@@ -1,6 +1,6 @@
 /**
  * Child Footer Navigation
- * Fixed bottom nav: Home, My Journey, Explore, Kid's Wall (Android/Web) or Experience (iOS)
+ * Fixed bottom nav: Home, My Journey, Explore, and Kid's Wall (Android/Web only; iOS has three tabs)
  * Follows web ChildNavigation design - scale on press, per-tab active colors
  */
 
@@ -16,7 +16,6 @@ import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { typography } from '@/config/theme/typography';
 import { withMinAndroidInset } from '@/utils/androidNavigationBar';
-import { isExperienceTabEnabled } from '@/utils/experienceTab';
 import { isKidsWallHidden } from '@/utils/kidsWallComingSoon';
 
 const ICON_SIZE = 32;
@@ -30,7 +29,6 @@ const ACTIVE_COLORS = {
     journey: colors.orange,
     explore: colors.accent,
     wall: 'rgb(212, 230, 227)',
-    experience: colors.orange,
 } as const;
 
 const INACTIVE_COLOR = 'rgba(123, 130, 149, 0.9)';
@@ -39,12 +37,12 @@ interface FooterNavigationProps {
     childId: string;
 }
 
-type NavValue = 'home' | 'journey' | 'explore' | 'wall' | 'experience';
+type NavValue = 'home' | 'journey' | 'explore' | 'wall';
 
 /**
  * Bottom-nav items. The "wall" (Kid's Wall) entry is omitted entirely where Kids Wall is
- * hidden — iOS, so the App Store build shows no photo-sharing tab or placeholder. In its place the
- * "experience" entry is shown, so every phone has four tabs.
+ * hidden — iOS, so the App Store build shows no photo-sharing tab or placeholder (three tabs there).
+ * Experiences are reached from the Experience button on the Explore screen, not from a tab.
  */
 export function getNavItems(
     platform: typeof Platform.OS = Platform.OS
@@ -57,23 +55,20 @@ export function getNavItems(
     if (!isKidsWallHidden(platform)) {
         items.push({ value: 'wall', label: "Kid's Wall", isImage: false });
     }
-    if (isExperienceTabEnabled(platform)) {
-        items.push({ value: 'experience', label: 'Experience', isImage: false });
-    }
     return items;
 }
 
 export function getActiveFromPath(pathname: string): NavValue {
     // Module is a sibling route; when on module, keep "My Journey" active in footer
     if (pathname.includes('/module') || pathname.includes('/journey')) return 'journey';
-    // Replays and explore-content are sibling routes for Explore; keep "Explore" active in footer
+    // Replays, explore-content, explore-experience and explore-experience-detail are sibling routes for
+    // Explore; keep "Explore" active in footer
     if (
       pathname.includes('/replays') ||
       pathname.includes('/explore') ||
       pathname.includes('explore-content')
     )
       return 'explore';
-    if (pathname.includes('/experience')) return 'experience';
     if (pathname.includes('/wall')) return 'wall';
     return 'home';
 }
@@ -122,10 +117,6 @@ export function FooterNavigation({ childId }: FooterNavigationProps) {
                         size={ICON_SIZE}
                         color={iconColor}
                     />
-                );
-            case 'experience':
-                return (
-                    <MaterialCommunityIcons name="chef-hat" size={ICON_SIZE} color={iconColor} />
                 );
             default:
                 return null;

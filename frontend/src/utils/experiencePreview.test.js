@@ -10,7 +10,7 @@ const video = (n, overrides = {}) => ({ ...emptyVideo(), title: `Video ${n} name
 const form = (overrides = {}) => ({ ...emptyForm(), title: 'Smoothie', ...overrides });
 
 describe('the colours are the phone app’s', () => {
-  it('has the same values as the app (app/components/child/experience/experience-view.tsx and the theme)', () => {
+  it('has the same values as the app (app/components/child/experience/experience-page-parts.tsx and the theme)', () => {
     expect(BAND_COLORS).toEqual({
       cream: '#f1ebd4',
       pale: '#d1e2df',

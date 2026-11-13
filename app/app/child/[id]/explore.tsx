@@ -1,12 +1,13 @@
 /**
  * Child Explore
- * Star Cam, Watch Replays, What Do You Want to Learn?, Video collections
+ * Experience button, Star Cam, Watch Replays, What Do You Want to Learn?, Video collections
  */
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import { ExploreExperienceButton } from '@/components/child/explore/explore-experience-button';
 import { ExploreReplays } from '@/components/child/explore/explore-replays';
 import { ExploreSomething } from '@/components/child/explore/explore-something';
 import { ExploreStarCam } from '@/components/child/explore/explore-starcam';
@@ -14,6 +15,7 @@ import { ExploreVideoCollection } from '@/components/child/explore/explore-video
 import { colors } from '@/config/theme/colors';
 import { spacing } from '@/config/theme/spacing';
 import { useExploreStore } from '@/store/exploreStore';
+import { experienceListRoute } from '@/utils/experienceFormat';
 
 export default function ChildExploreScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,6 +37,11 @@ export default function ChildExploreScreen() {
     [childId, router]
   );
 
+  const handleExperiencePress = useCallback(() => {
+    if (!childId) return;
+    router.push(experienceListRoute(childId) as never);
+  }, [childId, router]);
+
   const handleStarCamPress = useCallback(() => {
     if (!childId) return;
     router.push(`/child/${childId}/star-cam` as never);
@@ -46,6 +53,7 @@ export default function ChildExploreScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
+        <ExploreExperienceButton onPress={handleExperiencePress} />
         <ExploreReplays childId={childId} />
         <ExploreSomething />
         <ExploreVideoCollection

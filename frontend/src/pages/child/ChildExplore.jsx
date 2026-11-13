@@ -2,6 +2,7 @@ import { Box } from "@mui/material";
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import ExploreSomething from "../../components/child/explore/ExploreSomething";
+import ExperienceButton from "../../components/child/experience/ExperienceButton";
 import ExploreReplays from "../../components/child/explore/ExploreReplays";
 import ExploreVideoCollectionsCards from "../../components/child/explore/ExploreVideoCollectionsCards";
 import ExploreFooter from "../../components/child/explore/ExploreFooter";
@@ -49,6 +50,7 @@ const ChildExplore = ({ childId }) => {
                     px: { xs: phoneFluid(14, 22), sm: '24px', md: 0 },
                 }}
             >
+                <ExperienceButton childId={childId} />
                 <ExploreReplays childId={childId} />
                 <ExploreSomething />
                 <ExploreVideoCollectionsCards onVideoTypeClick={handleVideoTypeClick} childId={childId} />

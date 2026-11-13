@@ -143,7 +143,7 @@ as children see it, built from what is typed **right now** (nothing needs to be 
 nothing). Two buttons choose the screen: **Laptop** (a browser window, shown first) and **Phone** (a 390-wide phone
 with a fixed status bar and no scroll bar). **Back to editing** returns to the form with everything still typed.
 
-The page is the phone app's Experience page (`app/components/child/experience/experience-view.tsx`), drawn in the same
+The page is the phone app's page of one experience (`app/components/child/experiences/experience-detail-view.tsx`), drawn in the same
 colours (cream, pale green, peach, teal text, orange and yellow buttons), the same fonts and sizes, and the same
 wording around the admin's content: the title, then the description (or, when there is none, the app's own two lines),
 one band per video (a play button first, and the Bunny player only after it is tapped, one at a time), the printable

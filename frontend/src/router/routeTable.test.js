@@ -81,6 +81,8 @@ const EXPECTED_CHILD_PAGES = [
   ['/child/:id/explore', 'ChildExplore'],
   ['/child/:id/explore/videos/:videoType', 'ChildExploreVideos'],
   ['/child/:id/explore/replays', 'ChildExploreReplays'],
+  ['/child/:id/explore/experience', 'ChildExperiences'],
+  ['/child/:id/explore/experience/:uuid', 'ChildExperienceDetail'],
   ['/child/:id/wall', 'ChildKidsWall'],
   ['/child/:id/wall/share', 'ChildShareSomething'],
   ['/child/:id/profile', 'ChildProfile'],

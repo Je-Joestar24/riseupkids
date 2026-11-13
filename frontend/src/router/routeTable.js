@@ -107,6 +107,8 @@ export const CHILD_PAGES = [
   { path: 'journey/:courseId', page: 'ChildJourneyModule' },
   { path: 'explore/videos/:videoType', page: 'ChildExploreVideos' },
   { path: 'explore/replays', page: 'ChildExploreReplays' },
+  { path: 'explore/experience', page: 'ChildExperiences' },
+  { path: 'explore/experience/:uuid', page: 'ChildExperienceDetail' },
   { path: 'wall/share', page: 'ChildShareSomething' },
   { path: 'journey/:courseId/printables', page: 'ChildModulePrintables' },
 ];

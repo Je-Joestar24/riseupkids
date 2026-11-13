@@ -159,5 +159,5 @@ All under `backend/tests/`, run with `npm test` from `backend/`:
 ## Not in this part
 
 The child-facing read API (`GET /api/experiences`, only published ones, by `uuid`), the admin screen, and the
-app and web pages. The existing free Smoothie page and the app's fixed Experience tab are untouched until
-those exist.
+app and web pages. The existing free Smoothie page on the sales site is untouched. (The app's old fixed
+Experience tab has since been removed; the child pages are described in `EXPERIENCE_CHILD_APP_AND_WEB.md`.)
