@@ -149,9 +149,12 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
       maxScore = 0,
       attemptCount = 0,
       trigger = 'close',
+      reachedEnd = false,
     } = {}) => {
       const bookId = selectedCmsBook?._contentId || selectedCmsBook?._id || selectedCmsBook?.contentId || null;
       if (!courseId || !childId || !bookId) return;
+      // A book only counts as read (and earns stars) once the child got to its last page
+      if (!reachedEnd) return;
 
       const elapsedMs = sessionStartedAt ? Math.max(0, Date.now() - sessionStartedAt) : 0;
       const timeSpentSeconds = Math.round(elapsedMs / 1000);
@@ -167,6 +170,7 @@ const ChildModuleLibrary = ({ books = [], courseProgress = null, onBookClick, im
           status: 'completed',
           timeSpent: timeSpentSeconds,
           progress: 100,
+          reachedEnd,
         });
 
         // Apply stars + open reward UI before any module refresh work

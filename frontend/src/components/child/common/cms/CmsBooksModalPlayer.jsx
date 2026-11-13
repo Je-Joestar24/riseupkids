@@ -23,6 +23,7 @@ import usePlayerViewport from '../../../../hooks/usePlayerViewport';
 import useCmsBookMedia from '../../../../hooks/useCmsBookMedia';
 import { CmsMediaSrcProvider } from '../../../../hooks/cmsMediaSrc';
 import { getCmsNextGateTimeoutMs } from '../../../../utils/cmsBookMediaPlan';
+import { reachedLastPage } from '../../../../utils/cmsBookReadComplete';
 import TurnPhonePrompt from './TurnPhonePrompt';
 
 const getPlayablePages = (pages = []) => pages.filter((page) => Boolean(page?.type));
@@ -57,6 +58,8 @@ const CmsBooksModalPlayer = ({
     [playablePages]
   );
   const [currentIndex, setCurrentIndex] = useState(0);
+  // The furthest page the child has been on: the book only counts as read once this is the last page.
+  const [furthestIndex, setFurthestIndex] = useState(0);
   const [resolvedPageIds, setResolvedPageIds] = useState({});
   const [score, setScore] = useState(0);
   const [attemptCount, setAttemptCount] = useState(0);
@@ -92,6 +95,10 @@ const CmsBooksModalPlayer = ({
     );
     return () => clearTimeout(timer);
   }, [media.enabled, isPreloading, hasNext, nextReady, currentIndex, playablePages]);
+
+  useEffect(() => {
+    setFurthestIndex((furthest) => Math.max(furthest, currentIndex));
+  }, [currentIndex]);
 
   const goToIndex = (nextIndex) => {
     setAdvanceQueued(false);
@@ -143,6 +150,7 @@ const CmsBooksModalPlayer = ({
     attemptCount,
     totalPages: playablePages.length,
     completedInteractivePages: Object.keys(resolvedPageIds).length,
+    reachedEnd: reachedLastPage(furthestIndex, playablePages.length),
   });
 
   const finalizeAndClose = async (trigger = 'close') => {
@@ -153,6 +161,7 @@ const CmsBooksModalPlayer = ({
       trigger,
     }));
     setCurrentIndex(0);
+    setFurthestIndex(0);
     setAdvanceQueued(false);
     setStreamAllowedFor(-1);
     setResolvedPageIds({});

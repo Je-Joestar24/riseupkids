@@ -1,6 +1,8 @@
 const { VideoWatch, Media, ChildProfile, StarEarning, ChildStats } = require('../models');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const { MAX_REPLAYS } = require('../utils/contentReplayStars.util');
+const { awardReplayStars } = require('./contentReplayStars.service');
 const logger = require('../config/logger');
 
 /**
@@ -128,6 +130,7 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
 
   let isDuplicateWatch = false;
   let starsEarnedThisSession = 0;
+  let replay = null;
   const requiredWatchCount = video.requiredWatchCount || 5;
   const totalStarsAvailable = video.starsAwarded || 10;
 
@@ -148,6 +151,17 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
         requiredWatchCount,
         totalStarsAvailable,
       });
+    } else {
+      // Every required watch is done and the whole total is earned: a further full watch is a replay
+      // (2 stars, at most 5 times; see utils/contentReplayStars.util.js).
+      replay = await awardReplayStars({
+        childId,
+        sourceType: 'video',
+        contentId: videoId,
+        contentType: 'Media',
+        title: video.title,
+      });
+      starsEarnedThisSession = replay.stars;
     }
 
     if (videoWatch.watchCount >= requiredWatchCount) {
@@ -182,6 +196,11 @@ const markVideoWatched = async (childId, videoId, completionPercentage = 100) =>
     starsForNextSession,
     totalStarsAvailable,
     isDuplicateWatch,
+    // Replay (after the last required watch): which replay this was and how many still pay out
+    isReplay: Boolean(replay),
+    replayNumber: replay ? replay.replayNumber : 0,
+    replaysLeft: replay ? replay.replaysLeft : 0,
+    maxReplays: MAX_REPLAYS,
   };
 };
 

@@ -304,6 +304,8 @@ export interface BuiltInBookCompletionPayload {
   status: 'not_started' | 'in_progress' | 'completed' | string;
   timeSpent: number;
   progress: number;
+  /** The child got to the last page. The server refuses stars for a book where this is explicitly false. */
+  reachedEnd?: boolean;
 }
 
 function clampRange(value: number, min: number, max: number): number {

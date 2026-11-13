@@ -17,6 +17,7 @@ export async function completeHtml5Book({
   timeSpent = 0,
   progress = 100,
   dryRun = false,
+  reachedEnd,
 } = {}) {
   if (!courseId || !childId || !bookId) {
     throw new Error('courseId, childId, and bookId are required');
@@ -31,6 +32,8 @@ export async function completeHtml5Book({
     status,
     timeSpent,
     progress: progress ?? 0,
+    // Built-in books only: the server refuses a book that was closed before its last page
+    ...(typeof reachedEnd === 'boolean' && { reachedEnd }),
   };
 
   const res = await axios.post(endpoint, payload);

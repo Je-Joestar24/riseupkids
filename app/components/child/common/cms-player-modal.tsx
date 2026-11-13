@@ -41,6 +41,7 @@ import {
   reassertCmsPlayerLandscapeLock,
   restoreAppPortraitOrientation,
 } from '@/utils/cmsPlayerOrientation';
+import { reachedLastPage } from '@/utils/cmsBookReadComplete';
 import { prepareCmsPlaybackAudioAfterOrientation } from '@/utils/cmsPlaybackAudio';
 import { useCmsBookPagePlaybackFlags } from '@/hooks/useCmsBookPagePlaybackFlags';
 import { stopCmsIntroBackgroundMusic } from '@/services/cmsIntroBackgroundMusic';
@@ -83,6 +84,8 @@ export interface CmsSessionPayload {
   attemptCount: number;
   totalPages: number;
   completedInteractivePages: number;
+  /** The child got to the last page (the book only counts as read, and earns stars, when this is true). */
+  reachedEnd: boolean;
   trigger: 'close' | 'home';
 }
 
@@ -134,6 +137,8 @@ export function CmsPlayerModal({
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  // The furthest page the child has been on: the book only counts as read once this is the last page.
+  const [furthestIndex, setFurthestIndex] = useState(0);
   const [resolvedPageIds, setResolvedPageIds] = useState<Record<string, boolean>>({});
   const [score, setScore] = useState(0);
   const [attemptCount, setAttemptCount] = useState(0);
@@ -336,6 +341,7 @@ export function CmsPlayerModal({
   useEffect(() => {
     if (!open) {
       setCurrentIndex(0);
+      setFurthestIndex(0);
       setResolvedPageIds({});
       setScore(0);
       setAttemptCount(0);
@@ -454,6 +460,7 @@ export function CmsPlayerModal({
 
   const goToIndex = useCallback((nextIndex: number) => {
     setCurrentIndex(nextIndex);
+    setFurthestIndex((furthest) => Math.max(furthest, nextIndex));
   }, []);
 
   const goNext = useCallback(() => {
@@ -506,9 +513,10 @@ export function CmsPlayerModal({
       attemptCount,
       totalPages: playablePages.length,
       completedInteractivePages: Object.keys(resolvedPageIds).length,
+      reachedEnd: reachedLastPage(furthestIndex, playablePages.length),
       trigger: 'close',
     }),
-    [score, interactivePages.length, attemptCount, playablePages.length, resolvedPageIds]
+    [score, interactivePages.length, attemptCount, playablePages.length, resolvedPageIds, furthestIndex]
   );
 
   const finalizeAndClose = useCallback(
@@ -521,6 +529,7 @@ export function CmsPlayerModal({
         await Promise.resolve(onSessionComplete?.(payload));
       } finally {
         setCurrentIndex(0);
+        setFurthestIndex(0);
         setResolvedPageIds({});
         setScore(0);
         setAttemptCount(0);

@@ -70,6 +70,7 @@ import {
   parseBookCompletionStarPayload,
   runBackgroundAfterStarReward,
 } from '@/utils/bookCompletionStarReward';
+import { shouldSubmitBookRead } from '@/utils/cmsBookReadComplete';
 import { isNetworkError } from '@/utils/networkError';
 import { useOnNetworkReconnect } from '@/hooks/useOnNetworkReconnect';
 
@@ -170,6 +171,8 @@ export default function ChildModuleScreen() {
         status: passedRatio || fullMarks ? 'passed' : 'completed',
         timeSpent: Math.max(1, payload.attemptCount * 5 + (payload.trigger === 'home' ? 30 : 5)),
         progress,
+        // Tells the server the book was read to the last page (it refuses stars when this is false)
+        reachedEnd: payload.reachedEnd,
       };
     },
     []
@@ -185,13 +188,8 @@ export default function ChildModuleScreen() {
       const libraryBookId = getContentId(cmsModalBook);
       const maxScore = Math.max(0, payload.maxScore);
       const score = Math.min(payload.score, maxScore > 0 ? maxScore : payload.score);
-      const ratio = maxScore > 0 ? score / maxScore : 1;
-      const worthSubmitting =
-        ratio >= 0.75
-        || (maxScore > 0 && score >= maxScore)
-        || maxScore === 0
-        || payload.trigger === 'home';
-      if (!worthSubmitting) return;
+      // A book only counts as read (and earns stars) once the child got to its last page.
+      if (!shouldSubmitBookRead(payload)) return;
 
       const body = mapCmsSessionToCompletion(payload);
       const completionRes = await submitBuiltinBookScore(libraryBookId, body);

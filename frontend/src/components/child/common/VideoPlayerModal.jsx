@@ -26,6 +26,15 @@ import useExploreVideoWatch from '../../../hooks/exploreVideoWatchHook';
 import ChildDialogBox from '../../common/ChildDialogBox';
 import { useDispatch } from 'react-redux';
 import { applyStarRewardFromCompletion } from '../../../utils/childStatsSync';
+import { starsPaidByWatch, toCourseVideoDialogResult } from '../../../utils/videoReplayStars';
+import RewardStarIcon from './RewardStarIcon';
+import {
+  rewardFont,
+  rewardPaperSx,
+  rewardTitlePadding,
+  rewardContentPadding,
+  rewardButtonPadding,
+} from './rewardDialogStyles';
 import courseProgressService from '../../../services/courseProgressService';
 import { BACKEND_BASE_URL } from '../../../config/constants';
 import html5Service from '../../../services/html5Service';
@@ -472,22 +481,15 @@ const VideoPlayerModal = ({
 
           const wasFullyCompleteBefore = watchStatusBefore?.starsAwarded || false;
           const isFullyCompleteNow = result?.videoWatch?.starsAwarded || result?.allStarsAwarded || false;
-          const starsJustAwarded = (result?.starsToAward ?? result?.starsEarnedThisSession ?? 0) > 0;
 
           applyStarRewardFromCompletion({
             childId,
-            starsToAward: result?.starsToAward ?? result?.starsEarnedThisSession ?? 0,
+            starsToAward: starsPaidByWatch(result),
             dispatch,
           });
 
-          const updatedResult = {
-            ...result,
-            starsJustAwarded,
-            starsWereAlreadyAwarded: wasFullyCompleteBefore && !starsJustAwarded,
-            allStarsAwarded: isFullyCompleteNow,
-          };
-
-          setWatchResult(updatedResult);
+          // A replay that paid stars (2 each, 5 at most) shows "You earned N stars!" like any other payment
+          setWatchResult(toCourseVideoDialogResult(result, wasFullyCompleteBefore));
 
           if (courseId && isFullyCompleteNow && !wasFullyCompleteBefore) {
             try {
@@ -1394,7 +1396,7 @@ const VideoPlayerModal = ({
             borderRadius: '20px',
             fontFamily: 'Quicksand, sans-serif',
             backgroundColor: themeColors.bgCard,
-            padding: '8px',
+            ...rewardPaperSx,
           },
         }}
         BackdropProps={{
@@ -1410,24 +1412,24 @@ const VideoPlayerModal = ({
           sx={{
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 700,
-            fontSize: isMobileLayout ? '1.75rem' : '2.5rem',
+            ...rewardFont(22, 26, '2.5rem'),
             color: themeColors.success,
             textAlign: 'center',
-            padding: isMobileLayout ? '24px 16px 12px' : '32px 24px 16px',
+            ...rewardTitlePadding,
           }}
         >
           You Finished the Video!
         </DialogTitle>
         <DialogContent
           sx={{
-            padding: '0 24px 24px',
+            ...rewardContentPadding,
             textAlign: 'center',
           }}
         >
           <Typography
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: isMobileLayout ? '1.125rem' : '1.5rem',
+              ...rewardFont(15, 17, '1.5rem'),
               color: themeColors.text,
               marginBottom: 2,
               lineHeight: 1.6,
@@ -1442,21 +1444,7 @@ const VideoPlayerModal = ({
                 // Stars were JUST awarded in this watch (explore videos)
                 <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
 
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="52"
-                    height="52"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    style={{ fill: themeColors.accent, color: themeColors.accent }}
-                  >
-                    <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-                  </svg>
+                  <RewardStarIcon min={34} max={40} desktop={52} />
                   <Box
                     sx={{
                       display: 'flex',
@@ -1466,25 +1454,12 @@ const VideoPlayerModal = ({
                       flexWrap: 'wrap',
                     }}
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="32"
-                      height="32"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      style={{ fill: themeColors.accent, color: themeColors.accent }}
-                    >
-                      <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-                    </svg>
+                    <RewardStarIcon min={22} max={26} desktop={32} />
                     <Typography
                       sx={{
                         fontFamily: 'Quicksand, sans-serif',
-                        fontSize: '1.8rem',
+                        ...rewardFont(18, 22, '1.8rem'),
+                        textAlign: 'center',
                         color: themeColors.success,
                         fontWeight: 700,
                         marginBottom: 1,
@@ -1492,21 +1467,7 @@ const VideoPlayerModal = ({
                     >
                       You earned {watchResult.starsToAward} stars!
                     </Typography>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="32"
-                      height="32"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      style={{ fill: themeColors.accent, color: themeColors.accent }}
-                    >
-                      <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-                    </svg>
+                    <RewardStarIcon min={22} max={26} desktop={32} />
                   </Box>
                 </Box>
               ) : watchResult.starsWereAlreadyAwarded || starsAlreadyAwarded ? (
@@ -1520,53 +1481,25 @@ const VideoPlayerModal = ({
                     flexWrap: 'wrap',
                   }}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    style={{ fill: themeColors.accent, color: themeColors.accent }}
-                  >
-                    <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-                  </svg>
+                  <RewardStarIcon min={18} max={20} desktop={24} />
                   <Typography
                     sx={{
                       fontFamily: 'Quicksand, sans-serif',
-                      fontSize: '1.3rem',
+                      ...rewardFont(15, 17, '1.3rem'),
                       color: themeColors.warning,
                       fontWeight: 600,
                     }}
                   >
                     Stars already earned for this video!
                   </Typography>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    style={{ fill: themeColors.accent, color: themeColors.accent }}
-                  >
-                    <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"></path>
-                  </svg>
+                  <RewardStarIcon min={18} max={20} desktop={24} />
                 </Box>
               ) : watchResult.isReplay ? (
                 // Replay video - no stars
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
-                    fontSize: '1.3rem',
+                    ...rewardFont(15, 17, '1.3rem'),
                     color: themeColors.textSecondary,
                     fontWeight: 600,
                   }}
@@ -1578,7 +1511,7 @@ const VideoPlayerModal = ({
                 <Typography
                   sx={{
                     fontFamily: 'Quicksand, sans-serif',
-                    fontSize: '1.3rem',
+                    ...rewardFont(15, 17, '1.3rem'),
                     color: themeColors.textSecondary,
                     fontWeight: 600,
                   }}
@@ -1591,7 +1524,7 @@ const VideoPlayerModal = ({
         </DialogContent>
         <DialogActions
           sx={{
-            padding: '16px 24px 24px',
+            padding: { xs: '8px 14px 16px', sm: '16px 24px 24px' },
             justifyContent: 'center',
           }}
         >
@@ -1604,8 +1537,8 @@ const VideoPlayerModal = ({
               fontFamily: 'Quicksand, sans-serif',
               fontWeight: 700,
               textTransform: 'none',
-              padding: '16px 48px',
-              fontSize: '1.5rem',
+              ...rewardButtonPadding('16px 48px'),
+              ...rewardFont(16, 18, '1.5rem'),
               borderRadius: '16px',
               '&:hover': {
                 backgroundColor: themeColors.primary,

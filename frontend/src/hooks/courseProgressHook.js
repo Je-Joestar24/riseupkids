@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchChildJourney } from '../store/slices/childJourneySlice';
 import { fetchChildModule } from '../store/slices/childModuleSlice';
 import { getCoverImageUrl } from '../utils/coverImageUrl';
+import { replayToastMessage } from '../utils/videoReplayStars';
 
 const NO_COURSES = [];
 
@@ -226,7 +227,14 @@ export const useCourseProgress = (childId) => {
         const { videoWatch, requiredWatchCount, starsAwarded, starsAwardedAt, starsToAward } = response.data;
         
         // Show success notification
-        if (starsAwarded && starsAwardedAt) {
+        const replayMessage = replayToastMessage(response.data);
+        if (replayMessage) {
+          // A replay after the last required watch: 2 stars, 5 replays at most
+          dispatch(showNotification({ message: replayMessage, type: 'success', duration: 4000 }));
+        } else if (response.data.isReplay) {
+          // A replay that pays nothing any more: no pop-up, and no "watch more times" hint
+          return response.data;
+        } else if (starsAwarded && starsAwardedAt) {
           // Stars were just awarded - show celebratory message
           dispatch(showNotification({
             message: `🎉 Awesome! You earned ${starsToAward} stars for watching this video ${requiredWatchCount} times! 🎉`,

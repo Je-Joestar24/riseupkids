@@ -19,6 +19,7 @@ const probe = vi.hoisted(() => ({
   fetchCalls: 0,
   preloadCalls: [],
   fs: { enter: vi.fn(async () => true), exit: vi.fn(async () => {}) },
+  complete: vi.fn(async () => ({ data: {} })),
 }));
 
 vi.mock('../../../hooks/courseProgressHook', () => ({
@@ -52,6 +53,7 @@ vi.mock('./ChildModuleCards', () => ({
   ),
 }));
 vi.mock('../common/html5Player', () => ({ default: () => null }));
+vi.mock('../common/html5CompletionHandler', () => ({ completeHtml5Book: (...args) => probe.complete(...args) }));
 vi.mock('../common/cmsCompletionDialog', () => ({ default: () => null }));
 
 // Registered again for every test (see mount): the mock registry remembers a module once it has been
@@ -419,5 +421,32 @@ describe('Full screen for a built-in book (phones that can)', () => {
     await settle(10);
 
     expect(probe.fs.enter).not.toHaveBeenCalled();
+  });
+});
+
+describe('A built-in book only counts when it is read to the last page', () => {
+  const openBook = async () => {
+    probe.complete.mockClear();
+    await mount();
+    await settle(1500);
+    fireEvent.click(screen.getByText('Built-in story'));
+    await settle(10);
+  };
+
+  it('closed early: nothing is sent, so no stars and no reading is recorded', async () => {
+    await openBook();
+
+    await act(async () => probe.readerProps.onSessionComplete({ score: 1, maxScore: 1, trigger: 'close', reachedEnd: false }));
+
+    expect(probe.complete).not.toHaveBeenCalled();
+  });
+
+  it('read to the last page: the completion is sent and says so', async () => {
+    await openBook();
+
+    await act(async () => probe.readerProps.onSessionComplete({ score: 1, maxScore: 1, trigger: 'home', reachedEnd: true }));
+
+    expect(probe.complete).toHaveBeenCalledTimes(1);
+    expect(probe.complete).toHaveBeenCalledWith(expect.objectContaining({ childId: 'kid1', courseId: 'c1', reachedEnd: true }));
   });
 });

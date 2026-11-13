@@ -518,13 +518,13 @@ describe('Closing the book', () => {
     expect(screen.getByText('Getting your book ready...')).toBeInTheDocument();
   });
 
-  it('closing the book reports the session and also frees everything', async () => {
+  it('closing the book before its last page reports nothing (it did not count as read) and frees everything', async () => {
     await openBook();
     await picture('cover.jpg');
     await file('music.mp3');
     fireEvent.click(screen.getByRole('button', { name: 'Close book player' }));
     await settle(50);
-    expect(world.completions).toHaveLength(1);
+    expect(world.completions).toHaveLength(0);
     expect(objectUrls.live.size).toBe(0);
   });
 });

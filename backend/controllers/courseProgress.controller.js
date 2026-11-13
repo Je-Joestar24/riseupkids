@@ -1,6 +1,7 @@
 const courseProgressService = require('../services/courseProgress.services');
 const { getStarsForSession } = require('../utils/contentStarDistribution.util');
 const { scheduleBadgeUpdate } = require('../utils/scheduleBadgeUpdate.util');
+const { awardReplayStars } = require('../services/contentReplayStars.service');
 const { ChildProfile, Book, BookReading, ChildStats, StarEarning, CourseProgress, Course } = require('../models');
 const logger = require('../config/logger');
 
@@ -271,7 +272,7 @@ const submitBookCompletion = async (req, res) => {
   
   try {
     const { courseId, childId, bookId } = req.params;
-    const { score, maxScore, status, timeSpent, progress: progressPercentage } = req.body;
+    const { score, maxScore, status, timeSpent, progress: progressPercentage, reachedEnd } = req.body;
     const dryRun = req.query?.dryRun === '1' || req.query?.dryRun === 'true';
 
     logger.info(`\n========== [Book Completion] Request ${requestId} - STARTED ==========`);
@@ -308,6 +309,18 @@ const submitBookCompletion = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Book not found',
+      });
+    }
+
+    // Built-in (CMS) books earn stars only when the book is read to the last page. The app says so with
+    // `reachedEnd`; only an explicit `false` is refused, so app versions that do not send it keep working.
+    const isBuiltinBook = book.packageType === 'builtin';
+    if (isBuiltinBook && reachedEnd === false) {
+      return res.status(400).json({
+        success: false,
+        canComplete: false,
+        code: 'BOOK_NOT_FINISHED',
+        message: 'Read the whole book to the last page to earn stars.',
       });
     }
 
@@ -510,20 +523,37 @@ const submitBookCompletion = async (req, res) => {
         }
       }
 
+      // A built-in book that is already fully read pays the replay reward (2 stars, at most 5 times).
+      const replay = isBuiltinBook
+        ? await awardReplayStars({
+            childId,
+            sourceType: 'book',
+            contentId: bookId,
+            contentType: 'Book',
+            title: book.title,
+          })
+        : null;
+
       const childStats = await ChildStats.getOrCreate(childId);
 
       return res.json({
         success: true,
         canComplete: true,
-        message: 'Book requirement already met',
+        message: replay && replay.stars > 0 ? 'Replay reward earned' : 'Book requirement already met',
         data: {
           readingCount: currentReadingCount,
           requiredReadingCount,
           starsAwarded: true,
-          starsToAward: 0,
+          starsToAward: replay ? replay.stars : 0,
           totalStars: childStats.totalStars,
           requirementMet: true,
           alreadyCompleted: true,
+          ...(replay && {
+            isReplay: true,
+            replayNumber: replay.replayNumber,
+            replaysLeft: replay.replaysLeft,
+            maxReplays: replay.maxReplays,
+          }),
         },
       });
     }
@@ -653,6 +683,19 @@ const submitBookCompletion = async (req, res) => {
       }
     }
 
+    // More reads than required (the flag that marks the book complete was not saved yet): same replay reward.
+    let replay = null;
+    if (isBuiltinBook && newReadingRecord && !isDuplicateSubmission && readingCount > requiredReadingCount) {
+      replay = await awardReplayStars({
+        childId,
+        sourceType: 'book',
+        contentId: bookId,
+        contentType: 'Book',
+        title: book.title,
+      });
+    }
+    const replayStars = replay ? replay.stars : 0;
+
     const requirementMet = readingCount >= requiredReadingCount;
 
     if (requirementMet) {
@@ -715,12 +758,18 @@ const submitBookCompletion = async (req, res) => {
       data: {
         readingCount,
         requiredReadingCount,
-        starsAwarded: starsAwardedThisRequest,
-        starsToAward: starsForThisReading,
+        starsAwarded: starsAwardedThisRequest || replayStars > 0,
+        starsToAward: starsForThisReading + replayStars,
         starsForNextReading,
         totalStarsAvailable: totalStarsAwarded,
-        totalStars: childStats.totalStars,
+        totalStars: replay && replay.totalStars !== null ? replay.totalStars : childStats.totalStars,
         requirementMet,
+        ...(replay && {
+          isReplay: true,
+          replayNumber: replay.replayNumber,
+          replaysLeft: replay.replaysLeft,
+          maxReplays: replay.maxReplays,
+        }),
       },
     });
   } catch (error) {

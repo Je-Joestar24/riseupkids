@@ -12,6 +12,13 @@ import { keyframes } from '@mui/system';
 import StarIcon from '@mui/icons-material/Star';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { themeColors } from '../../../config/themeColors';
+import {
+  rewardFont,
+  rewardPaperSx,
+  rewardTitlePadding,
+  rewardContentPadding,
+  rewardButtonPadding,
+} from './rewardDialogStyles';
 
 const popIn = keyframes`
   from { transform: scale(0.85); opacity: 0.4; }
@@ -70,7 +77,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
           borderRadius: '20px',
           fontFamily: 'Quicksand, sans-serif',
           backgroundColor: themeColors.bgCard,
-          padding: '8px',
+          ...rewardPaperSx,
         },
       }}
       BackdropProps={{
@@ -86,10 +93,10 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
         sx={{
           fontFamily: 'Quicksand, sans-serif',
           fontWeight: 700,
-          fontSize: '2.2rem',
+          ...rewardFont(22, 26, '2.2rem'),
           color: themeColors.success,
           textAlign: 'center',
-          padding: '32px 24px 16px',
+          ...rewardTitlePadding,
         }}
       >
         🎉 Great Job! 🎉
@@ -97,15 +104,15 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
 
       <DialogContent
         sx={{
-          padding: '0 24px 24px',
+          ...rewardContentPadding,
           textAlign: 'center',
         }}
       >
         <CheckCircleIcon
           sx={{
-            fontSize: 80,
+            fontSize: { xs: 56, sm: 80 },
             color: themeColors.success,
-            mb: 2,
+            mb: { xs: 1, sm: 2 },
             animation: `${popIn} 420ms cubic-bezier(0.22, 1, 0.36, 1)`,
           }}
         />
@@ -113,7 +120,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
         <Typography
           sx={{
             fontFamily: 'Quicksand, sans-serif',
-            fontSize: '1.4rem',
+            ...rewardFont(16, 18, '1.4rem'),
             color: themeColors.text,
             marginBottom: 2,
             lineHeight: 1.6,
@@ -135,7 +142,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             variant="body1"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '1.1rem',
+              ...rewardFont(14, 16, '1.1rem'),
               fontWeight: 700,
               color: themeColors.text,
             }}
@@ -146,7 +153,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             variant="body2"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '1rem',
+              ...rewardFont(13, 15, '1rem'),
               color: themeColors.textSecondary,
               mt: 0.8,
             }}
@@ -168,7 +175,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             variant="body1"
             sx={{
               fontFamily: 'Quicksand, sans-serif',
-              fontSize: '1.1rem',
+              ...rewardFont(14, 16, '1.1rem'),
               fontWeight: 600,
               color: themeColors.text,
             }}
@@ -180,7 +187,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
               variant="body2"
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
-                fontSize: '0.98rem',
+                ...rewardFont(13, 15, '0.98rem'),
                 color: themeColors.textSecondary,
                 mt: 1,
               }}
@@ -194,8 +201,8 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
         {starsAwarded && starsToAward > 0 && (
           <Box
             sx={{
-              my: 3,
-              p: 3,
+              my: { xs: 2, sm: 3 },
+              p: { xs: 1.5, sm: 3 },
               bgcolor: `${themeColors.warning}20`,
               borderRadius: '16px',
               border: `3px solid ${themeColors.warning}`,
@@ -205,7 +212,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
               variant="body1"
               sx={{
                 fontFamily: 'Quicksand, sans-serif',
-                fontSize: '1.2rem',
+                ...rewardFont(15, 17, '1.2rem'),
                 fontWeight: 600,
                 color: themeColors.text,
                 marginBottom: 1,
@@ -227,7 +234,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
               <StarIcon
                 sx={{
                   color: themeColors.warning,
-                  fontSize: 40,
+                  fontSize: { xs: 30, sm: 40 },
                 }}
               />
               <Typography
@@ -236,7 +243,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
                   fontFamily: 'Quicksand, sans-serif',
                   color: themeColors.warning,
                   fontWeight: 700,
-                  fontSize: '2.4rem',
+                  ...rewardFont(26, 32, '2.4rem'),
                 }}
               >
                 +{starsToAward}
@@ -248,7 +255,7 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
                 variant="body2"
                 sx={{
                   fontFamily: 'Quicksand, sans-serif',
-                  fontSize: '1.05rem',
+                  ...rewardFont(14, 16, '1.05rem'),
                   color: themeColors.textSecondary,
                   fontWeight: 600,
                 }}
@@ -268,9 +275,9 @@ const CmsCompletionDialog = ({ open, onClose, data }) => {
             mt: 2.5,
             fontFamily: 'Quicksand, sans-serif',
             fontWeight: 700,
-            fontSize: '1.2rem',
+            ...rewardFont(16, 18, '1.2rem'),
             textTransform: 'none',
-            padding: '12px 48px',
+            ...rewardButtonPadding('12px 48px'),
             borderRadius: '12px',
             backgroundColor: themeColors.secondary,
             color: themeColors.textInverse,
