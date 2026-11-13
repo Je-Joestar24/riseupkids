@@ -32,6 +32,7 @@ const mongoose = require('mongoose');
 const { verifyCaptcha } = require('../services/captcha.service');
 const experienceRoutes = require('../routes/experienceRoutes');
 const experienceAdminRoutes = require('../routes/experienceAdmin.routes');
+const experienceChildRoutes = require('../routes/experienceChild.routes');
 const models = require('../models');
 const errorHandler = require('../middleware/errorHandler');
 
@@ -142,6 +143,15 @@ describe('the server mounts both, on different paths', () => {
     expect(server).toContain("require('./routes/experienceAdmin.routes')");
   });
 
+  it('mounts the child API once, on its own plural path, after the singular and the admin ones', () => {
+    expect(server.match(/app\.use\('\/api\/experiences',\s*experienceChildRoutes\)/g)).toHaveLength(1);
+    expect(server).toContain("require('./routes/experienceChild.routes')");
+    const at = (needle) => server.indexOf(needle);
+    expect(at("app.use('/api/experiences'")).toBeGreaterThan(at("app.use('/api/admin/experiences'"));
+    // never mounted under Explore, where /api/explore/:id would take its ids
+    expect(server).not.toMatch(/app\.use\('\/api\/explore\/experiences'/);
+  });
+
   it('keeps the other admin and explore routes mounted', () => {
     for (const mount of [
       "'/api/explore'",
@@ -224,6 +234,9 @@ describe('the new code follows the repo rules', () => {
     ['controllers', 'experienceAdmin.controller.js'],
     ['routes', 'experienceAdmin.routes.js'],
     ['middleware', 'uploadExperience.js'],
+    ['services', 'experienceChild.service.js'],
+    ['controllers', 'experienceChild.controller.js'],
+    ['routes', 'experienceChild.routes.js'],
   ];
 
   it.each(files)('%s/%s writes no raw console output (it uses the logger)', (...parts) => {
@@ -252,6 +265,14 @@ describe('the new code follows the repo rules', () => {
       'patch /:uuid/videos/:videoId/position',
       'delete /:uuid',
     ]);
+  });
+
+  it('the child routes are behind the login and are read only (two GETs, nothing else)', () => {
+    const layers = experienceChildRoutes.stack;
+    const firstRoute = layers.findIndex((l) => l.route);
+    expect(layers.slice(0, firstRoute).map((l) => l.name)).toEqual(['protect']);
+    const routes = layers.filter((l) => l.route).map((l) => `${Object.keys(l.route.methods).join(',')} ${l.route.path}`);
+    expect(routes).toEqual(['get /', 'get /:uuid']);
   });
 
   it('never gives the old environment links to the admin side (the two are separate)', () => {
