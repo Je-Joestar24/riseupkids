@@ -249,7 +249,10 @@ async function deliverToRecipients({ campaign, recipients, isTest, trigger, now 
   const receipts = [];
   const failures = [];
   let pending = false;
-  const existingMap = await loadReceiptMap(campaign._id, isTest);
+  // A real send must never reach the same parent twice, so it looks for the receipt from an earlier attempt. A test is
+  // meant to be repeated (check Android, check iPhone, try again after a fix), so it ignores earlier test receipts
+  // and always sends a fresh one.
+  const existingMap = isTest ? new Map() : await loadReceiptMap(campaign._id, false);
 
   for (const recipient of recipients) {
     const existing = existingMap.get(String(recipient.userId));

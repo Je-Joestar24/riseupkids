@@ -62,6 +62,7 @@
           "enableBackgroundRemoteNotifications": true
         }
       ],
+      "@bacons/apple-targets",
       "expo-router",
       [
         "expo-camera",

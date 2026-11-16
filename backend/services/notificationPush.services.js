@@ -51,6 +51,10 @@ function buildPushPayload({ title, message, destination, campaignId, childId, is
   if (image) {
     payload.image = image;
     payload.richContent = { image };
+    // iOS only shows the image if the app's Notification Service Extension is allowed to modify the push (it
+    // downloads the image and attaches it). Without this flag iOS hands the push to the screen untouched. Android
+    // and the Expo service ignore the flag. See app/targets/notification-service.
+    payload.mutableContent = true;
   }
 
   return payload;

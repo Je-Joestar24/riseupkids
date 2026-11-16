@@ -186,6 +186,44 @@ describe('Notification send (Phase 2)', () => {
     expect(result.targeted).toBe(1);
   });
 
+  it('a test can be sent again and again: every Send test reaches the phone', async () => {
+    const doc = campaignDoc({ status: 'draft' });
+    mockLoad(doc);
+    listCampaignRecipients.mockResolvedValue([{ userId: 'parent-1', childId: null, preferredLanguage: 'en' }]);
+    // The earlier tests are already on file as sent (and one even failed)
+    NotificationReceipt.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        { _id: 'old-1', userId: 'parent-1', isTest: true, pushResult: 'sent' },
+        { _id: 'old-2', userId: 'parent-1', isTest: true, pushResult: 'failed' },
+      ]),
+      limit: jest.fn().mockResolvedValue([]),
+    });
+
+    await sendCampaignTest('camp-1', adminId, 'parent-1', { now: DAYTIME });
+    await sendCampaignTest('camp-1', adminId, 'parent-1', { now: DAYTIME });
+    await sendCampaignTest('camp-1', adminId, 'parent-1', { now: DAYTIME });
+
+    expect(deliverPush).toHaveBeenCalledTimes(3);
+    expect(deliverPush.mock.calls.every(([args]) => args.isTest === true)).toBe(true);
+    expect(NotificationReceipt.create).toHaveBeenCalledTimes(3);
+    expect(NotificationReceipt.create.mock.calls.every(([row]) => row.isTest === true)).toBe(true);
+  });
+
+  it('a real send still never reaches the same parent twice', async () => {
+    mockLoad(campaignDoc());
+    mockClaim(campaignDoc({ status: 'sending' }));
+    listCampaignRecipients.mockResolvedValue([{ userId: 'parent-1', childId: null, preferredLanguage: 'en' }]);
+    NotificationReceipt.find.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([{ _id: 'done-1', userId: 'parent-1', isTest: false, pushResult: 'sent' }]),
+      limit: jest.fn().mockResolvedValue([]),
+    });
+
+    await sendCampaignNow('camp-1', adminId, { now: DAYTIME });
+
+    expect(deliverPush).not.toHaveBeenCalled();
+    expect(NotificationReceipt.create).not.toHaveBeenCalled();
+  });
+
   it('sends a test immediately during quiet hours', async () => {
     const doc = campaignDoc({ status: 'scheduled', quietHourBehavior: 'defer' });
     mockLoad(doc);

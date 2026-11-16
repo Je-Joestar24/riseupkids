@@ -57,6 +57,32 @@ describe('Notification push (Phase 3)', () => {
     expect(payload.richContent).toEqual({ image: 'https://cdn.example/mission.png' });
   });
 
+  it('marks a push with an image as modifiable, which is what lets the iPhone extension attach the picture', () => {
+    const payload = buildPushPayload({
+      title: 'Mini Mission',
+      message: 'Find 7 objects',
+      imageUrl: 'https://cdn.example/mission.png',
+    });
+
+    expect(payload.mutableContent).toBe(true);
+  });
+
+  it('does not mark a push without any image as modifiable', () => {
+    const previousBase = process.env.BACKEND_BASE_URL;
+    const previousApp = process.env.APP_URL;
+    delete process.env.BACKEND_BASE_URL;
+    delete process.env.APP_URL;
+    try {
+      const payload = buildPushPayload({ title: 'Story Time', message: 'Hello' });
+
+      expect(payload).not.toHaveProperty('richContent');
+      expect(payload).not.toHaveProperty('mutableContent');
+    } finally {
+      if (previousBase !== undefined) process.env.BACKEND_BASE_URL = previousBase;
+      if (previousApp !== undefined) process.env.APP_URL = previousApp;
+    }
+  });
+
   it('falls back to the Play Store app icon when the campaign has no image', () => {
     const previous = process.env.BACKEND_BASE_URL;
     process.env.BACKEND_BASE_URL = 'https://api.riseup.kids';
