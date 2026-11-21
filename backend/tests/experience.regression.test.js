@@ -243,12 +243,13 @@ describe('the new code follows the repo rules', () => {
     expect(read(...parts)).not.toMatch(/console\.(log|warn|error|info|debug)\(/);
   });
 
-  it('the admin routes are protected by the login and by the admin role before any route', () => {
+  it('the admin routes are protected by the login, by the role, and by the Experiences area, before any route', () => {
     const layers = experienceAdminRoutes.stack;
     const firstRoute = layers.findIndex((l) => l.route);
     const names = layers.slice(0, firstRoute).map((l) => l.name);
-    expect(names).toEqual(['protect', expect.any(String)]); // protect, then authorize(...)'s middleware
-    expect(firstRoute).toBe(2);
+    // protect, then authorize(...)'s middleware, then the content creator access lock (requireAccessArea('experiences'))
+    expect(names).toEqual(['protect', expect.any(String), expect.any(String)]);
+    expect(firstRoute).toBe(3);
   });
 
   it('the admin routes include everything the screen needs, and reorder comes before /:uuid', () => {

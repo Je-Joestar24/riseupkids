@@ -2,6 +2,13 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import adminUsersService from '../../services/adminUsersService';
 import { USER_ROLES } from '../../config/constants';
 
+// What a rejected access call carries: the sentence to show, plus the server's code and status.
+const toRejection = (error, fallback) => ({
+  message: error?.message || fallback,
+  code: error?.code || null,
+  status: error?.status ?? null,
+});
+
 /**
  * Async thunk for getting all parents
  */
@@ -36,7 +43,7 @@ export const createParent = createAsyncThunk(
       const response = await adminUsersService.createUser(userData);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to create user');
+      return rejectWithValue(toRejection(error, 'Failed to create user'));
     }
   }
 );
@@ -48,7 +55,7 @@ export const updateParent = createAsyncThunk(
       const response = await adminUsersService.updateUser(parentId, role, updateData);
       return response;
     } catch (error) {
-      return rejectWithValue(error.message || 'Failed to update user');
+      return rejectWithValue(toRejection(error, 'Failed to update user'));
     }
   }
 );
@@ -77,6 +84,51 @@ export const restoreParent = createAsyncThunk(
   }
 );
 
+/**
+ * Access areas for content creators (the checkboxes the admin form draws). Fetched once: asking again while it is
+ * loaded or loading does nothing.
+ */
+export const fetchAccessAreas = createAsyncThunk(
+  'parents/fetchAccessAreas',
+  async (_arg, { rejectWithValue }) => {
+    try {
+      return await adminUsersService.getAccessAreas();
+    } catch (error) {
+      return rejectWithValue(toRejection(error, 'Failed to load the access areas'));
+    }
+  },
+  {
+    condition: (_arg, { getState }) => {
+      const { accessAreas } = getState().parents;
+      return !accessAreas.loaded && !accessAreas.loading;
+    },
+  }
+);
+
+/** Manage access for one creator. A refusal is rejected with { message, code, status } so the dialog can show it. */
+export const setCreatorAccess = createAsyncThunk(
+  'parents/setCreatorAccess',
+  async ({ userId, accessAreas }, { rejectWithValue }) => {
+    try {
+      return await adminUsersService.setCreatorAccess(userId, accessAreas);
+    } catch (error) {
+      return rejectWithValue(toRejection(error, 'Failed to update access'));
+    }
+  }
+);
+
+/** Bulk manage access: the same list for every chosen creator. */
+export const setCreatorAccessBulk = createAsyncThunk(
+  'parents/setCreatorAccessBulk',
+  async ({ ids, accessAreas }, { rejectWithValue }) => {
+    try {
+      return await adminUsersService.setCreatorAccessBulk(ids, accessAreas);
+    } catch (error) {
+      return rejectWithValue(toRejection(error, 'Failed to update access'));
+    }
+  }
+);
+
 // Initial state
 const initialState = {
   parents: [],
@@ -101,6 +153,10 @@ const initialState = {
   },
   loading: false,
   error: null,
+  // The access checkboxes, loaded once
+  accessAreas: { areas: [], legacyAreas: [], loaded: false, loading: false, error: null },
+  // True while a manage-access save is running (kept apart from `loading` so the table does not flicker)
+  accessSaving: false,
 };
 
 // Parents slice
@@ -175,7 +231,8 @@ const parentsSlice = createSlice({
       })
       .addCase(createParent.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        // `error` stays a plain sentence; the code and status travel in the rejection for the dialog
+        state.error = action.payload?.message || action.payload || null;
       });
 
     // Update Parent
@@ -204,7 +261,7 @@ const parentsSlice = createSlice({
       })
       .addCase(updateParent.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload?.message || action.payload || null;
       });
 
     // Archive Parent
@@ -263,6 +320,62 @@ const parentsSlice = createSlice({
       .addCase(restoreParent.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      });
+
+    // Access areas (the checkboxes)
+    builder
+      .addCase(fetchAccessAreas.pending, (state) => {
+        state.accessAreas.loading = true;
+        state.accessAreas.error = null;
+      })
+      .addCase(fetchAccessAreas.fulfilled, (state, action) => {
+        state.accessAreas = {
+          areas: Array.isArray(action.payload?.areas) ? action.payload.areas : [],
+          legacyAreas: Array.isArray(action.payload?.legacyAreas) ? action.payload.legacyAreas : [],
+          loaded: true,
+          loading: false,
+          error: null,
+        };
+      })
+      .addCase(fetchAccessAreas.rejected, (state, action) => {
+        state.accessAreas.loading = false;
+        state.accessAreas.error = action.payload?.message || 'Failed to load the access areas';
+      });
+
+    // Manage access: one creator
+    builder
+      .addCase(setCreatorAccess.pending, (state) => {
+        state.accessSaving = true;
+      })
+      .addCase(setCreatorAccess.fulfilled, (state, action) => {
+        state.accessSaving = false;
+        const updated = action.payload?.data;
+        if (updated) {
+          const index = state.parents.findIndex((p) => p._id === updated._id);
+          if (index !== -1) state.parents[index] = updated;
+          if (state.currentParent?._id === updated._id) state.currentParent = updated;
+        }
+      })
+      .addCase(setCreatorAccess.rejected, (state) => {
+        state.accessSaving = false;
+      });
+
+    // Manage access: several creators at once. Only their access list changes in the rows.
+    builder
+      .addCase(setCreatorAccessBulk.pending, (state) => {
+        state.accessSaving = true;
+      })
+      .addCase(setCreatorAccessBulk.fulfilled, (state, action) => {
+        state.accessSaving = false;
+        const results = Array.isArray(action.payload?.data) ? action.payload.data : [];
+        results.forEach((result) => {
+          const row = state.parents.find((p) => p._id === result.id);
+          if (row) row.accessAreas = result.accessAreas;
+          if (state.currentParent?._id === result.id) state.currentParent.accessAreas = result.accessAreas;
+        });
+      })
+      .addCase(setCreatorAccessBulk.rejected, (state) => {
+        state.accessSaving = false;
       });
   },
 });

@@ -15,6 +15,7 @@ const {
   reviewAudioAssignmentSubmission,
 } = require('../controllers/audioAssignmentProgress.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const { uploadAudioAssignment, uploadAudioAssignmentUpdate, uploadRecordedAudio } = require('../middleware/upload');
 
 /**
@@ -71,6 +72,8 @@ router.post('/:id/child/:childId/review', authorize('admin', 'teacher'), reviewA
 
 // All routes below require admin/teacher role
 router.use(authorize('admin', 'teacher', 'content_creator'));
+// A content creator also needs the Contents area (admins and teachers are never limited)
+router.use(requireAccessArea('contents'));
 
 // Create new audio assignment (with reference audio and cover image upload)
 router.post('/', uploadAudioAssignment, createAudioAssignment);

@@ -1,5 +1,39 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const {
+  CONTENT_CREATOR_ROLE,
+  FULL_ACCESS_ROLES,
+  isKnownArea,
+  effectiveAreas,
+} = require('../utils/accessAreas');
+
+/**
+ * JSON output: every response that sends a user (login, refresh, /auth/me, user lists and details) carries the
+ * EFFECTIVE access list for creators, admins and teachers, so the web app never has to guess:
+ *  - creator with a saved list    -> that list
+ *  - creator without one          -> the legacy set (what they had before this feature)
+ *  - admin / teacher              -> every area
+ *  - parent / child               -> no `accessAreas` field at all
+ *
+ * Only done when the document really loaded both `role` and `accessAreas`. A query that picked a few fields
+ * (e.g. populate('createdBy', 'name role')) must not invent a list from a missing field.
+ */
+function addEffectiveAccessAreas(doc, ret) {
+  const loaded =
+    typeof doc.isSelected === 'function' && doc.isSelected('role') && doc.isSelected('accessAreas');
+
+  if (!loaded) {
+    delete ret.accessAreas;
+    return ret;
+  }
+
+  if (ret.role === CONTENT_CREATOR_ROLE || FULL_ACCESS_ROLES.includes(ret.role)) {
+    ret.accessAreas = effectiveAreas(ret);
+  } else {
+    delete ret.accessAreas;
+  }
+  return ret;
+}
 
 /**
  * User Model
@@ -130,6 +164,38 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    /**
+     * Content creators only: the parts of the site this creator can use (see utils/accessAreas.js).
+     * `default: undefined` on purpose: Mongoose would otherwise store [] for every user, and a creator that has never
+     * been given a list (every creator before this feature) must stay "no saved list" = the legacy set.
+     * Always written through validateAreas(), so a stored list is non-empty, known and without duplicates.
+     */
+    accessAreas: {
+      type: [String],
+      default: undefined,
+      validate: {
+        validator: function (value) {
+          if (value === undefined || value === null) return true;
+          if (!Array.isArray(value) || value.length === 0) return false;
+          if (!value.every(isKnownArea)) return false;
+          if (new Set(value).size !== value.length) return false;
+          // Only creators carry a list; any other role with one is a mistake worth refusing.
+          return this.role === CONTENT_CREATOR_ROLE;
+        },
+        message:
+          'Access areas must be a non-empty list of known areas without duplicates, and only a content creator can have one',
+      },
+    },
+    /** When the access list was last changed by an admin, and which admin. */
+    accessUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    accessUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     /** Which payment provider the user's current subscription/purchase is with. */
     paymentProvider: {
       type: String,
@@ -226,7 +292,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
+    toJSON: { virtuals: true, transform: addEffectiveAccessAreas },
     toObject: { virtuals: true },
   }
 );

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { Provider } from 'react-redux';
+import { configureStore } from '@reduxjs/toolkit';
+import userReducer from '../../../store/slices/userSlice';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import NotificationsAnalyticsPanel from './NotificationsAnalyticsPanel';
 
@@ -47,12 +50,27 @@ vi.mock('../../../hooks/useNotificationDashboard', () => ({
   }),
 }));
 
-const wrap = (ui) =>
+const makeStore = (user = null) => {
+  const store = configureStore({ reducer: { user: userReducer } });
+  if (user) store.dispatch({ type: 'user/setUser', payload: user });
+  return store;
+};
+
+const wrap = (ui, { user = null, path = '/' } = {}) =>
   render(
-    <MemoryRouter>
-      <ThemeProvider theme={theme}>{ui}</ThemeProvider>
-    </MemoryRouter>
+    <Provider store={makeStore(user)}>
+      <MemoryRouter initialEntries={[path]}>
+        <ThemeProvider theme={theme}>{ui}</ThemeProvider>
+        <Where />
+      </MemoryRouter>
+    </Provider>
   );
+
+let where;
+const Where = () => {
+  where = useLocation().pathname;
+  return null;
+};
 
 describe('NotificationsAnalyticsPanel', () => {
   beforeEach(() => {
@@ -72,5 +90,31 @@ describe('NotificationsAnalyticsPanel', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show last 7 days' }));
     expect(setFilters).toHaveBeenCalledTimes(1);
+  });
+
+  describe("the Open campaigns link follows the person's own part of the site", () => {
+    const openCampaigns = async (user, path = '/somewhere') => {
+      const click = userEvent.setup();
+      wrap(<NotificationsAnalyticsPanel />, { user, path });
+      await click.click(screen.getByRole('button', { name: 'Open campaigns' }));
+    };
+
+    it('takes an admin to /admin/notifications', async () => {
+      await openCampaigns({ _id: 'a1', role: 'admin' });
+
+      expect(where).toBe('/admin/notifications');
+    });
+
+    it('takes a content creator to /content-creator/notifications (her own layout, not the admin one)', async () => {
+      await openCampaigns({ _id: 'c1', role: 'content_creator', accessAreas: ['notifications'] });
+
+      expect(where).toBe('/content-creator/notifications');
+    });
+
+    it('takes someone with no user in the store to /admin/notifications, as before', async () => {
+      await openCampaigns(null);
+
+      expect(where).toBe('/admin/notifications');
+    });
   });
 });

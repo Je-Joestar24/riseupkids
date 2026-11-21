@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import {
   Drawer,
   List,
@@ -18,8 +19,22 @@ import {
   PlayCircleOutlined,
   AutoStoriesOutlined,
   AutoAwesomeOutlined,
+  NotificationsNone,
+  TravelExploreOutlined,
 } from '@mui/icons-material';
 import { APP_VERSION } from '../../../config/constants';
+import { areaForPath, creatorMenu } from '../../../utils/contentCreatorAccess';
+
+// One icon per access area; the area list, order and addresses come from utils/contentCreatorAccess.js
+const AREA_ICONS = {
+  dashboard: <DashboardOutlined />,
+  contents: <AssignmentOutlined />,
+  built_in_books: <AutoStoriesOutlined />,
+  explore: <PlayCircleOutlined />,
+  star_cam_missions: <AutoAwesomeOutlined />,
+  notifications: <NotificationsNone />,
+  experiences: <TravelExploreOutlined />,
+};
 
 export const DRAWER_WIDTH = 280;
 
@@ -27,14 +42,16 @@ const ContentCreatorSidebar = () => {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const user = useSelector((state) => state.user.user);
 
-  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardOutlined />, path: '/content-creator/dashboard' },
-    { text: 'My Contents', icon: <AssignmentOutlined />, path: '/content-creator/contents' },
-    { text: 'Built-in Books', icon: <AutoStoriesOutlined />, path: '/content-creator/built-in-books' },
-    { text: 'Explore', icon: <PlayCircleOutlined />, path: '/content-creator/explore' },
-    { text: 'Star Cam Missions', icon: <AutoAwesomeOutlined />, path: '/content-creator/star-cam-missions' },
-  ];
+  // Only the areas an admin gave her: what she cannot use is simply not there
+  const menuItems = creatorMenu(user).map((page) => ({
+    key: page.key,
+    text: page.label,
+    icon: AREA_ICONS[page.key],
+    path: page.path,
+  }));
+  const currentArea = areaForPath(location.pathname);
 
   return (
     <Drawer
@@ -73,9 +90,10 @@ const ContentCreatorSidebar = () => {
       <Box sx={{ flex: 1, overflow: 'auto', padding: 2 }}>
         <List sx={{ padding: 0 }}>
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            // Create and edit pages (e.g. /experiences/create) keep their area highlighted
+            const isActive = currentArea === item.key;
             return (
-              <ListItem key={item.text} disablePadding sx={{ marginBottom: 0.5 }}>
+              <ListItem key={item.key} disablePadding sx={{ marginBottom: 0.5 }}>
                 <ListItemButton
                   onClick={() => navigate(item.path)}
                   aria-label={`Navigate to ${item.text}`}

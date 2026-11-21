@@ -15,8 +15,9 @@ import ExperienceSaveBar from './ExperienceSaveBar';
 import ExperienceSaveBanner from './ExperienceSaveBanner';
 import VideoPreviewDialog from './VideoPreviewDialog';
 import ExperiencePreview from './preview/ExperiencePreview';
+import useContentBasePath from '../../../../hooks/useContentBasePath';
 
-export const LIST_PATH = '/admin/experiences';
+export const LIST_PATH = '/admin/experiences'; // the admin's list; other roles use their own base path (see goToList)
 
 const font = { fontFamily: 'Quicksand, sans-serif' };
 
@@ -80,7 +81,9 @@ const ExperienceEditorMain = () => {
   const onPublished = useCallback((value) => dispatch({ type: 'set-field', name: 'isPublished', value }), [dispatch]);
 
   // ------------------------------------------------------------ leaving
-  const goToList = useCallback(() => navigate(LIST_PATH), [navigate]);
+  // Back to the list inside the person's own part of the site (/admin, or /content-creator for a creator)
+  const basePath = useContentBasePath();
+  const goToList = useCallback(() => navigate(`${basePath}/experiences`), [navigate, basePath]);
 
   const handleCancel = useCallback(() => {
     if (!dirty) {

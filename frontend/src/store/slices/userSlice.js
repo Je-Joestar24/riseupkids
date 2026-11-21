@@ -95,6 +95,25 @@ export const getCurrentUser = createAsyncThunk(
 );
 
 /**
+ * Re-reads the signed-in user to pick up a change of access (e.g. an admin removed an area from a content creator).
+ *
+ * Deliberately NOT getCurrentUser: that one switches the whole app to its loading screen while it runs, and signs the
+ * person out if the call fails. A refresh of access must be invisible and must never end a session, so this one has no
+ * loading flag, and a failure changes nothing.
+ */
+export const refreshUserAccess = createAsyncThunk(
+  'user/refreshUserAccess',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await authService.getCurrentUser();
+      return response?.data ?? response;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to refresh your access');
+    }
+  }
+);
+
+/**
  * Async thunk for user logout
  */
 export const logoutUser = createAsyncThunk(
@@ -401,6 +420,15 @@ const userSlice = createSlice({
         state.parent = null;
         state.isAuthenticated = false;
       });
+
+    // Refresh access: swaps in the fresh user (only the same person), touches nothing else, never signs anyone out
+    builder.addCase(refreshUserAccess.fulfilled, (state, action) => {
+      const payload = action.payload?.data ?? action.payload;
+      const fresh = payload?.user;
+      if (fresh && state.user && String(fresh._id) === String(state.user._id)) {
+        state.user = fresh;
+      }
+    });
 
     // Update Profile
     builder

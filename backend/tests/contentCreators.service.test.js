@@ -47,6 +47,7 @@ describe('contentCreators.services', () => {
       name: 'Creator One',
       email: 'creator@example.com',
       password: 'secret12',
+      accessAreas: ['dashboard', 'contents'],
     });
 
     expect(User.create).toHaveBeenCalledWith(
@@ -55,6 +56,7 @@ describe('contentCreators.services', () => {
         email: 'creator@example.com',
         role: CONTENT_CREATOR_ROLE,
         isActive: true,
+        accessAreas: ['dashboard', 'contents'],
       })
     );
     expect(result.role).toBe(CONTENT_CREATOR_ROLE);
@@ -68,6 +70,7 @@ describe('contentCreators.services', () => {
         name: 'Creator One',
         email: 'creator@example.com',
         password: 'secret12',
+        accessAreas: ['contents'],
       })
     ).rejects.toThrow('User already exists with this email');
   });

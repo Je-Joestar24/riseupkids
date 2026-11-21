@@ -2,6 +2,8 @@ import axios from 'axios';
 import { API_BASE_URL } from '../config/constants';
 import { TIMEOUT } from '../constants/timeout';
 import { getAccessToken, setAccessToken, clearAccessToken } from '../services/tokenStore';
+import { emitAccessRefusal } from './accessRefusal';
+import { accessErrorMessage, errorCodeOf, isAccessAreaRequiredError } from '../utils/accessErrors';
 
 // Create axios instance. In dev uses relative /api so Vite proxy forwards to backend (no connection refused)
 const api = axios.create({
@@ -83,6 +85,16 @@ api.interceptors.response.use(
         // navigates directly (kept consistent with the previous behavior).
         return Promise.reject(error);
       }
+    }
+
+    // A content creator asked for something in an area an admin has not given her (or has just taken away).
+    // This is a 403, never a sign-out: the session is fine. Announce it once so the app can tell her and refresh
+    // what she can use; the request itself still fails for whoever asked, exactly as before.
+    if (isAccessAreaRequiredError(error)) {
+      emitAccessRefusal({
+        message: accessErrorMessage(errorCodeOf(error), response?.data?.message, "You don't have access to this area. Ask an admin if you need it."),
+        url: config?.url ?? null,
+      });
     }
 
     return Promise.reject(error);

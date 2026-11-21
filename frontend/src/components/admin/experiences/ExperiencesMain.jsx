@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { Box } from '@mui/material';
 import useExperienceAdmin from '../../../hooks/experienceAdminHook';
+import useContentBasePath from '../../../hooks/useContentBasePath';
 import { showConfirmationDialog } from '../../../store/slices/uiSlice';
 import { EXPERIENCE_STATUS } from '../../../services/experienceAdminService';
 import ExperiencesHeader from './ExperiencesHeader';
@@ -52,8 +53,12 @@ const ExperiencesMain = () => {
   const handlePageChange = useCallback((page) => updateFilters({ page }), [updateFilters]);
   const handleLimitChange = useCallback((limit) => updateFilters({ limit, page: 1 }), [updateFilters]);
 
-  const handleAdd = useCallback(() => navigate('/admin/experiences/create'), [navigate]);
-  const handleEdit = useCallback((experience) => navigate(`/admin/experiences/${encodeURIComponent(experience.uuid)}/edit`), [navigate]);
+  const basePath = useContentBasePath();
+  const handleAdd = useCallback(() => navigate(`${basePath}/experiences/create`), [navigate, basePath]);
+  const handleEdit = useCallback(
+    (experience) => navigate(`${basePath}/experiences/${encodeURIComponent(experience.uuid)}/edit`),
+    [navigate, basePath]
+  );
 
   const handleDelete = useCallback(
     (experience) => {

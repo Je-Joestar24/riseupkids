@@ -26,7 +26,9 @@ import {
   ChildCare as ChildCareIcon,
 } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { USER_ROLES } from '../../../config/constants';
 import { getAdminUserRoleLabel, isParentRole } from '../../../utils/adminUserRoles';
+import ContentCreatorAccessChecklist from './ContentCreatorAccessChecklist';
 import {
   formatDeletionScheduleDate,
   getAdminAccountDisplayStatus,
@@ -39,7 +41,7 @@ import {
  */
 const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
   const theme = useTheme();
-  const { fetchParent, currentParent, loading, filters } = useParents();
+  const { fetchParent, currentParent, loading, filters, accessAreaOptions, loadAccessAreas } = useParents();
 
   useEffect(() => {
     if (open && parentId) {
@@ -58,6 +60,13 @@ const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
 
   const resolvedRole = currentParent?.role || userRole || filters.role;
   const showParentDetails = isParentRole(resolvedRole);
+  const showAccess = resolvedRole === USER_ROLES.CONTENT_CREATOR;
+
+  // The checkboxes (their names and help lines) are needed to show a creator's access
+  useEffect(() => {
+    if (open && showAccess) loadAccessAreas().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, showAccess]);
   const accountStatus = currentParent ? getAdminAccountDisplayStatus(currentParent) : null;
 
   return (
@@ -367,6 +376,31 @@ const AdminViewModal = ({ open, onClose, parentId, userRole }) => {
                 </Grid>
               </Stack>
             </Paper>
+
+            {showAccess && (
+              <Paper
+                sx={{
+                  padding: 3,
+                  marginBottom: 3,
+                  borderRadius: '12px',
+                  backgroundColor: theme.palette.background.paper,
+                  border: `1px solid ${theme.palette.border.main}`,
+                }}
+              >
+                <Typography variant="h6" sx={{ fontFamily: 'Quicksand, sans-serif', fontWeight: 700, mb: 1.5 }}>
+                  Access
+                </Typography>
+                <ContentCreatorAccessChecklist
+                  areas={accessAreaOptions.areas}
+                  value={Array.isArray(currentParent.accessAreas) ? currentParent.accessAreas : []}
+                  readOnly
+                  loading={accessAreaOptions.loading}
+                  loadError={accessAreaOptions.error}
+                  onRetry={() => loadAccessAreas().catch(() => {})}
+                  label="What this person can use"
+                />
+              </Paper>
+            )}
 
             {showParentDetails && (
             <Paper

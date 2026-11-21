@@ -15,6 +15,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import useNotificationDashboard from '../../../hooks/useNotificationDashboard';
+import useContentBasePath from '../../../hooks/useContentBasePath';
 import { formatOpenRate } from '../../../utils/notificationDashboardCharts';
 import NotificationBarChart from './NotificationBarChart';
 import NotificationTrendChart from './NotificationTrendChart';
@@ -28,6 +29,7 @@ const RANGES = [
 const NotificationsAnalyticsPanel = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const basePath = useContentBasePath();
   const { data, meta, loading, error, filters, setFilters } = useNotificationDashboard();
   const delivery = data?.delivery || {};
 
@@ -77,7 +79,7 @@ const NotificationsAnalyticsPanel = () => {
           ))}
           <Button
             size="small"
-            onClick={() => navigate('/admin/notifications')}
+            onClick={() => navigate(`${basePath}/notifications`)}
             sx={{ textTransform: 'none', fontFamily: 'Quicksand, sans-serif' }}
           >
             Open campaigns

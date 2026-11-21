@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SITE_ROUTES, CHILD_PAGES, CHILD_AREA_PATH, CHILD_ROLES } from './routeTable';
 import { ROUTE_COMPONENTS } from './routeComponents';
+import { CREATOR_AREA_KEYS, areaForPath } from '../utils/contentCreatorAccess';
 
 /**
  * The site's routes exactly as they were before the pages were split into separate downloads
@@ -57,7 +58,11 @@ const EXPECTED = [
   ['/content-creator/built-in-books/create', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminBooksBuilderCreate'],
   ['/content-creator/built-in-books/:bookId/edit', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminBooksBuilderCreate'],
   ['/content-creator/star-cam-missions', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminStarCamMissions'],
-  ['/content-creator/*', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'ContentCreatorDashboard'],
+  ['/content-creator/notifications', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminNotifications'],
+  ['/content-creator/experiences', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminExperiences'],
+  ['/content-creator/experiences/create', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminExperienceEditor'],
+  ['/content-creator/experiences/:uuid/edit', 'guarded', ['content_creator'], 'ContentCreatorLayout', 'AdminExperienceEditor'],
+  ['/content-creator/*', 'guarded', ['content_creator'], null, 'ContentCreatorHome'],
 
   ['/teacher/dashboard', 'guarded', ['teacher'], 'TeacherLayout', 'TeacherDashboard'],
   ['/teacher/courses/contents', 'guarded', ['teacher'], 'TeacherLayout', 'AdminActivities'],
@@ -163,5 +168,56 @@ describe('route components', () => {
         expect(typeof component.preload).toBe('function');
       }
     });
+  });
+});
+
+describe('content creator routes and access areas', () => {
+  const creatorRoutes = SITE_ROUTES.filter((route) => route.kind === 'guarded' && route.roles.includes('content_creator'));
+  const creatorPages = creatorRoutes.filter((route) => route.path !== '/content-creator/*');
+  // A real address for a route with parameters
+  const realAddress = (path) => path.replace(':bookId', 'book-1').replace(':uuid', 'uuid-1');
+
+  it('gives every creator page an access area, and it is a real one', () => {
+    creatorPages.forEach((route) => {
+      expect([route.path, CREATOR_AREA_KEYS.includes(route.area)]).toEqual([route.path, true]);
+    });
+  });
+
+  it('agrees with the access helper about which area every address belongs to', () => {
+    creatorPages.forEach((route) => {
+      expect([route.path, areaForPath(realAddress(route.path))]).toEqual([route.path, route.area]);
+    });
+  });
+
+  it('has at least one page for every area', () => {
+    CREATOR_AREA_KEYS.forEach((area) => {
+      expect([area, creatorPages.some((route) => route.area === area)]).toEqual([area, true]);
+    });
+  });
+
+  it('has the new Notifications and Experiences pages, using the pages admins use', () => {
+    const byPath = Object.fromEntries(creatorPages.map((route) => [route.path, route]));
+
+    expect(byPath['/content-creator/notifications']).toEqual(expect.objectContaining({ page: 'AdminNotifications', area: 'notifications' }));
+    expect(byPath['/content-creator/experiences']).toEqual(expect.objectContaining({ page: 'AdminExperiences', area: 'experiences' }));
+    expect(byPath['/content-creator/experiences/create'].page).toBe('AdminExperienceEditor');
+    expect(byPath['/content-creator/experiences/:uuid/edit'].page).toBe('AdminExperienceEditor');
+  });
+
+  it('sends every other address to her landing page: no area, no layout, the home page', () => {
+    const catchAll = creatorRoutes.find((route) => route.path === '/content-creator/*');
+
+    expect(catchAll).toEqual(expect.objectContaining({ page: 'ContentCreatorHome', layout: null, roles: ['content_creator'] }));
+    expect(catchAll.area).toBeUndefined();
+  });
+
+  it('keeps access areas out of the routes of every other role', () => {
+    SITE_ROUTES.filter((route) => !route.path.startsWith('/content-creator')).forEach((route) => {
+      expect([route.path, route.area]).toEqual([route.path, undefined]);
+    });
+  });
+
+  it('only lets content creators into the content creator routes', () => {
+    creatorRoutes.forEach((route) => expect(route.roles).toEqual(['content_creator']));
   });
 });

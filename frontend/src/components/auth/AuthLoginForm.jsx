@@ -92,8 +92,9 @@ const AuthLoginForm = () => {
       }
 
       // Intentionally do a full reload after login so all user-dependent UI hydrates reliably.
-      const role = result?.user?.role || result?.data?.user?.role || user?.role;
-      window.location.assign(getRoleRedirectPath(role));
+      const signedInUser = result?.user || result?.data?.user || user;
+      const role = signedInUser?.role;
+      window.location.assign(getRoleRedirectPath(role, signedInUser));
     } catch (error) {
       // Error notification is already shown by the hook
       console.error('Login error:', error);

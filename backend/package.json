@@ -15,6 +15,7 @@
     "migrate:starcam-vocab-inclusion": "node scripts/migrateStarCamVocabInclusion.js",
     "migrate:kids-wall-consent-default": "node scripts/migrateKidsWallConsentDefault.js",
     "migrate:two-factor-enabled": "node scripts/backfillTwoFactorEnabled.js",
+    "migrate:content-creator-access": "node scripts/migrateContentCreatorAccess.js",
     "process:deletions": "node scripts/processDeletionRequests.js",
     "cleanup:notifications": "node scripts/cleanupNotifications.js",
     "seed:paypal": "node scripts/createPayPalPlans.js",

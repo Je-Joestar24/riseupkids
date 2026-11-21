@@ -13,6 +13,7 @@ const {
   completeChantForChild,
 } = require('../controllers/chantProgress.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const { uploadChant, uploadChantUpdate, uploadRecordedAudioIfMultipart } = require('../middleware/upload');
 
 /**
@@ -57,6 +58,8 @@ router.post(
 
 // All routes below require admin/teacher role
 router.use(authorize('admin', 'teacher', 'content_creator'));
+// A content creator also needs the Contents area (admins and teachers are never limited)
+router.use(requireAccessArea('contents'));
 
 // Create new chant (with optional audio, optional SCORM file, and optional cover image upload)
 router.post('/', uploadChant, createChant);

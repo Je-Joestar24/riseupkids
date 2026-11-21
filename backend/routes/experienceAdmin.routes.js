@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/experienceAdmin.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const { uploadExperience } = require('../middleware/uploadExperience');
 
 /**
@@ -23,7 +24,9 @@ const { uploadExperience } = require('../middleware/uploadExperience');
  */
 
 router.use(protect);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'content_creator'));
+// A content creator needs the Experiences area; an admin is never limited
+router.use(requireAccessArea('experiences'));
 
 router.get('/', controller.list);
 router.post('/', uploadExperience, controller.create);

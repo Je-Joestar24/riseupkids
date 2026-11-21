@@ -153,11 +153,22 @@ describe('who can reach it', () => {
     expect((await run('not.a.token')).status).toBe(401);
   });
 
-  it.each(['parent', 'teacher', 'creator'])('%s can do none of it (403)', async (who) => {
+  it.each(['parent', 'teacher'])('%s can do none of it (403)', async (who) => {
     for (const [label, run] of requests()) {
       const res = await run(tokens[who]);
       expect([label, res.status]).toEqual([label, 403]);
       expect(res.body.message).toMatch(/not authorized/i);
+    }
+    expect(await Experience.countDocuments()).toBe(0);
+  });
+
+  // A content creator is let in by the role check but needs the Experiences area. This one has never been given it
+  // (she is a creator from before access areas existed), so she is refused with the access code.
+  it('a content creator without the Experiences area can do none of it (403, with the access code)', async () => {
+    for (const [label, run] of requests()) {
+      const res = await run(tokens.creator);
+      expect([label, res.status, res.body.code]).toEqual([label, 403, 'ACCESS_AREA_REQUIRED']);
+      expect(res.body.message).toMatch(/access to Experiences/i);
     }
     expect(await Experience.countDocuments()).toBe(0);
   });

@@ -3,8 +3,10 @@ import { useDispatch } from 'react-redux';
 import { BrowserRouter, Routes, Route, Navigate, matchPath, useLocation, useParams } from 'react-router-dom';
 import { bootstrapSession } from '../store/slices/userSlice';
 import AuthedAccess from './access/AuthedAccess';
+import CreatorAreaAccess from './access/CreatorAreaAccess';
 import UnAuthed from './access/UnAuthed';
 import { RouteErrorBoundary, RouteFallback } from '../components/common/RouteLoading';
+import AccessRefusalWatcher from '../components/common/AccessRefusalWatcher';
 import { preloadInSequence } from '../utils/lazyChunk';
 import { SITE_ROUTES, CHILD_AREA_PATH, CHILD_PAGES, CHILD_ROLES } from './routeTable';
 import { ROUTE_COMPONENTS } from './routeComponents';
@@ -29,18 +31,21 @@ const GuardedRoute = ({ route }) => {
 
   return (
     <AuthedAccess allowedRoles={route.roles}>
-      <WarmUp now={Layout ? [Layout, Page] : [Page]} idle={idle}>
-        {Layout ? (
-          // The page waits inside the layout, so the menu and header stay on screen while its code downloads.
-          <Layout>
-            <Suspense fallback={<RouteFallback />}>
-              <Page />
-            </Suspense>
-          </Layout>
-        ) : (
-          <Page />
-        )}
-      </WarmUp>
+      {/* A content creator also needs the page's access area (does nothing for anyone else, or a page with no area) */}
+      <CreatorAreaAccess area={route.area}>
+        <WarmUp now={Layout ? [Layout, Page] : [Page]} idle={idle}>
+          {Layout ? (
+            // The page waits inside the layout, so the menu and header stay on screen while its code downloads.
+            <Layout>
+              <Suspense fallback={<RouteFallback />}>
+                <Page />
+              </Suspense>
+            </Layout>
+          ) : (
+            <Page />
+          )}
+        </WarmUp>
+      </CreatorAreaAccess>
     </AuthedAccess>
   );
 };
@@ -110,6 +115,8 @@ const AppRouter = () => {
 
   return (
     <BrowserRouter>
+      {/* A content creator whose access was just reduced is told, refreshed, and moved if needed (never signed out) */}
+      <AccessRefusalWatcher />
       <SiteFrame>
         <Routes>
           {SITE_ROUTES.map((route) => (

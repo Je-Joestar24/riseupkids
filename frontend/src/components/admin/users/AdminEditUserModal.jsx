@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import {
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -16,8 +18,12 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import useParents from '../../../hooks/parentsHook';
+import { USER_ROLES } from '../../../config/constants';
 import { isParentRole } from '../../../utils/adminUserRoles';
 import { getAdminAccountDisplayStatus } from '../../../utils/accountDisplayStatus';
+import { diffAreas, joinLabels, sameAreaList } from '../../../utils/accessAreaOptions';
+import { showConfirmationDialog } from '../../../store/slices/uiSlice';
+import ContentCreatorAccessChecklist from './ContentCreatorAccessChecklist';
 
 /**
  * AdminEditUserModal Component
@@ -26,7 +32,8 @@ import { getAdminAccountDisplayStatus } from '../../../utils/accountDisplayStatu
  */
 const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
   const theme = useTheme();
-  const { fetchParent, currentParent, updateParentData, loading, filters } = useParents();
+  const dispatch = useDispatch();
+  const { fetchParent, currentParent, updateParentData, loading, filters, accessAreaOptions, loadAccessAreas } = useParents();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -35,12 +42,25 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
     subscriptionStatus: 'inactive',
   });
   const [errors, setErrors] = useState({});
+  // A content creator's access list (what she has today, and what is ticked now)
+  const [originalAreas, setOriginalAreas] = useState([]);
+  const [accessAreas, setAccessAreas] = useState([]);
+  const [submitError, setSubmitError] = useState(null);
+
+  const resolvedRole = currentParent?.role || userRole || filters.role;
+  const isCreator = resolvedRole === USER_ROLES.CONTENT_CREATOR;
 
   useEffect(() => {
     if (open && parentId) {
       fetchParent(parentId, userRole || filters.role);
     }
   }, [open, parentId, userRole, filters.role]);
+
+  // The access checkboxes are only needed for a content creator
+  useEffect(() => {
+    if (open && isCreator) loadAccessAreas().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isCreator]);
 
   useEffect(() => {
     if (currentParent) {
@@ -50,6 +70,10 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
         isActive: currentParent.isActive !== undefined ? currentParent.isActive : true,
         subscriptionStatus: currentParent.subscriptionStatus || 'inactive',
       });
+      const saved = Array.isArray(currentParent.accessAreas) ? currentParent.accessAreas : [];
+      setOriginalAreas(saved);
+      setAccessAreas(saved);
+      setSubmitError(null);
     }
   }, [currentParent]);
 
@@ -82,13 +106,10 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const accessChanged = isCreator && !sameAreaList(accessAreas, originalAreas);
 
-    if (!validateForm()) {
-      return;
-    }
-
+  const saveChanges = async () => {
+    setSubmitError(null);
     try {
       const role = currentParent?.role || userRole || filters.role;
       const payload = {
@@ -99,11 +120,45 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
       if (isParentRole(role)) {
         payload.subscriptionStatus = formData.subscriptionStatus;
       }
+      // Only sent when the ticks were changed: editing a name must not rewrite her access
+      if (accessChanged) {
+        payload.accessAreas = accessAreas;
+      }
       await updateParentData(parentId, payload, role);
       onClose();
     } catch (error) {
-      // Error is handled by the hook
+      // The notice is shown by the hook; the reason is also kept here, with what was typed and ticked
+      setSubmitError(error?.message || (typeof error === 'string' ? error : 'Failed to update user'));
     }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    if (accessChanged && accessAreas.length === 0) {
+      setSubmitError('Choose at least one area. To stop this person using the site, archive them.');
+      return;
+    }
+
+    // Taking something away is confirmed first
+    const { removed } = diffAreas(originalAreas, accessAreas, accessAreaOptions.areas);
+    if (accessChanged && removed.length > 0) {
+      const name = formData.name.trim() || 'This person';
+      dispatch(
+        showConfirmationDialog({
+          title: 'Remove access?',
+          message: `${name} will lose access to ${joinLabels(removed, accessAreaOptions.areas)} straight away. Content ${name} created stays in the system. Continue?`,
+          onConfirm: saveChanges,
+        })
+      );
+      return;
+    }
+
+    saveChanges();
   };
 
   const handleClose = () => {
@@ -114,6 +169,9 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
       subscriptionStatus: 'inactive',
     });
     setErrors({});
+    setSubmitError(null);
+    setOriginalAreas([]);
+    setAccessAreas([]);
     onClose();
   };
 
@@ -178,6 +236,8 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ padding: 3 }}>
           <Stack spacing={2.5}>
+            {submitError && <Alert severity="error">{submitError}</Alert>}
+
             {/* Name Field */}
             <TextField
               label="Name"
@@ -284,6 +344,28 @@ const AdminEditUserModal = ({ open, onClose, parentId, userRole }) => {
                 </Typography>
               )}
             </FormControl>
+
+            {/* Content creators only: what she can use */}
+            {isCreator && (
+              <Stack spacing={1}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                  What this person can use
+                </Typography>
+                <ContentCreatorAccessChecklist
+                  areas={accessAreaOptions.areas}
+                  value={accessAreas}
+                  onChange={setAccessAreas}
+                  original={originalAreas}
+                  disabled={loading}
+                  loading={accessAreaOptions.loading}
+                  loadError={accessAreaOptions.error}
+                  onRetry={() => loadAccessAreas().catch(() => {})}
+                />
+                <Typography variant="caption" sx={{ color: theme.palette.text.secondary }}>
+                  Changes apply the next time they open a page.
+                </Typography>
+              </Stack>
+            )}
 
             {/* Subscription Status Field */}
 {/*             <FormControl fullWidth>

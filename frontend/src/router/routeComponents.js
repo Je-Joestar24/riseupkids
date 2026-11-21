@@ -51,6 +51,7 @@ export const ROUTE_COMPONENTS = {
   // Content creator
   ContentCreatorLayout: lazyChunk(() => import('../layouts/ContentCreatorLayout')),
   ContentCreatorDashboard: lazyChunk(() => import('../pages/contentcreator/ContentCreatorDashboard')),
+  ContentCreatorHome: lazyChunk(() => import('../pages/contentcreator/ContentCreatorHome')),
 
   // Teacher
   TeacherLayout: lazyChunk(() => import('../layouts/TeacherLayout')),

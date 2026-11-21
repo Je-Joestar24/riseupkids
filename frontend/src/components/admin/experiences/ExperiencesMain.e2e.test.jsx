@@ -24,6 +24,7 @@ import api from '../../../api/axios';
 import theme from '../../../config/theme';
 import experienceAdminReducer from '../../../store/slices/experienceAdminSlice';
 import uiReducer from '../../../store/slices/uiSlice';
+import userReducer from '../../../store/slices/userSlice';
 import AdminDialogBox from '../../common/AdminDialogBox';
 import ExperiencesMain from './ExperiencesMain';
 
@@ -132,12 +133,13 @@ afterEach(() => {
 const Where = () => <output data-testid="where">{useLocation().pathname}</output>;
 const where = () => screen.getByTestId('where').textContent;
 
-const renderPage = () => {
-  const store = configureStore({ reducer: { experienceAdmin: experienceAdminReducer, ui: uiReducer } });
+const renderPage = ({ user = null, path = '/admin/experiences' } = {}) => {
+  const store = configureStore({ reducer: { experienceAdmin: experienceAdminReducer, ui: uiReducer, user: userReducer } });
+  if (user) store.dispatch({ type: 'user/setUser', payload: user });
   render(
     <Provider store={store}>
       <ThemeProvider theme={theme}>
-        <MemoryRouter initialEntries={['/admin/experiences']}>
+        <MemoryRouter initialEntries={[path]}>
           <ExperiencesMain />
           <Where />
         </MemoryRouter>
@@ -258,6 +260,47 @@ describe('the list', () => {
     expect(where()).toBe('/admin/experiences');
     await user.click(screen.getByRole('button', { name: 'Add experience' }));
     expect(where()).toBe('/admin/experiences/create');
+  });
+
+  describe('for a content creator (her own part of the site)', () => {
+    const creator = { _id: 'c1', role: 'content_creator', accessAreas: ['experiences'] };
+
+    it('Add opens the add form under /content-creator', async () => {
+      const user = userEvent.setup();
+      renderPage({ user: creator, path: '/content-creator/experiences' });
+      await shown();
+
+      await user.click(screen.getByRole('button', { name: 'Add experience' }));
+
+      expect(where()).toBe('/content-creator/experiences/create');
+    });
+
+    it('Edit opens the edit form of that experience under /content-creator', async () => {
+      const user = userEvent.setup();
+      renderPage({ user: creator, path: '/content-creator/experiences' });
+      await shown();
+
+      await user.click(screen.getByRole('button', { name: 'Edit Experience 2' }));
+
+      expect(where()).toBe('/content-creator/experiences/uuid-2/edit');
+    });
+
+    it('still reads and writes through the same server addresses (the server checks her area)', async () => {
+      renderPage({ user: creator, path: '/content-creator/experiences' });
+      await shown();
+
+      expect(api.get).toHaveBeenCalledWith('/admin/experiences', expect.anything());
+    });
+
+    it('an admin keeps /admin', async () => {
+      const user = userEvent.setup();
+      renderPage({ user: { _id: 'a1', role: 'admin' } });
+      await shown();
+
+      await user.click(screen.getByRole('button', { name: 'Add experience' }));
+
+      expect(where()).toBe('/admin/experiences/create');
+    });
   });
 
   it('Edit opens the edit form of that experience', async () => {

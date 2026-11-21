@@ -47,6 +47,10 @@ const errorHandler = (err, req, res, next) => {
     body.message = message;
     if (!isProdLike() && err.stack) body.stack = err.stack;
   }
+  // A short fixed code the web app reads instead of the message wording. Opt-in only: an error carries a
+  // `publicCode` when it is safe and meant to be sent. `err.code` is never used: library errors put things
+  // like 11000 or ECONNREFUSED there.
+  if (typeof err.publicCode === 'string' && err.publicCode) body.code = err.publicCode;
   if (requestId) body.requestId = requestId;
 
   res.status(statusCode).json(body);

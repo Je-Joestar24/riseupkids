@@ -11,6 +11,7 @@ const {
   reorderExploreContent,
 } = require('../controllers/explore.controller');
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const { uploadExplore, uploadExploreUpdate } = require('../middleware/upload');
 
 /**
@@ -41,7 +42,7 @@ router.get('/featured', getFeaturedExploreContent);
 router.get('/type/:type', getExploreContentByType);
 
 // Create new explore content (admin/teacher only, with file uploads)
-router.post('/', authorize('admin', 'teacher', 'content_creator'), uploadExplore, createExploreContent);
+router.post('/', authorize('admin', 'teacher', 'content_creator'), requireAccessArea('explore'), uploadExplore, createExploreContent);
 
 // Reorder explore content (admin/teacher only) - must be before /:id to avoid conflict
 router.post('/reorder', authorize('admin', 'teacher'), reorderExploreContent);
@@ -53,10 +54,10 @@ router.get('/', getAllExploreContent);
 router.get('/:id', getExploreContentById);
 
 // Update explore content (admin/teacher only, with optional file uploads)
-router.put('/:id', authorize('admin', 'teacher', 'content_creator'), uploadExploreUpdate, updateExploreContent);
+router.put('/:id', authorize('admin', 'teacher', 'content_creator'), requireAccessArea('explore'), uploadExploreUpdate, updateExploreContent);
 
 // Delete explore content (admin/teacher/content_creator — own items only in service)
-router.delete('/:id', authorize('admin', 'teacher', 'content_creator'), deleteExploreContent);
+router.delete('/:id', authorize('admin', 'teacher', 'content_creator'), requireAccessArea('explore'), deleteExploreContent);
 
 module.exports = router;
 

@@ -65,15 +65,21 @@ export const SITE_ROUTES = [
   guarded('/admin/star-cam-missions', STAFF, 'AdminLayout', 'AdminStarCamMissions'),
   guarded('/admin/*', ADMIN, 'AdminLayout', 'AdminDashboard'),
 
-  // Content creator
-  guarded('/content-creator/dashboard', CREATOR, 'ContentCreatorLayout', 'ContentCreatorDashboard'),
-  guarded('/content-creator/contents', CREATOR, 'ContentCreatorLayout', 'AdminActivities'),
-  guarded('/content-creator/explore', CREATOR, 'ContentCreatorLayout', 'AdminExplore'),
-  guarded('/content-creator/built-in-books', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilder'),
-  guarded('/content-creator/built-in-books/create', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilderCreate'),
-  guarded('/content-creator/built-in-books/:bookId/edit', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilderCreate'),
-  guarded('/content-creator/star-cam-missions', CREATOR, 'ContentCreatorLayout', 'AdminStarCamMissions'),
-  guarded('/content-creator/*', CREATOR, 'ContentCreatorLayout', 'ContentCreatorDashboard'),
+  // Content creator. Each page belongs to an access area (utils/contentCreatorAccess.js): a creator only gets the
+  // pages of the areas an admin gave her, and is sent to her first allowed page for any other address.
+  guarded('/content-creator/dashboard', CREATOR, 'ContentCreatorLayout', 'ContentCreatorDashboard', { area: 'dashboard' }),
+  guarded('/content-creator/contents', CREATOR, 'ContentCreatorLayout', 'AdminActivities', { area: 'contents' }),
+  guarded('/content-creator/explore', CREATOR, 'ContentCreatorLayout', 'AdminExplore', { area: 'explore' }),
+  guarded('/content-creator/built-in-books', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilder', { area: 'built_in_books' }),
+  guarded('/content-creator/built-in-books/create', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilderCreate', { area: 'built_in_books' }),
+  guarded('/content-creator/built-in-books/:bookId/edit', CREATOR, 'ContentCreatorLayout', 'AdminBooksBuilderCreate', { area: 'built_in_books' }),
+  guarded('/content-creator/star-cam-missions', CREATOR, 'ContentCreatorLayout', 'AdminStarCamMissions', { area: 'star_cam_missions' }),
+  guarded('/content-creator/notifications', CREATOR, 'ContentCreatorLayout', 'AdminNotifications', { area: 'notifications' }),
+  guarded('/content-creator/experiences', CREATOR, 'ContentCreatorLayout', 'AdminExperiences', { area: 'experiences' }),
+  guarded('/content-creator/experiences/create', CREATOR, 'ContentCreatorLayout', 'AdminExperienceEditor', { area: 'experiences' }),
+  guarded('/content-creator/experiences/:uuid/edit', CREATOR, 'ContentCreatorLayout', 'AdminExperienceEditor', { area: 'experiences' }),
+  // Any other address: her landing page (or "no access yet"). Not the Dashboard any more.
+  guarded('/content-creator/*', CREATOR, null, 'ContentCreatorHome'),
 
   // Teacher
   guarded('/teacher/dashboard', TEACHER, 'TeacherLayout', 'TeacherDashboard'),

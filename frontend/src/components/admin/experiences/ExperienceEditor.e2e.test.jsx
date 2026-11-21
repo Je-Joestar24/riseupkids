@@ -28,6 +28,7 @@ vi.mock('../../../api/axios', () => ({
 import api from '../../../api/axios';
 import theme from '../../../config/theme';
 import uiReducer from '../../../store/slices/uiSlice';
+import userReducer from '../../../store/slices/userSlice';
 import AdminDialogBox from '../../common/AdminDialogBox';
 import AdminExperienceEditor from '../../../pages/admin/AdminExperienceEditor';
 
@@ -178,16 +179,17 @@ afterEach(() => {
 const Where = () => <output data-testid="where">{useLocation().pathname}</output>;
 const where = () => screen.getByTestId('where').textContent;
 
-const renderEditor = (path = '/admin/experiences/create') => {
-  const store = configureStore({ reducer: { ui: uiReducer } });
+const renderEditor = (path = '/admin/experiences/create', { user = null, base = '/admin' } = {}) => {
+  const store = configureStore({ reducer: { ui: uiReducer, user: userReducer } });
+  if (user) store.dispatch({ type: 'user/setUser', payload: user });
   render(
     <Provider store={store}>
       <ThemeProvider theme={theme}>
         <MemoryRouter initialEntries={[path]}>
           <Routes>
-            <Route path="/admin/experiences" element={<main>The list</main>} />
-            <Route path="/admin/experiences/create" element={<AdminExperienceEditor />} />
-            <Route path="/admin/experiences/:uuid/edit" element={<AdminExperienceEditor />} />
+            <Route path={`${base}/experiences`} element={<main>The list</main>} />
+            <Route path={`${base}/experiences/create`} element={<AdminExperienceEditor />} />
+            <Route path={`${base}/experiences/:uuid/edit`} element={<AdminExperienceEditor />} />
           </Routes>
           <Where />
         </MemoryRouter>
@@ -1902,5 +1904,45 @@ describe('the printable: a link or an uploaded file', () => {
       await user.click(button('Preview'));
       expect(within(screen.getByRole('region', { name: 'Preview of the experience on a laptop' })).getByRole('button', { name: 'Print' })).toBeInTheDocument();
     });
+  });
+});
+
+describe('for a content creator (her own part of the site)', () => {
+  const creator = { _id: 'c1', role: 'content_creator', accessAreas: ['experiences'] };
+
+  it('saving a new draft goes back to HER list, under /content-creator', async () => {
+    const { user } = renderEditor('/content-creator/experiences/create', { user: creator, base: '/content-creator' });
+    type('Title', 'Smoothie');
+    type('Description', 'Make one');
+    await create(user);
+
+    await waitFor(() => expect(where()).toBe('/content-creator/experiences'));
+    expect(api.post).toHaveBeenCalledTimes(1);
+    // the server address is the same one admins use: the server checks her Experiences area
+    expect(api.post.mock.calls[0][0]).toBe('/admin/experiences');
+  });
+
+  it('Cancel with nothing typed goes straight back to her list', async () => {
+    const { user } = renderEditor('/content-creator/experiences/create', { user: creator, base: '/content-creator' });
+
+    await user.click(button('Cancel'));
+
+    expect(where()).toBe('/content-creator/experiences');
+  });
+
+  it('Back to experiences goes to her list', async () => {
+    const { user } = renderEditor('/content-creator/experiences/create', { user: creator, base: '/content-creator' });
+
+    await user.click(button('Back to experiences'));
+
+    expect(where()).toBe('/content-creator/experiences');
+  });
+
+  it('an admin still goes back to /admin/experiences', async () => {
+    const { user } = renderEditor('/admin/experiences/create', { user: { _id: 'a1', role: 'admin' } });
+
+    await user.click(button('Cancel'));
+
+    expect(where()).toBe('/admin/experiences');
   });
 });

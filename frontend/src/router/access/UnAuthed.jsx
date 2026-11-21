@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { creatorLandingPath } from '../../utils/contentCreatorAccess';
 
 /**
  * UnAuthed Component
@@ -24,6 +25,9 @@ const UnAuthed = ({ children, redirectTo = '/' }) => {
       return <Navigate to="/admin/dashboard" replace />;
     } else if (user.role === 'teacher') {
       return <Navigate to="/teacher/dashboard" replace />;
+    } else if (user.role === 'content_creator') {
+      // Her first allowed page (a creator with no area at all gets /content-creator, which tells her so)
+      return <Navigate to={creatorLandingPath(user) || '/content-creator'} replace />;
     } else if (user.role === 'child') {
       return <Navigate to="/child/dashboard" replace />;
     }

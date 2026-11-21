@@ -2,6 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const {
   searchLabelCatalog,
   listRecentCustomLabels,
@@ -23,6 +24,7 @@ const {
 
 router.use(protect);
 router.use(authorize('admin', 'teacher', 'content_creator'));
+router.use(requireAccessArea('star_cam_missions'));
 
 router.get('/search', searchLabelCatalog);
 router.get('/recent-custom', listRecentCustomLabels);

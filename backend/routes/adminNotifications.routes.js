@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const { requireAccessArea } = require('../middleware/accessArea');
 const { uploadNotificationImage } = require('../middleware/upload');
 const {
   getMeta,
@@ -25,7 +26,9 @@ const {
  * Base: /api/admin/notifications
  */
 router.use(protect);
-router.use(authorize('admin'));
+router.use(authorize('admin', 'content_creator'));
+// A content creator needs the Notifications area; an admin is never limited
+router.use(requireAccessArea('notifications'));
 
 router.get('/meta', getMeta);
 router.get('/dashboard', getDashboard);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { Box, Typography, Paper, Grid } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import {
@@ -7,38 +8,63 @@ import {
   PlayCircleOutlined,
   AutoStoriesOutlined,
   AutoAwesomeOutlined,
+  NotificationsNone,
+  TravelExploreOutlined,
 } from '@mui/icons-material';
+import { hasCreatorArea } from '../../utils/contentCreatorAccess';
 
 const ContentCreatorDashboard = () => {
   const theme = useTheme();
   const navigate = useNavigate();
+  const user = useSelector((state) => state.user.user);
 
-  const quickActions = [
+  const allActions = [
     {
+      area: 'contents',
       title: 'My Contents',
       description: 'Activities, books, videos, audio, and chants you created.',
       icon: <AssignmentOutlined sx={{ fontSize: 34 }} />,
       path: '/content-creator/contents',
     },
     {
+      area: 'built_in_books',
       title: 'Built-in Books',
       description: 'Build and publish CMS slide-deck books.',
       icon: <AutoStoriesOutlined sx={{ fontSize: 34 }} />,
       path: '/content-creator/built-in-books',
     },
     {
+      area: 'explore',
       title: 'Explore',
       description: 'Manage your explore videos and embeds.',
       icon: <PlayCircleOutlined sx={{ fontSize: 34 }} />,
       path: '/content-creator/explore',
     },
     {
+      area: 'star_cam_missions',
       title: 'Star Cam Missions',
       description: 'Create and publish Star Cam missions.',
       icon: <AutoAwesomeOutlined sx={{ fontSize: 34 }} />,
       path: '/content-creator/star-cam-missions',
     },
+    {
+      area: 'notifications',
+      title: 'Notifications',
+      description: 'Create, test and send push notifications to families.',
+      icon: <NotificationsNone sx={{ fontSize: 34 }} />,
+      path: '/content-creator/notifications',
+    },
+    {
+      area: 'experiences',
+      title: 'Experiences',
+      description: 'Manage the Experiences children see under Explore.',
+      icon: <TravelExploreOutlined sx={{ fontSize: 34 }} />,
+      path: '/content-creator/experiences',
+    },
   ];
+
+  // Only shortcuts to areas she has
+  const quickActions = allActions.filter((action) => hasCreatorArea(user, action.area));
 
   return (
     <Box>
