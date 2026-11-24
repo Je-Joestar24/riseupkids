@@ -19,6 +19,7 @@
     "process:deletions": "node scripts/processDeletionRequests.js",
     "cleanup:notifications": "node scripts/cleanupNotifications.js",
     "seed:paypal": "node scripts/createPayPalPlans.js",
+    "stripe:verify-prices": "node scripts/verifyStripePrices.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand"
   },
