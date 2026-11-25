@@ -4,7 +4,7 @@
  */
 
 const User = require('../models/User');
-const { getCheckoutConfig, createFamilyPlanCheckoutSession } = require('../services/checkout.services');
+const { getCheckoutConfig, getCheckoutPricing, createFamilyPlanCheckoutSession } = require('../services/checkout.services');
 const { getCheckoutSession } = require('../services/stripe.services');
 const { generateToken, accessTokenExpiryForRole } = require('../services/auth.services');
 const sessionService = require('../services/session.services');
@@ -24,11 +24,27 @@ exports.getConfig = async (req, res, next) => {
 };
 
 /**
+ * GET /api/checkout/pricing
+ * The Family Plan prices the checkout pages show (no auth required): annual price per region and number of
+ * children, in whole cents. The pages keep no price numbers of their own, so what is shown is what is charged.
+ * Monthly prices are never included until the monthly option is switched on in config/familyPlanPricing.js.
+ */
+exports.getPricing = async (req, res, next) => {
+  try {
+    return res.json(getCheckoutPricing());
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /api/checkout/create-session
- * Creates a Stripe Checkout Session for Family Plan (one-time payment).
+ * Creates a Stripe Checkout Session for Family Plan (one-time annual payment).
  * Requires authenticated parent.
  *
- * Body: { region, childCount, addBox?, successUrl?, cancelUrl?, termsVersion? }
+ * Body: { region, childCount, successUrl?, cancelUrl?, termsVersion? }
+ * childCount must be 1 to 4: anything else is a 400 (never rounded into a plan). An activity box field sent by an
+ * old app is ignored: the box no longer exists.
  */
 exports.createSession = async (req, res, next) => {
   try {
@@ -41,7 +57,7 @@ exports.createSession = async (req, res, next) => {
     const {
       region,
       childCount,
-      addBox = false,
+      // addBox = false,   // activity box: switched off (see docs/ACTIVITY_BOX_DISABLED.md)
       successUrl,
       cancelUrl,
       termsVersion,
@@ -61,8 +77,8 @@ exports.createSession = async (req, res, next) => {
       userId,
       userEmail,
       region,
-      childCount: Number(childCount),
-      addBox: Boolean(addBox),
+      childCount,
+      // addBox: Boolean(addBox),   // activity box: switched off, see docs/ACTIVITY_BOX_DISABLED.md
       successUrl: finalSuccessUrl,
       cancelUrl: finalCancelUrl,
       termsVersion: termsVersion || undefined,

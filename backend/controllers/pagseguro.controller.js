@@ -16,6 +16,7 @@ const {
   getPagseguroConfig,
   createPagbankCheckout,
   buildCheckoutLineItems,
+  normalizeChildCount,
   generateReferenceId,
   isPagseguroConfigured,
   getPagbankCheckout,
@@ -64,9 +65,11 @@ exports.createCheckout = async (req, res, next) => {
       });
     }
 
+    // childCount must be 1 to 4: anything else is a 400 (never rounded into a plan). An activity box field sent by an
+    // old app is ignored: the box add-on is switched off (see docs/ACTIVITY_BOX_DISABLED.md).
     const {
       childCount,
-      addBox = false,
+      // addBox = false,   // activity box: switched off
       taxId,
       phone,
       successUrl,
@@ -95,16 +98,17 @@ exports.createCheckout = async (req, res, next) => {
       });
     }
 
-    const count = Number(childCount);
-    const withBox = Boolean(addBox);
-    const { totalCents } = buildCheckoutLineItems(count, withBox);
+    // Refuses 0, 5 or more, decimals and text with a 400 (FamilyPlanPricingError) before anything is saved
+    const count = normalizeChildCount(childCount);
+    // const withBox = Boolean(addBox);   // activity box: switched off (then buildCheckoutLineItems(count, withBox))
+    const { totalCents } = buildCheckoutLineItems(count);
     const referenceId = generateReferenceId();
 
     const pending = await PagSeguroCheckout.create({
       referenceId,
       userId,
       childCount: count,
-      addBox: withBox,
+      // addBox: withBox,   // activity box: switched off (the field still exists on the PagSeguroCheckout model)
       amountCents: totalCents,
       currency: 'BRL',
       status: 'pending',
@@ -116,7 +120,7 @@ exports.createCheckout = async (req, res, next) => {
         referenceId,
         user,
         childCount: count,
-        addBox: withBox,
+        // addBox: withBox,   // activity box: switched off
         taxId,
         phone,
         successUrl,

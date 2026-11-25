@@ -1,7 +1,12 @@
 /**
+ * LEGACY, NOT USED BY THE CHECKOUT. The checkout creates one-time PayPal ORDERS and sends the amount with each order
+ * (taken from the one price list, config/familyPlanPricing.js), so nothing has to exist on PayPal's side.
+ * Nothing in the app reads config/paypalPlans.json. This script is kept only for the day a PayPal SUBSCRIPTION
+ * (for example the monthly option) is wanted; do not run it for the current checkout.
+ *
  * Seeds PayPal product + yearly subscription plans (by currency + tier).
- * Total: 18 plans = 3 currencies × 6 tiers (1_child, 2_children, 3_children + yearly variants).
- * One-time checkout uses paypalFamilyPlanPrices.json (18 prices); this script writes plan IDs to paypalPlans.json.
+ * Total: 24 plans = 3 currencies x 8 tiers (1_child ... 4_children + yearly variants), amounts from the one price list.
+ * This script writes plan IDs to paypalPlans.json.
  *
  * Run from backend:
  *   node scripts/createPayPalPlans.js
@@ -12,8 +17,7 @@
  *   PAYPAL_API_BASE        (sandbox base: https://api-m.sandbox.paypal.com)
  *   PAYPAL_ENV=sandbox
  *
- * Reads pricing tiers from:
- *   config/paypalFamilyPlanPrices.json  (18 prices: base + yearly per currency)
+ * Reads pricing tiers from the one price list (config/familyPlanPricing.js), through paypalService.getPriceTable().
  *
  * Writes resulting productId + planIds mapping to:
  *   config/paypalPlans.json
@@ -36,7 +40,7 @@ const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE;
 const PAYPAL_ENV = process.env.PAYPAL_ENV || 'sandbox';
 
-const PRICES_PATH = path.join(__dirname, '..', 'config', 'paypalFamilyPlanPrices.json');
+const PRICES_SOURCE = 'config/familyPlanPricing.js (the one price list)';
 const OUTPUT_PATH = path.join(__dirname, '..', 'config', 'paypalPlans.json');
 
 const PRODUCT = {
@@ -231,12 +235,7 @@ function buildEmptyPlanMapFromPrices(prices) {
 async function main() {
   assertRequiredEnv();
 
-  if (!fs.existsSync(PRICES_PATH)) {
-    console.error(`Missing pricing file: ${PRICES_PATH}`);
-    process.exit(1);
-  }
-
-  const prices = JSON.parse(fs.readFileSync(PRICES_PATH, 'utf8'));
+  const prices = require('../services/paypalService').getPriceTable();
 
   // If we already seeded before, load existing output to skip already-created plans.
   const existingOutput = readJsonIfExists(OUTPUT_PATH);
@@ -245,7 +244,7 @@ async function main() {
 
   console.log(`PayPal environment: ${PAYPAL_ENV}`);
   console.log(`PayPal API base: ${PAYPAL_API_BASE}`);
-  console.log(`Pricing file: ${PRICES_PATH}`);
+  console.log(`Prices from: ${PRICES_SOURCE}`);
   console.log(`Output file: ${OUTPUT_PATH}\n`);
 
   console.log('Authenticating with PayPal...');

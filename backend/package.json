@@ -20,6 +20,10 @@
     "cleanup:notifications": "node scripts/cleanupNotifications.js",
     "seed:paypal": "node scripts/createPayPalPlans.js",
     "stripe:verify-prices": "node scripts/verifyStripePrices.js",
+    "stripe:create-prices": "node scripts/createStripePrices.js",
+    "paypal:verify-prices": "node scripts/verifyPayPalPrices.js",
+    "pagbank:verify-prices": "node scripts/verifyPagbankPrices.js",
+    "pricing:check": "node scripts/checkFamilyPlanPricing.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand"
   },

@@ -1,59 +1,21 @@
 /**
- * Family Plan pricing (aligned with riseupkids-sale checkoutService).
- * Used for parents subscription settings display.
+ * Family Plan pricing for the parents' subscription screen.
+ *
+ * There are NO price numbers in this file: the prices come from the backend (GET /api/checkout/pricing, the one
+ * price list that Stripe, PayPal and PagBank also charge from). This file only checks the answer, formats it and
+ * works out the saving. (Same logic as riseupkids-sale/web/src/services/pricing.js.)
+ *
+ * Shape of the backend answer (annual prices, whole cents; monthly is never in it while the option is closed):
+ *   { minChildren, maxChildren, regions: { br: { currency: 'BRL', plans: [{ children: 1, annualCents: ... }, ...] }, us: {...}, eu: {...} } }
  */
 
+import api from '../api/axios';
+
 export const MIN_CHILDREN = 1;
-export const MAX_CHILDREN = 10;
 
-const PLAN_PRICES_BR = {
-  1: { installment: '12x R$74,90', cash: 799, amount: 799, discountPercent: null, discountAmount: null },
-  2: { installment: '12x R$122,90', cash: 1299, amount: 1299, discountPercent: 21, discountAmount: 299 },
-  3: { installment: '12x R$169,90', cash: 1799, amount: 1799, discountPercent: 30, discountAmount: 598 },
-  4: { installment: '12x R$205,90', cash: 2199, amount: 2199, discountPercent: 31, discountAmount: 997 },
-  5: { installment: '12x R$219,92', cash: 2639, amount: 2639, discountPercent: 34, discountAmount: 1356 },
-  6: { installment: '12x R$256,59', cash: 3079, amount: 3079, discountPercent: 36, discountAmount: 1715 },
-  7: { installment: '12x R$293,25', cash: 3519, amount: 3519, discountPercent: 37, discountAmount: 2074 },
-  8: { installment: '12x R$329,92', cash: 3959, amount: 3959, discountPercent: 38, discountAmount: 2433 },
-  9: { installment: '12x R$366,59', cash: 4399, amount: 4399, discountPercent: 39, discountAmount: 2792 },
-  10: { installment: '12x R$403,25', cash: 4839, amount: 4839, discountPercent: 39, discountAmount: 3151 },
-};
-
-const PLAN_PRICES_USD = {
-  1: { display: '$799', amount: 799 },
-  2: { display: '$1,598', amount: 1598 },
-  3: { display: '$2,397', amount: 2397 },
-  4: { display: '$2,199', amount: 2199 },
-  5: { display: '$2,749', amount: 2749 },
-  6: { display: '$3,299', amount: 3299 },
-  7: { display: '$3,849', amount: 3849 },
-  8: { display: '$4,399', amount: 4399 },
-  9: { display: '$4,949', amount: 4949 },
-  10: { display: '$5,499', amount: 5499 },
-};
-
-const PLAN_PRICES_EUR = {
-  1: { display: '€799', amount: 799 },
-  2: { display: '€1.598', amount: 1598 },
-  3: { display: '€2.397', amount: 2397 },
-  4: { display: '€2.199', amount: 2199 },
-  5: { display: '€2.749', amount: 2749 },
-  6: { display: '€3.299', amount: 3299 },
-  7: { display: '€3.849', amount: 3849 },
-  8: { display: '€4.399', amount: 4399 },
-  9: { display: '€4.949', amount: 4949 },
-  10: { display: '€5.499', amount: 5499 },
-};
-
-function clampCount(count) {
-  return Math.min(MAX_CHILDREN, Math.max(MIN_CHILDREN, count));
-}
-
-function getByCount(map, count) {
-  return map[clampCount(count)] ?? map[10];
-}
-
-const fmtBRL = (n) => `R$${Number(n).toLocaleString('pt-BR', { useGrouping: false })}`;
+const REGIONS = ['br', 'us', 'eu'];
+const CURRENCIES = { br: 'BRL', us: 'USD', eu: 'EUR' };
+const LOCALE_REGION = { pt: 'br', en: 'us', es: 'eu' };
 
 /** Region (br/us/eu) → display locale (pt/en/es) */
 export function regionToLocale(region) {
@@ -61,34 +23,111 @@ export function regionToLocale(region) {
   return map[region] || 'en';
 }
 
+const isWholeNumber = (value) => typeof value === 'number' && Number.isInteger(value);
+
 /**
+ * Validates the backend answer and returns it unchanged, or throws. A wrong or half-loaded answer is an error
+ * (no price is shown), never a guess.
+ * @throws {Error}
+ */
+export function normalizePricingResponse(data) {
+  const fail = (why) => {
+    throw new Error(`Prices could not be read (${why}).`);
+  };
+  if (!data || typeof data !== 'object') fail('no answer');
+  const { minChildren, maxChildren, regions } = data;
+  if (!isWholeNumber(minChildren) || !isWholeNumber(maxChildren) || minChildren < 1 || maxChildren < minChildren) {
+    fail('bad child limits');
+  }
+  if (!regions || typeof regions !== 'object') fail('no regions');
+
+  for (const region of REGIONS) {
+    const entry = regions[region];
+    if (!entry || typeof entry !== 'object') fail(`missing ${region}`);
+    if (entry.currency !== CURRENCIES[region]) fail(`wrong currency for ${region}`);
+    if (!Array.isArray(entry.plans) || entry.plans.length !== maxChildren - minChildren + 1) fail(`wrong number of plans for ${region}`);
+    entry.plans.forEach((plan, index) => {
+      if (!plan || plan.children !== minChildren + index) fail(`plans for ${region} are not in order`);
+      if (!isWholeNumber(plan.annualCents) || plan.annualCents < 1) fail(`bad price for ${region} ${plan.children}`);
+    });
+  }
+  return data;
+}
+
+/** Fetch the prices from the backend (public) and check them. Rejects when the answer is missing or broken. */
+export async function fetchCheckoutPricing() {
+  const res = await api.get('/checkout/pricing');
+  return normalizePricingResponse(res?.data);
+}
+
+/** The plan for this display locale and number of children, or null (not loaded, or a size that is not sold). */
+export function findPlan(pricing, locale, childCount) {
+  const entry = pricing?.regions?.[LOCALE_REGION[locale] || LOCALE_REGION.en];
+  return entry?.plans?.find((plan) => plan.children === childCount) ?? null;
+}
+
+function groupingFor(locale) {
+  if (locale === 'pt') return { tag: 'pt-BR', symbol: 'R$', useGrouping: false }; // R$1299, not R$1.299
+  if (locale === 'es') return { tag: 'de-DE', symbol: '€', useGrouping: true }; // €1.598
+  return { tag: 'en-US', symbol: '$', useGrouping: true }; // $1,598
+}
+
+/** 69900 -> "R$699" (pt), 12000 -> "$120" (en), 12000 -> "€120" (es). Shows cents only when there are any. */
+export function formatPrice(cents, locale) {
+  if (!isWholeNumber(cents) || cents < 0) return '';
+  const { tag, symbol, useGrouping } = groupingFor(locale);
+  const hasCents = cents % 100 !== 0;
+  const text = (cents / 100).toLocaleString(tag, {
+    useGrouping,
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+  return `${symbol}${text}`;
+}
+
+/** What a plan saves compared with buying 1-child plans one by one, from the backend's own numbers (null for 1 child or no saving). */
+export function getSaving(pricing, locale, childCount) {
+  if (childCount <= 1) return null;
+  const single = findPlan(pricing, locale, 1);
+  const plan = findPlan(pricing, locale, childCount);
+  if (!single || !plan) return null;
+  const separate = single.annualCents * childCount;
+  const savedCents = separate - plan.annualCents;
+  if (savedCents <= 0) return null;
+  return { savedCents, percent: Math.round((savedCents / separate) * 100) };
+}
+
+/**
+ * Plan pricing for display, from the backend prices.
+ * @param {object|null} pricing - the backend answer (null while it is not loaded)
  * @param {string} locale - 'pt' | 'en' | 'es'
  * @param {number} childCount
+ * @returns {{ line1: string, line2: null, amount: number, discountFormatted?: string } | null}
+ *   null while there are no prices or for a size that is not sold: the screen then shows no price at all.
  */
-export function getPlanPricing(locale, childCount) {
-  const count = clampCount(childCount);
+export function getPlanPricing(pricing, locale, childCount) {
+  const plan = findPlan(pricing, locale, childCount);
+  if (!plan) return null;
+  const out = {
+    line1: formatPrice(plan.annualCents, locale),
+    line2: null,
+    amount: plan.annualCents / 100,
+  };
+  // The saving line has always been shown for the Portuguese (Brazil) plans only; it is now worked out from the backend prices
   if (locale === 'pt') {
-    const br = getByCount(PLAN_PRICES_BR, count);
-    const line2 = `ou ${fmtBRL(br.cash)} à vista`;
-    const out = { line1: br.installment, line2, amount: br.amount };
-    if (br.discountPercent != null && br.discountAmount != null) {
-      out.discountPercent = br.discountPercent;
-      out.discountAmount = br.discountAmount;
-      out.discountFormatted = `Economize ${br.discountPercent}% (${fmtBRL(br.discountAmount)})`;
+    const saving = getSaving(pricing, locale, childCount);
+    if (saving) {
+      out.discountPercent = saving.percent;
+      out.discountAmount = saving.savedCents / 100;
+      out.discountFormatted = `Economize ${saving.percent}% (${formatPrice(saving.savedCents, 'pt')})`;
     }
-    return out;
   }
-  if (locale === 'es') {
-    const eu = getByCount(PLAN_PRICES_EUR, count);
-    return { line1: eu.display, line2: null, amount: eu.amount };
-  }
-  const us = getByCount(PLAN_PRICES_USD, count);
-  return { line1: us.display, line2: null, amount: us.amount };
+  return out;
 }
 
 /** Human-readable children label for plan summary */
 export function getChildrenPlanLabel(childCount) {
-  const count = clampCount(childCount);
+  const count = Math.max(MIN_CHILDREN, Math.floor(Number(childCount)) || MIN_CHILDREN);
   if (count === 1) return '1 Child';
   if (count === 2) return '2 Children';
   return `${count} Children`;
@@ -104,5 +143,5 @@ export const FAMILY_PLAN_BENEFITS = [
   'Safe community for children',
 ];
 
-/** Payment note when line2 is not set (US/EU) */
+/** Payment note when line2 is not set (every region now) */
 export const PAYMENT_NOTE = 'or flexible payment options available at checkout';

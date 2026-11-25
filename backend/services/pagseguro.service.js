@@ -1,12 +1,16 @@
 /**
  * PagBank (PagSeguro) Checkout API — Family Plan (Brazil).
  * Hosted checkout: POST /checkouts, GET /checkouts/{id}.
+ *
+ * PagBank is Brazil only, so it only ever charges the BRL annual price from the ONE price list
+ * (config/familyPlanPricing.js, via familyPlanPricing.service.js): 1 to 4 children, paid once.
+ * The amount is sent with every checkout; nothing is created on PagBank's side.
+ * There is no activity box any more: nothing is added on top of the plan price.
  */
 
 const crypto = require('crypto');
-const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
+const pricing = require('./familyPlanPricing.service');
 const logger = require('../config/logger');
 const {
   PAGSEGURO_API_BASE,
@@ -19,48 +23,38 @@ const {
   getSaleAppBaseUrl,
 } = require('../config/pagseguro');
 
-const PRICES_PATH = path.join(__dirname, '..', 'config', 'pagseguroFamilyPlanPrices.json');
+const MIN_CHILDREN = pricing.MIN_CHILDREN;
+const MAX_CHILDREN = pricing.MAX_CHILDREN;
 
-const MIN_CHILDREN = 1;
-const MAX_CHILDREN = 10;
-
-let _prices = null;
-
-function getPrices() {
-  if (_prices) return _prices;
-  if (!fs.existsSync(PRICES_PATH)) {
-    throw new Error('PagSeguro pricing config not found: ' + PRICES_PATH);
-  }
-  _prices = JSON.parse(fs.readFileSync(PRICES_PATH, 'utf8'));
-  return _prices;
+/**
+ * 1 to 4 children, as a whole number. Anything else is refused (a 400), never rounded into a plan.
+ * @throws {FamilyPlanPricingError}
+ */
+function normalizeChildCount(childCount) {
+  return pricing.normalizeChildCount(childCount);
 }
 
-function clampChildCount(childCount) {
-  return Math.min(MAX_CHILDREN, Math.max(MIN_CHILDREN, Number(childCount) || 1));
-}
+// ACTIVITY BOX ADD-ON: SWITCHED OFF (the client no longer sells it). The code is kept here, commented out,
+// so it can be switched on again. See docs/ACTIVITY_BOX_DISABLED.md for every place and how to re-enable it.
+// The box price lived in config/pagseguroFamilyPlanPrices.json as `boxAmountCentsPerChild: 29700` (R$297 per child, in centavos).
+//
+// function getBoxAmountCents(childCount) {
+//   const count = normalizeChildCount(childCount);
+//   const perChild = 29700; // R$297 per child, in centavos (was boxAmountCentsPerChild in the old price file)
+//   return perChild * count;
+// }
 
+/** The annual BRL price for the whole family, in centavos. */
 function getPlanAmountCents(childCount) {
-  const count = clampChildCount(childCount);
-  const prices = getPrices();
-  const cents = prices.planAmountCents[String(count)] ?? prices.planAmountCents[count];
-  if (typeof cents !== 'number' || cents < 1) {
-    throw new Error(`No BRL plan price for childCount=${count}.`);
-  }
-  return cents;
-}
-
-function getBoxAmountCents(childCount) {
-  const count = clampChildCount(childCount);
-  const perChild = getPrices().boxAmountCentsPerChild ?? 29700;
-  return perChild * count;
+  return pricing.getAnnualCents('BRL', normalizeChildCount(childCount));
 }
 
 /**
- * Build PagBank line items (amounts in centavos).
+ * Build PagBank line items (amounts in centavos): exactly one line, the plan, nothing added on top.
  * @returns {{ items: object[], totalCents: number }}
  */
-function buildCheckoutLineItems(childCount, addBox = false) {
-  const count = clampChildCount(childCount);
+function buildCheckoutLineItems(childCount) {
+  const count = normalizeChildCount(childCount);
   const planCents = getPlanAmountCents(count);
   const childWord = count === 1 ? 'child' : 'children';
 
@@ -73,20 +67,22 @@ function buildCheckoutLineItems(childCount, addBox = false) {
     },
   ];
 
-  let totalCents = planCents;
-
-  if (addBox) {
-    const boxCents = getBoxAmountCents(count);
-    items.push({
-      reference_id: `activity-box-${count}`,
-      name: `Family Plan – Activity Box (${count} box${count > 1 ? 'es' : ''})`,
-      quantity: 1,
-      unit_amount: boxCents,
-    });
-    totalCents += boxCents;
-  }
-
-  return { items, totalCents };
+  // ACTIVITY BOX ADD-ON: SWITCHED OFF (the client no longer sells it). The code is kept here, commented out,
+// so it can be switched on again. See docs/ACTIVITY_BOX_DISABLED.md for every place and how to re-enable it.
+  // To re-enable: take `addBox = false` as the second parameter of this function and use `let totalCents = planCents;`
+  // instead of returning planCents directly:
+  //
+  //   if (addBox) {
+  //     const boxCents = getBoxAmountCents(count);
+  //     items.push({
+  //       reference_id: `activity-box-${count}`,
+  //       name: `Family Plan – Activity Box (${count} box${count > 1 ? 'es' : ''})`,
+  //       quantity: 1,
+  //       unit_amount: boxCents,
+  //     });
+  //     totalCents += boxCents;
+  //   }
+  return { items, totalCents: planCents };
 }
 
 /** Strip non-digits from CPF/CNPJ. */
@@ -230,7 +226,7 @@ function getPagseguroConfig() {
   return {
     enabled: isPagseguroConfigured(),
     region: 'br',
-    currency: getPrices().currency || 'BRL',
+    currency: pricing.resolveCurrency('br'),
     minChildren: MIN_CHILDREN,
     maxChildren: MAX_CHILDREN,
     installmentsLimit: INSTALLMENTS_LIMIT,
@@ -248,7 +244,6 @@ function buildCheckoutPayload({
   taxId,
   phone,
   childCount,
-  addBox,
   successUrl,
   cancelUrl,
   termsVersion,
@@ -265,7 +260,7 @@ function buildCheckoutPayload({
     );
   }
 
-  const { items } = buildCheckoutLineItems(childCount, addBox);
+  const { items } = buildCheckoutLineItems(childCount);
   const webhookBase = getWebhookBaseUrl();
   const { successUrl: finalSuccessUrl, cancelUrl: finalCancelUrl } = resolvePagbankRedirectUrls(
     successUrl,
@@ -316,19 +311,19 @@ async function createPagbankCheckout({
   referenceId,
   user,
   childCount,
-  addBox = false,
   taxId,
   phone,
   successUrl,
   cancelUrl,
   termsVersion,
 }) {
+  // What the customer sent is checked first, so a bad child count is a 400 whatever the server's own set-up is
+  const count = normalizeChildCount(childCount);
+  const { totalCents } = buildCheckoutLineItems(count);
+
   if (!isPagseguroConfigured()) {
     throw new Error('PagBank is not configured. Set PAGSEGURO_ACCESS_TOKEN.');
   }
-
-  const count = clampChildCount(childCount);
-  const { totalCents } = buildCheckoutLineItems(count, addBox);
   const finalReferenceId = referenceId || generateReferenceId();
 
   const payload = buildCheckoutPayload({
@@ -337,7 +332,6 @@ async function createPagbankCheckout({
     taxId,
     phone,
     childCount: count,
-    addBox,
     successUrl,
     cancelUrl,
     termsVersion,
@@ -751,9 +745,8 @@ async function resolveCheckoutPaymentStatus(apiCheckout, options = {}) {
 module.exports = {
   MIN_CHILDREN,
   MAX_CHILDREN,
-  getPrices,
+  normalizeChildCount,
   getPlanAmountCents,
-  getBoxAmountCents,
   buildCheckoutLineItems,
   normalizeTaxId,
   isValidCpf,

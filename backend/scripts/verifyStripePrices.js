@@ -1,117 +1,147 @@
 /**
- * Checks every Stripe price the checkout uses against the Stripe account the current STRIPE_SECRET_KEY belongs to.
+ * Checks the Stripe prices the checkout uses against the ONE price list (config/familyPlanPricing.js)
+ * and against the Stripe account the current STRIPE_SECRET_KEY belongs to.
  * READ ONLY: it only retrieves prices, it never creates or changes anything in Stripe.
  *
- * Run from backend:  npm run stripe:verify-prices
+ *   npm run stripe:verify-prices
  *
- * It reports, for each price in config/stripeFamilyPlanPrices.json (and STRIPE_PRICE_ID_YEARLY if set):
- *   OK       the price exists in this Stripe account/mode, is active, and has the expected currency + product
- *   PROBLEM  the price is missing ("No such price"), inactive, in another mode, in the wrong currency or on another product
+ * For every price id in the price file for this kind of key (config/stripeFamilyPlanPrices.live.json or .test.json):
+ *   OK       exists in this account/mode, is active, the amount and currency match the price list, one-time (annual)
+ *            or monthly as expected, on the right product, tagged with the right region and children
+ *   PROBLEM  missing ("No such price"), archived, test price on a live key (or the other way round), wrong amount or
+ *            currency, wrong product, a cell of the plan with no price id at all
+ *   NOTE     things worth knowing that do not break checkout (ids for 5+ children that are no longer sold)
  *
- * The usual cause of "No such price" on the live site: the price ids in the JSON were created with a TEST key
- * (sk_test_...), but the server runs a LIVE key (sk_live_...). Test and live have different prices.
- * Fix: run `node scripts/createStripePrices.js` once with the LIVE key, then deploy the new JSON.
- *
- * Exit code: 0 when every price is fine, 1 when anything needs attention.
+ * Fix for a problem: run  node scripts/createStripePrices.js --dry-run  (then without it / with --confirm on live).
+ * Exit code: 0 = every price is fine, 1 = something needs attention.
  */
 
 const path = require('path');
-const fs = require('fs');
 
-try {
-  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-} catch (e) {
-  // dotenv not installed or .env missing; rely on process.env
-}
+const pricing = require('../services/familyPlanPricing.service');
+const { keyMode, loadFamilyPlanConfig } = require('../config/stripeFamilyPlanFile');
 
-const Stripe = require('stripe');
+const money = (cell) => `${(cell.cents / 100).toFixed(2)} ${cell.currency}`;
+const label = (cell) => `${cell.region} ${cell.kids} ${cell.kids === 1 ? 'child ' : 'children'} ${cell.interval === 'annual' ? 'annual ' : 'monthly'}`;
 
-const CONFIG_PATH = path.join(__dirname, '..', 'config', 'stripeFamilyPlanPrices.json');
-const EXPECTED_CURRENCY = { br: 'brl', us: 'usd', eu: 'eur' };
-
-/** "live", "test" or "unknown", from the key itself (the key is never printed). */
-function keyMode(key) {
-  if (/^(sk|rk)_live_/.test(key || '')) return 'live';
-  if (/^(sk|rk)_test_/.test(key || '')) return 'test';
-  return 'unknown';
-}
-
-/** Every price id to check, with where it came from: [{ label, id, region? , expectedProduct? }]. */
-function collectPrices(config, yearlyPriceId) {
-  const list = [];
-  for (const [region, byKids] of Object.entries(config.prices || {})) {
-    for (const [kids, id] of Object.entries(byKids || {})) {
-      list.push({ label: `${region} ${kids} kid${kids === '1' ? '' : 's'}`, id, region, expectedProduct: config.productId });
-    }
-  }
-  if (yearlyPriceId) list.push({ label: 'STRIPE_PRICE_ID_YEARLY (env)', id: yearlyPriceId });
-  return list;
-}
-
-/** What is wrong with a price Stripe returned (empty list = fine). */
-function problemsWithPrice(entry, price, mode) {
+/** What is wrong with one Stripe price for the cell it should fill (empty = fine). */
+function problemsWithPrice({ cell, price, mode, productId }) {
   const problems = [];
   if (!price.active) problems.push('the price is archived (inactive)');
   if (mode === 'live' && price.livemode === false) problems.push('it is a TEST price but the key is LIVE');
   if (mode === 'test' && price.livemode === true) problems.push('it is a LIVE price but the key is TEST');
-  const wantCurrency = entry.region ? EXPECTED_CURRENCY[entry.region] : null;
-  if (wantCurrency && price.currency !== wantCurrency) problems.push(`currency is ${price.currency}, expected ${wantCurrency}`);
-  const product = typeof price.product === 'string' ? price.product : price.product?.id;
-  if (entry.expectedProduct && product !== entry.expectedProduct) problems.push(`it belongs to product ${product}, expected ${entry.expectedProduct}`);
-  if (entry.region && price.metadata?.region && price.metadata.region !== entry.region) {
-    problems.push(`its region tag is ${price.metadata.region}, expected ${entry.region}`);
+  if (price.unit_amount !== cell.cents) problems.push(`amount is ${price.unit_amount}, the price list says ${cell.cents}`);
+  if (String(price.currency).toLowerCase() !== cell.currency.toLowerCase()) problems.push(`currency is ${price.currency}, expected ${cell.currency.toLowerCase()}`);
+  if (cell.interval === 'annual' && price.recurring) problems.push('it is a recurring price, but annual is paid once');
+  if (cell.interval === 'monthly' && !(price.recurring && price.recurring.interval === 'month' && (price.recurring.interval_count || 1) === 1)) {
+    problems.push('it is not billed every month');
   }
+  const product = typeof price.product === 'string' ? price.product : price.product?.id;
+  if (productId && product !== productId) problems.push(`it belongs to product ${product}, the file says ${productId}`);
+  const tagRegion = price.metadata?.region;
+  const tagKids = price.metadata?.kids;
+  if (tagRegion && tagRegion !== cell.region) problems.push(`its region tag is ${tagRegion}, expected ${cell.region}`);
+  if (tagKids && String(tagKids) !== String(cell.kids)) problems.push(`its children tag is ${tagKids}, expected ${cell.kids}`);
   return problems;
 }
 
-async function main() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    console.error('Missing STRIPE_SECRET_KEY in the environment (.env).');
-    process.exit(1);
+/**
+ * @returns {Promise<{ exitCode: number, ok: number, problems: number, notes: number }>}
+ */
+async function verifyStripePrices({ stripe, secretKey, configDir, legacyYearlyPriceId, log = console.log, fs }) {
+  const result = { exitCode: 0, ok: 0, problems: 0, notes: 0 };
+  const mode = keyMode(secretKey);
+  const config = loadFamilyPlanConfig({ secretKey, ...(configDir ? { dir: configDir } : {}), ...(fs ? { fs } : {}) });
+
+  log(`Stripe key mode: ${mode.toUpperCase()}`);
+  if (config.error || config.source === 'none') {
+    log(`PROBLEM  ${config.error || 'No price file found. Run: node scripts/createStripePrices.js --dry-run'}`);
+    return { ...result, problems: 1, exitCode: 1 };
   }
-  if (!fs.existsSync(CONFIG_PATH)) {
-    console.error(`Missing ${CONFIG_PATH}. Run: node scripts/createStripePrices.js`);
-    process.exit(1);
-  }
+  log(`Price file: ${path.basename(config.file)}${config.source === 'legacy-file' ? '   (the OLD shared file; run createStripePrices.js to make a per-mode file)' : ''}`);
+  log(`Product in file: ${config.productId || '(none)'}\n`);
 
-  const mode = keyMode(key);
-  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  const stripe = new Stripe(key);
+  const problem = (text) => {
+    result.problems += 1;
+    log(`PROBLEM  ${text}`);
+  };
 
-  console.log(`Stripe key mode: ${mode.toUpperCase()}`);
-  console.log(`Product in config: ${config.productId || '(none)'}\n`);
+  const hasMonthly = Object.values(config.monthlyPrices || {}).some((byKids) => Object.keys(byKids || {}).length > 0);
+  const cells = pricing.listPriceCells({ includeMonthly: hasMonthly });
+  const known = new Set();
 
-  const entries = collectPrices(config, process.env.STRIPE_PRICE_ID_YEARLY);
-  let bad = 0;
-
-  for (const entry of entries) {
+  for (const cell of cells) {
+    const table = cell.interval === 'annual' ? config.prices : config.monthlyPrices;
+    const id = table?.[cell.region]?.[cell.kids];
+    known.add(`${cell.interval}|${cell.region}|${cell.kids}`);
+    if (!id) {
+      problem(`${label(cell).padEnd(26)} no price id in the file (expected ${money(cell)})`);
+      continue;
+    }
     try {
-      const price = await stripe.prices.retrieve(entry.id);
-      const problems = problemsWithPrice(entry, price, mode);
-      const amount = price.unit_amount != null ? (price.unit_amount / 100).toFixed(2) : '?';
+      const price = await stripe.prices.retrieve(id);
+      const problems = problemsWithPrice({ cell, price, mode, productId: config.productId });
       if (problems.length === 0) {
-        console.log(`OK       ${entry.label.padEnd(30)} ${entry.id}  ${amount} ${String(price.currency).toUpperCase()}`);
+        result.ok += 1;
+        log(`OK       ${label(cell).padEnd(26)} ${money(cell).padStart(14)}  ${id}`);
       } else {
-        bad += 1;
-        console.log(`PROBLEM  ${entry.label.padEnd(30)} ${entry.id}  ${problems.join('; ')}`);
+        problem(`${label(cell).padEnd(26)} ${id}  ${problems.join('; ')}`);
       }
     } catch (err) {
-      bad += 1;
-      // Stripe's own message says when "a similar object exists in test mode, but a live mode key was used"
-      console.log(`PROBLEM  ${entry.label.padEnd(30)} ${entry.id}  ${err.message}`);
+      // Stripe's own text says when "a similar object exists in test mode, but a live mode key was used"
+      problem(`${label(cell).padEnd(26)} ${id}  ${err.message}`);
     }
   }
 
-  console.log(`\nChecked ${entries.length} price(s): ${entries.length - bad} fine, ${bad} need attention.`);
-  if (bad > 0) {
-    console.log(
-      '\nIf the problems say "No such price" or "test mode", the ids in config/stripeFamilyPlanPrices.json belong to a ' +
-        'different Stripe mode/account than this key.\nFix: with the LIVE key set, run  node scripts/createStripePrices.js  ' +
-        '(it reuses prices that already exist and only creates the missing ones), then deploy the updated JSON.'
+  for (const [interval, table] of [['annual', config.prices], ['monthly', config.monthlyPrices]]) {
+    for (const [region, byKids] of Object.entries(table || {})) {
+      for (const kids of Object.keys(byKids || {})) {
+        if (!known.has(`${interval}|${region}|${Number(kids)}`)) {
+          result.notes += 1;
+          log(`NOTE     ${region} ${kids} children ${interval}: id in the file but not part of the plan (1 to ${pricing.MAX_CHILDREN} children); it is not sold and can be removed`);
+        }
+      }
+    }
+  }
+
+  if (legacyYearlyPriceId) {
+    try {
+      await stripe.prices.retrieve(legacyYearlyPriceId);
+    } catch (err) {
+      result.notes += 1;
+      log(`NOTE     STRIPE_PRICE_ID_YEARLY (env) ${legacyYearlyPriceId}: ${err.message}\n         It is only used by the older single-price subscription flow, not by the Family Plan checkout.`);
+    }
+  }
+
+  log(`\nChecked ${cells.length} price(s): ${result.ok} fine, ${result.problems} need attention${result.notes ? `, ${result.notes} note(s)` : ''}.`);
+  if (result.problems > 0) {
+    result.exitCode = 1;
+    log(
+      '\nFix: with the right key set, run  node scripts/createStripePrices.js --dry-run  to see the plan, then run it without --dry-run ' +
+        '(add --confirm on a LIVE key; add --archive-mismatched if it reports a wrong amount). Then run this check again.'
     );
+  }
+  return result;
+}
+
+async function main() {
+  try {
+    require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+  } catch (e) {
+    // dotenv not installed or .env missing; rely on process.env
+  }
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    console.error('Missing STRIPE_SECRET_KEY in the environment (.env).');
     process.exit(1);
   }
+  const Stripe = require('stripe');
+  const { exitCode } = await verifyStripePrices({
+    stripe: new Stripe(secretKey),
+    secretKey,
+    legacyYearlyPriceId: process.env.STRIPE_PRICE_ID_YEARLY,
+  });
+  process.exit(exitCode);
 }
 
 if (require.main === module) {
@@ -121,4 +151,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { keyMode, collectPrices, problemsWithPrice };
+module.exports = { problemsWithPrice, verifyStripePrices };

@@ -20,6 +20,17 @@ const SubscriptionDetails = ({ plan }) => {
     return map[plan.userRegion] || null;
   })();
 
+  // The Family Plan price comes from the backend. While it loads the row says so; if there is no price (it could
+  // not be loaded, or the plan is a size that is not sold any more) the row is left out instead of showing a guess.
+  const priceLoading = plan.isFamilyPlan && !plan.planPricing && (plan.pricingStatus === 'loading' || plan.pricingStatus === 'idle');
+  const priceRow = !plan.isFamilyPlan
+    ? [{ label: 'Monthly cost', value: plan.planPricing.line1, subValue: plan.priceLine2, highlight: true }]
+    : plan.planPricing
+      ? [{ label: 'Plan price', value: plan.planPricing.line1, subValue: plan.priceLine2, highlight: true }]
+      : priceLoading
+        ? [{ label: 'Plan price', value: 'Loading…', highlight: false }]
+        : [];
+
   const details = [
     ...(plan.isFamilyPlan
       ? [{
@@ -28,13 +39,8 @@ const SubscriptionDetails = ({ plan }) => {
           highlight: false,
         }]
       : []),
-    {
-      label: plan.isFamilyPlan ? 'Plan price' : 'Monthly cost',
-      value: plan.planPricing.line1,
-      subValue: plan.priceLine2,
-      highlight: true,
-    },
-    ...(plan.isFamilyPlan && plan.planPricing.discountFormatted
+    ...priceRow,
+    ...(plan.isFamilyPlan && plan.planPricing?.discountFormatted
       ? [{ label: 'Founding families savings', value: plan.planPricing.discountFormatted, highlight: false }]
       : []),
     {

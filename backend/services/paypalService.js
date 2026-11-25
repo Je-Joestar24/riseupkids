@@ -17,31 +17,47 @@
  * uses the JS SDK; no extra backend configuration required.
  */
 
-const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
+const pricing = require('./familyPlanPricing.service');
 
 const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE;
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 
-const PRICES_PATH = path.join(__dirname, '..', 'config', 'paypalFamilyPlanPrices.json');
+/** "1_child" for one child, "2_children" ... "4_children" for more. */
+const tierKeyFor = (kids) => (kids === 1 ? '1_child' : `${kids}_children`);
 
-/** Cached pricing: { USD: { "1_child": 151, ... }, BRL: { ... }, EUR: { ... } } */
-let _prices = null;
+/**
+ * What each tier costs, built from the ONE price list (config/familyPlanPricing.js): { USD: { "1_child": 120, "1_child_yearly": 120, ... }, BRL, EUR }.
+ * Amounts are in whole currency units (120 = $120.00), the way PayPal wants them.
+ * Both the plain tier and its "_yearly" twin are the ANNUAL price: it is one payment either way. (PayPal's own
+ * "Pay in 4" is a way for the customer to split that same payment; it never changes the amount.)
+ * Tiers go from 1 to MAX children only, so a size that is not sold can not be ordered.
+ */
+function buildPriceTable() {
+  const table = {};
+  for (const currency of pricing.CURRENCIES) {
+    table[currency] = {};
+    for (const kids of pricing.childCounts()) {
+      const amount = Number(pricing.centsToMajorString(pricing.getAnnualCents(currency, kids)));
+      table[currency][tierKeyFor(kids)] = amount;
+      table[currency][`${tierKeyFor(kids)}_yearly`] = amount;
+    }
+  }
+  // Frozen all the way down: nothing can change an amount while the app runs
+  Object.values(table).forEach((byTier) => Object.freeze(byTier));
+  return Object.freeze(table);
+}
+
+const PRICE_TABLE = buildPriceTable();
 
 function getPrices() {
-  if (_prices) return _prices;
-  if (!fs.existsSync(PRICES_PATH)) {
-    throw new Error('PayPal pricing config not found: ' + PRICES_PATH);
-  }
-  _prices = JSON.parse(fs.readFileSync(PRICES_PATH, 'utf8'));
-  return _prices;
+  return PRICE_TABLE;
 }
 
 /**
  * Parse tier string "1_child_USD" | "2_children_BRL" into { tierKey, currency }.
- * Valid tierKeys: 1_child, 2_children, 3_children. Valid currency: USD, BRL, EUR.
+ * Valid tierKeys: 1_child, 2_children, 3_children, 4_children (and the _yearly twins). Valid currency: USD, BRL, EUR.
  */
 function parseTier(tier) {
   if (!tier || typeof tier !== 'string') return null;
@@ -79,20 +95,21 @@ function getValidPlanTypes() {
 /**
  * Build tier string from childCount, currency, and planType.
  * Use when client sends planType instead of pre-built tier.
- * @param {number} childCount - 1–10
+ * @param {number|string} childCount - 1 to 4 (anything else is refused, never rounded into a plan)
  * @param {string} currency - USD, BRL, EUR
- * @param {string} planType - 'yearly' | 'pay_in_4'
+ * @param {string} planType - 'yearly' | 'pay_in_4' (both are the same annual price)
  * @returns {string} e.g. "1_child_USD", "2_children_yearly_BRL"
+ * @throws {FamilyPlanPricingError} (400) for a bad child count
  */
 function buildTier(childCount, currency, planType) {
-  const n = Math.min(10, Math.max(1, Number(childCount) || 1));
-  const tierKey = n === 1 ? '1_child' : `${n}_children`;
+  const n = pricing.normalizeChildCount(childCount);
+  const tierKey = tierKeyFor(n);
   const useYearly = String(planType).toLowerCase() === PLAN_TYPE_YEARLY;
   const key = useYearly ? `${tierKey}_yearly` : tierKey;
   const cur = (currency || 'USD').toUpperCase();
   const tier = `${key}_${cur}`;
   const parsed = parseTier(tier);
-  if (!parsed) throw new Error(`Invalid tier built: ${tier}. Check childCount (1–10) and currency (USD, BRL, EUR).`);
+  if (!parsed) throw new Error(`Invalid tier built: ${tier}. Check currency (USD, BRL, EUR).`);
   return tier;
 }
 
@@ -105,14 +122,16 @@ function currencyToPlanRegion(currency) {
 }
 
 /**
- * Map tier key to planKidsLimit (1_child → 1, 2_children → 2, 3_children → 3).
- * Supports yearly variants: 1_child_yearly, 2_children_yearly, 3_children_yearly.
+ * Map tier key to planKidsLimit (1_child → 1 ... 4_children → 4).
+ * Supports yearly variants: 1_child_yearly ... 4_children_yearly. A bare number (up to 10) is still read as it
+ * always was; this only READS a tier, what can be ordered is limited by the price table (1 to 4 children).
  */
 function tierKeyToPlanKidsLimit(tierKey) {
   const base = (tierKey || '').replace(/_yearly$/, '');
   if (base === '1_child') return 1;
   if (base === '2_children') return 2;
   if (base === '3_children') return 3;
+  if (base === '4_children') return 4;
   const n = parseInt(base, 10);
   return Number.isFinite(n) && n >= 1 && n <= 10 ? n : 1;
 }
@@ -165,7 +184,7 @@ async function getAccessToken() {
 
 /**
  * Create a one-time PayPal order (Orders API v2).
- * Maps tier (e.g. "1_child_USD") to amount/currency via paypalFamilyPlanPrices.json.
+ * Maps tier (e.g. "1_child_USD") to amount/currency via the one price list (config/familyPlanPricing.js).
  * custom_id is set to "{userId}_{tier}" so capture can identify user and tier.
  *
  * @param {string} tier - e.g. "1_child_USD", "2_children_BRL"
@@ -310,6 +329,7 @@ function assertCapturedAmountMatchesTier(capture, tier) {
 }
 
 module.exports = {
+  getPriceTable: getPrices,
   getAccessToken,
   createPaypalOrder,
   capturePaypalOrder,

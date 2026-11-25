@@ -1,45 +1,11 @@
 /**
  * Unit tests for PayPal Service
  *
- * Mocks: fs (pricing config), axios (PayPal API), process.env
+ * Mocks: axios (PayPal API), process.env. Prices: the one price list.
  * Tests pure helpers and async flows with proper data assertions.
  */
 
-// Pricing fixture matching config/paypalFamilyPlanPrices.json (18 prices: base + yearly)
-const PRICES_FIXTURE = {
-  USD: {
-    '1_child': 151,
-    '2_children': 239,
-    '3_children': 319,
-    '1_child_yearly': 151,
-    '2_children_yearly': 239,
-    '3_children_yearly': 319,
-  },
-  BRL: {
-    '1_child': 799,
-    '2_children': 1299,
-    '3_children': 1799,
-    '1_child_yearly': 799,
-    '2_children_yearly': 1299,
-    '3_children_yearly': 1799,
-  },
-  EUR: {
-    '1_child': 130,
-    '2_children': 205,
-    '3_children': 274,
-    '1_child_yearly': 130,
-    '2_children_yearly': 205,
-    '3_children_yearly': 274,
-  },
-};
-
-const mockPricesJson = JSON.stringify(PRICES_FIXTURE);
-
-// Mock fs before requiring the service (so getPrices() uses fixture)
-jest.mock('fs', () => ({
-  existsSync: jest.fn((p) => (p && String(p).includes('paypalFamilyPlanPrices.json'))),
-  readFileSync: jest.fn(() => mockPricesJson),
-}));
+// Prices come from the ONE price list (config/familyPlanPricing.js); there is no price file to mock.
 
 jest.mock('axios');
 
@@ -54,6 +20,7 @@ process.env.PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || 'test-sec
 const {
   parseTier,
   getValidTiers,
+  getPriceTable,
   getValidPlanTypes,
   buildTier,
   currencyToPlanRegion,
@@ -69,9 +36,8 @@ describe('paypalService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     // clearAllMocks does not drop an unconsumed mockResolvedValueOnce queue (only mockReset does)
-    // — reset just the two axios methods (not the fs mock, whose fixed implementation must survive
-    // every test) so a test whose code throws before its expected network calls can't leak queued
-    // responses into the next test's first calls.
+    // — reset just the two axios methods so a test whose code throws before its expected network calls
+    // can't leak queued responses into the next test's first calls.
     axios.get.mockReset();
     axios.post.mockReset();
     process.env = { ...originalEnv };
@@ -90,6 +56,7 @@ describe('paypalService', () => {
       expect(parseTier('1_child_USD')).toEqual({ tierKey: '1_child', currency: 'USD' });
       expect(parseTier('2_children_BRL')).toEqual({ tierKey: '2_children', currency: 'BRL' });
       expect(parseTier('3_children_EUR')).toEqual({ tierKey: '3_children', currency: 'EUR' });
+      expect(parseTier('4_children_USD')).toEqual({ tierKey: '4_children', currency: 'USD' });
     });
 
     it('normalizes case for currency and tierKey', () => {
@@ -104,7 +71,10 @@ describe('paypalService', () => {
       expect(parseTier(123)).toBeNull();
       expect(parseTier('1_child')).toBeNull(); // no currency
       expect(parseTier('1_child_XXX')).toBeNull(); // unknown currency
-      expect(parseTier('5_children_USD')).toBeNull(); // not in prices
+      expect(parseTier('5_children_USD')).toBeNull(); // not sold any more
+      expect(parseTier('10_children_yearly_BRL')).toBeNull();
+      expect(parseTier('constructor_USD')).toBeNull();
+      expect(parseTier('1_child_constructor')).toBeNull();
     });
 
     it('parses yearly tier strings', () => {
@@ -115,27 +85,55 @@ describe('paypalService', () => {
   });
 
   describe('getValidTiers', () => {
-    it('returns all valid tier strings from pricing config (18: base + yearly)', () => {
+    it('returns every tier: 3 currencies x 4 sizes x (base + yearly) = 24, and nothing else', () => {
       const tiers = getValidTiers();
-      expect(tiers).toContain('1_child_USD');
-      expect(tiers).toContain('2_children_USD');
-      expect(tiers).toContain('3_children_USD');
-      expect(tiers).toContain('1_child_BRL');
-      expect(tiers).toContain('2_children_BRL');
-      expect(tiers).toContain('3_children_BRL');
-      expect(tiers).toContain('1_child_EUR');
-      expect(tiers).toContain('2_children_EUR');
-      expect(tiers).toContain('3_children_EUR');
-      expect(tiers).toContain('1_child_yearly_USD');
-      expect(tiers).toContain('2_children_yearly_USD');
-      expect(tiers).toContain('3_children_yearly_USD');
-      expect(tiers).toContain('1_child_yearly_BRL');
-      expect(tiers).toContain('2_children_yearly_BRL');
-      expect(tiers).toContain('3_children_yearly_BRL');
-      expect(tiers).toContain('1_child_yearly_EUR');
-      expect(tiers).toContain('2_children_yearly_EUR');
-      expect(tiers).toContain('3_children_yearly_EUR');
-      expect(tiers).toHaveLength(18);
+      const expected = [];
+      for (const currency of ['USD', 'BRL', 'EUR']) {
+        for (const key of ['1_child', '2_children', '3_children', '4_children']) {
+          expected.push(`${key}_${currency}`, `${key}_yearly_${currency}`);
+        }
+      }
+      expect([...tiers].sort()).toEqual(expected.sort());
+      expect(tiers).toHaveLength(24);
+    });
+
+    it('has no tier for 5 or more children', () => {
+      expect(getValidTiers().some((t) => /^([5-9]|10)_children/.test(t))).toBe(false);
+    });
+  });
+
+  describe('the price table (from the one price list)', () => {
+    // Typed from the client's sheet on purpose: whole currency units
+    const SHEET = {
+      USD: [120, 190, 250, 310],
+      EUR: [120, 190, 250, 310],
+      BRL: [699, 1299, 1799, 2199],
+    };
+    const keys = ['1_child', '2_children', '3_children', '4_children'];
+
+    it.each(Object.keys(SHEET))('%s: every tier and its yearly twin is the annual price on the sheet', (currency) => {
+      const table = getPriceTable()[currency];
+      keys.forEach((key, i) => {
+        expect(table[key]).toBe(SHEET[currency][i]);
+        expect(table[`${key}_yearly`]).toBe(SHEET[currency][i]);
+      });
+      expect(Object.keys(table)).toHaveLength(8);
+    });
+
+    it('can not be changed while the app runs (not the tiers, not an amount, not a new tier)', () => {
+      'use strict';
+      const table = getPriceTable();
+      expect(() => { table.USD['1_child'] = 1; }).toThrow();
+      expect(() => { table.USD['9_children'] = 1; }).toThrow();
+      expect(() => { table.GBP = {}; }).toThrow();
+      expect(table.USD['1_child']).toBe(120);
+      expect(table.USD['9_children']).toBeUndefined();
+    });
+
+    it('none of the old leftover prices remain (USD 151, EUR 130, BRL 799 for one child)', () => {
+      const all = JSON.stringify(getPriceTable());
+      expect(all).not.toMatch(/\b(151|239|319|130|205|274)\b/);
+      expect(getPriceTable().BRL['1_child']).not.toBe(799);
     });
   });
 
@@ -150,12 +148,14 @@ describe('paypalService', () => {
       expect(buildTier(1, 'USD', 'pay_in_4')).toBe('1_child_USD');
       expect(buildTier(2, 'BRL', 'pay_in_4')).toBe('2_children_BRL');
       expect(buildTier(3, 'EUR', 'pay_in_4')).toBe('3_children_EUR');
+      expect(buildTier(4, 'USD', 'pay_in_4')).toBe('4_children_USD');
     });
 
     it('builds yearly tier (yearly suffix)', () => {
       expect(buildTier(1, 'USD', 'yearly')).toBe('1_child_yearly_USD');
       expect(buildTier(2, 'BRL', 'yearly')).toBe('2_children_yearly_BRL');
       expect(buildTier(3, 'EUR', 'yearly')).toBe('3_children_yearly_EUR');
+      expect(buildTier(4, 'BRL', 'yearly')).toBe('4_children_yearly_BRL');
     });
 
     it('normalizes planType case', () => {
@@ -163,8 +163,12 @@ describe('paypalService', () => {
       expect(buildTier(1, 'USD', 'Pay_In_4')).toBe('1_child_USD');
     });
 
-    it('clamps childCount to 1 when below 1', () => {
-      expect(buildTier(0, 'USD', 'pay_in_4')).toBe('1_child_USD');
+    it.each([[0], [5], [10], [-1], [2.5], ['abc'], [null], [undefined]])('refuses %p children (a 400), never rounds it into a plan', (kids) => {
+      expect(() => buildTier(kids, 'USD', 'pay_in_4')).toThrow(expect.objectContaining({ code: 'INVALID_CHILD_COUNT', statusCode: 400 }));
+    });
+
+    it('accepts the child count as a plain digit string', () => {
+      expect(buildTier('4', 'BRL', 'yearly')).toBe('4_children_yearly_BRL');
     });
 
     it('throws for invalid currency (not in prices)', () => {
@@ -192,16 +196,18 @@ describe('paypalService', () => {
   });
 
   describe('tierKeyToPlanKidsLimit', () => {
-    it('maps 1_child -> 1, 2_children -> 2, 3_children -> 3', () => {
+    it('maps 1_child -> 1 ... 4_children -> 4', () => {
       expect(tierKeyToPlanKidsLimit('1_child')).toBe(1);
       expect(tierKeyToPlanKidsLimit('2_children')).toBe(2);
       expect(tierKeyToPlanKidsLimit('3_children')).toBe(3);
+      expect(tierKeyToPlanKidsLimit('4_children')).toBe(4);
     });
 
     it('maps yearly tier keys to same limit (strips _yearly)', () => {
       expect(tierKeyToPlanKidsLimit('1_child_yearly')).toBe(1);
       expect(tierKeyToPlanKidsLimit('2_children_yearly')).toBe(2);
       expect(tierKeyToPlanKidsLimit('3_children_yearly')).toBe(3);
+      expect(tierKeyToPlanKidsLimit('4_children_yearly')).toBe(4);
     });
 
     it('returns 1 for unknown tier key', () => {
@@ -285,7 +291,7 @@ describe('paypalService', () => {
         intent: 'CAPTURE',
         purchase_units: [
           {
-            amount: { currency_code: 'USD', value: '151.00' },
+            amount: { currency_code: 'USD', value: '120.00' },
             custom_id: 'user-id-abc|1_child_USD',
           },
         ],
@@ -308,13 +314,45 @@ describe('paypalService', () => {
         intent: 'CAPTURE',
         purchase_units: [
           {
-            amount: { currency_code: 'BRL', value: '799.00' },
+            amount: { currency_code: 'BRL', value: '699.00' },
             custom_id: 'user-xyz|1_child_yearly_BRL',
           },
         ],
       });
       expect(orderPayload.purchase_units[0].description).toContain('1 child');
       expect(orderPayload.purchase_units[0].description).toContain('BRL');
+    });
+
+    // The client's sheet, whole currency units, typed here on purpose
+    const SHEET = {
+      USD: { 1: '120.00', 2: '190.00', 3: '250.00', 4: '310.00' },
+      EUR: { 1: '120.00', 2: '190.00', 3: '250.00', 4: '310.00' },
+      BRL: { 1: '699.00', 2: '1299.00', 3: '1799.00', 4: '2199.00' },
+    };
+    const tierFor = (kids, currency, yearly) => `${kids === 1 ? '1_child' : `${kids}_children`}${yearly ? '_yearly' : ''}_${currency}`;
+
+    it.each([
+      ['USD', 1], ['USD', 2], ['USD', 3], ['USD', 4],
+      ['EUR', 1], ['EUR', 2], ['EUR', 3], ['EUR', 4],
+      ['BRL', 1], ['BRL', 2], ['BRL', 3], ['BRL', 4],
+    ])('%s, %i child(ren): the order amount is the sheet price, for the plain tier and the yearly twin', async (currency, kids) => {
+      for (const yearly of [false, true]) {
+        axios.post.mockReset();
+        axios.post
+          .mockResolvedValueOnce({ data: { access_token: 'tok' } })
+          .mockResolvedValueOnce({ data: { id: 'ORDER-X' } });
+
+        await createPaypalOrder(tierFor(kids, currency, yearly), 'u1');
+
+        expect(axios.post.mock.calls[1][1].purchase_units[0].amount).toEqual({ currency_code: currency, value: SHEET[currency][kids] });
+      }
+    });
+
+    it('does not create an order for 5 or more children', async () => {
+      for (const tier of ['5_children_USD', '10_children_BRL', '5_children_yearly_EUR']) {
+        await expect(createPaypalOrder(tier, 'u1')).rejects.toThrow(/Invalid tier/);
+      }
+      expect(axios.post).not.toHaveBeenCalled();
     });
 
     it('throws for invalid tier with valid options in message', async () => {
@@ -364,7 +402,7 @@ describe('paypalService', () => {
             purchase_units: [
               {
                 payments: {
-                  captures: [{ id: 'CAPTURE-789', amount: { value: '151.00', currency_code: 'USD' } }],
+                  captures: [{ id: 'CAPTURE-789', amount: { value: '120.00', currency_code: 'USD' } }],
                 },
               },
             ],
@@ -426,7 +464,7 @@ describe('paypalService', () => {
             {
               custom_id: `${userId}|2_children_yearly_EUR`,
               payments: {
-                captures: [{ id: 'CAP-EUR', amount: { value: '205.00', currency_code: 'EUR' } }],
+                captures: [{ id: 'CAP-EUR', amount: { value: '190.00', currency_code: 'EUR' } }],
               },
             },
           ],
@@ -474,7 +512,7 @@ describe('paypalService', () => {
           payer: { payer_id: 'PAYER-X' },
           purchase_units: [
             {
-              custom_id: `${userId}|1_child_USD`, // real price is 151.00 USD
+              custom_id: `${userId}|1_child_USD`, // real price is 120.00 USD
               payments: {
                 captures: [{ id: 'CAP-X', amount: { value: '1.00', currency_code: 'USD' } }],
               },
@@ -486,11 +524,28 @@ describe('paypalService', () => {
       await expect(capturePaypalOrder(orderId, userId)).rejects.toThrow(/Captured amount mismatch/);
     });
 
+    it('KNOWN EFFECT OF A PRICE CHANGE: an order paid at an OLD price no longer passes the amount check (it was activated when first paid)', async () => {
+      axios.get.mockResolvedValueOnce({
+        data: {
+          status: 'COMPLETED',
+          payer: { payer_id: 'PAYER-OLD' },
+          purchase_units: [
+            {
+              custom_id: `${userId}|1_child_USD`, // paid before the change at USD 151.00; the price list now says 120.00
+              payments: { captures: [{ id: 'CAP-OLD', amount: { value: '151.00', currency_code: 'USD' } }] },
+            },
+          ],
+        },
+      });
+
+      await expect(capturePaypalOrder(orderId, userId)).rejects.toThrow(/Captured amount mismatch: expected 120\.00 USD, got 151\.00 USD/);
+    });
+
     it('rejects a captured amount in the wrong currency, even if the numeric value matches', async () => {
       axios.get.mockResolvedValueOnce({
         data: {
           status: 'APPROVED',
-          purchase_units: [{ custom_id: `${userId}|1_child_USD` }], // expects 151.00 USD
+          purchase_units: [{ custom_id: `${userId}|1_child_USD` }], // expects 120.00 USD
         },
       });
       axios.post.mockImplementation((url) => {
@@ -501,7 +556,7 @@ describe('paypalService', () => {
             purchase_units: [
               {
                 payments: {
-                  captures: [{ id: 'CAP-X', amount: { value: '151.00', currency_code: 'BRL' } }],
+                  captures: [{ id: 'CAP-X', amount: { value: '120.00', currency_code: 'BRL' } }],
                 },
               },
             ],
@@ -516,7 +571,7 @@ describe('paypalService', () => {
       axios.get.mockResolvedValueOnce({
         data: {
           status: 'APPROVED',
-          purchase_units: [{ custom_id: `${userId}|2_children_USD` }], // 239.00 USD
+          purchase_units: [{ custom_id: `${userId}|2_children_USD` }], // 190.00 USD
         },
       });
       axios.post.mockImplementation((url) => {
@@ -527,7 +582,7 @@ describe('paypalService', () => {
             purchase_units: [
               {
                 payments: {
-                  captures: [{ id: 'CAP-OK', amount: { value: '239.00', currency_code: 'USD' } }],
+                  captures: [{ id: 'CAP-OK', amount: { value: '190.00', currency_code: 'USD' } }],
                 },
               },
             ],

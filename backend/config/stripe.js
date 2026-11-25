@@ -34,20 +34,20 @@ if (stripe && !STRIPE_WEBHOOK_SECRET) {
 const STRIPE_PRODUCT_ID = process.env.STRIPE_PRODUCT_ID || '';
 const STRIPE_PRICE_ID_YEARLY = process.env.STRIPE_PRICE_ID_YEARLY || '';
 
-/** Family Plan: product ID + price IDs by region (br/us/eu) and kids (1–10). Populated by scripts/createStripePrices.js */
-let STRIPE_FAMILY_PLAN_PRODUCT_ID = '';
-let STRIPE_FAMILY_PLAN_PRICES = { br: {}, us: {}, eu: {} };
-try {
-  const path = require('path');
-  const fs = require('fs');
-  const configPath = path.join(__dirname, 'stripeFamilyPlanPrices.json');
-  if (fs.existsSync(configPath)) {
-    const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-    STRIPE_FAMILY_PLAN_PRODUCT_ID = data.productId || '';
-    STRIPE_FAMILY_PLAN_PRICES = data.prices || STRIPE_FAMILY_PLAN_PRICES;
-  }
-} catch (err) {
-  console.warn('[Stripe] Could not load stripeFamilyPlanPrices.json:', err.message);
+/**
+ * Family Plan: product ID + price IDs by region (br/us/eu) and kids. Populated by scripts/createStripePrices.js.
+ * The file is chosen by the KIND of key: a live key reads stripeFamilyPlanPrices.live.json only, a test key reads
+ * stripeFamilyPlanPrices.test.json (see config/stripeFamilyPlanFile.js). Test and live prices are separate in Stripe,
+ * so a live key must never be given test price ids ("No such price").
+ */
+const { loadFamilyPlanConfig, keyMode } = require('./stripeFamilyPlanFile');
+
+const STRIPE_KEY_MODE = keyMode(process.env.STRIPE_SECRET_KEY);
+const familyPlan = loadFamilyPlanConfig({ secretKey: process.env.STRIPE_SECRET_KEY });
+const STRIPE_FAMILY_PLAN_PRODUCT_ID = familyPlan.productId;
+const STRIPE_FAMILY_PLAN_PRICES = familyPlan.prices;
+if (familyPlan.error && stripe) {
+  console.warn(`[Stripe] ${familyPlan.error}`);
 }
 
 module.exports = {
@@ -55,6 +55,7 @@ module.exports = {
   STRIPE_WEBHOOK_SECRET,
   STRIPE_PRODUCT_ID,
   STRIPE_PRICE_ID_YEARLY,
+  STRIPE_KEY_MODE,
   STRIPE_FAMILY_PLAN_PRODUCT_ID,
   STRIPE_FAMILY_PLAN_PRICES,
 };

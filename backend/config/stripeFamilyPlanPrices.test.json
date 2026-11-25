@@ -1,0 +1,24 @@
+{
+  "productId": "prod_U66aaZYdsiTbIs",
+  "mode": "test",
+  "prices": {
+    "br": {
+      "1": "price_1UffwgC5y43EeE9TvS38emfR",
+      "2": "price_1T7uOLC5y43EeE9Tyw0X3DGS",
+      "3": "price_1T7uOMC5y43EeE9TgNBGP74t",
+      "4": "price_1T7uOMC5y43EeE9T4btbESk4"
+    },
+    "us": {
+      "1": "price_1UffwhC5y43EeE9TMSGuzFmy",
+      "2": "price_1UffwhC5y43EeE9TYg9q41l2",
+      "3": "price_1UffwhC5y43EeE9TXPIlLTW1",
+      "4": "price_1UffwiC5y43EeE9TDEa0N9Qf"
+    },
+    "eu": {
+      "1": "price_1UffwiC5y43EeE9Tvl3oCTjl",
+      "2": "price_1UffwiC5y43EeE9TTLjXyzkj",
+      "3": "price_1UffwjC5y43EeE9TVJVkLvtp",
+      "4": "price_1UffwjC5y43EeE9TEZCbbacu"
+    }
+  }
+}

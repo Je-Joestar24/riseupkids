@@ -1,22 +1,7 @@
 /**
  * Unit tests for PagSeguro (PagBank) checkout service.
+ * Prices come from the ONE price list (BRL annual, 1 to 4 children); there is no box and no file to mock.
  */
-
-const PRICES_FIXTURE = {
-  currency: 'BRL',
-  planAmountCents: {
-    '1': 79900,
-    '2': 129900,
-  },
-  boxAmountCentsPerChild: 29700,
-};
-
-const mockPricesJson = JSON.stringify(PRICES_FIXTURE);
-
-jest.mock('fs', () => ({
-  existsSync: jest.fn((p) => p && String(p).includes('pagseguroFamilyPlanPrices.json')),
-  readFileSync: jest.fn(() => mockPricesJson),
-}));
 
 jest.mock('axios');
 
@@ -32,6 +17,10 @@ const {
   buildCheckoutLineItems,
   extractPayUrl,
   getPlanAmountCents,
+  normalizeChildCount,
+  getPagseguroConfig,
+  MIN_CHILDREN,
+  MAX_CHILDREN,
   createPagbankCheckout,
   buildCheckoutPayload,
   extractOrdersFromListResponse,
@@ -73,17 +62,50 @@ describe('pagseguro.service', () => {
   });
 
   describe('buildCheckoutLineItems', () => {
-    it('returns plan-only line item and total', () => {
-      const { items, totalCents } = buildCheckoutLineItems(1, false);
+    // BRL annual price from the client's sheet, in centavos (typed here on purpose, not read from the config)
+    const SHEET_BRL = { 1: 69900, 2: 129900, 3: 179900, 4: 219900 };
+
+    it.each([[1], [2], [3], [4]])('%i child(ren): one plan line and a total equal to the sheet price', (kids) => {
+      const { items, totalCents } = buildCheckoutLineItems(kids);
       expect(items).toHaveLength(1);
-      expect(items[0].unit_amount).toBe(79900);
-      expect(totalCents).toBe(79900);
+      expect(items[0].unit_amount).toBe(SHEET_BRL[kids]);
+      expect(items[0].reference_id).toBe(`family-plan-${kids}`);
+      expect(items[0].quantity).toBe(1);
+      expect(totalCents).toBe(SHEET_BRL[kids]);
     });
 
-    it('adds box line item when addBox is true', () => {
-      const { items, totalCents } = buildCheckoutLineItems(2, true);
-      expect(items).toHaveLength(2);
-      expect(totalCents).toBe(129900 + 29700 * 2);
+    it('the old R$799 for one child is gone', () => {
+      expect(buildCheckoutLineItems(1).totalCents).not.toBe(79900);
+    });
+
+    it('there is no activity box: a second argument (old callers passed addBox) changes nothing', () => {
+      const withFlag = buildCheckoutLineItems(2, true);
+      expect(withFlag.items).toHaveLength(1);
+      expect(withFlag.totalCents).toBe(129900);
+      expect(JSON.stringify(withFlag)).not.toMatch(/box/i);
+    });
+
+    it('accepts a plain digit string', () => {
+      expect(buildCheckoutLineItems('3').totalCents).toBe(179900);
+    });
+
+    it.each([[0], [5], [10], [-1], [2.5], ['abc'], [null], [undefined], [true]])('refuses %p (a 400), never rounds it into a plan', (kids) => {
+      expect(() => buildCheckoutLineItems(kids)).toThrow(expect.objectContaining({ code: 'INVALID_CHILD_COUNT', statusCode: 400 }));
+    });
+  });
+
+  describe('limits and public config', () => {
+    it('allows 1 to 4 children', () => {
+      expect(MIN_CHILDREN).toBe(1);
+      expect(MAX_CHILDREN).toBe(4);
+      expect(normalizeChildCount(4)).toBe(4);
+      expect(() => normalizeChildCount(5)).toThrow(/1 to 4/);
+    });
+
+    it('tells the sale site 1 to 4 children in BRL, with the installment limit', () => {
+      const config = getPagseguroConfig();
+      expect(config).toMatchObject({ region: 'br', currency: 'BRL', minChildren: 1, maxChildren: 4 });
+      expect(config.installmentsLimit).toBeDefined();
     });
   });
 
@@ -107,7 +129,6 @@ describe('pagseguro.service', () => {
         taxId: '52998224725',
         phone: { area: '11', number: '987654321' },
         childCount: 1,
-        addBox: false,
       });
       expect(payload.reference_id).toBe('ref123');
       expect(payload.customer.tax_id).toBe('52998224725');
@@ -127,7 +148,6 @@ describe('pagseguro.service', () => {
           taxId: '11111111111',
           phone: { area: '11', number: '987654321' },
           childCount: 1,
-          addBox: false,
         })
       ).toThrow(/Invalid CPF/);
     });
@@ -140,7 +160,6 @@ describe('pagseguro.service', () => {
         taxId: '52998224725',
         phone: { area: '11', number: '987654321' },
         childCount: 1,
-        addBox: false,
         successUrl: 'http://localhost:4175/checkout/success?provider=pagseguro',
         cancelUrl: 'http://localhost:4175/checkout/register',
       });
@@ -172,7 +191,7 @@ describe('pagseguro.service', () => {
       expect(result.checkoutId).toBe('CHEC_TEST-123');
       expect(result.payUrl).toBe('https://pagamento.example/pay');
       expect(result.referenceId).toBe('abc123');
-      expect(result.amountCents).toBe(79900);
+      expect(result.amountCents).toBe(69900);
 
       expect(axios.post).toHaveBeenCalledWith(
         'https://sandbox.api.pagseguro.com/checkouts',
@@ -183,6 +202,36 @@ describe('pagseguro.service', () => {
           }),
         })
       );
+    });
+
+    const ok = { data: { id: 'CHEC_1', links: [{ rel: 'PAY', href: 'https://pagamento.example/pay' }] } };
+    const person = { taxId: '52998224725', phone: { area: '11', number: '987654321' } };
+
+    it('sends exactly one item, the plan price, and nothing for a box (even if an old caller asks for one)', async () => {
+      axios.post.mockResolvedValue(ok);
+
+      const result = await createPagbankCheckout({ user, childCount: 3, addBox: true, ...person });
+
+      const sent = axios.post.mock.calls[0][1];
+      expect(sent.items).toEqual([expect.objectContaining({ reference_id: 'family-plan-3', unit_amount: 179900, quantity: 1 })]);
+      expect(JSON.stringify(sent)).not.toMatch(/box/i);
+      expect(result.amountCents).toBe(179900);
+    });
+
+    it('the amount saved for the order is the amount sent to PagBank', async () => {
+      axios.post.mockResolvedValue(ok);
+      const result = await createPagbankCheckout({ user, childCount: 4, ...person });
+      const sent = axios.post.mock.calls[0][1];
+      expect(sent.items.reduce((sum, item) => sum + item.unit_amount * item.quantity, 0)).toBe(result.amountCents);
+      expect(result.amountCents).toBe(219900);
+    });
+
+    it.each([[0], [5], [99], ['abc'], [2.5]])('refuses %p children before calling PagBank', async (kids) => {
+      await expect(createPagbankCheckout({ user, childCount: kids, ...person })).rejects.toMatchObject({
+        code: 'INVALID_CHILD_COUNT',
+        statusCode: 400,
+      });
+      expect(axios.post).not.toHaveBeenCalled();
     });
 
     it('maps 400 errors to client-friendly message', async () => {
@@ -216,8 +265,13 @@ describe('pagseguro.service', () => {
   });
 
   describe('getPlanAmountCents', () => {
-    it('reads from pricing config', () => {
+    it('reads from the one price list', () => {
       expect(getPlanAmountCents(2)).toBe(129900);
+      expect(getPlanAmountCents(4)).toBe(219900);
+    });
+
+    it('refuses sizes that are not sold', () => {
+      expect(() => getPlanAmountCents(5)).toThrow(expect.objectContaining({ code: 'INVALID_CHILD_COUNT' }));
     });
   });
 
